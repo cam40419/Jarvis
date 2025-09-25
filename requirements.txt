@@ -4,3 +4,4 @@ python-dotenv
 pymysql
 mysql-connector
 numpy
+rapidfuzz
