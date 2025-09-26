@@ -4,4 +4,4 @@ python-dotenv
 pymysql
 mysql-connector
 numpy
-rapidfuzz
+easy-email-builder

@@ -31,27 +31,9 @@ def main():
     )
     agent = Agent(memory=mem, cfg=cfg)
 
-    # Ensure a conversation (subject/channel are optional in your Agent; adapt if needed)
-    conv_id = agent._ensure_conversation()
-    mem.set_current_thread(conv_id)
-
-    print("Type a request. Examples:")
-    print("  research AI agents for SMBs and email the findings to Alex Chen")
-    print("  draft an intro email to alex@example.com about our demo\n")
-    print("Ctrl+C to quit.\n")
-
-    while True:
-        try:
-            text = input("> ").strip()
-            if not text:
-                continue
-            # Stream the fast reply; any tool calls will be handled inline
-            for delta in agent.message(text):
-                print(delta, end="", flush=True)
-            print()
-        except KeyboardInterrupt:
-            print("\nbye")
-            break
+    agent.message(
+        "Research cars that are competition for an audi rs3 and email your findings to me"
+    )
 
 
 if __name__ == "__main__":

@@ -4,7 +4,6 @@ from pydantic import BaseModel
 
 
 class ReasoningLevel(Enum):
-    NONE = "none"
     MINIMAL = "minimal"
     LOW = "low"
     MEDIUM = "medium"
@@ -19,16 +18,12 @@ class Verbosity(Enum):
 
 class AgentRequest(BaseModel):
     model: str
+    tools: Optional[Dict] = None
     instructions: Optional[str] = None
     input: List[Dict[str, Any]]
     reasoning: Optional[ReasoningLevel] = None
     temperature: float = 0.3
     text: Optional[Any] = None
-
-
-class TextOptions(BaseModel):
-    format: Optional[Any] = None
-    verbosity: Verbosity = Verbosity.MEDIUM
 
 
 class AgentConfig(BaseModel):

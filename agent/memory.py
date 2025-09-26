@@ -7,48 +7,36 @@ class MemoryStore:
         self.db = mysql.connect(**dsn)
         self.current_conversation_id = None
 
-    def create_conversation(self, subject_id: str, channel: str) -> int:
+    def create_conversation(self, type: str) -> int:
         cur = self.db.cursor()
         cur.execute(
-            "INSERT INTO conversations (subject_id, channel, created_at, updated_at) VALUES (%s,%s,NOW(),NOW())",
-            (subject_id, channel),
+            "INSERT INTO conversations (type) VALUES (%s)",
+            (type,),
         )
         self.db.commit()
         return cur.lastrowid
 
-    def get_last_message_time(self, conversation_id: int) -> Optional[float]:
-        cur = self.db.cursor()
-        cur.execute(
-            "SELECT UNIX_TIMESTAMP(MAX(created_at)) FROM messages WHERE conversation_id=%s",
-            (conversation_id,),
-        )
-        row = cur.fetchone()
-        return float(row[0]) if row and row[0] is not None else None
+    def new_conversation(self, type: str) -> List[Dict[str, Any]]:
+        self.current_conversation_id = self.create_conversation(type)
 
-    def set_current_conversation(self, conversation_id: int) -> None:
-        self.current_conversation_id = conversation_id
-
-    def get_current_conversation(self) -> Optional[int]:
-        return self.current_conversation_id
+        return self.get_conversation()
 
     def add_message(self, conversation_id: int, role: str, content: str) -> int:
         cur = self.db.cursor()
         cur.execute(
-            "INSERT INTO messages (conversation_id, role, content, created_at) VALUES (%s,%s,%s,NOW())",
+            "INSERT INTO messages (conversation_id, role, content) VALUES (%s,%s,%s)",
             (conversation_id, role, content),
         )
         self.db.commit()
         return cur.lastrowid
 
-    def get_messages(
-        self, conversation_id: int, limit: int = 20
-    ) -> List[Dict[str, Any]]:
+    def get_conversation(self) -> List[Dict[str, Any]]:
         cur = self.db.cursor()
         cur.execute(
             """SELECT role, content FROM messages
                WHERE conversation_id=%s
-               ORDER BY id DESC LIMIT %s""",
-            (conversation_id, limit),
+               ORDER BY id DESC""",
+            (self.current_conversation_id,),
         )
         rows = cur.fetchall()
         return [{"role": r, "content": c} for (r, c) in reversed(rows)]
