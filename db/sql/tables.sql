@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS conversations (
 CREATE TABLE IF NOT EXISTS messages (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   conversation_id BIGINT NOT NULL,
-  role ENUM('system','user','assistant','tool') NOT NULL,
+  role ENUM('assistant', 'system', 'developer', 'user') NOT NULL,
   content MEDIUMTEXT NOT NULL,
   created_at TIMESTAMP DEFAULT NOW(),
   INDEX (conversation_id, created_at),

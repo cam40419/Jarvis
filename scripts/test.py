@@ -1,40 +1,37 @@
-#!/usr/bin/env python3
-import os, sys, threading
+from agent.agent import Agent
+from agent.models import AgentConfig
+from agent.memory.store import MemoryStore
+from agent.logger import Logger
 from dotenv import load_dotenv
+import os
 
 load_dotenv()
 
-from agent.agent import Agent
-from agent.models import AgentConfig, ReasoningLevel
-from agent.memory import MemoryStore
+dbUser = os.getenv("DB_USER")
+dbPass = os.getenv("DB_PASSWORD")
+dbName = os.getenv("DB_NAME")
 
-DSN = {
-    "host": os.getenv("DATABASE_HOST", "127.0.0.1"),
-    "port": int(os.getenv("DATABASE_PORT", "3306")),
-    "user": os.getenv("DATABASE_USER"),
-    "password": os.getenv("DATABASE_PASSWORD"),
-    "database": os.getenv("DATABASE_NAME", "jarvis"),
+dsn = {
+    "host": "localhost",
+    "user": dbUser,
+    "password": dbPass,
+    "database": dbName,
 }
 
+memory = MemoryStore(dsn)
+cfg = AgentConfig()
+logger = Logger(dsn)
 
-def main():
-    mem = MemoryStore(DSN)
-    cfg = AgentConfig(
-        name="Jarvis",
-        model_fast=os.getenv("MODEL_FAST", "gpt-4o-mini"),
-        model_deep=os.getenv("MODEL_DEEP", "gpt-5"),
-        system_prompt=os.getenv(
-            "SYSTEM_PROMPT", "You are a helpful, tool-using assistant."
-        ),
-        default_reasoning_level=ReasoningLevel.LOW,
-        max_turns_deep=6,
-    )
-    agent = Agent(memory=mem, cfg=cfg)
+agent = Agent(memory, cfg, logger)
 
-    agent.message(
-        "Research cars that are competition for an audi rs3 and email your findings to me"
-    )
+while True:
+    user_input = input("You: ").strip()
+    if user_input.lower() in ("exit", "quit"):
+        print("Goodbye!")
+        break
 
-
-if __name__ == "__main__":
-    main()
+    try:
+        response = agent.chat(user_input)
+        print(f"Agent: {response}\n")
+    except Exception as e:
+        print(f"[Error] {e}\n")
