@@ -2,7 +2,8 @@ openai
 pydantic
 python-dotenv
 pymysql
-mysql-connector
 numpy
 easy-email-builder
 cryptography
+google-auth-oauthlib
+google-api-python-client

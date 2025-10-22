@@ -33,8 +33,7 @@ class MemoryStore:
         )
         return list(cur.fetchall())
 
-    # --- Messages ---
-    def add_message(self, conversation_id: int, role: str, content: str) -> int:
+    def store_message(self, conversation_id: int, role: str, content: str) -> int:
         cur = self.db.cursor()
         cur.execute(
             "INSERT INTO messages (conversation_id, role, content) VALUES (%s,%s,%s)",
@@ -42,10 +41,6 @@ class MemoryStore:
         )
         self.db.commit()
         return cur.lastrowid
-
-    def store_message(self, conversation_id: int, role: str, content: str) -> int:
-        # alias for add_message for readability
-        return self.add_message(conversation_id, role, content)
 
     def get_conversation(
         self, conversation_id: Optional[int] = None, limit: Optional[int] = None
