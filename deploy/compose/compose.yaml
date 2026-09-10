@@ -1,0 +1,20 @@
+name: jarvis-dev
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_DB: jarvis
+      POSTGRES_USER: jarvis
+      POSTGRES_PASSWORD: ${JARVIS_DEV_DB_PASSWORD:-local-development-only}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jarvis -d jarvis"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    ports: ["127.0.0.1:5432:5432"]
+    volumes:
+      - jarvis_postgres:/var/lib/postgresql/data
+      - ../../db/migrations/0001_foundation.sql:/docker-entrypoint-initdb.d/0001_foundation.sql:ro
+    restart: unless-stopped
+volumes:
+  jarvis_postgres:

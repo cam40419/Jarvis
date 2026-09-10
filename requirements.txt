@@ -1,8 +1,0 @@
-openai
-pydantic
-python-dotenv
-pymysql
-mysql-connector
-numpy
-easy-email-builder
-cryptography
