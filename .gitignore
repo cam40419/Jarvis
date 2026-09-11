@@ -175,3 +175,6 @@ cython_debug/
 
 # Local credentials and OAuth tokens
 secret/
+
+# Local database backups and verification reports
+.local/

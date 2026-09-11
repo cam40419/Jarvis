@@ -26,9 +26,7 @@ ALLOWED_TRANSITIONS: dict[JobStatus, frozenset[JobStatus]] = {
     JobStatus.WAITING: frozenset(
         {JobStatus.RUNNING, JobStatus.NEEDS_HUMAN, JobStatus.FAILED, JobStatus.CANCELLED}
     ),
-    JobStatus.NEEDS_HUMAN: frozenset(
-        {JobStatus.RUNNING, JobStatus.FAILED, JobStatus.CANCELLED}
-    ),
+    JobStatus.NEEDS_HUMAN: frozenset({JobStatus.RUNNING, JobStatus.FAILED, JobStatus.CANCELLED}),
     JobStatus.SUCCEEDED: frozenset(),
     JobStatus.FAILED: frozenset(),
     JobStatus.CANCELLED: frozenset(),
@@ -56,16 +54,17 @@ class JobService:
             input=input,
             input_digest=digest(input),
         )
-        saved, created = self._store.create_job(job)
-        if created:
-            self._audit.record(
-                event_type="job.created",
-                actor=actor,
-                resource_type="job",
-                resource_id=str(saved.id),
-                payload={"kind": saved.kind},
-            )
-        return saved, created
+        with self._store.transaction(actor.household_id):
+            saved, created = self._store.create_job(job)
+            if created:
+                self._audit.record(
+                    event_type="job.created",
+                    actor=actor,
+                    resource_type="job",
+                    resource_id=str(saved.id),
+                    payload={"kind": saved.kind},
+                )
+            return saved, created
 
     def transition(
         self,
@@ -77,22 +76,29 @@ class JobService:
         result: dict[str, Any] | None = None,
         error_code: str | None = None,
     ) -> Job:
-        current = self._store.get_job(job_id)
-        if current is None or current.household_id != actor.household_id:
+        with self._store.transaction(actor.household_id):
+            current = self._store.get_job(job_id)
+            if current is None or current.household_id != actor.household_id:
+                raise NotFoundError("job not found")
+            if (
+                current.status in TERMINAL_JOB_STATUSES
+                or status not in ALLOWED_TRANSITIONS[current.status]
+            ):
+                raise InvalidTransitionError(f"cannot transition {current.status} to {status}")
+            updated = self._store.transition_job(
+                job_id, expected_version, status, result, error_code
+            )
+            self._audit.record(
+                event_type="job.transitioned",
+                actor=actor,
+                resource_type="job",
+                resource_id=str(job_id),
+                payload={"from": current.status.value, "to": updated.status.value},
+            )
+            return updated
+
+    def get(self, actor: ActorContext, job_id: UUID) -> Job:
+        job = self._store.get_job(job_id)
+        if job is None or job.household_id != actor.household_id:
             raise NotFoundError("job not found")
-        if (
-            current.status in TERMINAL_JOB_STATUSES
-            or status not in ALLOWED_TRANSITIONS[current.status]
-        ):
-            raise InvalidTransitionError(f"cannot transition {current.status} to {status}")
-        updated = self._store.transition_job(
-            job_id, expected_version, status, result, error_code
-        )
-        self._audit.record(
-            event_type="job.transitioned",
-            actor=actor,
-            resource_type="job",
-            resource_id=str(job_id),
-            payload={"from": current.status.value, "to": updated.status.value},
-        )
-        return updated
+        return job

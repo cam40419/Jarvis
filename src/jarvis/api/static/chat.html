@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Conversations - Jarvis</title><link rel="stylesheet" href="/assets/login.css">
+<link rel="stylesheet" href="/assets/chat.css">
+<script src="/assets/chat.js" defer></script></head><body><main>
+<header><span class="mark">J</span><span>JARVIS</span><a href="/login">Account</a></header>
+<h1>Conversations</h1><p id="assistant-mode">Connecting to Jarvis...</p>
+<p id="household"></p>
+<fieldset id="workspace" disabled>
+<form id="create"><label for="title">New conversation title</label>
+<input id="title" required maxlength="200"><button>Create conversation</button></form>
+<label for="threads">Conversation</label><select id="threads"></select>
+<section id="messages" aria-label="Messages"></section>
+<form id="send"><label for="text">Message</label><textarea id="text" required maxlength="4000" rows="3"
+placeholder="Ask a question, plan your day, or work through an idea."></textarea>
+<small>Enter to send. Shift+Enter for a new line.</small>
+<button id="send-button">Send</button></form>
+<details><summary>Shared household memories</summary>
+<p>Save facts or preferences for everyone in this household. Saving accepts the memory for future runs.
+Retracting excludes it from future runs; previous run records retain their copies.</p>
+<form id="memory-form"><label for="memory-subject">Subject</label>
+<input id="memory-subject" required maxlength="200">
+<label for="memory-content">Fact or preference</label><input id="memory-content" required maxlength="1000">
+<button>Save shared memory</button></form><section id="memories" aria-label="Shared memories"></section>
+</details>
+<details><summary>Last run context</summary><pre id="context-details">Send a message to inspect its selected context.</pre></details>
+</fieldset>
+<p id="status" role="status" aria-live="polite"></p>
+</main></body></html>

@@ -75,9 +75,7 @@ class JobStatus(StrEnum):
     CANCELLED = "cancelled"
 
 
-TERMINAL_JOB_STATUSES = frozenset(
-    {JobStatus.SUCCEEDED, JobStatus.FAILED, JobStatus.CANCELLED}
-)
+TERMINAL_JOB_STATUSES = frozenset({JobStatus.SUCCEEDED, JobStatus.FAILED, JobStatus.CANCELLED})
 
 
 class Job(StrictModel):
@@ -118,3 +116,16 @@ class AuditEvent(StrictModel):
     previous_hash: str
     event_hash: str
 
+
+class OutboxEvent(StrictModel):
+    id: UUID = Field(default_factory=uuid4)
+    aggregate_type: str
+    aggregate_id: str
+    event_type: str
+    schema_version: int = 1
+    payload: dict[str, Any]
+    correlation_id: UUID
+    causation_id: UUID | None = None
+    created_at: datetime = Field(default_factory=utc_now)
+    published_at: datetime | None = None
+    attempts: int = 0

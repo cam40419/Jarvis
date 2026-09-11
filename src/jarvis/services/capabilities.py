@@ -21,9 +21,7 @@ class CapabilityBroker:
         self._policy = policy
         self._audit = audit
 
-    def invoke(
-        self, actor: ActorContext, invocation: CapabilityInvocation
-    ) -> CapabilityResult:
+    def invoke(self, actor: ActorContext, invocation: CapabilityInvocation) -> CapabilityResult:
         registration = self._capabilities.get(invocation.capability)
         if registration is None:
             raise NotFoundError(f"unknown capability: {invocation.capability}")
@@ -44,22 +42,22 @@ class CapabilityBroker:
         except PydanticValidationError as exc:
             raise ValidationError(str(exc)) from exc
 
-        output, replayed = self._invocations.execute_once(
-            namespace,
-            invocation.idempotency_key,
-            request_digest,
-            lambda: handler(validated),
-        )
-        result = CapabilityResult(
-            capability=invocation.capability, output=output, replayed=replayed
-        )
-        if replayed:
-            return result
-        self._audit.record(
-            event_type="capability.invoked",
-            actor=actor,
-            resource_type="capability",
-            resource_id=invocation.capability,
-            payload={"invocation_id": str(result.invocation_id), "risk": definition.risk.value},
-        )
-        return result
+        def execute() -> dict[str, object]:
+            result = CapabilityResult(capability=invocation.capability, output=handler(validated))
+            self._audit.record(
+                event_type="capability.invoked",
+                actor=actor,
+                resource_type="capability",
+                resource_id=invocation.capability,
+                payload={"invocation_id": str(result.invocation_id), "risk": definition.risk.value},
+            )
+            return result.model_dump(mode="json")
+
+        with self._invocations.transaction(actor.household_id):
+            saved, replayed = self._invocations.execute_once(
+                namespace,
+                invocation.idempotency_key,
+                request_digest,
+                execute,
+            )
+            return CapabilityResult.model_validate(saved).model_copy(update={"replayed": replayed})

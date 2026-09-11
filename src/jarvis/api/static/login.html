@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sign in ? Jarvis</title><link rel="stylesheet" href="/assets/login.css">
+<script src="/assets/login.js" defer></script></head>
+<body><main>
+<header><span class="mark">J</span><span>JARVIS</span><span class="badge">Personal workspace</span></header>
+<section id="signed-out"><p class="eyebrow">YOUR ASSISTANT, YOUR ACCESS</p>
+<h1>Welcome back.</h1><p class="lede">Use your passkey to open your workspace.</p>
+<button id="sign-in" class="primary">Sign in with a passkey</button>
+<details><summary>Set up a passkey</summary>
+<p>Enter the enrollment token issued by your administrator. Your device will ask you to confirm.</p>
+<form id="enroll-form"><label for="enrollment">Enrollment token</label>
+<input id="enrollment" type="password" autocomplete="off" required maxlength="200">
+<button type="submit">Create a passkey</button></form></details>
+<details id="dev-panel" hidden><summary>Local development login</summary>
+<p>Use the development token printed in your server terminal.</p>
+<form id="dev-form"><label for="dev-token">Development token</label>
+<input id="dev-token" type="password" autocomplete="off" required maxlength="200">
+<button type="submit">Open development workspace</button></form></details></section>
+<section id="signed-in" hidden><p class="eyebrow">CONNECTED</p><h1 id="welcome">You're signed in.</h1>
+<p id="account" class="lede"></p><label for="households">Active household</label>
+<select id="households"></select><p id="permissions"></p>
+<div class="actions"><button id="echo" class="primary">Test connection</button>
+<button id="logout">Sign out</button></div><p><a href="/chat">Open conversations</a> &middot; <a href="/docs">Explore the API</a></p></section>
+<p id="status" role="status" aria-live="polite"></p>
+<footer>Secure access to your Jarvis workspace.</footer>
+</main></body></html>

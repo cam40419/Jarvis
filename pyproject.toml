@@ -12,6 +12,8 @@ dependencies = [
   "pydantic>=2.11,<3",
   "pydantic-settings>=2.10,<3",
   "uvicorn[standard]>=0.35,<1",
+  "webauthn>=2.7,<3",
+  "openai>=2.54,<3",
 ]
 
 [project.optional-dependencies]
@@ -22,14 +24,23 @@ dev = [
   "pytest-cov>=6.2,<7",
   "ruff>=0.12,<1",
 ]
+browser = ["playwright>=1.55,<2"]
 postgres = ["psycopg[binary]>=3.2,<4"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/jarvis"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"db/migrations" = "jarvis/migrations"
+
 [tool.pytest.ini_options]
 addopts = "-ra --strict-config --strict-markers"
 testpaths = ["tests"]
+markers = [
+  "postgres: requires JARVIS_TEST_DATABASE_URL pointing to a disposable database",
+  "browser: requires JARVIS_BROWSER_TESTS=1 and a Playwright Chromium browser",
+  "live: requires JARVIS_LIVE_MODEL_TESTS=1; sends synthetic requests using configured API billing",
+]
 
 [tool.coverage.run]
 branch = true
