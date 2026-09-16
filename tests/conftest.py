@@ -5,19 +5,27 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
 
-from jarvis.api.app import AppContainer, create_app
-from jarvis.config import Settings, get_settings
+from simon.api.app import AppContainer, create_app
+from simon.config import Settings, get_settings
 
 
 @pytest.fixture(autouse=True)
 def isolate_runtime_settings(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     for key, value in {
-        "JARVIS_ENVIRONMENT": "test",
-        "JARVIS_STORAGE_BACKEND": "memory",
-        "JARVIS_DEV_LOGIN_ENABLED": "false",
-        "JARVIS_PUBLIC_ORIGIN": "http://localhost:8000",
-        "JARVIS_RP_ID": "localhost",
-        "JARVIS_MODEL_PROVIDER": "local",
+        "SIMON_ENVIRONMENT": "test",
+        "SIMON_STORAGE_BACKEND": "memory",
+        "SIMON_DEV_LOGIN_ENABLED": "false",
+        "SIMON_PUBLIC_ORIGIN": "http://localhost:8000",
+        "SIMON_PUBLIC_PATH": "",
+        "SIMON_RP_ID": "localhost",
+        "SIMON_MODEL_PROVIDER": "local",
+        "SIMON_HOME_AUTO_DISCOVERY": "false",
+        "SIMON_SHELLY_LAN_DISCOVERY": "false",
+        "SIMON_POWER_MONITORING_ENABLED": "false",
+        "SIMON_LIFX_TOKEN": "",
+        "SIMON_TUYA_CLIENT_ID": "",
+        "SIMON_TUYA_CLIENT_SECRET": "",
+        "SIMON_TUYA_REGION": "us",
     }.items():
         monkeypatch.setenv(key, value)
     get_settings.cache_clear()
@@ -58,14 +66,14 @@ def auth_headers(client: TestClient) -> dict[str, str]:
 def postgres_base_url() -> str:
     import os
 
-    url = os.environ.get("JARVIS_TEST_DATABASE_URL")
+    url = os.environ.get("SIMON_TEST_DATABASE_URL")
     if not url:
-        pytest.skip("set JARVIS_TEST_DATABASE_URL to enable PostgreSQL tests")
+        pytest.skip("set SIMON_TEST_DATABASE_URL to enable PostgreSQL tests")
     psycopg = pytest.importorskip("psycopg")
     from psycopg.conninfo import conninfo_to_dict
 
     if not conninfo_to_dict(url).get("dbname", "").endswith("_test"):
-        pytest.fail("JARVIS_TEST_DATABASE_URL database name must end with _test")
+        pytest.fail("SIMON_TEST_DATABASE_URL database name must end with _test")
     with psycopg.connect(url, connect_timeout=5) as connection:
         connection.execute("CREATE EXTENSION IF NOT EXISTS pgcrypto")
         connection.execute("CREATE EXTENSION IF NOT EXISTS vector")
@@ -78,9 +86,9 @@ def postgres_url(postgres_base_url: str) -> Iterator[str]:
     from psycopg import sql
     from psycopg.conninfo import make_conninfo
 
-    from jarvis.migrate import migrate
+    from simon.migrate import migrate
 
-    schema = "jarvis_test_" + uuid4().hex
+    schema = "simon_test_" + uuid4().hex
     with psycopg.connect(postgres_base_url, autocommit=True) as connection:
         connection.execute(sql.SQL("CREATE SCHEMA {}").format(sql.Identifier(schema)))
         url = make_conninfo(postgres_base_url, options=f"-c search_path={schema},public")
@@ -93,12 +101,12 @@ def postgres_url(postgres_base_url: str) -> Iterator[str]:
 
 @pytest.fixture(params=["memory", pytest.param("postgres", marks=pytest.mark.postgres)])
 def store(request: pytest.FixtureRequest):
-    from jarvis.adapters.memory import InMemoryStore
+    from simon.adapters.memory import InMemoryStore
 
     if request.param == "memory":
         return InMemoryStore()
-    from jarvis.adapters.postgres import PostgresStore
-    from jarvis.seed import seed_development_identity
+    from simon.adapters.postgres import PostgresStore
+    from simon.seed import seed_development_identity
 
     url = request.getfixturevalue("postgres_url")
     seed_development_identity(url)

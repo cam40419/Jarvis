@@ -20,19 +20,21 @@ def running_api(
     dev_login=True,
     hostname="127.0.0.1",
     model_provider="local",
+    public_path="",
 ):
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
         port = sock.getsockname()[1]
     environment = os.environ | {
-        "JARVIS_ENVIRONMENT": "development",
-        "JARVIS_STORAGE_BACKEND": "postgres",
-        "JARVIS_DATABASE_URL": database_url,
-        "JARVIS_PUBLIC_ORIGIN": f"http://{hostname}:{port}",
-        "JARVIS_RP_ID": hostname,
-        "JARVIS_DEV_LOGIN_ENABLED": "true" if dev_login else "false",
-        "JARVIS_DEV_LOGIN_TOKEN": "process-development-secret-32-characters",
-        "JARVIS_MODEL_PROVIDER": model_provider,
+        "SIMON_ENVIRONMENT": "development",
+        "SIMON_STORAGE_BACKEND": "postgres",
+        "SIMON_DATABASE_URL": database_url,
+        "SIMON_PUBLIC_ORIGIN": f"http://{hostname}:{port}",
+        "SIMON_PUBLIC_PATH": public_path,
+        "SIMON_RP_ID": hostname,
+        "SIMON_DEV_LOGIN_ENABLED": "true" if dev_login else "false",
+        "SIMON_DEV_LOGIN_TOKEN": "process-development-secret-32-characters",
+        "SIMON_MODEL_PROVIDER": model_provider,
     }
     with log_path.open("w") as log:
         process = subprocess.Popen(
@@ -40,7 +42,7 @@ def running_api(
                 sys.executable,
                 "-m",
                 "uvicorn",
-                "jarvis.api.app:app",
+                "simon.api.app:app",
                 "--host",
                 "127.0.0.1",
                 "--port",
@@ -58,7 +60,7 @@ def running_api(
                     if process.poll() is not None:
                         pytest.fail("API exited during startup; inspect " + str(log_path))
                     try:
-                        if client.get("/health/live").status_code == 200:
+                        if client.get(public_path + "/health/live").status_code == 200:
                             break
                     except httpx.ConnectError:
                         pass
@@ -76,7 +78,7 @@ def running_api(
 
 
 def test_data_survives_api_process_restart(postgres_url: str, tmp_path: Path) -> None:
-    from jarvis.seed import seed_development_identity
+    from simon.seed import seed_development_identity
 
     seed_development_identity(postgres_url)
     body = {
@@ -117,6 +119,26 @@ def test_data_survives_api_process_restart(postgres_url: str, tmp_path: Path) ->
         ).json()
         run_path = f"/v1/threads/{thread['id']}/runs"
         run = client.post(run_path, headers=headers, json=run_body).json()
+        preferences = client.post(
+            "/v1/preferences",
+            headers=headers,
+            json={
+                "profile": "auto",
+                "answer_length": "brief",
+                "auto_deep_enabled": False,
+                "expected_version": 0,
+                "idempotency_key": "restart-preferences",
+            },
+        ).json()
+        feedback = client.post(
+            f"/v1/runs/{run['id']}/feedback",
+            headers=headers,
+            json={
+                "rating": "needs_depth",
+                "expected_version": 0,
+                "idempotency_key": "restart-feedback",
+            },
+        ).json()
     with running_api(postgres_url, tmp_path / "second.log") as client:
         client.cookies.update(cookies)
         headers["Origin"] = str(client.base_url).rstrip("/")
@@ -125,6 +147,8 @@ def test_data_survives_api_process_restart(postgres_url: str, tmp_path: Path) ->
         assert response.json() == original
         assert client.post("/v1/jobs", headers=headers, json=body).json() == original
         assert client.get(f"/v1/runs/{run['id']}").json() == run
+        assert client.get("/v1/preferences").json() == preferences
+        assert client.get(f"/v1/threads/{thread['id']}/answers").json()[0]["feedback"] == feedback
         assert client.get("/v1/memories").json() == [memory]
         assert run["memory_context"][0]["source_memory_id"] == memory["id"]
         assert client.post(run_path, headers=headers, json=run_body).json() == run

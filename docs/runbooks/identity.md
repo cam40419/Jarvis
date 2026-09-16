@@ -51,7 +51,7 @@ For PowerShell automation, start with `-DevelopmentLogin` and run in a second te
 ```powershell
 $token = Read-Host 'Development token from the server terminal'
 $login = Invoke-RestMethod -Uri 'http://localhost:8000/auth/dev-login' `
-    -Method Post -SessionVariable jarvisSession -ContentType 'application/json' `
+    -Method Post -SessionVariable simonSession -ContentType 'application/json' `
     -Headers @{ Origin = 'http://localhost:8000' } `
     -Body (@{ token = $token } | ConvertTo-Json)
 $token = $null
@@ -59,10 +59,10 @@ $headers = @{ Origin = 'http://localhost:8000'; 'X-CSRF-Token' = $login.csrf_tok
 $body = @{ capability = 'system.echo'; arguments = @{ message = 'Authenticated hello' }; `
     idempotency_key = [guid]::NewGuid().ToString() } | ConvertTo-Json
 Invoke-RestMethod -Uri 'http://localhost:8000/v1/capabilities/invoke' `
-    -Method Post -WebSession $jarvisSession -Headers $headers `
+    -Method Post -WebSession $simonSession -Headers $headers `
     -ContentType 'application/json' -Body $body
 Invoke-RestMethod -Uri 'http://localhost:8000/auth/logout' `
-    -Method Post -WebSession $jarvisSession -Headers $headers
+    -Method Post -WebSession $simonSession -Headers $headers
 ```
 
 Expected failures: missing session is 401; wrong/missing Origin or CSRF token is 403;
@@ -76,9 +76,9 @@ and returns a new CSRF token. Owner/member roles can read and submit jobs; guest
 In a separate terminal, configure the same database:
 
 ```powershell
-$env:JARVIS_STORAGE_BACKEND = 'postgres'
-$env:JARVIS_DATABASE_URL = 'postgresql://jarvis:local-development-only@127.0.0.1:5432/jarvis'
-.\venv\Scripts\python.exe -m jarvis.identity_admin --help
+$env:SIMON_STORAGE_BACKEND = 'postgres'
+$env:SIMON_DATABASE_URL = 'postgresql://jarvis:local-development-only@127.0.0.1:5432/jarvis'
+.\venv\Scripts\python.exe -m simon.identity_admin --help
 ```
 
 The commands are `membership`, `remove-membership`, `enroll`, `revoke-sessions`, and
@@ -91,7 +91,7 @@ user; other memberships remain available on the next valid passkey login.
 To issue another enrollment token for the seeded user:
 
 ```powershell
-.\venv\Scripts\python.exe -m jarvis.identity_admin enroll `
+.\venv\Scripts\python.exe -m simon.identity_admin enroll `
     --actor-id 11111111-1111-4111-8111-111111111111 `
     --household-id 22222222-2222-4222-8222-222222222222
 ```
@@ -111,22 +111,22 @@ concurrent replay, CSRF, token hashing, session rotation/expiry/revocation, memb
 and administrative commands. No real personal passkey is used by these tests.
 
 ```powershell
-$env:JARVIS_TEST_DATABASE_URL = 'postgresql://jarvis:local-development-only@127.0.0.1:5432/jarvis_test'
-.\venv\Scripts\python.exe -m pytest --cov=jarvis --cov-report=term-missing
+$env:SIMON_TEST_DATABASE_URL = 'postgresql://jarvis:local-development-only@127.0.0.1:5432/jarvis_test'
+.\venv\Scripts\python.exe -m pytest --cov=simon --cov-report=term-missing
 ```
 
-Create `jarvis_test` once if needed, as described in the persistence runbook. For the complete
+Create `simon_test` once if needed, as described in the persistence runbook. For the complete
 browser ceremony test (isolated profile and a virtual authenticator):
 
 ```powershell
 .\venv\Scripts\python.exe -m pip install -e ".[dev,postgres,browser]"
 .\venv\Scripts\python.exe -m playwright install chromium
-$env:JARVIS_BROWSER_TESTS = '1'
+$env:SIMON_BROWSER_TESTS = '1'
 .\venv\Scripts\python.exe -m pytest -q tests/integration/test_browser_identity.py
 ```
 
 To use an installed Microsoft Edge instead of downloading Chromium, set
-`$env:JARVIS_BROWSER_CHANNEL = 'msedge'` and skip the browser installation command.
+`$env:SIMON_BROWSER_CHANNEL = 'msedge'` and skip the browser installation command.
 The automated browser test verified enrollment, passkey login, authenticated echo, reload,
 and logout locally with headless Edge. Testing your physical authenticator requires the
 interactive prompt described above.

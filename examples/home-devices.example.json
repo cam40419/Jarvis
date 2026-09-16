@@ -1,0 +1,41 @@
+[
+  {
+    "id": "office-beam",
+    "household_id": "00000000-0000-0000-0000-000000000000",
+    "name": "Office Beam", "room": "Office", "provider": "lifx",
+    "remote_id": "000000000001", "load_type": "lighting", "control_enabled": false
+  },
+  {
+    "id": "office-hexagons-1",
+    "household_id": "00000000-0000-0000-0000-000000000000",
+    "name": "Office Hexagons 1", "room": "Office", "provider": "tuya",
+    "remote_id": "REPLACE_WITH_FIRST_DEVICE_ID", "load_type": "lighting", "control_enabled": false
+  },
+  {
+    "id": "office-hexagons-2",
+    "household_id": "00000000-0000-0000-0000-000000000000",
+    "name": "Office Hexagons 2", "room": "Office", "provider": "tuya",
+    "remote_id": "REPLACE_WITH_SECOND_DEVICE_ID", "load_type": "lighting", "control_enabled": false
+  },
+  {
+    "id": "bedroom-lamp",
+    "household_id": "00000000-0000-0000-0000-000000000000",
+    "name": "Bedroom Lamp", "room": "Bedroom", "provider": "shelly",
+    "remote_id": "shellyplugusg4-000000000001", "address": "192.168.1.201",
+    "load_type": "lighting", "control_enabled": false
+  },
+  {
+    "id": "living-room-lamp",
+    "household_id": "00000000-0000-0000-0000-000000000000",
+    "name": "Living Room Lamp", "room": "Living Room", "provider": "shelly",
+    "remote_id": "shellyplugusg4-000000000002", "address": "192.168.1.202",
+    "load_type": "lighting", "control_enabled": false
+  },
+  {
+    "id": "office-air-purifier",
+    "household_id": "00000000-0000-0000-0000-000000000000",
+    "name": "Office Air Purifier", "room": "Office", "provider": "shelly",
+    "remote_id": "shellyplugusg4-000000000003", "address": "192.168.1.203",
+    "load_type": "air_purifier", "control_enabled": false
+  }
+]

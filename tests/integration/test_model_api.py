@@ -1,6 +1,6 @@
-from jarvis.config import Settings
-from jarvis.domain.errors import ModelError
-from jarvis.services.model_conversations import ModelConversationService
+from simon.config import Settings
+from simon.domain.errors import ModelError
+from simon.services.model_conversations import ModelConversationService
 from tests.contract.test_model_runs import FakeModel
 
 

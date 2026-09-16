@@ -26,7 +26,7 @@ In another PowerShell terminal:
 ```powershell
 $token = Read-Host 'Development token printed by the launcher'
 $login = Invoke-RestMethod -Uri 'http://localhost:8000/auth/dev-login' `
-    -Method Post -SessionVariable jarvisSession -ContentType 'application/json' `
+    -Method Post -SessionVariable simonSession -ContentType 'application/json' `
     -Headers @{ Origin = 'http://localhost:8000' } `
     -Body (@{ token = $token } | ConvertTo-Json)
 $token = $null
@@ -34,11 +34,11 @@ $headers = @{ Origin = 'http://localhost:8000'; 'X-CSRF-Token' = $login.csrf_tok
 $key = [guid]::NewGuid().ToString()
 $echoBody = @{
     capability = "system.echo"
-    arguments = @{ message = "Hello from persistent Jarvis" }
+    arguments = @{ message = "Hello from persistent Simon" }
     idempotency_key = $key
 } | ConvertTo-Json
 Invoke-RestMethod -Uri "http://localhost:8000/v1/capabilities/invoke" `
-    -Method Post -WebSession $jarvisSession -Headers $headers `
+    -Method Post -WebSession $simonSession -Headers $headers `
     -ContentType "application/json" -Body $echoBody
 
 $jobBody = @{
@@ -47,7 +47,7 @@ $jobBody = @{
     idempotency_key = $key
 } | ConvertTo-Json
 $job = Invoke-RestMethod -Uri "http://localhost:8000/v1/jobs" `
-    -Method Post -WebSession $jarvisSession -Headers $headers `
+    -Method Post -WebSession $simonSession -Headers $headers `
     -ContentType "application/json" -Body $jobBody
 $job
 ```
@@ -56,9 +56,9 @@ Stop the API with Ctrl+C and restart `.\scripts\start-dev.ps1 -DevelopmentLogin`
 Keep the second terminal open, then:
 
 ```powershell
-Invoke-RestMethod -Uri "http://localhost:8000/v1/jobs/$($job.id)" -WebSession $jarvisSession
+Invoke-RestMethod -Uri "http://localhost:8000/v1/jobs/$($job.id)" -WebSession $simonSession
 Invoke-RestMethod -Uri "http://localhost:8000/v1/capabilities/invoke" `
-    -Method Post -WebSession $jarvisSession -Headers $headers `
+    -Method Post -WebSession $simonSession -Headers $headers `
     -ContentType "application/json" -Body $echoBody
 ```
 
@@ -83,10 +83,10 @@ Full suite and coverage (create `jarvis_test` once):
 
 ```powershell
 docker compose -f deploy/compose/compose.yaml exec -T postgres createdb -U jarvis jarvis_test
-$env:JARVIS_TEST_DATABASE_URL = "postgresql://jarvis:local-development-only@127.0.0.1:5432/jarvis_test"
+$env:SIMON_TEST_DATABASE_URL = "postgresql://jarvis:local-development-only@127.0.0.1:5432/jarvis_test"
 .\venv\Scripts\python.exe -m ruff check src tests scripts
 .\venv\Scripts\python.exe -m mypy src
-.\venv\Scripts\python.exe -m pytest --cov=jarvis --cov-report=term-missing
+.\venv\Scripts\python.exe -m pytest --cov=simon --cov-report=term-missing
 ```
 
 If `jarvis_test` already exists, skip `createdb`. Tests require the database name to end in
@@ -108,7 +108,7 @@ Stop API/worker writers while running this consistency comparison. Leave Postgre
 .\venv\Scripts\python.exe scripts/verify_restore.py
 ```
 
-The script reads the `jarvis` database, writes a binary `pg_dump` archive under `.local/backups`,
+The script reads the `simon` database, writes a binary `pg_dump` archive under `.local/backups`,
 restores it into a uniquely named temporary database, compares every public table's complete row
 contents, and removes only that temporary database. It verifies that the source did not change
 throughout the drill. The archive and JSON report remain on disk and are ignored by Git. The
@@ -121,19 +121,19 @@ container and restore into a new, empty database, keeping the original intact:
 
 ```powershell
 # Substitute the actual archive path printed by the verification script.
-docker compose -f deploy/compose/compose.yaml cp .local/backups/ARCHIVE.dump postgres:/tmp/jarvis.dump
-docker compose -f deploy/compose/compose.yaml exec -T postgres createdb -U jarvis jarvis_recovered
+docker compose -f deploy/compose/compose.yaml cp .local/backups/ARCHIVE.dump postgres:/tmp/simon.dump
+docker compose -f deploy/compose/compose.yaml exec -T postgres createdb -U jarvis simon_recovered
 docker compose -f deploy/compose/compose.yaml exec -T postgres pg_restore -U jarvis `
-    -d jarvis_recovered --exit-on-error --no-owner --no-privileges /tmp/jarvis.dump
+    -d simon_recovered --exit-on-error --no-owner --no-privileges /tmp/simon.dump
 ```
 
-Switch the API connection URL to `jarvis_recovered` after verifying its data. This drill tests
+Switch the API connection URL to `simon_recovered` after verifying its data. This drill tests
 logical recovery on the local PostgreSQL version; off-machine backup storage, retention,
 encryption, point-in-time recovery, and disaster recovery timing are not implemented.
 
 ## Migration behavior
 
-`python -m jarvis.migrate` serializes migration runs with a database advisory lock. SQL changes
+`python -m simon.migrate` serializes migration runs with a database advisory lock. SQL changes
 and checksum records commit in one transaction. Reruns skip unchanged versions, reject changed
 or unknown versions, and roll back failed migrations. Do not edit applied migrations: add a
 new numbered `.sql` file. `.down.sql` files are not automatically executed. SQL files ship in
@@ -146,17 +146,24 @@ legacy-schema adoption is provided.
 
 ## Transaction and delivery limits
 
+September 14, 2026: migration 0006 adds personal response preferences and answer feedback.
+The restore drill matched all 23 public tables. Archive/report:
+`.local/backups/simon_20260914T162733Z_140d6516.dump` and `.json`.
+Populated preference/feedback records also passed a separate API process-restart test.
+
 - Job changes, successful invocation replay records, audit entries, and pending outbox events
   share a transaction. Audit chains are scoped to a household. Household writes are serialized
   initially to keep audit ordering deterministic.
-- Capability handlers and schemas remain a process-local code registry. Only `system.echo` is
-  enabled. PostgreSQL transactions cannot roll back an external API/device action; no such
-  live side effect is introduced here.
+- The generic capability registry still contains `system.echo`. Connected web/Google tools use
+  a separate bounded runtime. Google confirmations durably claim an action before making the API
+  call outside the transaction; retries return its status without redispatch. PostgreSQL cannot
+  roll back an external action. See [Google setup](google.md) for unknown-outcome handling.
 - `publish_pending(deliver, limit)` claims unpublished events with `FOR UPDATE SKIP LOCKED`,
   tracks attempts, and marks successful delivery. Failed callbacks leave an event pending.
   Delivery is at least once: consumers must deduplicate by event ID because a process can
   crash after delivery and before its database commit. Callbacks must be bounded and must not
-  call back into the Jarvis store. No external consumer or notification sender is enabled.
+  call back into the Simon store. No external consumer or notification sender is enabled.
 - Each synchronous transaction opens its own connection. Connection pooling, worker leases,
-  persistent capability administration, rate limiting, and a chat interface remain future work.
+  persistent capability administration and rate limiting remain future work. The chat UI and
+  connected-tool previews are implemented.
   Passkeys, sessions, and server-resolved membership scopes are implemented; see the identity runbook.

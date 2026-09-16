@@ -4,12 +4,12 @@ from uuid import uuid4
 
 import pytest
 
-from jarvis.api.app import AppContainer
-from jarvis.domain.errors import IdempotencyConflictError, InvalidTransitionError, NotFoundError
-from jarvis.domain.models import ActorContext, CapabilityInvocation, Channel, JobStatus
-from jarvis.domain.ports import Store
-from jarvis.services.audit import AuditService
-from jarvis.services.jobs import JobService
+from simon.api.app import AppContainer
+from simon.domain.errors import IdempotencyConflictError, InvalidTransitionError, NotFoundError
+from simon.domain.models import ActorContext, CapabilityInvocation, Channel, JobStatus
+from simon.domain.ports import Store
+from simon.services.audit import AuditService
+from simon.services.jobs import JobService
 
 
 @pytest.fixture

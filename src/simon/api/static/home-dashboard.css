@@ -1,0 +1,14 @@
+.home-panel { width: min(1180px, calc(100vw - 24px)); height: min(900px, calc(100dvh - 24px)); padding: 28px; border: 1px solid var(--line); border-radius: 24px; background: var(--bg); color: var(--ink); }
+.home-panel::backdrop { background: #101a245c; backdrop-filter: blur(8px); }
+.home-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 285px), 1fr)); gap: 16px; }
+.home-room { margin: 24px 0; }.home-room > h3 { font-size: 17px; font-weight: 500; }
+.home-card { min-width: 0; padding: 20px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
+.home-card h3 { margin: 4px 0; font-size: 19px; }.home-card .eyebrow { font-size: 9px; }
+.home-actions { display: flex; gap: 10px; flex-wrap: wrap; }.home-actions button { min-height: 44px; }
+.home-lighting { margin: 18px 0; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.home-lighting label { display: flex; flex-direction: column; font-size: 12px; gap: 6px; }
+.home-lighting input[type=color] { width: 50px; height: 32px; background: transparent; border: 0; }
+.home-card details { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 14px; }
+.home-card summary { cursor: pointer; }.home-card select { margin: 12px 0; max-width: 100%; }
+.home-power-chart { font-size: 13px; }.home-power-chart svg { width: 100%; color: var(--green); }
+@media(max-width: 600px) { .home-panel { padding: 18px; }.home-card { padding: 16px; } }

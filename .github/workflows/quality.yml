@@ -13,17 +13,17 @@ jobs:
       postgres:
         image: pgvector/pgvector:pg17
         env:
-          POSTGRES_DB: jarvis_test
-          POSTGRES_USER: jarvis
+          POSTGRES_DB: simon_test
+          POSTGRES_USER: simon
           POSTGRES_PASSWORD: ci-only
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U jarvis -d jarvis_test"
+          --health-cmd "pg_isready -U simon -d simon_test"
           --health-interval 5s --health-timeout 3s --health-retries 10
     env:
-      JARVIS_TEST_DATABASE_URL: postgresql://jarvis:ci-only@127.0.0.1:5432/jarvis_test
-      JARVIS_BROWSER_TESTS: '1'
+      SIMON_TEST_DATABASE_URL: postgresql://simon:ci-only@127.0.0.1:5432/simon_test
+      SIMON_BROWSER_TESTS: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -35,4 +35,4 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       - run: python -m ruff check src tests scripts
       - run: python -m mypy src
-      - run: python -m pytest --cov=jarvis --cov-report=term-missing
+      - run: python -m pytest --cov=simon --cov-report=term-missing

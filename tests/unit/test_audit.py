@@ -1,8 +1,8 @@
 from uuid import uuid4
 
-from jarvis.adapters.memory import InMemoryStore
-from jarvis.domain.models import ActorContext, Channel
-from jarvis.services.audit import AuditService
+from simon.adapters.memory import InMemoryStore
+from simon.domain.models import ActorContext, Channel
+from simon.services.audit import AuditService
 
 
 def test_audit_events_form_a_hash_chain() -> None:

@@ -3,17 +3,22 @@ requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [project]
-name = "jarvis-homeos"
+name = "simon-homeos"
 version = "0.1.0"
-description = "Jarvis control plane and Home OS foundation"
+description = "Simon control plane and Home OS foundation"
 requires-python = ">=3.11"
 dependencies = [
+  "websockets>=15,<18",
   "fastapi>=0.116,<1",
   "pydantic>=2.11,<3",
   "pydantic-settings>=2.10,<3",
   "uvicorn[standard]>=0.35,<1",
   "webauthn>=2.7,<3",
   "openai>=2.54,<3",
+  "httpx>=0.28,<1",
+  "cryptography>=46,<51",
+  "python-dotenv>=1,<2",
+  "zeroconf>=0.150,<1",
 ]
 
 [project.optional-dependencies]
@@ -28,23 +33,23 @@ browser = ["playwright>=1.55,<2"]
 postgres = ["psycopg[binary]>=3.2,<4"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/jarvis"]
+packages = ["src/simon"]
 
 [tool.hatch.build.targets.wheel.force-include]
-"db/migrations" = "jarvis/migrations"
+"db/migrations" = "simon/migrations"
 
 [tool.pytest.ini_options]
 addopts = "-ra --strict-config --strict-markers"
 testpaths = ["tests"]
 markers = [
-  "postgres: requires JARVIS_TEST_DATABASE_URL pointing to a disposable database",
-  "browser: requires JARVIS_BROWSER_TESTS=1 and a Playwright Chromium browser",
-  "live: requires JARVIS_LIVE_MODEL_TESTS=1; sends synthetic requests using configured API billing",
+  "postgres: requires SIMON_TEST_DATABASE_URL pointing to a disposable database",
+  "browser: requires SIMON_BROWSER_TESTS=1 and a Playwright Chromium browser",
+  "live: requires SIMON_LIVE_MODEL_TESTS=1; sends synthetic requests using configured API billing",
 ]
 
 [tool.coverage.run]
 branch = true
-source = ["jarvis"]
+source = ["simon"]
 
 [tool.coverage.report]
 fail_under = 90
@@ -60,5 +65,4 @@ select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 [tool.mypy]
 python_version = "3.11"
 strict = true
-packages = ["jarvis"]
-
+packages = ["simon"]

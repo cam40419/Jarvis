@@ -6,23 +6,23 @@ from uuid import uuid4
 import pytest
 from pydantic import BaseModel, ConfigDict
 
-from jarvis.adapters.memory import InMemoryStore
-from jarvis.domain.errors import (
+from simon.adapters.memory import InMemoryStore
+from simon.domain.errors import (
     AuthorizationError,
     ConfirmationRequiredError,
     IdempotencyConflictError,
     ValidationError,
 )
-from jarvis.domain.models import (
+from simon.domain.models import (
     ActorContext,
     CapabilityDefinition,
     CapabilityInvocation,
     Channel,
     RiskClass,
 )
-from jarvis.services.audit import AuditService
-from jarvis.services.capabilities import CapabilityBroker
-from jarvis.services.policy import PolicyEngine
+from simon.services.audit import AuditService
+from simon.services.capabilities import CapabilityBroker
+from simon.services.policy import PolicyEngine
 
 
 class Input(BaseModel):

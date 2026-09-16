@@ -1,4 +1,4 @@
-from jarvis.domain.identity import DEV_ACTOR_ID, DEV_HOUSEHOLD_ID, Membership
+from simon.domain.identity import DEV_ACTOR_ID, DEV_HOUSEHOLD_ID, Membership
 
 
 def test_memory_api_csrf_scopes_and_context(client, auth_headers, container):

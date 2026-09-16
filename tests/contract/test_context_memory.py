@@ -3,14 +3,14 @@ from uuid import uuid4
 
 import pytest
 
-from jarvis.domain.context import CreateMemory
-from jarvis.domain.conversations import CreateThread, SubmitRun
-from jarvis.domain.errors import AuthorizationError, IdempotencyConflictError, NotFoundError
-from jarvis.domain.identity import DEV_ACTOR_ID, DEV_HOUSEHOLD_ID, Membership
-from jarvis.domain.models import ActorContext, Channel
-from jarvis.services.audit import AuditService
-from jarvis.services.conversations import ConversationService
-from jarvis.services.memory import MemoryService
+from simon.domain.context import CreateMemory
+from simon.domain.conversations import CreateThread, SubmitRun
+from simon.domain.errors import AuthorizationError, IdempotencyConflictError, NotFoundError
+from simon.domain.identity import DEV_ACTOR_ID, DEV_HOUSEHOLD_ID, Membership
+from simon.domain.models import ActorContext, Channel
+from simon.services.audit import AuditService
+from simon.services.conversations import ConversationService
+from simon.services.memory import MemoryService
 
 
 @pytest.fixture

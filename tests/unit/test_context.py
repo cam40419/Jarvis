@@ -2,10 +2,10 @@ from uuid import uuid4
 
 import pytest
 
-from jarvis.domain.context import ExplicitMemory
-from jarvis.domain.conversations import Message
-from jarvis.domain.errors import ValidationError
-from jarvis.services.context import ContextAssembler, ExcerptSummarizer, context_cost
+from simon.domain.context import ExplicitMemory
+from simon.domain.conversations import Message
+from simon.domain.errors import ValidationError
+from simon.services.context import ContextAssembler, ExcerptSummarizer, context_cost
 
 
 def history(count, text="Hello"):
@@ -72,7 +72,7 @@ def test_memory_budget_and_excerpts_are_explicitly_bounded():
 
 
 def test_empty_history_and_legacy_snapshots():
-    from jarvis.domain.conversations import Run
+    from simon.domain.conversations import Run
 
     current = history(1)[0]
     items, _, summary, policy = ContextAssembler().assemble((), current, ())
@@ -90,11 +90,11 @@ def test_empty_history_and_legacy_snapshots():
 
 
 def test_active_memory_limit_and_retraction_free_capacity():
-    from jarvis.adapters.memory import InMemoryStore
-    from jarvis.domain.context import CreateMemory
-    from jarvis.domain.models import ActorContext, Channel
-    from jarvis.services.audit import AuditService
-    from jarvis.services.memory import MemoryService
+    from simon.adapters.memory import InMemoryStore
+    from simon.domain.context import CreateMemory
+    from simon.domain.models import ActorContext, Channel
+    from simon.services.audit import AuditService
+    from simon.services.memory import MemoryService
 
     store = InMemoryStore()
     service = MemoryService(store, AuditService(store))

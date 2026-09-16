@@ -2,11 +2,11 @@ from uuid import uuid4
 
 import pytest
 
-from jarvis.adapters.memory import InMemoryStore
-from jarvis.domain.errors import IdempotencyConflictError, InvalidTransitionError
-from jarvis.domain.models import ActorContext, Channel, JobStatus
-from jarvis.services.audit import AuditService
-from jarvis.services.jobs import JobService
+from simon.adapters.memory import InMemoryStore
+from simon.domain.errors import IdempotencyConflictError, InvalidTransitionError
+from simon.domain.models import ActorContext, Channel, JobStatus
+from simon.services.audit import AuditService
+from simon.services.jobs import JobService
 
 
 def setup() -> tuple[JobService, InMemoryStore, ActorContext]:

@@ -4,17 +4,17 @@ from uuid import uuid4
 import pytest
 from pydantic import SecretStr
 
-from jarvis.config import Settings
-from jarvis.domain.errors import NotFoundError
-from jarvis.domain.identity import Passkey
-from jarvis.services.identity import IdentityService, token_hash
+from simon.config import Settings
+from simon.domain.errors import NotFoundError
+from simon.domain.identity import Passkey
+from simon.services.identity import IdentityService, token_hash
 
 pytestmark = pytest.mark.postgres
 
 
 def test_operator_enrollment_membership_and_revocation(postgres_url, monkeypatch, capsys):
-    from jarvis import identity_admin
-    from jarvis.adapters.postgres import PostgresStore
+    from simon import identity_admin
+    from simon.adapters.postgres import PostgresStore
 
     settings = Settings(storage_backend="postgres", database_url=SecretStr(postgres_url))
     monkeypatch.setattr(identity_admin, "get_settings", lambda: settings)

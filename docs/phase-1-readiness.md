@@ -1,12 +1,13 @@
 # Phase 1 readiness and build order
 
 Status: persistence, identity, and the deterministic threads/runs milestone are implemented.
-Context v1 and the Responses API text assistant are implemented. Tool integration, worker execution,
+Context v1, the Responses API text assistant, and model management Phase A are implemented.
+Tool integration, worker execution,
 and operational hardening remain outstanding.
 
 ## Foundation gates
 
-- [x] Replacement code is isolated under `src/jarvis`.
+- [x] Replacement code is isolated under `src/simon`.
 - [x] Legacy runtime and obsolete dependency list are removed.
 - [x] Domain contracts reject unknown fields and use timezone-aware timestamps.
 - [x] Capability execution is scoped, validated, audited, and atomically idempotent.
@@ -55,8 +56,8 @@ uses generated keys and an isolated browser profile, not the user's personal cre
 - [x] Browser send/reload and API process restart preserve conversation history.
 - [x] Completed snapshots, messages, and event rows reject database updates and deletes.
 
-The deterministic runner completes atomically before streaming recorded events. Live model token
-streaming, asynchronous run states, cancellation, and crash recovery for workers remain future work.
+The deterministic runner completes atomically before streaming recorded events. The OpenAI path now
+streams provisional live text and supports cancellation. Crash recovery for workers remains future work.
 Context v1 removes the original 50-turn limit while bounding each run's selected context.
 See the [conversation runbook](runbooks/conversations.md).
 
@@ -82,11 +83,33 @@ Summaries are bounded excerpts, not cumulative semantic summaries. See the
 - [x] Access is revalidated before publishing answers.
 - [x] Launcher and browser expose real assistant mode and retain offline echo as an option.
 
-See [using the assistant](runbooks/assistant.md). Token streaming, tools, and async worker recovery
+See [using the assistant](runbooks/assistant.md). Tools and async worker recovery
 remain future work. A crash can leave the provider outcome unknown; retries do not automatically
 regenerate or guarantee exactly-once billing.
 
+## Model management A gates
+
+- [x] Per-message Auto/Quick/Balanced/Deep and independent answer length.
+- [x] Approved model/reasoning settings, bounded output, and profile-specific timeouts.
+- [x] Live text delivery with access revalidation, Stop, and disconnect cancellation.
+- [x] Think deeper creates a linked run while preserving the original snapshot.
+- [x] Completed snapshots retain routing reasons, token usage, and latency measurements.
+- [x] Offline contracts and browser checks pass; live Quick and Deep answers persist correctly.
+
+Auto Deep is on by default. The Simon chat adds task/context-based effort and automatic length selection.
+Household spending reservations, feedback, and routing tuned from measured evaluations remain
+planned in [model management B and C](model-management-plan.md).
+
+The first Phase B interaction slice adds saved personal response defaults and feedback on saved
+answers. Both are scoped to the active household, versioned, idempotent, and audited. Automatic Deep
+can be restricted by the personal preference; explicit Deep remains available. Budgets and evidence
+reports remain outstanding.
+
 ## Phase 1 implementation order
+
+The accepted [model management plan](model-management-plan.md) adds profiles and streaming before
+capability integration. Spending controls, feedback/evaluations, and adaptive routing follow in
+bounded phases; they do not block the initial usable assistant.
 
 1. **Persistence:** migration runner, PostgreSQL transaction manager, stores, contract tests, and
    outbox publisher.
@@ -98,13 +121,15 @@ regenerate or guarantee exactly-once billing.
    memories, scope filtering, and token budgeting.
 5. **Model boundary:** fake model contract tests followed by one Responses API adapter. Provider
    conversation identifiers are optimization metadata, not canonical history.
-6. **Capabilities:** persistent catalog, manifest builder, tool-call loop, output validation,
+6. **Model management A:** profiles, answer length, live streaming, Stop, and Think deeper.
+7. **Capabilities:** persistent catalog, manifest builder, tool-call loop, output validation,
    timeouts, and adapter health.
-7. **Calendar read-only:** isolated OAuth credentials, minimal scopes, normalized events, and no
-   write capability.
-8. **PWA shell:** passkey login, thread view, streaming output, job status, audit visibility, and
+8. **Connected capabilities:** public web search, isolated Google OAuth credentials, normalized
+   primary-calendar reads, and email/event previews with explicit confirmation. This slice was
+   brought forward on September 14 at the user's request; website booking forms remain future work.
+9. **PWA shell:** passkey login, thread view, streaming output, job status, audit visibility, and
    error recovery.
-9. **Operational gate:** tracing, redaction checks, rate limits, dependency health, restore test,
+10. **Operational gate:** tracing, redaction checks, rate limits, dependency health, restore test,
    and end-to-end threat scenarios.
 
 ## Required scenario tests
@@ -125,4 +150,3 @@ regenerate or guarantee exactly-once billing.
 Voice, proactive actions, Home OS device writes, Codex workers, and semantic memory extraction remain
 out of Phase 1's first vertical slice. Their contracts may be drafted, but no live authority is
 enabled until identity, persistence, and auditing have passed their gates.
-

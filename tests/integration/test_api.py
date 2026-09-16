@@ -3,8 +3,8 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from jarvis.api.app import AppContainer
-from jarvis.config import Settings
+from simon.api.app import AppContainer
+from simon.config import Settings
 
 
 def test_health_does_not_require_authentication(client: TestClient) -> None:
@@ -88,7 +88,7 @@ def test_jobs_require_scopes_and_get_is_household_scoped(
 ) -> None:
     from uuid import uuid4
 
-    from jarvis.domain.identity import DEV_ACTOR_ID, DEV_HOUSEHOLD_ID, Membership
+    from simon.domain.identity import DEV_ACTOR_ID, DEV_HOUSEHOLD_ID, Membership
 
     body = {"kind": "test.job", "input": {}, "idempotency_key": "scoped-job-001"}
     job = client.post("/v1/jobs", headers=auth_headers, json=body).json()

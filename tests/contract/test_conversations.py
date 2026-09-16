@@ -3,17 +3,17 @@ from uuid import uuid4
 
 import pytest
 
-from jarvis.domain.conversations import CreateThread, SubmitRun
-from jarvis.domain.errors import (
+from simon.domain.conversations import CreateThread, SubmitRun
+from simon.domain.errors import (
     AuthorizationError,
     IdempotencyConflictError,
     NotFoundError,
     ValidationError,
 )
-from jarvis.domain.identity import DEV_ACTOR_ID, DEV_HOUSEHOLD_ID
-from jarvis.domain.models import ActorContext, Channel
-from jarvis.services.audit import AuditService
-from jarvis.services.conversations import ConversationService
+from simon.domain.identity import DEV_ACTOR_ID, DEV_HOUSEHOLD_ID
+from simon.domain.models import ActorContext, Channel
+from simon.services.audit import AuditService
+from simon.services.conversations import ConversationService
 
 
 @pytest.fixture

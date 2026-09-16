@@ -2,7 +2,7 @@ from uuid import uuid4
 
 import pytest
 
-from jarvis.domain.identity import DEV_ACTOR_ID, DEV_HOUSEHOLD_ID, Membership
+from simon.domain.identity import DEV_ACTOR_ID, DEV_HOUSEHOLD_ID, Membership
 
 
 def test_conversation_api_and_sse(client, auth_headers, container):
@@ -47,8 +47,8 @@ def test_conversation_api_and_sse(client, auth_headers, container):
 def test_database_prevents_snapshot_rewrites(postgres_url):
     import psycopg
 
-    from jarvis.adapters.postgres import PostgresStore
-    from jarvis.seed import seed_development_identity
+    from simon.adapters.postgres import PostgresStore
+    from simon.seed import seed_development_identity
     from tests.contract.test_conversations import actor, create, service, submit
 
     seed_development_identity(postgres_url)

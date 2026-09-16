@@ -6,12 +6,12 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
 
-from jarvis.api.app import AppContainer, create_app
-from jarvis.config import Settings
-from jarvis.domain.errors import AuthenticationError
-from jarvis.domain.identity import DEV_ACTOR_ID, DEV_HOUSEHOLD_ID, Membership
-from jarvis.domain.models import utc_now
-from jarvis.services.identity import IdentityService, token_hash
+from simon.api.app import AppContainer, create_app
+from simon.config import Settings
+from simon.domain.errors import AuthenticationError
+from simon.domain.identity import DEV_ACTOR_ID, DEV_HOUSEHOLD_ID, Membership
+from simon.domain.models import utc_now
+from simon.services.identity import IdentityService, token_hash
 from tests.passkey_helper import SoftwarePasskey
 
 ORIGIN = "http://localhost:8000"
@@ -72,7 +72,7 @@ def test_header_identity_is_rejected_and_tokens_are_not_stored_raw(browser, iden
         == 401
     )
     headers = login(browser)
-    token = browser.cookies["jarvis_session"]
+    token = browser.cookies["simon_session"]
     assert identity_app.store.get_session(token) is None
     assert identity_app.store.get_session(token_hash(token)) is not None
     assert browser.get("/auth/session", headers={"X-Actor-Id": str(uuid4())}).json()[
@@ -107,11 +107,11 @@ def test_mutating_requests_require_origin_and_session_csrf(browser, origin, csrf
 
 def test_login_rotation_logout_and_revocation(browser, identity_app):
     headers = login(browser)
-    old = browser.cookies["jarvis_session"]
+    old = browser.cookies["simon_session"]
     headers = login(browser)
     with pytest.raises(AuthenticationError):
         identity_app.identity.resolve(old)
-    token = browser.cookies["jarvis_session"]
+    token = browser.cookies["simon_session"]
     assert browser.post("/auth/logout", headers=headers).status_code == 204
     assert browser.get("/auth/session").status_code == 401
     with pytest.raises(AuthenticationError):
@@ -133,7 +133,7 @@ def test_scope_changes_and_household_selection_do_not_trust_headers(browser, ide
     identity_app.store.put_membership(
         Membership(actor_id=DEV_ACTOR_ID, household_id=other, role="guest")
     )
-    old = browser.cookies["jarvis_session"]
+    old = browser.cookies["simon_session"]
     before = identity_app.identity.resolve(old)[0]
     response = browser.post("/auth/household", headers=headers, json={"household_id": str(other)})
     assert response.status_code == 200
@@ -149,7 +149,7 @@ def test_scope_changes_and_household_selection_do_not_trust_headers(browser, ide
 
 def test_expired_and_disabled_development_sessions_fail(browser, identity_app):
     login(browser)
-    token = browser.cookies["jarvis_session"]
+    token = browser.cookies["simon_session"]
     session = identity_app.identity.resolve(token)[0]
     disabled = IdentityService(identity_app.store, Settings(environment="test"))
     with pytest.raises(AuthenticationError):
@@ -255,7 +255,7 @@ def test_ceremonies_are_browser_bound_and_consumed_atomically(browser, identity_
             ).status_code
             == 401
         )
-    binding = browser.cookies["jarvis_ceremony"]
+    binding = browser.cookies["simon_ceremony"]
 
     def verify(_):
         try:
@@ -327,7 +327,7 @@ def test_enrollment_and_challenge_expiry(browser, identity_app):
         == 401
     )
     start = browser.post("/auth/passkeys/login/options", headers={"Origin": ORIGIN}).json()
-    binding = browser.cookies["jarvis_ceremony"]
+    binding = browser.cookies["simon_ceremony"]
     challenge = identity_app.store.take_challenge(
         token_hash(start["ceremony_id"]), token_hash(binding)
     )
@@ -364,7 +364,7 @@ def test_duplicate_passkey_does_not_overwrite_owner(browser, identity_app):
 
 def test_session_creation_is_atomic_with_audit(browser, identity_app, monkeypatch):
     login(browser)
-    old = browser.cookies["jarvis_session"]
+    old = browser.cookies["simon_session"]
 
     def fail(_event):
         raise RuntimeError("audit offline")

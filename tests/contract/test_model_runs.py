@@ -5,14 +5,14 @@ from threading import Event
 
 import pytest
 
-from jarvis.config import Settings
-from jarvis.domain.conversations import CreateThread, SubmitRun
-from jarvis.domain.errors import AuthenticationError, ModelBusyError, ModelError
-from jarvis.domain.identity import DEV_ACTOR_ID, DEV_HOUSEHOLD_ID
-from jarvis.domain.model import ModelAnswer
-from jarvis.domain.models import ActorContext, Channel, utc_now
-from jarvis.services.audit import AuditService
-from jarvis.services.model_conversations import ModelConversationService
+from simon.config import Settings
+from simon.domain.conversations import CreateThread, SubmitRun
+from simon.domain.errors import AuthenticationError, ModelBusyError, ModelError
+from simon.domain.identity import DEV_ACTOR_ID, DEV_HOUSEHOLD_ID
+from simon.domain.model import ModelAnswer
+from simon.domain.models import ActorContext, Channel, utc_now
+from simon.services.audit import AuditService
+from simon.services.model_conversations import ModelConversationService
 
 
 class FakeModel:
@@ -30,6 +30,12 @@ class FakeModel:
             input_tokens=50,
             output_tokens=8,
         )
+
+    def generate_stream(self, request, on_delta):
+        answer = self.generate(request)
+        on_delta("A useful ")
+        on_delta("answer.")
+        return answer
 
 
 @pytest.fixture
@@ -65,7 +71,7 @@ def test_model_success_snapshot_and_retry(model_setup):
     assert len(service.events(actor, run.id, 2)) == 2
     assert service.store.attempt(run.id).status == "succeeded"
     assert service.store.pending_attempt(thread.id) is None
-    from jarvis.services.conversations import ConversationService
+    from simon.services.conversations import ConversationService
 
     assert ConversationService(service.store, service.audit).submit(actor, thread.id, body()) == run
 
@@ -107,7 +113,7 @@ def test_model_failure_no_messages_and_no_automatic_retry(model_setup):
         with pytest.raises(ModelError, match="quota"):
             service.submit(actor, thread.id, body())
     assert len(model.requests) == 1
-    from jarvis.services.conversations import ConversationService
+    from simon.services.conversations import ConversationService
 
     with pytest.raises(ModelError):
         ConversationService(service.store, service.audit).submit(actor, thread.id, body())
@@ -129,7 +135,7 @@ def test_crash_expiry_is_not_reexecuted(model_setup):
         service.submit(actor, thread.id, body())
     attempt = service.store.pending_attempt(thread.id)
     assert attempt is not None
-    from jarvis.services.conversations import ConversationService
+    from simon.services.conversations import ConversationService
 
     with pytest.raises(ModelBusyError):
         ConversationService(service.store, service.audit).submit(actor, thread.id, body())
@@ -175,7 +181,7 @@ def test_final_commit_failure_rolls_back_and_does_not_call_model_again(model_set
 
 
 def test_existing_local_replay_survives_model_enable(model_setup):
-    from jarvis.services.conversations import ConversationService
+    from simon.services.conversations import ConversationService
 
     service, actor, model, thread = model_setup
     old = ConversationService(service.store, service.audit).submit(actor, thread.id, body())

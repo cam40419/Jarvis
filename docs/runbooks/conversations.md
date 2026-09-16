@@ -5,10 +5,10 @@
 For the deterministic checks below, start Docker Desktop, then run
 `./scripts/start-dev.ps1 -TestRunner` from PowerShell. For real answers omit `-TestRunner` and
 follow [using the assistant](assistant.md). The launcher applies
-migration 0003. For first-time passkey setup use `-Enroll`; for a disposable login token use
+all current migrations. For first-time passkey setup use `-Enroll`; for a disposable login token use
 `-DevelopmentLogin`. Open http://localhost:8000/login and sign in, then select **Open conversations**.
 
-1. Enter a title and select **Create conversation**.
+1. Select **New conversation**, or start from the welcome screen. The first message creates its title.
 2. Send a message. Expect your message and `Test runner received: ...`, followed by
    **Run complete. Messages saved.**
 3. Reload the page. Both messages should remain.
@@ -17,7 +17,8 @@ migration 0003. For first-time passkey setup use `-Enroll`; for a disposable log
 
 No model key is required. Owner and member roles share conversations within their active household;
 guests have no conversation access. Use the Account page to switch households, then reopen chat.
-All message text is displayed as text, including HTML-looking input.
+User messages are displayed as text. Assistant replies support a local Markdown subset; raw HTML is
+always displayed as text and only HTTP(S) Markdown links become clickable.
 
 ## API and reconnect checks
 
@@ -70,16 +71,16 @@ messages, events and completed snapshots; a future retention policy requires an 
 ## Automated verification
 
 ```powershell
-$env:JARVIS_TEST_DATABASE_URL = 'postgresql://jarvis:local-development-only@127.0.0.1:5432/jarvis_test'
-$env:JARVIS_BROWSER_TESTS = '1'
-$env:JARVIS_BROWSER_CHANNEL = 'msedge'
-.\venv\Scripts\python.exe -m pytest -q --cov=jarvis --cov-report=term-missing
+$env:SIMON_TEST_DATABASE_URL = 'postgresql://jarvis:local-development-only@127.0.0.1:5432/jarvis_test'
+$env:SIMON_BROWSER_TESTS = '1'
+$env:SIMON_BROWSER_CHANNEL = 'msedge'
+.\venv\Scripts\python.exe -m pytest -q --cov=simon --cov-report=term-missing
 .\venv\Scripts\python.exe -m ruff check src tests scripts
 .\venv\Scripts\python.exe -m mypy src
 ```
 
 The optional browser test requires `pip install -e ".[dev,postgres,browser]"` in the venv and Edge
-on Windows. Without Edge, install Playwright Chromium and omit `JARVIS_BROWSER_CHANNEL`.
+on Windows. Without Edge, install Playwright Chromium and omit `SIMON_BROWSER_CHANNEL`.
 Tests cover both stores, cross-household denial, concurrent retries, rollback, context provenance,
 cursor replay, SQL immutability, real API process restart, and browser send/reload with passkey login.
 

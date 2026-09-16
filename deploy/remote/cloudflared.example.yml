@@ -1,0 +1,9 @@
+# Replace the UUID and credentials path after creating your named tunnel.
+tunnel: YOUR-TUNNEL-UUID
+credentials-file: C:/Users/cam40/.cloudflared/YOUR-TUNNEL-UUID.json
+ingress:
+  - hostname: simon-origin.camrobbins.com
+    service: http://127.0.0.1:8000
+    originRequest:
+      httpHostHeader: camrobbins.com
+  - service: http_status:404

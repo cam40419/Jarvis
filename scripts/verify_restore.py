@@ -61,9 +61,9 @@ def main() -> None:
     args = parser.parse_args()
     args.output_directory.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ") + "_" + uuid4().hex[:8]
-    archive = args.output_directory / f"jarvis_{stamp}.dump"
+    archive = args.output_directory / f"simon_{stamp}.dump"
     report = archive.with_suffix(".json")
-    restored = "jarvis_restore_" + uuid4().hex
+    restored = "simon_restore_" + uuid4().hex
     before = snapshot(args.database)
     archive.write_bytes(
         docker(

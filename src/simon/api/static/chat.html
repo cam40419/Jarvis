@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#f8f7f3"><title>Simon — Your personal assistant</title>
+<link rel="icon" href="/assets/simon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/chat.css">
+<script src="/assets/app-path.js" defer></script><script src="/assets/markdown.js" defer></script><script src="/assets/chat.js" defer></script><script src="/assets/connections.js" defer></script><link rel="stylesheet" href="/assets/voice.css"><script src="/assets/voice.js" defer></script><link rel="stylesheet" href="/assets/home-dashboard.css"><script src="/assets/home-dashboard.js" defer></script></head>
+<body>
+<button id="sidebar-scrim" class="scrim" aria-label="Close navigation" hidden></button>
+<aside id="sidebar" aria-label="Conversations">
+  <a class="brand" href="/chat" aria-label="Simon home"><img src="/assets/simon.svg" alt="" width="34" height="34"><span>SIMON<span class="brand-sub">A little more possible.</span></span></a>
+  <button id="new-chat" class="new-chat"><span aria-hidden="true">＋</span> New conversation <kbd>Alt N</kbd></button>
+  <label class="search"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="Search conversations" aria-label="Search conversations"></label>
+  <div class="sidebar-heading">YOUR CONVERSATIONS <span id="thread-count"></span></div>
+  <nav id="threads" aria-label="Conversation history"><p class="muted">Loading conversations…</p></nav>
+  <div class="sidebar-bottom"><button id="home-open" class="nav-button">Home</button><button id="connections-open" class="nav-button" disabled>Connections</button><button id="memory-open" class="nav-button"><span aria-hidden="true">◇</span> Shared memories <span id="memory-count" class="count">0</span></button>
+    <a href="/login" class="account-link"><span id="user-avatar" class="avatar">U</span><span><strong id="user-name">Your account</strong><small id="household"></small></span><span class="account-arrow" aria-hidden="true">↗</span></a>
+  </div>
+</aside>
+<main id="workspace" class="workspace">
+  <header class="topbar">
+    <button id="menu-toggle" class="icon-button mobile-only" aria-label="Open navigation" aria-expanded="false">☰</button>
+    <div class="topbar-title"><span id="chat-title">New conversation</span><span class="topbar-sub">Your personal thinking space</span></div>
+    <div class="topbar-actions"><button id="voice-open" class="text-button">Talk to Simon</button><span id="connection" class="connection"><i></i> Connecting</span><button id="theme-toggle" class="icon-button" aria-label="Switch to dark theme" title="Change theme">◐</button><button id="about-open" class="icon-button" aria-label="About Simon" title="About Simon">ⓘ</button></div>
+  </header>
+  <section id="conversation" class="conversation" aria-label="Chat">
+    <div id="welcome" class="welcome">
+      <div class="welcome-mark"><img src="/assets/simon.svg" alt="" width="54" height="54"></div>
+      <p id="greeting" class="eyebrow">A SPACE TO THINK CLEARLY</p>
+      <h1>What's on your mind?</h1>
+      <p class="welcome-text">Big ideas, small questions, or somewhere in between.<br>Just ask. I'll take it from here.</p>
+      <div class="suggestions">
+        <button data-prompt="Help me make a realistic plan for the week. Start by asking what I need to get done."><span class="suggestion-icon">☷</span><strong>Make a little room</strong><span>Turn a busy week into a plan</span><b aria-hidden="true">↗</b></button>
+        <button data-prompt="Help me write a clear, thoughtful message. Ask me who it is for and what I want to say."><span class="suggestion-icon">✎</span><strong>Find the right words</strong><span>A first draft, without the blank page</span><b aria-hidden="true">↗</b></button>
+        <button data-prompt="Help me work through a difficult decision. Ask me about my options and what matters most."><span class="suggestion-icon">⌘</span><strong>Think it through</strong><span>Make sense of a tricky decision</span><b aria-hidden="true">↗</b></button>
+      </div>
+      <p class="welcome-note"><span aria-hidden="true">✦</span> The right amount of thinking, chosen for you.</p>
+    </div>
+    <div id="messages" class="messages" aria-label="Messages"></div>
+  </section>
+  <div class="composer-area">
+    <button id="jump-latest" class="jump-latest" hidden>↓ Latest message</button>
+    <div id="status" role="status" aria-live="polite"></div>
+    <form id="send" class="composer">
+      <label for="text" class="sr-only">Message Simon</label>
+      <textarea id="text" rows="2" maxlength="4000" placeholder="Ask Simon anything…" required></textarea>
+      <div class="composer-toolbar">
+        <details id="response-settings" class="response-settings"><summary><span aria-hidden="true">✦</span> <span id="setting-label">Auto</span> <span class="chevron">⌄</span></summary>
+          <div class="settings-popover"><strong>Response settings</strong><p>Simon chooses how much to think and how much to say. Override it any time.</p>
+            <label for="profile">Response mode</label><select id="profile"><option value="auto">Auto — let Simon decide</option><option value="quick">Quick — a direct answer</option><option value="balanced">Balanced — everyday thinking</option><option value="deep">Deep — take more time</option></select>
+            <label for="answer-length">Answer length</label><select id="answer-length"><option value="auto">Auto — fit the question</option><option value="brief">Brief</option><option value="normal">Normal</option><option value="detailed">Detailed</option></select>
+            <label class="checkbox-label" for="auto-deep"><input id="auto-deep" type="checkbox" checked> Allow Auto to use Deep</label>
+            <p id="mode-help">Auto may use a larger model for complex questions.</p>
+            <button id="save-preferences" class="primary" type="button">Save as my defaults</button>
+            <p id="preferences-status" role="status" aria-live="polite">Saved defaults apply to your chats in this household.</p>
+          </div>
+        </details>
+        <span id="composer-hint">You ask. Simon handles the details.</span>
+        <button id="stop" class="send-button stop-button" type="button" aria-label="Stop" title="Stop generating" hidden>■</button>
+        <button id="send-button" class="send-button" aria-label="Send" title="Send message" disabled>↑</button>
+      </div>
+    </form>
+    <div class="composer-footer"><span id="assistant-mode">Connecting to your workspace…</span><span>Shift + Enter for a new line</span></div>
+  </div>
+</main>
+<dialog id="memory-panel" class="side-panel" aria-labelledby="memory-heading">
+  <div class="panel-header"><div><p class="eyebrow">A LITTLE CONTEXT GOES A LONG WAY</p><h2 id="memory-heading">Shared memories</h2></div><button class="icon-button" data-close="memory-panel" aria-label="Close memories">×</button></div>
+  <p class="muted">Facts and preferences Simon can use in future conversations. Shared with your household.</p>
+  <div id="memories" class="memory-list"></div>
+  <form id="memory-form"><h3>Remember something</h3><label for="memory-subject">Title</label><input id="memory-subject" required maxlength="200" placeholder="e.g. Dinner preferences"><label for="memory-content">What should Simon know?</label><textarea id="memory-content" required maxlength="1000" rows="3" placeholder="We prefer vegetarian dinners on weekdays."></textarea><button class="primary">Save shared memory</button><p class="muted fine">Saving makes this available to your household. Removing it affects future answers; earlier conversations keep their original context.</p></form>
+  <p id="memory-status" role="status" aria-live="polite"></p>
+</dialog>
+<dialog id="about-panel" class="about-panel" aria-labelledby="about-heading"><button class="icon-button close-about" data-close="about-panel" aria-label="Close about">×</button><img src="/assets/simon.svg" alt="" width="56" height="56"><h2 id="about-heading">Meet Simon.</h2><p class="backronym">Smart Interactive Memory and Orchestration Network</p><p>Your personal assistant for writing, planning, questions, and working through ideas. Simon chooses the model and reasoning effort for each message.</p><p class="muted">Selected conversation context and shared memories are sent to OpenAI. Simon can search public web pages. Connect Google to check your calendar and prepare emails or events for confirmation. Configured home devices support status checks and immediate power, brightness, and color changes. Website form submissions are not available.</p><a href="/login">Account &amp; access ↗</a></dialog>
+<dialog id="connections-panel" class="side-panel" aria-labelledby="connections-heading">
+  <div class="panel-header"><h2 id="connections-heading">Connections</h2><button class="icon-button" data-close="connections-panel" aria-label="Close connections">×</button></div>
+  <div class="memory-card"><h3>Web</h3><p id="web-connection"></p><p class="muted">Ask about a website, product, or place. Simon searches public pages and links its sources. Some pages and live inventory may be unavailable.</p></div>
+  <div class="memory-card"><h3>Google Calendar &amp; Gmail</h3><p id="google-connection" role="status"></p>
+    <p>Check your primary calendar, add an event, or send a plain-text email. Simon shows a review card before creating or sending anything.</p>
+    <label class="checkbox-label"><input id="google-sharing" type="checkbox"> I understand that calendar results and email drafts used in chat are sent to OpenAI and saved in conversations shared with my household.</label>
+    <button id="google-connect" class="primary" disabled>Connect Google</button>
+    <button id="google-disconnect" class="text-button" hidden>Disconnect Google</button>
+    <p id="google-setup" class="muted"></p>
+    <p class="muted fine">Disconnect removes Simon’s stored credentials. You can also revoke access in your Google account. Existing conversation history remains.</p>
+  </div>
+  <div class="memory-card"><h3>Home devices</h3><p>LIFX, Tuya, and Shelly devices appear automatically. Name your outlets and choose what they power below, then control them here or in chat. Lights also respond to room and all-lights commands.</p><div id="home-devices"></div></div>
+  <div class="memory-card"><h3>Reservations</h3><p>Find official booking pages or prepare a reservation request by email. A sent request is not a confirmed booking. Simon cannot submit website booking forms yet.</p></div>
+</dialog>
+<dialog id="voice-panel" class="voice-panel" aria-labelledby="voice-heading">
+<div class="panel-header"><h2 id="voice-heading">A conversation with Simon</h2><button id="voice-close" class="icon-button" aria-label="Close voice">&#215;</button></div>
+<div class="voice-intro"><div class="voice-orb" aria-hidden="true"></div><p id="voice-status" role="status">Ready to talk.</p><p class="muted fine">Live AI voice. Interrupt naturally. Keep this page open during your call.<br>Audio is sent to OpenAI; transcripts and task results are saved in Simon. Calls use API billing.</p></div>
+<label id="voice-history-label" class="muted fine" hidden>Previous calls <select id="voice-history" aria-label="Previous voice conversations"></select></label><div id="voice-captions" class="voice-captions" aria-label="Live captions"></div>
+<div class="voice-controls"><button id="voice-start" class="primary" disabled>Start conversation</button><button id="voice-mute" aria-pressed="false" disabled>Mute</button><button id="voice-end" disabled>End call</button><button id="voice-hear" hidden>Tap to hear Simon</button></div>
+<div class="voice-task"><span id="voice-task-status" role="status">Ready</span><span id="voice-duration">0:00</span><button id="voice-stop-task" class="text-button" disabled>Stop task</button><a id="voice-results" target="_blank" rel="noopener" hidden>View conversation &amp; approvals &nearr;</a></div>
+<audio id="voice-audio" autoplay playsinline></audio>
+</dialog><dialog id="home-panel" class="home-panel" aria-labelledby="home-heading"><div class="panel-header"><div><p class="eyebrow">YOUR SPACE, CONNECTED</p><h2 id="home-heading">Home</h2></div><button id="home-refresh" class="text-button">Refresh status</button><button id="home-close" class="icon-button" aria-label="Close home">&#215;</button></div><p id="home-status" class="muted" role="status"></p><div id="home-grid"></div></dialog></body></html>

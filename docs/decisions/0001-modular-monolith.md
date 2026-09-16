@@ -5,9 +5,9 @@
 
 ## Decision
 
-Jarvis begins as a modular monolith, while Home OS and machine-bound workers are separately
+Simon begins as a modular monolith, while Home OS and machine-bound workers are separately
 deployable processes in the same monorepo. Cross-process interactions use versioned contracts.
-Home OS owns physical workflows and actuator safety. Jarvis owns interaction, context, tools, and
+Home OS owns physical workflows and actuator safety. Simon owns interaction, context, tools, and
 general jobs.
 
 ## Consequences

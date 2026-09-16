@@ -4,15 +4,15 @@ from uuid import uuid4
 import pytest
 from fastapi.testclient import TestClient
 
-from jarvis.api.app import AppContainer, create_app
-from jarvis.config import Settings
+from simon.api.app import AppContainer, create_app
+from simon.config import Settings
 
 pytestmark = pytest.mark.postgres
 
 
 @pytest.fixture
 def seeded_url(postgres_url: str) -> str:
-    from jarvis.seed import seed_development_identity
+    from simon.seed import seed_development_identity
 
     seed_development_identity(postgres_url)
     return postgres_url
@@ -70,7 +70,7 @@ def test_api_state_survives_new_container(seeded_url: str) -> None:
 
 
 def test_migration_replay_and_changed_checksum(postgres_url: str, tmp_path: Path) -> None:
-    from jarvis.migrate import migrate, migration_directory
+    from simon.migrate import migrate, migration_directory
 
     assert migrate(postgres_url) == []
     for source in migration_directory().glob("*.sql"):
@@ -84,7 +84,7 @@ def test_migration_replay_and_changed_checksum(postgres_url: str, tmp_path: Path
 def test_failed_migration_rolls_back_ddl_and_version(postgres_url: str, tmp_path: Path) -> None:
     import psycopg
 
-    from jarvis.migrate import migrate, migration_directory
+    from simon.migrate import migrate, migration_directory
 
     for source in migration_directory().glob("*.sql"):
         (tmp_path / source.name).write_text(source.read_text())
@@ -104,7 +104,7 @@ def test_failed_migration_rolls_back_ddl_and_version(postgres_url: str, tmp_path
 
 
 def test_no_migration_files_is_an_error(tmp_path: Path) -> None:
-    from jarvis.migrate import migrate
+    from simon.migrate import migrate
 
     with pytest.raises(ValueError, match="no migration"):
         migrate("unused", tmp_path)
@@ -113,7 +113,7 @@ def test_no_migration_files_is_an_error(tmp_path: Path) -> None:
 def test_seed_is_repeatable(seeded_url: str) -> None:
     import psycopg
 
-    from jarvis.seed import seed_development_identity
+    from simon.seed import seed_development_identity
 
     seed_development_identity(seeded_url)
     with psycopg.connect(seeded_url) as connection:

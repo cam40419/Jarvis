@@ -1,4 +1,4 @@
-# Jarvis and Home OS target architecture
+# Simon and Home OS target architecture
 
 Status: proposed architecture for review  
 Date: 2026-09-09  
@@ -8,7 +8,7 @@ Scope: replacement architecture; the current implementation is not a migration b
 
 Build one product in one monorepo, composed of independently deployable services.
 
-- **Jarvis** is the user-facing assistant and control plane. It owns identity, conversations, context assembly, memory, tool discovery, permissions, model routing, notifications, and channel adapters.
+- **Simon** is the user-facing assistant and control plane. It owns identity, conversations, context assembly, memory, tool discovery, permissions, model routing, notifications, and channel adapters.
 - **Home OS** is a bounded physical-automation subsystem. It owns device drivers, telemetry, deterministic workflows, actuator policy, interlocks, and the station control plane.
 - **Workers** perform environment-specific work such as Codex repository tasks, slicing, KiCad operations, vision inference, and desktop automation.
 - **Channels** such as web chat, mobile, and voice are thin clients. They do not own separate memories or separate tool registries.
@@ -22,7 +22,7 @@ Home OS has different correctness requirements from an assistant:
 - A conversation may be retried or abandoned; a physical command must be idempotent and auditable.
 - An agent can propose a plan; deterministic state machines must own long-running physical execution.
 - Assistant failures should not stop ordinary home automations or corrupt device state.
-- Home OS must remain usable through a direct operations UI and API when OpenAI, the internet, or Jarvis is unavailable.
+- Home OS must remain usable through a direct operations UI and API when OpenAI, the internet, or Simon is unavailable.
 - Home OS needs stricter release, simulation, and safety gates than calendar summaries or chat features.
 
 Keeping both systems in a monorepo still provides shared types, atomic contract changes, one developer workflow, and simple deployment during the early phases.
@@ -34,7 +34,7 @@ Keeping both systems in a monorepo still provides shared types, atomic contract 
        |                  |                  |                    |
        +------------------+------------------+--------------------+
                                   |
-                         Jarvis Gateway/API
+                         Simon Gateway/API
                     auth, sessions, streaming, rate limits
                                   |
                          Assistant Runtime
@@ -82,8 +82,8 @@ This gives chat and voice the same knowledge without pretending they are the sam
 
 | Category | Authority | Storage | Retrieval rule |
 |---|---|---|---|
-| Conversation | Jarvis | Postgres | recent turns plus summary |
-| User facts/preferences | Jarvis memory | Postgres + vector index | relevance, confidence, scope |
+| Conversation | Simon | Postgres | recent turns plus summary |
+| User facts/preferences | Simon memory | Postgres + vector index | relevance, confidence, scope |
 | Project knowledge | Git/files and indexed artifacts | object store + index | project-scoped retrieval |
 | Device state | Home OS/HA | source system | fetch live; do not memorize as fact |
 | Calendar/mail | provider | source system | fetch live with account scope |
@@ -114,7 +114,7 @@ At run time, the broker computes a small capability manifest using identity, cha
 
 Use three adapter types behind the broker:
 
-- **Internal typed APIs** for Home OS and core Jarvis services. These are the strongest contracts and should be preferred for safety-critical actions.
+- **Internal typed APIs** for Home OS and core Simon services. These are the strongest contracts and should be preferred for safety-critical actions.
 - **MCP clients** for third-party or rapidly evolving tool ecosystems.
 - **Worker jobs** for long-running or environment-bound work. The apparent tool returns a job ID immediately rather than holding a model tool call open.
 
@@ -122,16 +122,16 @@ MCP is an interoperability boundary, not the internal event bus and not the secu
 
 ## 6. Codex integration
 
-Codex is a specialized worker, not the master copy of Jarvis memory.
+Codex is a specialized worker, not the master copy of Simon memory.
 
 The assistant submits a `coding_task` containing a repository ID, worktree/branch policy, objective, selected context artifacts, acceptance criteria, allowed commands/network policy, and approval mode. The Codex worker streams normalized events and finishes with a structured result: changed files, diff/commit reference, tests, unresolved risks, and resumable thread/session reference.
 
-Use the Codex SDK first for bounded background work. Evaluate App Server when the PWA needs a first-class interactive Codex surface with richer event streaming, approvals, and thread controls. Put either implementation behind a `CodingWorker` port so Jarvis does not depend on Codex protocol details.
+Use the Codex SDK first for bounded background work. Evaluate App Server when the PWA needs a first-class interactive Codex surface with richer event streaming, approvals, and thread controls. Put either implementation behind a `CodingWorker` port so Simon does not depend on Codex protocol details.
 
 Codex context should come from:
 
 - repository files and local `AGENTS.md` instructions;
-- the task envelope generated by Jarvis;
+- the task envelope generated by Simon;
 - explicitly attached architecture decisions and project memories;
 - scoped tool credentials supplied by the worker environment.
 
@@ -155,7 +155,7 @@ Channel-specific presentation belongs after the core result: concise speech, ric
 
 ## 8. Home OS internals
 
-Home OS exposes a narrow versioned API to Jarvis:
+Home OS exposes a narrow versioned API to Simon:
 
 - list device capabilities and health;
 - query current and historical state;
@@ -173,7 +173,7 @@ Internally it contains:
 - a **policy kernel** that wraps every actuator call;
 - an **event/telemetry pipeline**;
 - a **simulation layer** for drivers and workflows;
-- an **operator API/UI** that works without Jarvis.
+- an **operator API/UI** that works without Simon.
 
 Home Assistant remains the commodity-device hub. Native Home OS drivers are appropriate where HA lacks the required fidelity or where the workflow needs a tighter local contract. Avoid duplicate ownership: each logical device has one authoritative command path.
 
@@ -212,7 +212,7 @@ The application, not the model, enforces authorization.
 - Default-deny network access from workers; explicitly allow the destinations a task needs.
 - Put Home OS and workers on the appropriate VLANs; expose no public inbound ports.
 
-Emergency behavior is deterministic and local. E-stops, thermal/power limits, and device safety scripts do not depend on an LLM, Jarvis, or internet connectivity.
+Emergency behavior is deterministic and local. E-stops, thermal/power limits, and device safety scripts do not depend on an LLM, Simon, or internet connectivity.
 
 ## 11. Deployment shape
 
@@ -220,8 +220,8 @@ Begin as a **modular monolith plus workers**, not a fleet of microservices.
 
 One server deployment can initially run:
 
-- `jarvis-api`: gateway, assistant runtime, context, capabilities, notifications;
-- `jarvis-worker`: general durable jobs and scheduled tasks;
+- `simon-api`: gateway, assistant runtime, context, capabilities, notifications;
+- `simon-worker`: general durable jobs and scheduled tasks;
 - `homeos`: device API, policy, workflows, low-rate events;
 - Postgres with pgvector;
 - Redis only if needed for transient streaming/presence, never durable truth;
@@ -240,7 +240,7 @@ Split a module into its own process only when it needs an independent failure do
 ## 12. Recommended monorepo
 
 ```text
-Jarvis/
+Simon/
   apps/
     api/                    # HTTP/WebSocket/SSE gateway
     web/                    # PWA
@@ -377,7 +377,7 @@ Exit test: the same calendar question asked by chat and voice receives context-c
 - soft-write routines with idempotency and policy enforcement;
 - direct Home OS operations page independent of chat.
 
-Exit test: Jarvis and the operator UI use the same typed Home OS API, while a denied command cannot reach a driver.
+Exit test: Simon and the operator UI use the same typed Home OS API, while a denied command cannot reach a driver.
 
 ### Phase 3: print-from-link
 
@@ -396,7 +396,7 @@ Exit test: an approved link becomes a traceable print job; duplicate delivery ca
 - interactive App Server evaluation for the PWA;
 - KiCad connector spike behind the fabrication worker contract.
 
-Exit test: Jarvis launches a bounded repository task, streams progress, receives verified results, and resumes it without leaking unrelated personal context.
+Exit test: Simon launches a bounded repository task, streams progress, receives verified results, and resumes it without leaking unrelated personal context.
 
 ### Phase 5: voice and proactive operation
 
