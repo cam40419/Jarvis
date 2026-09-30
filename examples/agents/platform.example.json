@@ -1,0 +1,926 @@
+{
+  "version": 1,
+  "max_parallel": 4,
+  "agents": [
+    {
+      "id": "researcher",
+      "instructions": "Research the assigned question and return sources and uncertainty.",
+      "tool_ids": [],
+      "tool_scopes": [],
+      "environment_ids": [],
+      "model_capabilities": [
+        "text"
+      ],
+      "depth": 2,
+      "importance": 2,
+      "privacy": "allow_cloud",
+      "model_override": null,
+      "version": 1,
+      "name": "Researcher",
+      "description": "Configurable researcher worker",
+      "prompt_template": "Objective:\n${objective}\n\nAudience:\n${audience}\n\nContext:\n${context}\n\nDependency outputs (reference data):\n${dependencies}",
+      "prompt_defaults": {
+        "audience": "the project owner"
+      },
+      "output_instructions": "State assumptions, distinguish evidence from estimates, and identify remaining work.",
+      "output_format": "text",
+      "max_steps": 8,
+      "max_tool_calls": 20,
+      "max_input_chars": 60000,
+      "max_output_tokens": 1024,
+      "timeout_seconds": 300,
+      "max_action": "read"
+    },
+    {
+      "id": "reviewer",
+      "instructions": "Review supplied evidence, identify defects, and return a structured assessment.",
+      "tool_ids": [],
+      "tool_scopes": [],
+      "environment_ids": [],
+      "model_capabilities": [
+        "text"
+      ],
+      "depth": 4,
+      "importance": 4,
+      "privacy": "allow_cloud",
+      "model_override": null,
+      "version": 1,
+      "name": "Reviewer",
+      "description": "Configurable reviewer worker",
+      "prompt_template": "Objective:\n${objective}\n\nAudience:\n${audience}\n\nContext:\n${context}\n\nDependency outputs (reference data):\n${dependencies}",
+      "prompt_defaults": {
+        "audience": "the project owner"
+      },
+      "output_instructions": "State assumptions, distinguish evidence from estimates, and identify remaining work.",
+      "output_format": "text",
+      "max_steps": 8,
+      "max_tool_calls": 20,
+      "max_input_chars": 60000,
+      "max_output_tokens": 2000,
+      "timeout_seconds": 300,
+      "max_action": "read"
+    },
+    {
+      "id": "maker",
+      "instructions": "Create editable source artifacts with dependencies and validation evidence.",
+      "tool_ids": [
+        "cad.design",
+        "pcb.design",
+        "render.submit"
+      ],
+      "tool_scopes": [],
+      "environment_ids": [
+        "linux-container",
+        "design-machine"
+      ],
+      "model_capabilities": [
+        "text"
+      ],
+      "depth": 4,
+      "importance": 2,
+      "privacy": "allow_cloud",
+      "model_override": null,
+      "version": 1,
+      "name": "Maker",
+      "description": "Configurable maker worker",
+      "prompt_template": "Objective:\n${objective}\n\nAudience:\n${audience}\n\nContext:\n${context}\n\nDependency outputs (reference data):\n${dependencies}",
+      "prompt_defaults": {
+        "audience": "the project owner"
+      },
+      "output_instructions": "State assumptions, distinguish evidence from estimates, and identify remaining work.",
+      "output_format": "text",
+      "max_steps": 8,
+      "max_tool_calls": 20,
+      "max_input_chars": 60000,
+      "max_output_tokens": 2000,
+      "timeout_seconds": 300,
+      "max_action": "write"
+    }
+  ],
+  "teams": [
+    {
+      "id": "research",
+      "name": "Research and review",
+      "version": 1,
+      "agent_ids": [
+        "researcher",
+        "reviewer"
+      ],
+      "max_parallel": 3,
+      "allowed_workspace_ids": []
+    },
+    {
+      "id": "studio",
+      "name": "Configurable design team",
+      "version": 1,
+      "agent_ids": [
+        "researcher",
+        "maker",
+        "reviewer"
+      ],
+      "max_parallel": 4,
+      "allowed_workspace_ids": []
+    }
+  ],
+  "models": [
+    {
+      "id": "local-economy",
+      "provider": "openai_compatible",
+      "model": "local-instruct",
+      "base_url": "http://127.0.0.1:11434/v1",
+      "api_key_env": null,
+      "local": true,
+      "tier": "economy",
+      "capabilities": [
+        "text"
+      ],
+      "context_window_tokens": 8192,
+      "max_output_tokens": 1024,
+      "reasoning_efforts": [],
+      "enabled": false,
+      "priority": 100,
+      "input_cost_per_million_usd": null,
+      "output_cost_per_million_usd": null
+    },
+    {
+      "id": "openai-standard",
+      "provider": "openai_responses",
+      "model": "gpt-5.4-mini-2026-03-17",
+      "base_url": "https://api.openai.com/v1",
+      "api_key_env": "OPENAI_API_KEY",
+      "local": false,
+      "tier": "standard",
+      "capabilities": [
+        "text"
+      ],
+      "context_window_tokens": 262144,
+      "max_output_tokens": 16384,
+      "reasoning_efforts": [
+        "none",
+        "low",
+        "medium",
+        "high",
+        "xhigh"
+      ],
+      "enabled": false,
+      "priority": 100,
+      "input_cost_per_million_usd": null,
+      "output_cost_per_million_usd": null
+    },
+    {
+      "id": "openai-frontier",
+      "provider": "openai_responses",
+      "model": "gpt-6-astra",
+      "base_url": "https://api.openai.com/v1",
+      "api_key_env": "OPENAI_API_KEY",
+      "local": false,
+      "tier": "frontier",
+      "capabilities": [
+        "text"
+      ],
+      "context_window_tokens": 262144,
+      "max_output_tokens": 16384,
+      "reasoning_efforts": [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ],
+      "enabled": false,
+      "priority": 100,
+      "input_cost_per_million_usd": null,
+      "output_cost_per_million_usd": null
+    },
+    {
+      "id": "anthropic-frontier",
+      "provider": "anthropic",
+      "model": "REPLACE_WITH_EVALUATED_CLAUDE_MODEL_ID",
+      "base_url": "https://api.anthropic.com/v1",
+      "api_key_env": "ANTHROPIC_API_KEY",
+      "local": false,
+      "tier": "frontier",
+      "capabilities": [
+        "text"
+      ],
+      "context_window_tokens": 32768,
+      "max_output_tokens": 4096,
+      "reasoning_efforts": [],
+      "enabled": false,
+      "priority": 100,
+      "input_cost_per_million_usd": null,
+      "output_cost_per_million_usd": null
+    },
+    {
+      "id": "gemini-frontier",
+      "provider": "gemini",
+      "model": "REPLACE_WITH_EVALUATED_GEMINI_MODEL_ID",
+      "base_url": "https://generativelanguage.googleapis.com/v1beta",
+      "api_key_env": "GEMINI_API_KEY",
+      "local": false,
+      "tier": "frontier",
+      "capabilities": [
+        "text"
+      ],
+      "context_window_tokens": 32768,
+      "max_output_tokens": 4096,
+      "reasoning_efforts": [],
+      "enabled": false,
+      "priority": 100,
+      "input_cost_per_million_usd": null,
+      "output_cost_per_million_usd": null
+    }
+  ],
+  "environments": [
+    {
+      "id": "linux-container",
+      "kind": "docker",
+      "os": "linux",
+      "capabilities": [
+        "workspace.read",
+        "process.execute",
+        "workspace.write"
+      ],
+      "enabled": false,
+      "container_image": "python:3.11-slim",
+      "runner_url": null,
+      "credential_env": null,
+      "cpu_limit": 2.0,
+      "memory_mb": 2048,
+      "gpu_devices": [],
+      "network": "none",
+      "max_concurrency": 4,
+      "container_uid": 1000,
+      "container_gid": 1000
+    },
+    {
+      "id": "design-machine",
+      "kind": "machine",
+      "os": "windows",
+      "capabilities": [
+        "cad.application",
+        "pcb.application",
+        "render.engine",
+        "desktop"
+      ],
+      "enabled": false,
+      "container_image": null,
+      "runner_url": "https://design-runner.example.invalid",
+      "credential_env": "SIMON_DESIGN_RUNNER_TOKEN",
+      "cpu_limit": 2.0,
+      "memory_mb": 2048,
+      "gpu_devices": [],
+      "network": "none",
+      "max_concurrency": 1,
+      "container_uid": 1000,
+      "container_gid": 1000
+    }
+  ],
+  "tools": [
+    {
+      "id": "image.generate",
+      "description": "Configure a provider or application for image.generate.",
+      "categories": [
+        "image"
+      ],
+      "capabilities": [
+        "image.generate"
+      ],
+      "transport": "http",
+      "input_schema": {
+        "type": "object"
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "enabled": false,
+      "configured": false,
+      "required_scopes": [
+        "tools:image.generate"
+      ],
+      "environment_capabilities": [],
+      "side_effect": true,
+      "action_policy": "write",
+      "endpoint": null,
+      "credential_env": null,
+      "settings": {}
+    },
+    {
+      "id": "image.edit",
+      "description": "Configure a provider or application for image.edit.",
+      "categories": [
+        "image"
+      ],
+      "capabilities": [
+        "image.edit"
+      ],
+      "transport": "http",
+      "input_schema": {
+        "type": "object"
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "enabled": false,
+      "configured": false,
+      "required_scopes": [
+        "tools:image.edit"
+      ],
+      "environment_capabilities": [],
+      "side_effect": true,
+      "action_policy": "write",
+      "endpoint": null,
+      "credential_env": null,
+      "settings": {}
+    },
+    {
+      "id": "video.generate",
+      "description": "Configure a provider or application for video.generate.",
+      "categories": [
+        "video"
+      ],
+      "capabilities": [
+        "video.generate"
+      ],
+      "transport": "external_job",
+      "input_schema": {
+        "type": "object"
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "enabled": false,
+      "configured": false,
+      "required_scopes": [
+        "tools:video.generate"
+      ],
+      "environment_capabilities": [],
+      "side_effect": true,
+      "action_policy": "write",
+      "endpoint": null,
+      "credential_env": null,
+      "settings": {}
+    },
+    {
+      "id": "video.edit",
+      "description": "Configure a provider or application for video.edit.",
+      "categories": [
+        "video"
+      ],
+      "capabilities": [
+        "video.edit"
+      ],
+      "transport": "cli",
+      "input_schema": {
+        "type": "object"
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "enabled": false,
+      "configured": false,
+      "required_scopes": [
+        "tools:video.edit"
+      ],
+      "environment_capabilities": [
+        "video.editor"
+      ],
+      "side_effect": true,
+      "action_policy": "write",
+      "endpoint": null,
+      "credential_env": null,
+      "settings": {}
+    },
+    {
+      "id": "audio.produce",
+      "description": "Configure a provider or application for audio.produce.",
+      "categories": [
+        "audio"
+      ],
+      "capabilities": [
+        "audio.produce"
+      ],
+      "transport": "external_job",
+      "input_schema": {
+        "type": "object"
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "enabled": false,
+      "configured": false,
+      "required_scopes": [
+        "tools:audio.produce"
+      ],
+      "environment_capabilities": [],
+      "side_effect": true,
+      "action_policy": "write",
+      "endpoint": null,
+      "credential_env": null,
+      "settings": {}
+    },
+    {
+      "id": "graphics.design",
+      "description": "Configure a provider or application for graphics.design.",
+      "categories": [
+        "graphics"
+      ],
+      "capabilities": [
+        "graphics.edit"
+      ],
+      "transport": "desktop",
+      "input_schema": {
+        "type": "object"
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "enabled": false,
+      "configured": false,
+      "required_scopes": [
+        "tools:graphics.design"
+      ],
+      "environment_capabilities": [
+        "graphics.editor"
+      ],
+      "side_effect": true,
+      "action_policy": "write",
+      "endpoint": null,
+      "credential_env": null,
+      "settings": {}
+    },
+    {
+      "id": "cad.design",
+      "description": "Configure a provider or application for cad.design.",
+      "categories": [
+        "cad"
+      ],
+      "capabilities": [
+        "cad.edit"
+      ],
+      "transport": "desktop",
+      "input_schema": {
+        "type": "object"
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "enabled": false,
+      "configured": false,
+      "required_scopes": [
+        "tools:cad.design"
+      ],
+      "environment_capabilities": [
+        "cad.application"
+      ],
+      "side_effect": true,
+      "action_policy": "write",
+      "endpoint": null,
+      "credential_env": null,
+      "settings": {}
+    },
+    {
+      "id": "pcb.design",
+      "description": "Configure a provider or application for pcb.design.",
+      "categories": [
+        "pcb"
+      ],
+      "capabilities": [
+        "pcb.edit"
+      ],
+      "transport": "desktop",
+      "input_schema": {
+        "type": "object"
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "enabled": false,
+      "configured": false,
+      "required_scopes": [
+        "tools:pcb.design"
+      ],
+      "environment_capabilities": [
+        "pcb.application"
+      ],
+      "side_effect": true,
+      "action_policy": "write",
+      "endpoint": null,
+      "credential_env": null,
+      "settings": {}
+    },
+    {
+      "id": "three_d.design",
+      "description": "Configure a provider or application for three_d.design.",
+      "categories": [
+        "3d"
+      ],
+      "capabilities": [
+        "3d.edit"
+      ],
+      "transport": "desktop",
+      "input_schema": {
+        "type": "object"
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "enabled": false,
+      "configured": false,
+      "required_scopes": [
+        "tools:three_d.design"
+      ],
+      "environment_capabilities": [
+        "3d.application"
+      ],
+      "side_effect": true,
+      "action_policy": "write",
+      "endpoint": null,
+      "credential_env": null,
+      "settings": {}
+    },
+    {
+      "id": "render.submit",
+      "description": "Configure a provider or application for render.submit.",
+      "categories": [
+        "render"
+      ],
+      "capabilities": [
+        "render.submit"
+      ],
+      "transport": "external_job",
+      "input_schema": {
+        "type": "object"
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "enabled": false,
+      "configured": false,
+      "required_scopes": [
+        "tools:render.submit"
+      ],
+      "environment_capabilities": [
+        "render.engine"
+      ],
+      "side_effect": true,
+      "action_policy": "write",
+      "endpoint": null,
+      "credential_env": null,
+      "settings": {}
+    },
+    {
+      "id": "simulation.submit",
+      "description": "Configure a provider or application for simulation.submit.",
+      "categories": [
+        "simulation"
+      ],
+      "capabilities": [
+        "simulation.submit"
+      ],
+      "transport": "external_job",
+      "input_schema": {
+        "type": "object"
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "enabled": false,
+      "configured": false,
+      "required_scopes": [
+        "tools:simulation.submit"
+      ],
+      "environment_capabilities": [
+        "simulation"
+      ],
+      "side_effect": true,
+      "action_policy": "write",
+      "endpoint": null,
+      "credential_env": null,
+      "settings": {}
+    },
+    {
+      "id": "writing.create",
+      "description": "Configure a provider or application for writing.create.",
+      "categories": [
+        "writing"
+      ],
+      "capabilities": [
+        "document.create"
+      ],
+      "transport": "python",
+      "input_schema": {
+        "type": "object"
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "enabled": false,
+      "configured": false,
+      "required_scopes": [
+        "tools:writing.create"
+      ],
+      "environment_capabilities": [],
+      "side_effect": true,
+      "action_policy": "write",
+      "endpoint": null,
+      "credential_env": null,
+      "settings": {}
+    },
+    {
+      "id": "files.create",
+      "description": "Configure a provider or application for files.create.",
+      "categories": [
+        "files"
+      ],
+      "capabilities": [
+        "file.write"
+      ],
+      "transport": "python",
+      "input_schema": {
+        "type": "object"
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "enabled": false,
+      "configured": false,
+      "required_scopes": [
+        "tools:files.create"
+      ],
+      "environment_capabilities": [
+        "workspace.write"
+      ],
+      "side_effect": true,
+      "action_policy": "write",
+      "endpoint": null,
+      "credential_env": null,
+      "settings": {}
+    },
+    {
+      "id": "files.read",
+      "description": "Configure a provider or application for files.read.",
+      "categories": [
+        "files"
+      ],
+      "capabilities": [
+        "file.read"
+      ],
+      "transport": "python",
+      "input_schema": {
+        "type": "object"
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "enabled": false,
+      "configured": false,
+      "required_scopes": [
+        "tools:files.read"
+      ],
+      "environment_capabilities": [
+        "workspace.read"
+      ],
+      "side_effect": false,
+      "action_policy": "read",
+      "endpoint": null,
+      "credential_env": null,
+      "settings": {}
+    },
+    {
+      "id": "storage.manage",
+      "description": "Configure a provider or application for storage.manage.",
+      "categories": [
+        "storage"
+      ],
+      "capabilities": [
+        "storage.write"
+      ],
+      "transport": "mcp",
+      "input_schema": {
+        "type": "object"
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "enabled": false,
+      "configured": false,
+      "required_scopes": [
+        "tools:storage.manage"
+      ],
+      "environment_capabilities": [],
+      "side_effect": true,
+      "action_policy": "write",
+      "endpoint": null,
+      "credential_env": null,
+      "settings": {}
+    },
+    {
+      "id": "web.research",
+      "description": "Configure a provider or application for web.research.",
+      "categories": [
+        "web"
+      ],
+      "capabilities": [
+        "web.read"
+      ],
+      "transport": "http",
+      "input_schema": {
+        "type": "object"
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "enabled": false,
+      "configured": false,
+      "required_scopes": [
+        "tools:web.research"
+      ],
+      "environment_capabilities": [
+        "network"
+      ],
+      "side_effect": false,
+      "action_policy": "read",
+      "endpoint": null,
+      "credential_env": null,
+      "settings": {}
+    },
+    {
+      "id": "browser.interact",
+      "description": "Configure a provider or application for browser.interact.",
+      "categories": [
+        "web"
+      ],
+      "capabilities": [
+        "browser.control"
+      ],
+      "transport": "browser",
+      "input_schema": {
+        "type": "object"
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "enabled": false,
+      "configured": false,
+      "required_scopes": [
+        "tools:browser.interact"
+      ],
+      "environment_capabilities": [
+        "browser"
+      ],
+      "side_effect": true,
+      "action_policy": "write",
+      "endpoint": null,
+      "credential_env": null,
+      "settings": {}
+    },
+    {
+      "id": "desktop.control",
+      "description": "Configure a provider or application for desktop.control.",
+      "categories": [
+        "computer"
+      ],
+      "capabilities": [
+        "desktop.control"
+      ],
+      "transport": "desktop",
+      "input_schema": {
+        "type": "object"
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "enabled": false,
+      "configured": false,
+      "required_scopes": [
+        "tools:desktop.control"
+      ],
+      "environment_capabilities": [
+        "desktop"
+      ],
+      "side_effect": true,
+      "action_policy": "write",
+      "endpoint": null,
+      "credential_env": null,
+      "settings": {}
+    },
+    {
+      "id": "data.query",
+      "description": "Configure a provider or application for data.query.",
+      "categories": [
+        "data"
+      ],
+      "capabilities": [
+        "data.read"
+      ],
+      "transport": "mcp",
+      "input_schema": {
+        "type": "object"
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "enabled": false,
+      "configured": false,
+      "required_scopes": [
+        "tools:data.query"
+      ],
+      "environment_capabilities": [],
+      "side_effect": false,
+      "action_policy": "read",
+      "endpoint": null,
+      "credential_env": null,
+      "settings": {}
+    },
+    {
+      "id": "data.manage",
+      "description": "Configure a provider or application for data.manage.",
+      "categories": [
+        "data"
+      ],
+      "capabilities": [
+        "data.write"
+      ],
+      "transport": "mcp",
+      "input_schema": {
+        "type": "object"
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "enabled": false,
+      "configured": false,
+      "required_scopes": [
+        "tools:data.manage"
+      ],
+      "environment_capabilities": [],
+      "side_effect": true,
+      "action_policy": "write",
+      "endpoint": null,
+      "credential_env": null,
+      "settings": {}
+    },
+    {
+      "id": "code.execute",
+      "description": "Configure a provider or application for code.execute.",
+      "categories": [
+        "software"
+      ],
+      "capabilities": [
+        "code.execute"
+      ],
+      "transport": "cli",
+      "input_schema": {
+        "type": "object"
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "enabled": false,
+      "configured": false,
+      "required_scopes": [
+        "tools:code.execute"
+      ],
+      "environment_capabilities": [
+        "process.execute"
+      ],
+      "side_effect": true,
+      "action_policy": "write",
+      "endpoint": null,
+      "credential_env": null,
+      "settings": {}
+    },
+    {
+      "id": "home.manage",
+      "description": "Configure a provider or application for home.manage.",
+      "categories": [
+        "home"
+      ],
+      "capabilities": [
+        "home.control"
+      ],
+      "transport": "http",
+      "input_schema": {
+        "type": "object"
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "enabled": false,
+      "configured": false,
+      "required_scopes": [
+        "tools:home.manage"
+      ],
+      "environment_capabilities": [
+        "network"
+      ],
+      "side_effect": true,
+      "action_policy": "write",
+      "endpoint": null,
+      "credential_env": null,
+      "settings": {}
+    }
+  ],
+  "contexts": []
+}

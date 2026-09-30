@@ -129,8 +129,15 @@ def test_feedback_can_change_clear_and_survive_replays(model_setup):
     )
     assert cleared.rating is None and cleared.version == 3
     assert interactions.save_feedback(actor, run.id, request) == cleared
-    assert interactions.answers(actor, thread.id, 0, 1)[0].feedback == cleared
-    assert interactions.answers(actor, thread.id, 1, 1)[0].run_id == later.id
+    # Fast fake generations can share a timestamp; their ID breaks the ordering tie.
+    pages = (
+        *interactions.answers(actor, thread.id, 0, 1),
+        *interactions.answers(actor, thread.id, 1, 1),
+    )
+    assert {answer.run_id: answer.feedback for answer in pages} == {
+        run.id: cleared,
+        later.id: None,
+    }
     assert interactions.answers(actor, thread.id, 2, 1) == ()
     other = actor.model_copy(update={"actor_id": uuid4()})
     service.store.put_membership(
@@ -140,7 +147,10 @@ def test_feedback_can_change_clear_and_survive_replays(model_setup):
         interactions.answers(other, thread.id)
     with pytest.raises(NotFoundError):
         interactions.save_feedback(other, run.id, request)
-    assert interactions.answers(actor, thread.id)[0].feedback == cleared
+    assert next(
+        answer.feedback for answer in interactions.answers(actor, thread.id)
+        if answer.run_id == run.id
+    ) == cleared
     with pytest.raises(InvalidTransitionError):
         interactions.save_feedback(
             actor, run.id, feedback_request(idempotency_key="feedback-stale")

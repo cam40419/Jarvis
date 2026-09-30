@@ -11,18 +11,18 @@ from simon.services.identity import IdentityService
 
 def main() -> None:
     settings = Settings()
-    if settings.home_household_id is None:
-        raise RuntimeError("SIMON_HOME_HOUSEHOLD_ID must identify the local workspace.")
+    if settings.account_household_id is None:
+        raise RuntimeError("SIMON_ACCOUNT_HOUSEHOLD_ID must identify the local workspace.")
     store = PostgresStore(settings.database_url.get_secret_value())
     identity = IdentityService(store, settings)
     membership = identity.membership(
-        settings.account_admin_actor_id, settings.home_household_id
+        settings.account_admin_actor_id, settings.account_household_id
     )
     if membership.role != "owner":
-        raise RuntimeError("The configured administrator must own the home household.")
+        raise RuntimeError("The configured administrator must own the account workspace.")
     actor = ActorContext(
         actor_id=settings.account_admin_actor_id,
-        household_id=settings.home_household_id,
+        household_id=settings.account_household_id,
         channel=Channel.API,
         scopes=frozenset({"identity:manage"}),
     )

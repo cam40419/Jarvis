@@ -136,7 +136,7 @@ def test_account_api_invite_isolation_and_revocation(client, container, auth_hea
     }
     assert client.get("/v1/accounts").status_code == 403
     assert client.post("/v1/accounts/invite", headers=member_headers, json=body).status_code == 403
-    assert client.get("/v1/home/devices").json() == []
+    assert client.get("/v1/connections/home").json()["configured"] is False
     assert client.get("/v1/threads").json() == []
     assert client.get("/v1/memories").json() == []
     assert (
@@ -165,4 +165,4 @@ def test_account_api_invite_isolation_and_revocation(client, container, auth_hea
     assert access.status_code == 200 and access.json()["status"] == "disabled"
     client.cookies.clear()
     client.cookies.set("simon_session", member_token)
-    assert client.get("/v1/home/devices").status_code == 401
+    assert client.get("/v1/threads").status_code == 401

@@ -91,7 +91,7 @@ The user's next priority is LIFX Beam, Smart Life hexagons, and planned Shelly P
 outlets. Adapters, automatic cloud discovery, persistent rooms/groups, device status UI, and
 confirmed on/off or brightness previews are implemented. September 15 live read-only checks
 found Beam, Up Arrow and Down Arrow. Physical switching remains pending.
-See the [home integration plan](home-integration-plan.md)
+See the [home integration plan](https://github.com/cam40419/RobbinsHome/blob/main/docs/home-integration-plan.md)
 for controls, limits, provider references, and the staged rollout. The remaining budget and
 routing work above is still outstanding.
 

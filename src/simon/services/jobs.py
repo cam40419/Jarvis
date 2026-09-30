@@ -1,7 +1,7 @@
 from typing import Any
 from uuid import UUID
 
-from simon.domain.errors import InvalidTransitionError, NotFoundError
+from simon.domain.errors import InvalidTransitionError, NotFoundError, ValidationError
 from simon.domain.models import (
     TERMINAL_JOB_STATUSES,
     ActorContext,
@@ -46,6 +46,8 @@ class JobService:
         input: dict[str, Any],
         idempotency_key: str,
     ) -> tuple[Job, bool]:
+        if kind.startswith("platform."):
+            raise ValidationError("Agent platform jobs must use the agent platform API")
         job = Job(
             household_id=actor.household_id,
             created_by=actor.actor_id,
@@ -82,13 +84,15 @@ class JobService:
                 current is None
                 or current.household_id != actor.household_id
                 or (
-                    current.kind in {"workflow.action", "assistant.task", "assistant.session"}
+                    (current.kind in {"workflow.action", "assistant.task", "assistant.session"}
+                     or current.kind.startswith("platform."))
                     and current.created_by != actor.actor_id
                 )
             ):
                 raise NotFoundError("job not found")
             if (
                 current.status in TERMINAL_JOB_STATUSES
+                or current.kind.startswith("platform.")
                 or status not in ALLOWED_TRANSITIONS[current.status]
             ):
                 raise InvalidTransitionError(f"cannot transition {current.status} to {status}")
@@ -108,9 +112,11 @@ class JobService:
         job = self._store.get_job(job_id)
         if (
             job is None
+            or job.kind.startswith("platform.")
             or job.household_id != actor.household_id
             or (
-                job.kind in {"workflow.action", "assistant.task", "assistant.session"}
+                (job.kind in {"workflow.action", "assistant.task", "assistant.session"}
+                 or job.kind.startswith("platform."))
                 and job.created_by != actor.actor_id
             )
         ):

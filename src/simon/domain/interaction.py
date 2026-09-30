@@ -4,7 +4,7 @@ from uuid import UUID
 from pydantic import AwareDatetime, Field
 
 from simon.domain.connected_tools import ActionProposal, WebSource
-from simon.domain.home import HomeCommand
+from simon.domain.external_home import HomeCommand
 from simon.domain.model import AnswerLength, ProfileName
 from simon.domain.models import StrictModel, utc_now
 from simon.domain.personality import AssistantPersona

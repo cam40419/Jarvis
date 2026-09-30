@@ -3,7 +3,7 @@ from uuid import uuid4
 
 from simon.domain.connected_tools import ActionProposal
 from simon.domain.conversations import Run, Thread
-from simon.domain.home import HomeChange
+from simon.domain.external_home import HomeChange
 from simon.domain.identity import DEV_ACTOR_ID, DEV_HOUSEHOLD_ID
 from simon.domain.models import utc_now
 

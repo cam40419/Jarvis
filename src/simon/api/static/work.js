@@ -7,8 +7,8 @@
     if (className) value.className = className;
     return value;
   };
-  let pendingProject = null, pendingWorkflow = null, editingTask = null;
-  let snapshot = {projects: [], project_artifacts: [], tasks: [], workflows: [], workflow_runs: [], workflow_schedules: [], print_batches: []};
+  let pendingProject = null, editingTask = null;
+  let snapshot = {projects: [], project_artifacts: [], tasks: [], };
   let refreshTimer = null, currentProject = null;
   const initialProject = new URLSearchParams(location.search).get('project');
   const projectPage = node('section', undefined, 'project-page'); projectPage.id = 'project-page'; projectPage.hidden = true;
@@ -299,62 +299,10 @@
       return card;
     }) : [node('p', 'No project context saved yet.', 'work-empty')]));
   };
-  const controlRun = async (run, action) => {
-    await api(`/v1/workflow-runs/${run.id}/control`, {action, expected_version: run.version}); await loadWork();
-  };
-  const scheduleControl = async (schedule, action) => {
-    await api(`/v1/workflow-schedules/${schedule.id}/control`, {action, expected_version: schedule.version}); await loadWork();
-  };
-  const removeSchedule = async schedule => {
-    if (!window.confirm(`Remove the ${schedule.frequency} schedule for “${schedule.name}”?`)) return;
-    await api(`/v1/workflow-schedules/${schedule.id}?expected_version=${schedule.version}`, undefined, 'DELETE'); await loadWork();
-  };
-  const renderWorkflows = (workflows, schedules) => {
-    $('work-workflows').replaceChildren(...(workflows.length ? workflows.map(flow => {
-      const card = node('article', undefined, 'work-item');
-      card.append(node('strong', flow.spec.name), node('p', `${flow.spec.steps.length} steps · version ${flow.version}`));
-      for (const schedule of schedules.filter(item => item.definition_id === flow.id)) {
-        card.append(node('p', `${schedule.frequency} · ${schedule.enabled ? `next ${new Date(schedule.next_run_at).toLocaleString()}` : 'paused'} · ${schedule.time_zone}`));
-        addActions(card, [
-          [schedule.enabled ? 'Pause schedule' : 'Resume schedule', () => scheduleControl(schedule, schedule.enabled ? 'pause' : 'resume')],
-          ['Remove schedule', () => removeSchedule(schedule)],
-        ]);
-      }
-      addActions(card, [
-        ['Run now', async () => { await api(`/v1/workflows/${flow.id}/runs`, {definition_version: flow.version, idempotency_key: crypto.randomUUID()}); await loadWork(); }],
-        ['Delete', async () => {
-          if (!window.confirm(`Delete “${flow.spec.name}”? Completed run history will remain.`)) return;
-          await api(`/v1/workflows/${flow.id}?expected_version=${flow.version}`, undefined, 'DELETE');
-          await loadWork(); say(`${flow.spec.name} deleted.`);
-        }],
-      ]);
-      return card;
-    }) : [node('p', 'No scheduled workflows yet.', 'work-empty')]));
-  };
-  const renderOperations = (runs, batches) => {
-    const values = [];
-    for (const run of runs) {
-      const card = node('article', undefined, 'work-item operation-item');
-      card.append(node('strong', run.name), node('p', `Automation · ${run.status.replaceAll('_', ' ')} · ${run.steps.filter(step => step.status === 'succeeded').length}/${run.steps.length} steps`), node('small', new Date(run.created_at).toLocaleString()));
-      const choices = [];
-      if (['queued', 'running', 'waiting', 'needs_attention'].includes(run.status)) choices.push(['Pause', () => controlRun(run, 'pause')]);
-      if (run.status === 'paused') choices.push(['Resume', () => controlRun(run, 'resume')]);
-      if (!terminal(run.status)) choices.push(['Cancel', () => controlRun(run, 'cancel')]);
-      addActions(card, choices); values.push(card);
-    }
-    for (const batch of batches) {
-      const complete = batch.jobs.filter(job => ['done', 'completed'].includes(job.state)).length;
-      const card = node('article', undefined, 'work-item operation-item');
-      card.append(node('strong', `Print batch ${batch.id.slice(0, 8)}`), node('p', `Print · ${batch.state.replaceAll('_', ' ')} · ${complete}/${batch.jobs.length} jobs complete`), node('small', new Date(batch.created * 1000).toLocaleString()));
-      if (batch.note) card.append(node('p', batch.note));
-      addActions(card, [['Manage prints', () => { location.assign(appPath('/automations')); }]]); values.push(card);
-    }
-    $('work-runs').replaceChildren(...(values.length ? values : [node('p', 'No automation runs or print batches yet.', 'work-empty')]));
-  };
   const scheduleRefresh = () => {
     clearTimeout(refreshTimer); refreshTimer = null;
     if ($('work-view').hidden || document.hidden) return;
-    const active = Boolean(currentProject) || snapshot.tasks.some(task => !terminal(task.status)) || snapshot.workflow_runs.some(run => !terminal(run.status)) || snapshot.print_batches.some(batch => !['done', 'canceled'].includes(batch.state));
+    const active = Boolean(currentProject) || snapshot.tasks.some(task => !terminal(task.status));
     if (active || snapshot.projects.length) refreshTimer = setTimeout(() => loadWork(true), 15000);
   };
   async function loadWork(quiet = false) {
@@ -363,10 +311,7 @@
     try {
       if (currentProject) { await loadProject(); return; }
       snapshot = await api('/v1/work/overview');
-      renderProjects(snapshot.projects, snapshot.project_artifacts || []); renderTasks(snapshot.tasks); renderWorkflows(snapshot.workflows, snapshot.workflow_schedules || []);
-      renderOperations(snapshot.workflow_runs, snapshot.print_batches);
-      const online = Boolean(snapshot.workflow_health.worker_online);
-      $('work-worker').textContent = online ? 'Worker online' : 'Worker offline'; $('work-worker').classList.toggle('online', online);
+      renderProjects(snapshot.projects, snapshot.project_artifacts || []); renderTasks(snapshot.tasks);
       if (!quiet) say('Work overview refreshed.');
     } catch (error) { say(error.message, true); }
     finally { scheduleRefresh(); }
@@ -396,16 +341,6 @@
     const subject = $('work-project-name').value.trim(), content = $('work-project-detail').value.trim();
     if (!pendingProject || pendingProject.name !== subject || pendingProject.description !== content) pendingProject = {name: subject, description: content, idempotency_key: crypto.randomUUID()};
     try { await api('/v1/projects', pendingProject); pendingProject = null; event.target.reset(); await loadWork(); await memories(); say('Project saved. Its Drive folder is managed automatically.'); }
-    catch (error) { say(error.message, true); } finally { button.disabled = false; }
-  };
-  $('work-flow-action').onchange = () => {
-    const echo = $('work-flow-action').value === 'system.echo'; $('work-flow-message').hidden = $('work-flow-message-label').hidden = !echo; $('work-flow-message').required = echo;
-  };
-  $('work-flow-form').onsubmit = async event => {
-    event.preventDefault(); const button = event.submitter; button.disabled = true;
-    const action = $('work-flow-action').value, spec = {name: $('work-flow-name').value.trim(), steps: [{id: 'check', action, inputs: action === 'system.echo' ? {message: $('work-flow-message').value.trim()} : {}}]};
-    if (!pendingWorkflow || JSON.stringify(pendingWorkflow.spec) !== JSON.stringify(spec)) pendingWorkflow = {spec, expected_version: 0, idempotency_key: crypto.randomUUID()};
-    try { await api('/v1/workflows', pendingWorkflow); pendingWorkflow = null; event.target.reset(); await loadWork(); say('Workflow created.'); }
     catch (error) { say(error.message, true); } finally { button.disabled = false; }
   };
 })();

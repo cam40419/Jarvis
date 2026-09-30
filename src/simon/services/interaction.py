@@ -1,5 +1,6 @@
 from uuid import UUID
 
+from simon.adapters.home_client import HomeClient
 from simon.domain.errors import InvalidTransitionError
 from simon.domain.interaction import (
     AnswerReference,
@@ -18,7 +19,8 @@ from simon.services.conversations import ConversationService
 class InteractionService:
     """Personal settings and feedback within the active household; no model side effects."""
 
-    def __init__(self, store: Store, audit: AuditService) -> None:
+    def __init__(self, store: Store, audit: AuditService, home: HomeClient | None = None) -> None:
+        self.home = home
         self.store = store
         self.audit = audit
         self.conversations = ConversationService(store, audit)
@@ -73,6 +75,12 @@ class InteractionService:
     def answers(
         self, actor: ActorContext, thread_id: UUID, offset: int = 0, limit: int = 100
     ) -> tuple[AnswerReference, ...]:
+        self.conversations.get(actor, thread_id)
+        commands = (
+            self.home.commands(actor, thread_id=thread_id)
+            if (self.home and self.home.configured and "home:read" in actor.scopes)
+            else ()
+        )
         with self.store.transaction(actor.household_id):
             self.conversations.get(actor, thread_id)
             result = []
@@ -85,10 +93,8 @@ class InteractionService:
                         output_message_id=run.output_message_id,
                         feedback=self.store.feedback(actor.household_id, actor.actor_id, run.id),
                         web_sources=run.web_sources,
-                        home_commands=tuple(
-                            self.store.home_commands(actor.household_id, actor.actor_id, run.id)
-                        )
-                        if "home:read" in actor.scopes
+                        home_commands=tuple(c for c in commands if c.run_id == run.id)
+                        if self.home and self.home.configured and "home:read" in actor.scopes
                         else (),
                         actions=tuple(
                             action

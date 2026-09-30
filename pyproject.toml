@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "simon-homeos"
 version = "0.1.0"
-description = "Simon control plane and Home OS foundation"
+description = "Simon personal AI assistant and agent tooling"
 requires-python = ">=3.11"
 dependencies = [
   "websockets>=15,<18",
@@ -18,10 +18,9 @@ dependencies = [
   "httpx>=0.28,<1",
   "cryptography>=46,<51",
   "python-dotenv>=1,<2",
-  "zeroconf>=0.150,<1",
   "argon2-cffi>=25,<27",
-  "paho-mqtt>=2,<3",
   "python-multipart>=0.0.20,<1",
+  "jsonschema>=4,<5",
 ]
 
 [project.optional-dependencies]
@@ -31,6 +30,7 @@ dev = [
   "pytest>=8.4,<9",
   "pytest-cov>=6.2,<7",
   "ruff>=0.12,<1",
+  "types-jsonschema>=4,<5",
 ]
 browser = ["playwright>=1.55,<2"]
 postgres = ["psycopg[binary]>=3.2,<4", "psycopg_pool>=3.2,<4"]

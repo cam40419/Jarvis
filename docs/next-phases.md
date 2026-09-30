@@ -2,7 +2,7 @@
 
 ## Workflow execution foundation
 
-The [workflow architecture](workflow-architecture.md) now has an executable first phase: versioned
+The [workflow architecture](https://github.com/cam40419/RobbinsHome/blob/main/docs/workflow-architecture.md) now has an executable first phase: versioned
 definitions, private runs, timed waits, dependencies, a separate durable worker, attempt/job records,
 lease recovery, pause/resume/cancel, and a timeline API. Migration 0014 adds its storage. Only echo
 and saved-inventory reads execute today. Start the worker using `scripts/start-workflow-worker.ps1`.
@@ -59,7 +59,7 @@ Next:
 
 ## Next: workflows, scenes, and schedules
 
-The [workflow automation plan](workflow-automation-plan.md) expands automations into full workflows: scheduled individual steps, condition waits, monitoring, branches, durable recovery, and a run timeline. Build the execution foundation before printer automation, using simulated tools and existing read-only home capabilities first. Chat and UI will share the same workflow controls and authorization rules.
+The [workflow automation plan](https://github.com/cam40419/RobbinsHome/blob/main/docs/workflow-automation-plan.md) expands automations into full workflows: scheduled individual steps, condition waits, monitoring, branches, durable recovery, and a run timeline. Build the execution foundation before printer automation, using simulated tools and existing read-only home capabilities first. Chat and UI will share the same workflow controls and authorization rules.
 
 - Persist named scenes such as Work, Wind down, and All lights off; edit their device membership and settings from Home and chat. Capture per-device receipts and partial failures.
 - Add an actual scheduling worker with timezone-aware routines, repeat rules, retry/idempotency policy, and an execution history. Existing job records alone do not provide scheduled automation.
@@ -72,4 +72,4 @@ The [workflow automation plan](workflow-automation-plan.md) expands automations 
 - Evaluate direct handling of well-defined device commands and reusable scene actions. Retain ambiguity checks and permissions.
 - Extend Google with calendar edits/recurrence and inbox reading, then evaluate reservation-specific integrations. Arbitrary website form completion is still unavailable.
 
-Keep [model management](model-management-plan.md) and [home integration](home-integration-plan.md) as the detailed subsystem plans.
+Keep [model management](model-management-plan.md) and [home integration](https://github.com/cam40419/RobbinsHome/blob/main/docs/home-integration-plan.md) as the detailed subsystem plans.

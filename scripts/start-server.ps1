@@ -21,7 +21,7 @@ try {
     $env:SIMON_DATABASE_URL = $DatabaseUrl
     $env:SIMON_DEV_LOGIN_ENABLED = 'false'
     $env:SIMON_MODEL_PROVIDER = 'openai'
-    $env:SIMON_HOME_HOUSEHOLD_ID = $HouseholdId.ToString()
+    $env:SIMON_ACCOUNT_HOUSEHOLD_ID = $HouseholdId.ToString()
     $env:SIMON_ACCOUNT_ADMIN_ACTOR_ID = $ActorId.ToString()
     & $python -c "from simon.config import Settings; s=Settings(); print('Configuration valid:', s.public_origin + s.public_path)"
     if ($LASTEXITCODE -ne 0) { throw 'Server configuration is invalid.' }
@@ -36,7 +36,7 @@ try {
         return
     }
     Write-Host "Simon origin ready for the tunnel: $PublicOrigin$PublicPath/login"
-    # One process owns live voice sideband connections and background home monitoring.
+    # One process owns live voice sideband connections and assistant tasks.
     & $python -m uvicorn simon.api.app:app --host 127.0.0.1 --port 8000 `
         --proxy-headers --forwarded-allow-ips 127.0.0.1 --no-access-log
     if ($LASTEXITCODE -ne 0) { throw 'Simon exited unexpectedly.' }

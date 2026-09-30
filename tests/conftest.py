@@ -13,24 +13,20 @@ from simon.config import Settings, get_settings
 def isolate_runtime_settings(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     for key, value in {
         "SIMON_ENVIRONMENT": "test",
+        "SIMON_AGENT_MANIFEST_FILE": "",
+        "SIMON_AGENT_EXECUTION_ENABLED": "false",
+        "SIMON_HOME_API_URL": "",
+        "SIMON_HOME_API_TOKEN": "",
         "SIMON_STORAGE_BACKEND": "memory",
         "SIMON_DEV_LOGIN_ENABLED": "false",
         "SIMON_PUBLIC_ORIGIN": "http://localhost:8000",
         "SIMON_PUBLIC_PATH": "",
         "SIMON_RP_ID": "localhost",
         "SIMON_ACCOUNT_ADMIN_ACTOR_ID": "11111111-1111-4111-8111-111111111111",
-        "SIMON_HOME_HOUSEHOLD_ID": "22222222-2222-4222-8222-222222222222",
         "SIMON_MODEL_PROVIDER": "local",
         "SIMON_GOOGLE_CLIENT_ID": "",
         "SIMON_PROJECT_DRIVE_SYNC_ENABLED": "false",
         "SIMON_LOCAL_FILES_ENABLED": "false",
-        "SIMON_HOME_AUTO_DISCOVERY": "false",
-        "SIMON_SHELLY_LAN_DISCOVERY": "false",
-        "SIMON_POWER_MONITORING_ENABLED": "false",
-        "SIMON_LIFX_TOKEN": "",
-        "SIMON_TUYA_CLIENT_ID": "",
-        "SIMON_TUYA_CLIENT_SECRET": "",
-        "SIMON_TUYA_REGION": "us",
     }.items():
         monkeypatch.setenv(key, value)
     get_settings.cache_clear()
@@ -46,7 +42,6 @@ def container(tmp_path) -> AppContainer:
             storage_backend="memory",
             dev_login_enabled=True,
             dev_login_token=SecretStr("test-development-secret-32-characters"),
-            display_data_dir=tmp_path / "displays",
         )
     )
 

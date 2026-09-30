@@ -1,5 +1,8 @@
 # Simon and Home OS target architecture
 
+> Historical combined-system design. The active repository boundary is documented in
+> [repository separation](repository-separation.md).
+
 Status: proposed architecture for review  
 Date: 2026-09-09  
 Scope: replacement architecture; the current implementation is not a migration baseline

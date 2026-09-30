@@ -4,17 +4,8 @@ from uuid import UUID, uuid4
 
 from pydantic import AwareDatetime, Field, HttpUrl, field_validator, model_validator
 
-from simon.domain.home import (
-    HomeChange,
-    HomeCommand,
-    HomeControl,
-    HomeOrganization,
-    HomeOutletSetup,
-    HomeQuery,
-    HomeRename,
-    HomeStatus,
-)
-from simon.domain.models import CapabilityDefinition, RiskClass, StrictModel, utc_now
+from simon.domain.external_home import HomeChange, HomeStatus
+from simon.domain.models import StrictModel, utc_now
 
 ToolName = Literal[
     "google_accounts_list",
@@ -171,72 +162,6 @@ class GoogleConnection(StrictModel):
 
 # The home dispatcher commits the durable action claim before running network I/O.
 # Its write result is an action receipt containing observed state, not a bare status.
-HOME_CAPABILITIES = {
-    "rename": CapabilityDefinition(
-        name="home.rename_device",
-        version=1,
-        description="Save a persistent Simon name for one household device.",
-        risk=RiskClass.WRITE_SOFT,
-        required_scopes=frozenset({"home:read", "home:organize"}),
-        input_schema=HomeRename.model_json_schema(),
-        output_schema={"type": "object"},
-    ),
-    "setup_outlet": CapabilityDefinition(
-        name="home.setup_outlet",
-        version=1,
-        description="Owner identifies a discovered outlet's load and enables control.",
-        risk=RiskClass.WRITE_SOFT,
-        required_scopes=frozenset({"home:read", "identity:manage"}),
-        input_schema=HomeOutletSetup.model_json_schema(),
-        output_schema={"type": "object"},
-    ),
-    "organize": CapabilityDefinition(
-        name="home.organize_devices",
-        version=1,
-        description="Set Simon rooms and groups for explicitly selected household devices.",
-        risk=RiskClass.WRITE_SOFT,
-        required_scopes=frozenset({"home:read", "home:organize"}),
-        input_schema=HomeOrganization.model_json_schema(),
-        output_schema={"type": "object"},
-    ),
-    "refresh": CapabilityDefinition(
-        name="home.refresh_devices",
-        version=1,
-        description="Discover linked cloud devices and merge their inventory without actuation.",
-        risk=RiskClass.WRITE_SOFT,
-        required_scopes=frozenset({"home:read"}),
-        input_schema=StrictModel.model_json_schema(),
-        output_schema={"type": "array"},
-    ),
-    "list": CapabilityDefinition(
-        name="home.list_devices",
-        version=1,
-        description="List configured household devices.",
-        risk=RiskClass.READ,
-        required_scopes=frozenset({"home:read"}),
-        input_schema=StrictModel.model_json_schema(),
-        output_schema={"type": "array", "items": {"type": "object"}},
-    ),
-    "read": CapabilityDefinition(
-        name="home.get_status",
-        version=1,
-        description="Read one configured device's state.",
-        risk=RiskClass.READ,
-        required_scopes=frozenset({"home:read"}),
-        input_schema=HomeQuery.model_json_schema(),
-        output_schema=HomeStatus.model_json_schema(),
-    ),
-    "control": CapabilityDefinition(
-        name="home.set",
-        version=1,
-        description="Immediate power, brightness, and color for enabled household loads.",
-        risk=RiskClass.WRITE_SOFT,
-        required_scopes=frozenset({"home:read", "home:control"}),
-        input_schema=HomeControl.model_json_schema(),
-        output_schema={"type": "array", "items": HomeCommand.model_json_schema()},
-        idempotent=True,
-    ),
-}
 
 
 class GoogleOAuthState(StrictModel):

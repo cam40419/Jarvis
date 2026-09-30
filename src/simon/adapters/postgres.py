@@ -3,7 +3,6 @@ from __future__ import annotations
 from collections.abc import Callable, Iterator
 from contextlib import AbstractContextManager, contextmanager
 from contextvars import ContextVar
-from datetime import datetime
 from threading import Lock
 from typing import Any
 from uuid import UUID
@@ -24,7 +23,6 @@ from simon.domain.errors import (
     InvalidTransitionError,
     NotFoundError,
 )
-from simon.domain.home import HomeCommand, HomeDevice, HomeSync, PowerSample
 from simon.domain.identity import (
     Challenge,
     Enrollment,
@@ -38,14 +36,6 @@ from simon.domain.models import AuditEvent, Job, JobStatus, OutboxEvent
 from simon.domain.project_files import ProjectDrive, ProjectFileOperation
 from simon.domain.tasks import ProjectArtifact
 from simon.domain.voice import VoiceSession
-from simon.domain.workflows import (
-    WorkerHeartbeat,
-    WorkflowDefinition,
-    WorkflowEvent,
-    WorkflowRun,
-    WorkflowSchedule,
-    WorkflowTrigger,
-)
 
 
 class PostgresStore(InMemoryStore):
@@ -150,310 +140,30 @@ class PostgresStore(InMemoryStore):
             )
             return output, False
 
-    def workflow(self, identifier: UUID, version: int | None = None) -> WorkflowDefinition | None:
-        with self.transaction():
-            row = self.connection.execute(
-                "SELECT snapshot FROM workflow_versions WHERE id=%s AND deleted_at IS NULL "
-                "AND (%s::int IS NULL "
-                "OR version=%s) ORDER BY version DESC LIMIT 1",
-                (identifier, version, version),
-            ).fetchone()
-            return WorkflowDefinition.model_validate(row["snapshot"]) if row else None
 
-    def workflows(
-        self, household_id: UUID, actor_id: UUID, offset: int, limit: int
-    ) -> tuple[WorkflowDefinition, ...]:
-        with self.transaction():
-            rows = self.connection.execute(
-                "SELECT snapshot FROM (SELECT DISTINCT ON (id) id, snapshot FROM workflow_versions "
-                "WHERE household_id=%s AND actor_id=%s AND deleted_at IS NULL "
-                "ORDER BY id, version DESC) latest "
-                "ORDER BY (snapshot->>'created_at')::timestamptz DESC, id DESC LIMIT %s OFFSET %s",
-                (household_id, actor_id, limit, offset),
-            ).fetchall()
-            return tuple(WorkflowDefinition.model_validate(r["snapshot"]) for r in rows)
 
-    def insert_workflow(self, definition: WorkflowDefinition) -> None:
-        with self.transaction():
-            self.connection.execute(
-                "INSERT INTO workflow_versions (id,version,household_id,actor_id,snapshot) "
-                "VALUES (%s,%s,%s,%s,%s)",
-                (
-                    definition.id,
-                    definition.version,
-                    definition.household_id,
-                    definition.actor_id,
-                    Jsonb(definition.model_dump(mode="json")),
-                ),
-            )
 
-    def workflow_run(self, identifier: UUID) -> WorkflowRun | None:
-        with self.transaction():
-            row = self.connection.execute(
-                "SELECT snapshot FROM workflow_runs WHERE id=%s", (identifier,)
-            ).fetchone()
-            return WorkflowRun.model_validate(row["snapshot"]) if row else None
 
-    def workflow_runs(
-        self, household_id: UUID, actor_id: UUID, offset: int, limit: int
-    ) -> tuple[WorkflowRun, ...]:
-        with self.transaction():
-            rows = self.connection.execute(
-                "SELECT snapshot FROM workflow_runs WHERE household_id=%s AND actor_id=%s "
-                "ORDER BY (snapshot->>'created_at')::timestamptz DESC, id DESC LIMIT %s OFFSET %s",
-                (household_id, actor_id, limit, offset),
-            ).fetchall()
-            return tuple(WorkflowRun.model_validate(r["snapshot"]) for r in rows)
 
-    def save_workflow_run(self, run: WorkflowRun, expected_version: int) -> None:
-        with self.transaction():
-            if expected_version == 0:
-                cursor = self.connection.execute(
-                    "INSERT INTO workflow_runs (id,household_id,actor_id,definition_id,"
-                    "definition_version,version,next_wake_at,snapshot) "
-                    "VALUES (%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING",
-                    (
-                        run.id,
-                        run.household_id,
-                        run.actor_id,
-                        run.definition_id,
-                        run.definition_version,
-                        run.version,
-                        run.next_wake_at,
-                        Jsonb(run.model_dump(mode="json")),
-                    ),
-                )
-            else:
-                cursor = self.connection.execute(
-                    "UPDATE workflow_runs SET version=%s,next_wake_at=%s,snapshot=%s WHERE "
-                    "id=%s AND version=%s",
-                    (
-                        run.version,
-                        run.next_wake_at,
-                        Jsonb(run.model_dump(mode="json")),
-                        run.id,
-                        expected_version,
-                    ),
-                )
-            if cursor.rowcount != 1:
-                raise InvalidTransitionError("workflow run changed; reload before retrying")
 
-    def due_workflows(self, now: datetime, limit: int) -> tuple[WorkflowRun, ...]:
-        with self.transaction():
-            rows = self.connection.execute(
-                "SELECT snapshot FROM workflow_runs WHERE next_wake_at <= %s ORDER BY "
-                "next_wake_at,id LIMIT %s",
-                (now, limit),
-            ).fetchall()
-            return tuple(WorkflowRun.model_validate(r["snapshot"]) for r in rows)
 
-    def append_workflow_event(self, event: WorkflowEvent) -> None:
-        with self.transaction():
-            self.connection.execute(
-                "INSERT INTO workflow_events (run_id,sequence,snapshot) VALUES (%s,%s,%s)",
-                (event.run_id, event.sequence, Jsonb(event.model_dump(mode="json"))),
-            )
 
-    def workflow_events(self, run_id: UUID, after: int) -> tuple[WorkflowEvent, ...]:
-        with self.transaction():
-            rows = self.connection.execute(
-                "SELECT snapshot FROM workflow_events WHERE run_id=%s AND sequence>%s "
-                "ORDER BY sequence LIMIT 100",
-                (run_id, after),
-            ).fetchall()
-            return tuple(WorkflowEvent.model_validate(r["snapshot"]) for r in rows)
 
-    def worker_heartbeat(self, heartbeat: WorkerHeartbeat) -> None:
-        with self.transaction():
-            self.connection.execute(
-                "INSERT INTO workflow_workers (id,seen_at) VALUES (%s,%s) ON CONFLICT (id) "
-                "DO UPDATE SET seen_at=EXCLUDED.seen_at",
-                (heartbeat.id, heartbeat.seen_at),
-            )
 
-    def workflow_workers(self) -> tuple[WorkerHeartbeat, ...]:
-        with self.transaction():
-            rows = self.connection.execute(
-                "SELECT id,seen_at FROM workflow_workers ORDER BY seen_at DESC LIMIT 20"
-            ).fetchall()
-            return tuple(WorkerHeartbeat.model_validate(r) for r in rows)
 
-    def workflow_schedule(self, identifier: UUID) -> WorkflowSchedule | None:
-        with self.transaction():
-            row = self.connection.execute(
-                "SELECT snapshot FROM workflow_schedules WHERE id=%s", (identifier,)
-            ).fetchone()
-            return WorkflowSchedule.model_validate(row["snapshot"]) if row else None
 
-    def workflow_schedules(
-        self, household_id: UUID, actor_id: UUID, offset: int, limit: int
-    ) -> tuple[WorkflowSchedule, ...]:
-        with self.transaction():
-            rows = self.connection.execute(
-                "SELECT snapshot FROM workflow_schedules WHERE household_id=%s "
-                "AND actor_id=%s ORDER BY (snapshot->>'created_at')::timestamptz DESC, "
-                "id DESC LIMIT %s OFFSET %s",
-                (household_id, actor_id, limit, offset),
-            ).fetchall()
-            return tuple(WorkflowSchedule.model_validate(row["snapshot"]) for row in rows)
 
-    def due_workflow_schedules(self, now: datetime, limit: int) -> tuple[WorkflowSchedule, ...]:
-        with self.transaction():
-            rows = self.connection.execute(
-                "SELECT snapshot FROM workflow_schedules WHERE next_run_at <= %s "
-                "ORDER BY next_run_at,id LIMIT %s",
-                (now, limit),
-            ).fetchall()
-            return tuple(WorkflowSchedule.model_validate(row["snapshot"]) for row in rows)
 
-    def save_workflow_schedule(self, schedule: WorkflowSchedule, expected_version: int) -> None:
-        with self.transaction():
-            if expected_version == 0:
-                cursor = self.connection.execute(
-                    "INSERT INTO workflow_schedules (id,household_id,actor_id,definition_id,"
-                    "definition_version,version,next_run_at,snapshot) "
-                    "VALUES (%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING",
-                    (
-                        schedule.id,
-                        schedule.household_id,
-                        schedule.actor_id,
-                        schedule.definition_id,
-                        schedule.definition_version,
-                        schedule.version,
-                        schedule.next_run_at,
-                        Jsonb(schedule.model_dump(mode="json")),
-                    ),
-                )
-            else:
-                cursor = self.connection.execute(
-                    "UPDATE workflow_schedules SET version=%s,next_run_at=%s,snapshot=%s "
-                    "WHERE id=%s AND version=%s",
-                    (
-                        schedule.version,
-                        schedule.next_run_at,
-                        Jsonb(schedule.model_dump(mode="json")),
-                        schedule.id,
-                        expected_version,
-                    ),
-                )
-            if cursor.rowcount != 1:
-                raise InvalidTransitionError("workflow schedule changed; reload before retrying")
 
-    def delete_workflow_schedule(
-        self, identifier: UUID, household_id: UUID, actor_id: UUID
-    ) -> bool:
-        with self.transaction():
-            cursor = self.connection.execute(
-                "DELETE FROM workflow_schedules WHERE id=%s AND household_id=%s AND actor_id=%s",
-                (identifier, household_id, actor_id),
-            )
-            return cursor.rowcount == 1
 
-    def delete_workflow_schedules(
-        self, definition_id: UUID, household_id: UUID, actor_id: UUID
-    ) -> int:
-        with self.transaction():
-            cursor = self.connection.execute(
-                "DELETE FROM workflow_schedules WHERE definition_id=%s AND household_id=%s "
-                "AND actor_id=%s",
-                (definition_id, household_id, actor_id),
-            )
-            return cursor.rowcount
 
-    def workflow_trigger(self, identifier: UUID) -> WorkflowTrigger | None:
-        with self.transaction():
-            row = self.connection.execute(
-                "SELECT snapshot FROM workflow_triggers WHERE id=%s", (identifier,)
-            ).fetchone()
-            return WorkflowTrigger.model_validate(row["snapshot"]) if row else None
 
-    def workflow_trigger_for_definition(self, definition_id: UUID) -> WorkflowTrigger | None:
-        with self.transaction():
-            row = self.connection.execute(
-                "SELECT snapshot FROM workflow_triggers WHERE definition_id=%s", (definition_id,)
-            ).fetchone()
-            return WorkflowTrigger.model_validate(row["snapshot"]) if row else None
 
-    def workflow_triggers_for_definition(self, definition_id: UUID) -> tuple[WorkflowTrigger, ...]:
-        with self.transaction():
-            rows = self.connection.execute(
-                "SELECT snapshot FROM workflow_triggers WHERE definition_id=%s ORDER BY id",
-                (definition_id,),
-            ).fetchall()
-            return tuple(WorkflowTrigger.model_validate(row["snapshot"]) for row in rows)
 
-    def workflow_triggers(
-        self, household_id: UUID, actor_id: UUID, offset: int, limit: int
-    ) -> tuple[WorkflowTrigger, ...]:
-        with self.transaction():
-            rows = self.connection.execute(
-                "SELECT snapshot FROM workflow_triggers WHERE household_id=%s AND actor_id=%s "
-                "ORDER BY (snapshot->>'created_at')::timestamptz DESC,id DESC LIMIT %s OFFSET %s",
-                (household_id, actor_id, limit, offset),
-            ).fetchall()
-            return tuple(WorkflowTrigger.model_validate(row["snapshot"]) for row in rows)
 
-    def due_workflow_triggers(self, now: datetime, limit: int) -> tuple[WorkflowTrigger, ...]:
-        with self.transaction():
-            rows = self.connection.execute(
-                "SELECT snapshot FROM workflow_triggers WHERE next_check_at <= %s "
-                "ORDER BY next_check_at,id LIMIT %s",
-                (now, limit),
-            ).fetchall()
-            return tuple(WorkflowTrigger.model_validate(row["snapshot"]) for row in rows)
 
-    def save_workflow_trigger(self, trigger: WorkflowTrigger, expected_version: int) -> None:
-        with self.transaction():
-            if expected_version == 0:
-                cursor = self.connection.execute(
-                    "INSERT INTO workflow_triggers (id,household_id,actor_id,definition_id,"
-                    "definition_version,version,next_check_at,snapshot) "
-                    "VALUES (%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING",
-                    (
-                        trigger.id,
-                        trigger.household_id,
-                        trigger.actor_id,
-                        trigger.definition_id,
-                        trigger.definition_version,
-                        trigger.version,
-                        trigger.next_check_at,
-                        Jsonb(trigger.model_dump(mode="json")),
-                    ),
-                )
-            else:
-                cursor = self.connection.execute(
-                    "UPDATE workflow_triggers SET definition_version=%s,version=%s,"
-                    "next_check_at=%s,snapshot=%s WHERE id=%s AND version=%s",
-                    (
-                        trigger.definition_version,
-                        trigger.version,
-                        trigger.next_check_at,
-                        Jsonb(trigger.model_dump(mode="json")),
-                        trigger.id,
-                        expected_version,
-                    ),
-                )
-            if cursor.rowcount != 1:
-                raise InvalidTransitionError("workflow trigger changed; reload before retrying")
 
-    def delete_workflow_trigger(self, identifier: UUID, household_id: UUID, actor_id: UUID) -> bool:
-        with self.transaction():
-            cursor = self.connection.execute(
-                "DELETE FROM workflow_triggers WHERE id=%s AND household_id=%s AND actor_id=%s",
-                (identifier, household_id, actor_id),
-            )
-            return cursor.rowcount == 1
 
-    def delete_workflow_trigger_for_definition(
-        self, definition_id: UUID, household_id: UUID, actor_id: UUID
-    ) -> int:
-        with self.transaction():
-            cursor = self.connection.execute(
-                "DELETE FROM workflow_triggers WHERE definition_id=%s AND household_id=%s "
-                "AND actor_id=%s",
-                (definition_id, household_id, actor_id),
-            )
-            return cursor.rowcount
 
     def save_project_artifact(self, artifact: ProjectArtifact, content: bytes) -> None:
         with self.transaction():
@@ -512,89 +222,11 @@ class PostgresStore(InMemoryStore):
             ).fetchall()
             return tuple(ProjectArtifact.model_validate(row) for row in rows)
 
-    def home_command(
-        self, household_id: UUID, actor_id: UUID, command_id: UUID
-    ) -> HomeCommand | None:
-        with self.transaction():
-            row = self.connection.execute(
-                "SELECT snapshot FROM home_commands WHERE household_id = %s "
-                "AND actor_id = %s AND id = %s",
-                (household_id, actor_id, command_id),
-            ).fetchone()
-            return HomeCommand.model_validate(row["snapshot"]) if row else None
 
-    def power_samples(
-        self, household_id: UUID, device_id: str, start: datetime, end: datetime, limit: int = 3000
-    ) -> tuple[PowerSample, ...]:
-        with self.transaction():
-            rows = self.connection.execute(
-                "SELECT snapshot FROM power_samples WHERE household_id = %s AND device_id = %s "
-                "AND captured_at >= %s AND captured_at < %s ORDER BY captured_at DESC LIMIT %s",
-                (household_id, device_id, start, end, limit),
-            ).fetchall()
-            return tuple(PowerSample.model_validate(row["snapshot"]) for row in rows)
 
-    def save_power_sample(self, sample: PowerSample) -> None:
-        with self.transaction():
-            self.connection.execute(
-                "INSERT INTO power_samples (household_id, device_id, captured_at, snapshot) "
-                "VALUES (%s, %s, %s, %s) ON CONFLICT (household_id, device_id, captured_at) "
-                "DO UPDATE SET snapshot = EXCLUDED.snapshot",
-                (
-                    sample.household_id,
-                    sample.device_id,
-                    sample.captured_at,
-                    Jsonb(sample.model_dump(mode="json")),
-                ),
-            )
 
-    def prune_power_samples(self, household_id: UUID, before: datetime) -> None:
-        with self.transaction():
-            self.connection.execute(
-                "DELETE FROM power_samples WHERE household_id = %s AND captured_at < %s",
-                (household_id, before),
-            )
 
-    def home_commands(
-        self,
-        household_id: UUID,
-        actor_id: UUID,
-        run_id: UUID | None = None,
-        *,
-        thread_id: UUID | None = None,
-        limit: int = 100,
-    ) -> tuple[HomeCommand, ...]:
-        with self.transaction():
-            query = "SELECT snapshot FROM home_commands WHERE household_id = %s AND actor_id = %s"
-            params: list[UUID | int] = [household_id, actor_id]
-            if run_id is not None:
-                query += " AND run_id = %s"
-                params.append(run_id)
-            if thread_id is not None:
-                query += " AND thread_id = %s"
-                params.append(thread_id)
-            params.append(limit)
-            rows = self.connection.execute(
-                query + " ORDER BY created_at DESC, id DESC LIMIT %s", params
-            ).fetchall()
-            return tuple(HomeCommand.model_validate(row["snapshot"]) for row in rows)
 
-    def save_home_command(self, command: HomeCommand) -> None:
-        with self.transaction():
-            self.connection.execute(
-                "INSERT INTO home_commands (id, household_id, actor_id, thread_id, run_id, "
-                "created_at, snapshot) VALUES (%s, %s, %s, %s, %s, %s, %s) "
-                "ON CONFLICT (id) DO UPDATE SET snapshot = EXCLUDED.snapshot",
-                (
-                    command.id,
-                    command.household_id,
-                    command.actor_id,
-                    command.thread_id,
-                    command.run_id,
-                    command.created_at,
-                    Jsonb(command.model_dump(mode="json")),
-                ),
-            )
 
     def managed_accounts(self) -> tuple[ManagedAccount, ...]:
         with self.transaction():
@@ -657,37 +289,9 @@ class PostgresStore(InMemoryStore):
                 ),
             )
 
-    def home_devices(self, household_id: UUID) -> tuple[HomeDevice, ...]:
-        with self.transaction():
-            rows = self.connection.execute(
-                "SELECT snapshot FROM home_devices WHERE household_id = %s ORDER BY id",
-                (household_id,),
-            ).fetchall()
-            return tuple(HomeDevice.model_validate(row["snapshot"]) for row in rows)
 
-    def save_home_device(self, device: HomeDevice) -> None:
-        with self.transaction():
-            self.connection.execute(
-                "INSERT INTO home_devices (household_id, id, snapshot) VALUES (%s, %s, %s) "
-                "ON CONFLICT (household_id, id) DO UPDATE SET snapshot = EXCLUDED.snapshot",
-                (device.household_id, device.id, Jsonb(device.model_dump(mode="json"))),
-            )
 
-    def home_sync(self, household_id: UUID, provider: str) -> HomeSync | None:
-        with self.transaction():
-            row = self.connection.execute(
-                "SELECT snapshot FROM home_syncs WHERE household_id = %s AND provider = %s",
-                (household_id, provider),
-            ).fetchone()
-            return HomeSync.model_validate(row["snapshot"]) if row else None
 
-    def save_home_sync(self, sync: HomeSync) -> None:
-        with self.transaction():
-            self.connection.execute(
-                "INSERT INTO home_syncs (household_id, provider, snapshot) VALUES (%s, %s, %s) "
-                "ON CONFLICT (household_id, provider) DO UPDATE SET snapshot = EXCLUDED.snapshot",
-                (sync.household_id, sync.provider, Jsonb(sync.model_dump(mode="json"))),
-            )
 
     def response_preferences(
         self, household_id: UUID, actor_id: UUID
@@ -732,8 +336,10 @@ class PostgresStore(InMemoryStore):
     def answer_runs(self, thread_id: UUID, offset: int, limit: int) -> tuple[Run, ...]:
         with self.transaction():
             rows = self.connection.execute(
-                "SELECT snapshot FROM runs WHERE thread_id = %s AND snapshot IS NOT NULL "
-                "ORDER BY created_at, id OFFSET %s LIMIT %s",
+                "SELECT r.snapshot FROM runs r LEFT JOIN messages m "
+                "ON m.id = (r.snapshot->>'output_message_id')::uuid AND m.thread_id = r.thread_id "
+                "WHERE r.thread_id = %s AND r.snapshot IS NOT NULL "
+                "ORDER BY COALESCE(m.sequence, 0), r.created_at, r.id OFFSET %s LIMIT %s",
                 (thread_id, offset, limit),
             ).fetchall()
             return tuple(Run.model_validate(row["snapshot"]) for row in rows)
@@ -741,8 +347,10 @@ class PostgresStore(InMemoryStore):
     def latest_run(self, thread_id: UUID) -> Run | None:
         with self.transaction():
             row = self.connection.execute(
-                "SELECT snapshot FROM runs WHERE thread_id = %s AND snapshot IS NOT NULL "
-                "ORDER BY created_at DESC, id DESC LIMIT 1",
+                "SELECT r.snapshot FROM runs r LEFT JOIN messages m "
+                "ON m.id = (r.snapshot->>'output_message_id')::uuid AND m.thread_id = r.thread_id "
+                "WHERE r.thread_id = %s AND r.snapshot IS NOT NULL "
+                "ORDER BY COALESCE(m.sequence, 0) DESC, r.created_at DESC, r.id DESC LIMIT 1",
                 (thread_id,),
             ).fetchone()
             return Run.model_validate(row["snapshot"]) if row else None
@@ -1380,14 +988,6 @@ class PostgresStore(InMemoryStore):
                 "DELETE FROM auth_passkeys WHERE credential_id = %s", (credential_id,)
             )
 
-    def delete_workflow(self, identifier: UUID, household_id: UUID, actor_id: UUID) -> bool:
-        with self.transaction():
-            cursor = self.connection.execute(
-                "UPDATE workflow_versions SET deleted_at=now() WHERE id=%s "
-                "AND household_id=%s AND actor_id=%s AND deleted_at IS NULL",
-                (identifier, household_id, actor_id),
-            )
-            return cursor.rowcount > 0
 
     def password_for_actor(self, actor_id: UUID) -> PasswordCredential | None:
         with self.transaction():

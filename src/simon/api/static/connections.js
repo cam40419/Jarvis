@@ -1,7 +1,7 @@
 'use strict';
 let googleConnection;
 async function connections() {
-  await homeDevices();
+  await homeConnection();
   googleConnection = await api('/v1/connections/google');
   el('web-connection').textContent = assistant.web_search ? 'Ready · Public web search is enabled' : 'Unavailable · Enable OpenAI and web search on the server';
   const accounts = googleConnection.accounts || [];
@@ -165,181 +165,15 @@ function actionCard(action) {
   card.append(controls); return card;
 }
 
-function outletControls(device, row) {
-  const path = '/v1/home/outlets/' + encodeURIComponent(device.id);
-  const statusPath = '/v1/home/devices/' + encodeURIComponent(device.id) + '/status';
-  const output = make('p', 'Power has not been checked.', 'outlet-status');
-  output.setAttribute('role', 'status');
-  const result = make('div'); result.setAttribute('aria-live', 'polite');
-  const controls = make('div', undefined, 'outlet-power');
-  controls.setAttribute('role', 'group'); controls.setAttribute('aria-label', 'Outlet power');
-  const on = make('button', 'Turn on'); const off = make('button', 'Turn off');
-  const check = make('button', 'Check status', 'text-button');
-  for (const button of [on, off, check]) button.type = 'button';
-  for (const button of [on, off]) button.setAttribute('aria-pressed', 'false');
-  controls.append(on, off);
-  const allowed = device.control_enabled && session.scopes.includes('home:control');
-  let busy = false, needsCheck = false, formFields;
-  function updateControls() {
-    on.disabled = off.disabled = busy || needsCheck || !allowed;
-    check.disabled = busy;
-    if (formFields) formFields.disabled = busy;
-    row.setAttribute('aria-busy', String(busy));
-  }
-  function showState(state) {
-    const known = state?.online !== false && typeof state?.on === 'boolean';
-    on.setAttribute('aria-pressed', String(known && state.on));
-    off.setAttribute('aria-pressed', String(known && !state.on));
-    output.textContent = state?.online === false ? 'Offline' : known ? (state.on ? 'On' : 'Off') : 'Power unknown';
-    if (state?.watts != null) output.textContent += ' / ' + state.watts + ' W';
-    return known;
-  }
-  async function power(value) {
-    if (busy || needsCheck || !allowed) return;
-    busy = true; updateControls(); result.replaceChildren();
-    output.textContent = value ? 'Turning on...' : 'Turning off...';
-    try {
-      const command = await api(path + '/power', {on: value, idempotency_key: crypto.randomUUID()});
-      const known = showState(command.observed);
-      needsCheck = command.status === 'unknown' || command.status === 'executing' || !known;
-      result.append(homeCommandCard(command));
-    } catch (error) {
-      showState(null); needsCheck = true;
-      result.textContent = error.message + ' Check status before sending another command.';
-    } finally { busy = false; updateControls(); }
-  }
-  on.onclick = () => power(true); off.onclick = () => power(false);
-  check.onclick = async () => {
-    busy = true; updateControls(); output.textContent = 'Checking...';
-    try { needsCheck = !showState(await api(statusPath)); }
-    catch (error) { showState(null); output.textContent = error.message; needsCheck = true; }
-    finally { busy = false; updateControls(); }
-  };
-
-  if (device.identifier_suffix) row.append(make('p', 'Outlet ID ending ' + device.identifier_suffix, 'muted'));
-  if (device.setup_available && session.scopes.includes('identity:manage')) {
-    const form = make('form', undefined, 'outlet-setup');
-    form.setAttribute('aria-label', 'Outlet settings');
-    formFields = make('fieldset');
-    formFields.append(make('legend', 'Outlet settings'));
-    const nameLabel = make('label', 'Device name');
-    const name = make('input'); name.type = 'text'; name.required = true; name.maxLength = 100; name.value = device.name;
-    nameLabel.append(name);
-    const roomLabel = make('label', 'Outlet room');
-    const room = make('input'); room.type = 'text'; room.maxLength = 100; room.value = device.room || ''; room.placeholder = 'e.g. Bedroom';
-    roomLabel.append(room);
-    const typeLabel = make('label', 'Powers'); const type = make('select');
-    type.id = 'outlet-type-' + device.id; typeLabel.htmlFor = type.id;
-    for (const [value, label] of [['unclassified', 'Not assigned'], ['lighting', 'Light / lamp'], ['air_purifier', 'Air purifier']]) {
-      const option = make('option', label); option.value = value; type.append(option);
+async function homeConnection() {
+  const target = el('home-connection');
+  target.textContent = 'Checking RobbinsHome connection…';
+  try {
+    const info = await api('/v1/connections/home');
+    target.textContent = info.configured ? 'RobbinsHome is available as an external tool in chat.' : 'RobbinsHome is not connected.';
+    if (info.configured && info.url) {
+      const link = make('a', 'Open RobbinsHome'); link.href = info.url;
+      link.target = '_blank'; link.rel = 'noopener noreferrer'; target.append(make('br'), link);
     }
-    type.value = ['lighting', 'air_purifier'].includes(device.load_type) ? device.load_type : 'unclassified';
-    const enabledLabel = make('label', undefined, 'checkbox-label');
-    const enabled = make('input'); enabled.type = 'checkbox'; enabled.checked = device.control_enabled;
-    enabled.disabled = type.value === 'unclassified';
-    enabledLabel.append(enabled, make('span', 'Allow control here and in chat'));
-    type.onchange = () => { enabled.disabled = type.value === 'unclassified'; enabled.checked = !enabled.disabled; };
-    const hint = make('p', 'Choose what is plugged in. Saving settings does not switch power.', 'muted');
-    const save = make('button', 'Save outlet', 'primary'); save.type = 'submit';
-    const saved = make('p', '', 'muted'); saved.setAttribute('role', 'status');
-    formFields.append(nameLabel, roomLabel, typeLabel, type, enabledLabel, hint, save, saved); form.append(formFields);
-    form.onsubmit = async event => {
-      event.preventDefault();
-      if (busy) return;
-      if (!name.value.trim()) { saved.textContent = 'Enter a device name.'; name.focus(); return; }
-      busy = true; updateControls(); saved.textContent = 'Saving...';
-      try {
-        await api(path + '/setup', {name: name.value.trim(), room: room.value.trim(),
-          load_type: type.value, control_enabled: type.value !== 'unclassified' && enabled.checked});
-        await homeDevices('Outlet saved. You can use its name in chat.');
-      } catch (error) { saved.textContent = error.message; }
-      finally { busy = false; updateControls(); }
-    };
-    row.append(form);
-  } else if (!device.control_enabled) {
-    row.append(make('p', 'An owner must identify the connected load and enable control.', 'muted'));
-  }
-  if (!device.control_enabled) row.append(make('p', 'Power control is disabled until outlet settings are saved with control enabled.', 'muted'));
-  else if (!allowed) row.append(make('p', 'Your account has read-only device access.', 'muted'));
-  row.append(output, controls, check, result); updateControls();
-}
-
-async function homeDevices(notice = '') {
-  const target = el('home-devices');
-  if (!session.scopes.includes('home:read')) { target.textContent = 'Home device access is not enabled for this account.'; return; }
-  const [devices, providers, commands] = await Promise.all([
-    api('/v1/home/devices'), api('/v1/home/discovery'), api('/v1/home/commands')]);
-  target.replaceChildren();
-  if (notice) { const saved = make('p', notice, 'home-notice'); saved.setAttribute('role', 'status'); target.append(saved); }
-  for (const provider of providers) {
-    const label = {lifx: 'LIFX', tuya: 'Tuya / Smart Life', shelly: 'Shelly LAN'}[provider.provider] || provider.provider;
-    const saved = provider.provider === 'shelly' ? provider.count + ' registered device(s). ' : '';
-    const status = !provider.configured ? saved + (provider.provider === 'shelly' ? 'LAN discovery is disabled.' : 'Add account credentials on the server to discover devices.') :
-      provider.status === 'ready' ? (saved || 'Synced ' + provider.count + ' device(s).') :
-      provider.status === 'error' ? saved + provider.error : saved + 'Discovering devices...';
-    target.append(make('p', label + ': ' + status, 'muted'));
-  }
-  const refresh = make('button', 'Refresh devices', 'text-button'); refresh.type = 'button';
-  refresh.onclick = async () => {
-    refresh.disabled = true; refresh.textContent = 'Discovering...';
-    try { await api('/v1/home/discovery/refresh', {}); await homeDevices(); }
-    catch (error) { refresh.textContent = error.message; refresh.disabled = false; }
-  };
-  target.append(refresh);
-  if (commands.length) {
-    const recent = make('details'); recent.append(make('summary', 'Recent device commands'));
-    for (const command of commands.slice(0, 12)) recent.append(homeCommandCard(command));
-    target.append(recent);
-  }
-  if (!devices.length) {
-    target.append(make('p', 'Linked LIFX, Tuya, and Shelly devices appear automatically. Refresh devices to discover them.', 'muted'));
-    return;
-  }
-  for (const device of devices) {
-    const row = make('div', undefined, 'memory-card');
-    row.dataset.deviceId = device.id;
-    row.setAttribute('role', 'group'); row.setAttribute('aria-label', device.name);
-    row.append(make('strong', device.name), make('p', [device.room || 'No room', device.provider,
-      device.present === false ? 'Missing from account' : device.control_enabled ? 'Ready for chat control' : 'Read-only'].filter(Boolean).join(' / ')));
-    if (device.groups?.length) row.append(make('p', 'Groups: ' + device.groups.join(', '), 'muted'));
-    if (device.provider === 'shelly') outletControls(device, row);
-    if (session.scopes.includes('home:organize')) {
-      const form = make('form', undefined, 'home-organization');
-      const roomLabel = make('label', 'Room');
-      const room = make('input'); room.type = 'text'; room.value = device.room || ''; room.maxLength = 100;
-      roomLabel.append(room);
-      const groupsLabel = make('label', 'Groups (one per line)');
-      const groups = make('textarea'); groups.rows = 2; groups.value = (device.groups || []).join('\n');
-      groupsLabel.append(groups);
-      const save = make('button', 'Save room & groups', 'text-button'); save.type = 'submit';
-      const saved = make('p', '', 'muted'); saved.setAttribute('role', 'status');
-      form.append(roomLabel, groupsLabel, save, saved);
-      form.onsubmit = async event => {
-        event.preventDefault(); save.disabled = true;
-        try {
-          await api('/v1/home/organize', {device_ids: [device.id], room: room.value.trim(),
-            groups: groups.value.split('\n').map(group => group.trim()).filter(Boolean)});
-          await homeDevices();
-        } catch (error) { saved.textContent = error.message; save.disabled = false; }
-      };
-      const details = make('details'); details.append(make('summary', 'Edit room & groups'), form); row.append(details);
-    }
-    if (device.provider === 'shelly') { target.append(row); continue; }
-    const output = make('p', 'Status has not been checked.', 'muted');
-    const button = make('button', 'Check status', 'text-button'); button.type = 'button';
-    button.onclick = async () => {
-      button.disabled = true; output.textContent = 'Checking...';
-      try {
-        const state = await api('/v1/home/devices/' + encodeURIComponent(device.id) + '/status');
-        const parts = [state.online === false ? 'Offline' : state.on === null ? 'Power unknown' : state.on ? 'On' : 'Off'];
-        if (state.brightness !== null) parts.push(Math.round(state.brightness) + '% brightness');
-        if (state.color) parts.push('Color: ' + state.color);
-        if (state.watts !== null) parts.push(state.watts + ' W');
-        if (state.energy_wh !== null) parts.push(state.energy_wh + ' Wh');
-        output.textContent = parts.join(' / ') + (state.note ? '. ' + state.note : '');
-      } catch (error) { output.textContent = error.message; }
-      finally { button.disabled = false; }
-    };
-    row.append(output, button); target.append(row);
-  }
+  } catch (error) { target.textContent = error.message; }
 }

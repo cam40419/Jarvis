@@ -1,0 +1,42 @@
+{
+  "id": "code.python",
+  "description": "Run Python inside this worker's isolated execution environment.",
+  "categories": ["software"],
+  "capabilities": ["code.execute"],
+  "transport": "environment",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "args": {
+        "type": "array",
+        "items": {"type": "string", "maxLength": 4096},
+        "minItems": 1,
+        "maxItems": 32
+      }
+    },
+    "required": ["args"],
+    "additionalProperties": false
+  },
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "exit_code": {"type": "integer"},
+      "stdout": {"type": "string"},
+      "stderr": {"type": "string"},
+      "truncated": {"type": "boolean"}
+    },
+    "required": ["exit_code", "stdout", "stderr", "truncated"],
+    "additionalProperties": false
+  },
+  "enabled": false,
+  "configured": false,
+  "required_scopes": ["jobs:write"],
+  "environment_capabilities": ["process.execute"],
+  "side_effect": true,
+  "action_policy": "write",
+  "settings": {
+    "argv_prefix": ["python", "-I"],
+    "timeout_seconds": 60,
+    "max_output_bytes": 65536
+  }
+}

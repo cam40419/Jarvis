@@ -1,5 +1,8 @@
 # ADR 0001: Modular monolith with isolated Home OS and workers
 
+> Historical combined-system design. The active repository boundary is documented in
+> [repository separation](../architecture/repository-separation.md).
+
 - Status: accepted
 - Date: 2026-09-09
 

@@ -78,7 +78,7 @@ def test_assistant_tasks_can_be_edited_reordered_steered_and_cancelled(
     }
 
 
-def test_work_overview_combines_projects_tasks_automations_and_prints(
+def test_work_overview_combines_projects_and_assistant_tasks(
     client, auth_headers, container
 ):
     project = client.post(
@@ -126,9 +126,4 @@ def test_work_overview_combines_projects_tasks_automations_and_prints(
         "projects",
         "project_artifacts",
         "tasks",
-        "workflows",
-        "workflow_runs",
-        "workflow_schedules",
-        "workflow_health",
-        "print_batches",
     }

@@ -2,11 +2,10 @@ import asyncio
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
-from datetime import timedelta
 from pathlib import Path
 from typing import Annotated, Any
 from urllib.parse import urlsplit
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from fastapi import Depends, FastAPI, Header, Query, Request
 from fastapi.exceptions import RequestValidationError
@@ -18,26 +17,23 @@ from fastapi.responses import (
     StreamingResponse,
 )
 from fastapi.staticfiles import StaticFiles
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from simon.adapters.memory import InMemoryStore
+from simon.api.agent_platform import agent_platform_router
 from simon.api.auth import auth_router, require_csrf, session_cookie
-from simon.api.displays import display_router
 from simon.api.local_files import local_file_router
 from simon.api.model_stream import model_stream
-from simon.api.print_batches import PrintBatchService, print_batch_router
 from simon.api.project_files import project_router
 from simon.api.tasks import task_router
 from simon.api.work_sessions import session_router
-from simon.api.workflows import workflow_router
 from simon.config import Settings, get_settings
 from simon.domain.accounts import AccountAccess, InviteAccount
 from simon.domain.connected_tools import ActionProposal, GoogleAccountSelect, GoogleStart
 from simon.domain.context import CreateMemory, ExplicitMemory, RecallQuery
 from simon.domain.conversations import CreateThread, Message, Run, SubmitRun, Thread
 from simon.domain.errors import AuthorizationError, DomainError, ModelError
-from simon.domain.home import DirectHomeControl, HomeOrganization, OutletPower, OutletSetup
 from simon.domain.identity import DEV_ACTOR_ID, DEV_HOUSEHOLD_ID, Membership
 from simon.domain.interaction import (
     AnswerReference,
@@ -50,31 +46,27 @@ from simon.domain.models import (
     ActorContext,
     CapabilityDefinition,
     CapabilityInvocation,
-    Channel,
     Job,
     RiskClass,
-    utc_now,
 )
 from simon.domain.ports import Store
 from simon.domain.voice import VoiceOffer
 from simon.services.accounts import AccountService
+from simon.services.agent_platform import AgentPlatformService, load_manifest
+from simon.services.agent_runs import AgentRunService
 from simon.services.audit import AuditService
 from simon.services.capabilities import CapabilityBroker
 from simon.services.connected import ConnectedService
 from simon.services.conversations import ConversationService
-from simon.services.displays import DisplayService
 from simon.services.identity import IdentityService
 from simon.services.interaction import InteractionService
 from simon.services.jobs import JobService
 from simon.services.memory import MemoryService
 from simon.services.model_conversations import ModelConversationService
 from simon.services.policy import PolicyEngine
-from simon.services.power import PowerMonitor
-from simon.services.printer_status import PrinterStatusService
 from simon.services.tasks import AssistantTaskService
 from simon.services.voice import VoiceService
 from simon.services.work_sessions import WorkSessionService
-from simon.services.workflows import WorkflowService
 
 
 class EchoInput(BaseModel):
@@ -119,18 +111,10 @@ class AppContainer:
         self.accounts = AccountService(self.identity)
         self.audit = AuditService(self.store)
         self.connected = ConnectedService(self.store, self.audit, self.settings, self.identity)
-        self.power = PowerMonitor(self.connected.home)
-        self.interaction = InteractionService(self.store, self.audit)
+        self.interaction = InteractionService(self.store, self.audit, self.connected.home)
         self.policy = PolicyEngine()
         self.capabilities = CapabilityBroker(self.store, self.store, self.policy, self.audit)
         self.jobs = JobService(self.store, self.audit)
-        self.displays = DisplayService(self.settings.display_data_dir)
-        self.connected.displays = self.displays
-        self.printer_status = PrinterStatusService(self.settings, self.identity)
-        self.workflows = WorkflowService(
-            self.store, self.identity, home=self.connected.home, printer=self.printer_status
-        )
-        self.print_batches = PrintBatchService(self.settings, self.identity, self.printer_status)
         self.conversations = ConversationService(self.store, self.audit)
         if self.settings.model_provider == "openai":
             from simon.adapters.openai_model import OpenAIModel
@@ -152,6 +136,13 @@ class AppContainer:
         )
         self.connected.tasks = self.tasks
         self.work_sessions = WorkSessionService(self.tasks)
+        self.agent_platform = AgentPlatformService(
+            self.store, load_manifest(self.settings.agent_manifest_file),
+            state_dir=self.settings.agent_state_dir,
+        )
+        self.agent_runs = AgentRunService(
+            self.agent_platform, enabled=self.settings.agent_execution_enabled,
+        )
         self.memories = MemoryService(self.store, self.audit)
         self.voice = VoiceService(
             self.connected,
@@ -188,16 +179,6 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
-        async def discovery() -> None:
-            while True:
-                try:
-                    await asyncio.to_thread(services.connected.home.catalog.sync_target)
-                except Exception:
-                    logging.getLogger(__name__).warning(
-                        "Home inventory refresh unavailable; retrying later."
-                    )
-                await asyncio.sleep(300)
-
         async def project_sync() -> None:
             while True:
                 try:
@@ -213,30 +194,6 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
             if services.settings.project_drive_sync_enabled
             else None
         )
-        task = asyncio.create_task(discovery()) if services.settings.home_auto_discovery else None
-
-        async def metering() -> None:
-            target = services.connected.home.catalog.target
-            if not target:
-                return
-            actor = ActorContext(
-                actor_id=UUID("00000000-0000-4000-8000-000000000002"),
-                household_id=target,
-                channel=Channel.WORKER,
-                scopes=frozenset({"home:read"}),
-            )
-            while True:
-                try:
-                    await asyncio.to_thread(services.power.poll, actor)
-                except Exception:
-                    logging.getLogger(__name__).warning(
-                        "Outlet metering unavailable; retrying later."
-                    )
-                await asyncio.sleep(services.settings.power_poll_seconds)
-
-        meter_task = (
-            asyncio.create_task(metering()) if services.settings.power_monitoring_enabled else None
-        )
         try:
             yield
         finally:
@@ -245,20 +202,6 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
                 project_task.cancel()
                 with suppress(asyncio.CancelledError):
                     await project_task
-            if task:
-                task.cancel()
-                with suppress(asyncio.CancelledError):
-                    await task
-            if meter_task:
-                meter_task.cancel()
-                with suppress(asyncio.CancelledError):
-                    await meter_task
-            for adapter in (
-                services.connected.home.lifx,
-                services.connected.home.tuya,
-                services.connected.home.shelly,
-            ):
-                adapter.transport.close()
             services.store.close()
 
     app = FastAPI(title="Simon API", version="0.1.0", lifespan=lifespan)
@@ -273,7 +216,7 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
 
     @app.get("/", include_in_schema=False)
     def home() -> RedirectResponse:
-        return RedirectResponse(services.settings.public_path + "/home")
+        return RedirectResponse(services.settings.public_path + "/login")
 
     def page(name: str) -> HTMLResponse:
         base = services.settings.public_path
@@ -287,17 +230,9 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
     def login_page() -> HTMLResponse:
         return page("login.html")
 
-    @app.get("/home", include_in_schema=False)
-    def dashboard_page() -> HTMLResponse:
-        return page("dashboard.html")
-
     @app.get("/chat", include_in_schema=False)
     def chat_page() -> HTMLResponse:
         return page("chat.html")
-
-    @app.get("/automations", include_in_schema=False)
-    def automations_page() -> HTMLResponse:
-        return page("automations.html")
 
     @app.middleware("http")
     async def security_headers(request: Request, call_next: Any) -> Any:
@@ -340,14 +275,23 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
             require_csrf(request, services.identity, token)
         return actor
 
-    app.include_router(workflow_router(services.workflows, checked_actor))
-    app.include_router(print_batch_router(services.print_batches, checked_actor))
     app.include_router(task_router(services.tasks, checked_actor))
+    app.include_router(agent_platform_router(
+        services.agent_platform, checked_actor, services.agent_runs,
+    ))
     app.include_router(project_router(services.connected.projects, checked_actor))
     if services.tasks.conversations:
         app.include_router(session_router(services.work_sessions, checked_actor))
     app.include_router(local_file_router(services.connected.local_files, checked_actor))
-    app.include_router(display_router(services.displays, checked_actor, services, page))
+
+    @app.get("/v1/connections/home")
+    def home_connection(
+        actor: Annotated[ActorContext, Depends(checked_actor)],
+    ) -> dict[str, object]:
+        return {
+            "configured": services.connected.home.configured,
+            "url": services.settings.home_api_url if services.connected.home.configured else None,
+        }
 
     @app.get("/v1/work/overview")
     def work_overview(
@@ -363,24 +307,7 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
                 if str(artifact.project_id) in project_ids
             ],
             "tasks": [task.model_dump(mode="json") for task in services.tasks.list(actor)],
-            "workflows": [
-                flow.model_dump(mode="json")
-                for flow in services.workflows.definitions(actor, 0, 50)
-            ],
-            "workflow_runs": [
-                run.model_dump(mode="json") for run in services.workflows.runs(actor, 0, 50)
-            ],
-            "workflow_schedules": [
-                schedule.model_dump(mode="json")
-                for schedule in services.workflows.schedules(actor, 0, 100)
-            ],
-            "workflow_health": services.workflows.health(actor),
-            "print_batches": services.print_batches.batches(actor),
         }
-
-    @app.get("/v1/printers/a1/status")
-    def a1_status(actor: Annotated[ActorContext, Depends(checked_actor)]) -> dict[str, Any]:
-        return services.printer_status.status(actor)
 
     @app.exception_handler(RequestValidationError)
     async def request_validation_error(
@@ -403,6 +330,8 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
             "idempotency_conflict": 409,
             "invalid_transition": 409,
             "validation_error": 422,
+            "agent_prompt_error": 422,
+            "artifact_error": 409,
             "model_error": 503,
             "model_busy": 409,
         }
@@ -740,147 +669,6 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
     @app.get("/v1/connections/google")
     def google_status(actor: Annotated[ActorContext, Depends(checked_actor)]) -> dict[str, object]:
         return services.connected.status(actor)
-
-    @app.get("/v1/home/commands")
-    def home_commands(
-        actor: Annotated[ActorContext, Depends(checked_actor)],
-    ) -> list[dict[str, object]]:
-        return [c.model_dump(mode="json") for c in services.connected.home.commands(actor)]
-
-    @app.post("/v1/home/commands/{command_id}/verify")
-    def verify_home_command(
-        command_id: UUID,
-        actor: Annotated[ActorContext, Depends(checked_actor)],
-    ) -> dict[str, object]:
-        return services.connected.home.verify_command(actor, command_id).model_dump(mode="json")
-
-    @app.get("/v1/home/devices")
-    def home_devices(
-        actor: Annotated[ActorContext, Depends(checked_actor)],
-    ) -> list[dict[str, object]]:
-        return services.connected.home.inventory(actor)
-
-    @app.post("/v1/home/outlets/{device_id}/setup")
-    def setup_outlet(
-        device_id: str,
-        body: OutletSetup,
-        request: Request,
-        actor: Annotated[ActorContext, Depends(checked_actor)],
-    ) -> dict[str, object]:
-        from simon.services.identity import IDENTITY_LOCK
-
-        with (
-            services.store.transaction(IDENTITY_LOCK),
-            services.store.transaction(actor.household_id),
-        ):
-            current = checked_actor(request)
-            if (current.actor_id, current.household_id) != (actor.actor_id, actor.household_id):
-                raise AuthorizationError("Home access changed")
-            device = services.connected.home.setup_outlet(current, device_id, body)
-            return {
-                "device_id": device.id,
-                "name": device.name,
-                "room": device.room,
-                "load_type": device.load_type,
-                "control_enabled": device.control_enabled,
-            }
-
-    @app.get("/v1/home/outlets")
-    def outlets(actor: Annotated[ActorContext, Depends(checked_actor)]) -> list[dict[str, object]]:
-        return [
-            {
-                "id": d.id,
-                "name": d.name,
-                "room": d.room,
-                "groups": list(d.groups),
-                "address": str(d.address),
-                "remote_id": d.remote_id,
-                "load_type": d.load_type,
-                "control_enabled": d.control_enabled,
-            }
-            for d in services.power.devices(actor)
-        ]
-
-    @app.post("/v1/home/outlets/{device_id}/power")
-    def outlet_power(
-        device_id: str,
-        body: OutletPower,
-        request: Request,
-        actor: Annotated[ActorContext, Depends(checked_actor)],
-    ) -> dict[str, object]:
-        return services.connected.home.outlet_power(
-            actor, device_id, body, lambda: checked_actor(request)
-        ).model_dump(mode="json")
-
-    @app.post("/v1/home/devices/{device_id}/control")
-    def home_control(
-        device_id: str,
-        body: DirectHomeControl,
-        request: Request,
-        actor: Annotated[ActorContext, Depends(checked_actor)],
-    ) -> dict[str, object]:
-        return services.connected.home.direct_control(
-            actor, device_id, body, lambda: checked_actor(request)
-        ).model_dump(mode="json")
-
-    @app.get("/v1/home/power")
-    def power_overview(actor: Annotated[ActorContext, Depends(checked_actor)]) -> dict[str, object]:
-        return services.power.overview(actor)
-
-    @app.post("/v1/home/power/refresh")
-    def refresh_power(actor: Annotated[ActorContext, Depends(checked_actor)]) -> dict[str, object]:
-        services.power.poll(actor)
-        return services.power.overview(actor)
-
-    @app.get("/v1/home/devices/{device_id}/power")
-    def power_history(
-        device_id: str,
-        actor: Annotated[ActorContext, Depends(checked_actor)],
-        start: AwareDatetime | None = None,
-        end: AwareDatetime | None = None,
-    ) -> dict[str, object]:
-        finish = end or utc_now()
-        return services.power.history(
-            actor, device_id, start or finish - timedelta(hours=24), finish
-        )
-
-    @app.get("/v1/home/discovery")
-    def home_discovery(
-        actor: Annotated[ActorContext, Depends(checked_actor)],
-    ) -> list[dict[str, object]]:
-        return services.connected.home.catalog.status(actor)
-
-    @app.post("/v1/home/discovery/refresh")
-    def refresh_home(actor: Annotated[ActorContext, Depends(checked_actor)]) -> dict[str, object]:
-        return {
-            "providers": services.connected.home.catalog.sync(actor, force=True),
-            "devices": services.connected.home.inventory(actor),
-        }
-
-    @app.post("/v1/home/organize")
-    def organize_home(
-        body: HomeOrganization,
-        request: Request,
-        actor: Annotated[ActorContext, Depends(checked_actor)],
-    ) -> dict[str, object]:
-        from simon.services.identity import IDENTITY_LOCK
-
-        with services.store.transaction(IDENTITY_LOCK):
-            current = checked_actor(request)
-            if (current.actor_id, current.household_id) != (actor.actor_id, actor.household_id):
-                raise AuthorizationError("Home access changed")
-            return services.connected.home.catalog.organize(
-                current,
-                body,
-                services.connected.home.devices,
-                operation_key=str(uuid4()),
-            )
-
-    @app.get("/v1/home/devices/{device_id}/status")
-    def home_status(
-        device_id: str, actor: Annotated[ActorContext, Depends(checked_actor)]
-    ) -> dict[str, object]:
-        return services.connected.home.read(actor, device_id).model_dump(mode="json")
 
     @app.post("/v1/connections/google/start")
     def google_start(

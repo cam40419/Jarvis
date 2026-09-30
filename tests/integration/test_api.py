@@ -3,7 +3,7 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from simon.api.app import AppContainer, create_app
+from simon.api.app import AppContainer
 from simon.config import Settings
 
 
@@ -11,48 +11,12 @@ def test_health_does_not_require_authentication(client: TestClient) -> None:
     assert client.get("/health/live").json() == {"status": "ok"}
 
 
-def test_home_dashboard_is_the_entry_page(client: TestClient) -> None:
-    redirect = client.get("/", follow_redirects=False)
-    assert redirect.status_code == 307
-    assert redirect.headers["location"] == "/home"
-    dashboard = client.get("/home")
-    assert dashboard.status_code == 200
-    assert "Your spaces" in dashboard.text
-    assert '/assets/dashboard.js' in dashboard.text
-    assert 'href="/chat"' in dashboard.text
 
 
-def test_main_navigation_includes_displays_on_every_page(client: TestClient) -> None:
-    for path in ("/home", "/automations", "/displays", "/chat"):
-        response = client.get(path)
-        assert response.status_code == 200
-        assert 'href="/displays"' in response.text
-        assert 'aria-label="Main navigation"' in response.text
 
 
-def test_lighting_colors_are_selected_before_explicitly_set(client: TestClient) -> None:
-    script = client.get("/assets/dashboard.js")
-    assert script.status_code == 200
-    assert "['Red', '#ff0000']" in script.text
-    assert "['Green', '#00ff00']" in script.text
-    assert "['Blue', '#0000ff']" in script.text
-    assert "colorSet.onclick = async" in script.text
-    assert "color.onchange = () => control" not in script.text
 
 
-def test_home_dashboard_links_respect_public_path() -> None:
-    settings = Settings(
-        public_path="/simon", storage_backend="memory", model_provider="local",
-        home_auto_discovery=False, power_monitoring_enabled=False,
-    )
-    with TestClient(
-        create_app(AppContainer(settings=settings)), base_url="http://localhost:8000"
-    ) as client:
-        assert client.get("/simon/", follow_redirects=False).headers["location"] == "/simon/home"
-        page = client.get("/simon/home")
-        assert page.status_code == 200
-        assert 'src="/simon/assets/dashboard.js"' in page.text
-        assert 'href="/simon/chat"' in page.text
 
 
 def test_capabilities_are_filtered_by_scope(

@@ -4,7 +4,6 @@ import importlib.util
 from pathlib import Path
 from types import SimpleNamespace
 
-
 SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "run_hidden.py"
 SPEC = importlib.util.spec_from_file_location("run_hidden", SCRIPT)
 assert SPEC and SPEC.loader

@@ -301,7 +301,8 @@ def definitions(names: tuple[ToolName, ...]) -> list[ToolParam]:
             }
         elif name == "display_list":
             description = (
-                "List Simon idle displays and their complete current layout/widget configuration. "
+                "List RobbinsHome idle displays and their complete current "
+                "layout/widget configuration. "
                 "Call this before changing a display so unchanged widgets can be preserved."
             )
             properties = {}

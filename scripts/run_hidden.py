@@ -9,7 +9,7 @@ from pathlib import Path
 
 
 def powershell_command(script: Path, arguments: list[str]) -> list[str]:
-    system_root = Path(os.environ.get("SystemRoot", r"C:\Windows"))
+    system_root = Path(os.environ.get("SystemRoot", r"C:\Windows"))  # noqa: SIM112 - Windows canonical environment key
     powershell = system_root / "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe"
     return [
         str(powershell),

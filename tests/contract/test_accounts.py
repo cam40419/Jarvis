@@ -17,7 +17,6 @@ from simon.services.accounts import AccountService
 from simon.services.identity import token_hash
 from tests.contract.test_connected import connected_setup
 from tests.passkey_helper import SoftwarePasskey
-from tests.unit.test_home_adapters import device
 
 
 def register(identity, invitation):
@@ -66,18 +65,6 @@ def test_invited_account_private_workspace_and_no_admin_access(store):
     with pytest.raises(NotFoundError):
         connected.conversations.get(invited, thread.id)
     assert connected.conversations.list(invited, 0, 10) == ()
-    light = device().model_copy(update={"household_id": owner.household_id})
-    connected.home.devices = (light,)
-    assert connected.home.inventory(owner)
-    assert connected.home.inventory(invited) == []
-    with pytest.raises(NotFoundError):
-        connected.home.device(invited, light.id)
-    assert not any(connected.home.catalog.configured(invited.household_id).values())
-    assert not connected.status(invited)["connected"]
-    with pytest.raises(RuntimeError), store.transaction():
-        store.save_managed_account(service.get(account_id).model_copy(update={"disabled": True}))
-        raise RuntimeError("rollback")
-    assert not service.get(account_id).disabled
 
 
 def test_invitation_renewal_expiry_and_account_revocation(store):

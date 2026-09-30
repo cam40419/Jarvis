@@ -3,7 +3,6 @@ from __future__ import annotations
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from copy import deepcopy
-from datetime import datetime
 from threading import RLock
 from typing import Any
 from uuid import UUID
@@ -20,7 +19,6 @@ from simon.domain.errors import (
     InvalidTransitionError,
     NotFoundError,
 )
-from simon.domain.home import HomeCommand, HomeDevice, HomeSync, PowerSample
 from simon.domain.identity import (
     Challenge,
     Enrollment,
@@ -42,14 +40,6 @@ from simon.domain.ports import CapabilityHandler
 from simon.domain.project_files import ProjectDrive, ProjectFileOperation
 from simon.domain.tasks import ProjectArtifact
 from simon.domain.voice import VoiceSession
-from simon.domain.workflows import (
-    WorkerHeartbeat,
-    WorkflowDefinition,
-    WorkflowEvent,
-    WorkflowRun,
-    WorkflowSchedule,
-    WorkflowTrigger,
-)
 
 
 class InMemoryStore:
@@ -84,20 +74,9 @@ class InMemoryStore:
         self._google: dict[tuple[UUID, UUID, str], GoogleConnection] = {}
         self._google_states: dict[str, GoogleOAuthState] = {}
         self._actions: dict[UUID, ActionProposal] = {}
-        self._home_devices: dict[tuple[UUID, str], HomeDevice] = {}
-        self._home_syncs: dict[tuple[UUID, str], HomeSync] = {}
-        self._home_commands: dict[UUID, HomeCommand] = {}
-        self._power_samples: dict[tuple[UUID, str, datetime], PowerSample] = {}
         self._feedback: dict[tuple[UUID, UUID, UUID], RunFeedback] = {}
         self._voice_sessions: dict[UUID, VoiceSession] = {}
         self._managed_accounts: dict[UUID, ManagedAccount] = {}
-        self._workflow_versions: dict[tuple[UUID, int], WorkflowDefinition] = {}
-        self._deleted_workflows: set[UUID] = set()
-        self._workflow_runs: dict[UUID, WorkflowRun] = {}
-        self._workflow_events: dict[tuple[UUID, int], WorkflowEvent] = {}
-        self._workflow_workers: dict[str, WorkerHeartbeat] = {}
-        self._workflow_schedules: dict[UUID, WorkflowSchedule] = {}
-        self._workflow_triggers: dict[UUID, WorkflowTrigger] = {}
         self._project_artifacts: dict[UUID, tuple[ProjectArtifact, bytes]] = {}
         self._project_drive: dict[tuple[UUID, UUID, UUID], ProjectDrive] = {}
         self._project_file_ops: dict[UUID, ProjectFileOperation] = {}
@@ -129,19 +108,8 @@ class InMemoryStore:
                     self._google,
                     self._google_states,
                     self._actions,
-                    self._home_devices,
-                    self._home_syncs,
-                    self._home_commands,
-                    self._power_samples,
                     self._voice_sessions,
                     self._managed_accounts,
-                    self._workflow_versions,
-                    self._deleted_workflows,
-                    self._workflow_runs,
-                    self._workflow_events,
-                    self._workflow_workers,
-                    self._workflow_schedules,
-                    self._workflow_triggers,
                     self._project_artifacts,
                     self._project_drive,
                     self._project_file_ops,
@@ -173,304 +141,39 @@ class InMemoryStore:
                     self._google,
                     self._google_states,
                     self._actions,
-                    self._home_devices,
-                    self._home_syncs,
-                    self._home_commands,
-                    self._power_samples,
                     self._voice_sessions,
                     self._managed_accounts,
-                    self._workflow_versions,
-                    self._deleted_workflows,
-                    self._workflow_runs,
-                    self._workflow_events,
-                    self._workflow_workers,
-                    self._workflow_schedules,
-                    self._workflow_triggers,
                     self._project_artifacts,
                     self._project_drive,
                     self._project_file_ops,
                 ) = snapshot
                 raise
 
-    def workflow(self, identifier: UUID, version: int | None = None) -> WorkflowDefinition | None:
-        with self._lock:
-            return max(
-                (
-                    w
-                    for (i, v), w in self._workflow_versions.items()
-                    if i == identifier
-                    and i not in self._deleted_workflows
-                    and (version is None or v == version)
-                ),
-                key=lambda w: w.version,
-                default=None,
-            )
 
-    def workflows(
-        self, household_id: UUID, actor_id: UUID, offset: int, limit: int
-    ) -> tuple[WorkflowDefinition, ...]:
-        with self._lock:
-            latest: dict[UUID, WorkflowDefinition] = {}
-            for w in self._workflow_versions.values():
-                if (
-                    w.household_id == household_id
-                    and w.actor_id == actor_id
-                    and w.id not in self._deleted_workflows
-                    and (w.id not in latest or latest[w.id].version < w.version)
-                ):
-                    latest[w.id] = w
-            return tuple(
-                sorted(latest.values(), key=lambda w: (w.created_at, w.id), reverse=True)[
-                    offset : offset + limit
-                ]
-            )
 
-    def insert_workflow(self, definition: WorkflowDefinition) -> None:
-        with self._lock:
-            key = definition.id, definition.version
-            if key in self._workflow_versions:
-                raise InvalidTransitionError("workflow version already exists")
-            self._workflow_versions[key] = definition
 
-    def delete_workflow(self, identifier: UUID, household_id: UUID, actor_id: UUID) -> bool:
-        with self._lock:
-            owned = any(
-                workflow.id == identifier
-                and workflow.household_id == household_id
-                and workflow.actor_id == actor_id
-                for workflow in self._workflow_versions.values()
-            )
-            if owned and identifier not in self._deleted_workflows:
-                self._deleted_workflows.add(identifier)
-                return True
-            return False
 
-    def workflow_run(self, identifier: UUID) -> WorkflowRun | None:
-        with self._lock:
-            return self._workflow_runs.get(identifier)
 
-    def workflow_runs(
-        self, household_id: UUID, actor_id: UUID, offset: int, limit: int
-    ) -> tuple[WorkflowRun, ...]:
-        with self._lock:
-            return tuple(
-                sorted(
-                    (
-                        r
-                        for r in self._workflow_runs.values()
-                        if r.household_id == household_id and r.actor_id == actor_id
-                    ),
-                    key=lambda r: (r.created_at, r.id),
-                    reverse=True,
-                )[offset : offset + limit]
-            )
 
-    def save_workflow_run(self, run: WorkflowRun, expected_version: int) -> None:
-        with self._lock:
-            old = self._workflow_runs.get(run.id)
-            if (old.version if old else 0) != expected_version:
-                raise InvalidTransitionError("workflow run changed; reload before retrying")
-            self._workflow_runs[run.id] = run
 
-    def due_workflows(self, now: datetime, limit: int) -> tuple[WorkflowRun, ...]:
-        with self._lock:
-            return tuple(
-                sorted(
-                    (
-                        r
-                        for r in self._workflow_runs.values()
-                        if r.next_wake_at is not None and r.next_wake_at <= now
-                    ),
-                    key=lambda r: (r.next_wake_at, str(r.id)),
-                )[:limit]
-            )
 
-    def append_workflow_event(self, event: WorkflowEvent) -> None:
-        with self._lock:
-            key = event.run_id, event.sequence
-            if key in self._workflow_events:
-                raise InvalidTransitionError("workflow event already exists")
-            self._workflow_events[key] = event
 
-    def workflow_events(self, run_id: UUID, after: int) -> tuple[WorkflowEvent, ...]:
-        with self._lock:
-            return tuple(
-                sorted(
-                    (
-                        e
-                        for e in self._workflow_events.values()
-                        if e.run_id == run_id and e.sequence > after
-                    ),
-                    key=lambda e: e.sequence,
-                )[:100]
-            )
 
-    def worker_heartbeat(self, heartbeat: WorkerHeartbeat) -> None:
-        with self._lock:
-            self._workflow_workers[heartbeat.id] = heartbeat
 
-    def workflow_workers(self) -> tuple[WorkerHeartbeat, ...]:
-        with self._lock:
-            return tuple(
-                sorted(self._workflow_workers.values(), key=lambda w: w.seen_at, reverse=True)[:20]
-            )
 
-    def workflow_schedule(self, identifier: UUID) -> WorkflowSchedule | None:
-        with self._lock:
-            return self._workflow_schedules.get(identifier)
 
-    def workflow_schedules(
-        self, household_id: UUID, actor_id: UUID, offset: int, limit: int
-    ) -> tuple[WorkflowSchedule, ...]:
-        with self._lock:
-            return tuple(
-                sorted(
-                    (
-                        schedule
-                        for schedule in self._workflow_schedules.values()
-                        if schedule.household_id == household_id and schedule.actor_id == actor_id
-                    ),
-                    key=lambda schedule: (schedule.created_at, schedule.id),
-                    reverse=True,
-                )[offset : offset + limit]
-            )
 
-    def due_workflow_schedules(self, now: datetime, limit: int) -> tuple[WorkflowSchedule, ...]:
-        with self._lock:
-            return tuple(
-                sorted(
-                    (
-                        schedule
-                        for schedule in self._workflow_schedules.values()
-                        if schedule.enabled
-                        and schedule.next_run_at is not None
-                        and schedule.next_run_at <= now
-                    ),
-                    key=lambda schedule: (schedule.next_run_at, schedule.id),
-                )[:limit]
-            )
 
-    def save_workflow_schedule(self, schedule: WorkflowSchedule, expected_version: int) -> None:
-        with self._lock:
-            old = self._workflow_schedules.get(schedule.id)
-            if (old.version if old else 0) != expected_version:
-                raise InvalidTransitionError("workflow schedule changed; reload before retrying")
-            self._workflow_schedules[schedule.id] = schedule
 
-    def delete_workflow_schedule(
-        self, identifier: UUID, household_id: UUID, actor_id: UUID
-    ) -> bool:
-        with self._lock:
-            schedule = self._workflow_schedules.get(identifier)
-            if not schedule or (schedule.household_id, schedule.actor_id) != (
-                household_id,
-                actor_id,
-            ):
-                return False
-            del self._workflow_schedules[identifier]
-            return True
 
-    def delete_workflow_schedules(
-        self, definition_id: UUID, household_id: UUID, actor_id: UUID
-    ) -> int:
-        with self._lock:
-            identifiers = [
-                schedule.id
-                for schedule in self._workflow_schedules.values()
-                if schedule.definition_id == definition_id
-                and schedule.household_id == household_id
-                and schedule.actor_id == actor_id
-            ]
-            for identifier in identifiers:
-                del self._workflow_schedules[identifier]
-            return len(identifiers)
 
-    def workflow_trigger(self, identifier: UUID) -> WorkflowTrigger | None:
-        with self._lock:
-            return self._workflow_triggers.get(identifier)
 
-    def workflow_trigger_for_definition(self, definition_id: UUID) -> WorkflowTrigger | None:
-        with self._lock:
-            return next(
-                (
-                    item
-                    for item in self._workflow_triggers.values()
-                    if item.definition_id == definition_id
-                ),
-                None,
-            )
 
-    def workflow_triggers_for_definition(self, definition_id: UUID) -> tuple[WorkflowTrigger, ...]:
-        with self._lock:
-            return tuple(
-                item
-                for item in self._workflow_triggers.values()
-                if item.definition_id == definition_id
-            )
 
-    def workflow_triggers(
-        self, household_id: UUID, actor_id: UUID, offset: int, limit: int
-    ) -> tuple[WorkflowTrigger, ...]:
-        with self._lock:
-            return tuple(
-                sorted(
-                    (
-                        item
-                        for item in self._workflow_triggers.values()
-                        if item.household_id == household_id and item.actor_id == actor_id
-                    ),
-                    key=lambda item: (item.created_at, item.id),
-                    reverse=True,
-                )[offset : offset + limit]
-            )
 
-    def due_workflow_triggers(self, now: datetime, limit: int) -> tuple[WorkflowTrigger, ...]:
-        with self._lock:
-            return tuple(
-                sorted(
-                    (
-                        item
-                        for item in self._workflow_triggers.values()
-                        if item.enabled
-                        and item.next_check_at is not None
-                        and item.next_check_at <= now
-                    ),
-                    key=lambda item: (item.next_check_at, item.id),
-                )[:limit]
-            )
 
-    def save_workflow_trigger(self, trigger: WorkflowTrigger, expected_version: int) -> None:
-        with self._lock:
-            old = self._workflow_triggers.get(trigger.id)
-            if (old.version if old else 0) != expected_version:
-                raise InvalidTransitionError("workflow trigger changed; reload before retrying")
-            self._workflow_triggers[trigger.id] = trigger
 
-    def delete_workflow_trigger(self, identifier: UUID, household_id: UUID, actor_id: UUID) -> bool:
-        with self._lock:
-            trigger = self._workflow_triggers.get(identifier)
-            if not trigger or (trigger.household_id, trigger.actor_id) != (
-                household_id,
-                actor_id,
-            ):
-                return False
-            del self._workflow_triggers[identifier]
-            return True
 
-    def delete_workflow_trigger_for_definition(
-        self, definition_id: UUID, household_id: UUID, actor_id: UUID
-    ) -> int:
-        with self._lock:
-            identifiers = [
-                item.id
-                for item in self._workflow_triggers.values()
-                if item.definition_id == definition_id
-                and item.household_id == household_id
-                and item.actor_id == actor_id
-            ]
-            for identifier in identifiers:
-                del self._workflow_triggers[identifier]
-            return len(identifiers)
 
     def save_project_artifact(self, artifact: ProjectArtifact, content: bytes) -> None:
         with self._lock:
@@ -541,83 +244,15 @@ class InMemoryStore:
         with self._lock:
             self._voice_sessions[session.id] = session
 
-    def home_command(
-        self, household_id: UUID, actor_id: UUID, command_id: UUID
-    ) -> HomeCommand | None:
-        with self._lock:
-            command = self._home_commands.get(command_id)
-            return (
-                command
-                if command and (command.household_id, command.actor_id) == (household_id, actor_id)
-                else None
-            )
 
-    def power_samples(
-        self, household_id: UUID, device_id: str, start: datetime, end: datetime, limit: int = 3000
-    ) -> tuple[PowerSample, ...]:
-        with self._lock:
-            rows = [
-                s
-                for (h, d, _), s in self._power_samples.items()
-                if h == household_id and d == device_id and start <= s.captured_at < end
-            ]
-            return tuple(sorted(rows, key=lambda s: s.captured_at, reverse=True)[:limit])
 
-    def save_power_sample(self, sample: PowerSample) -> None:
-        with self._lock:
-            self._power_samples[sample.household_id, sample.device_id, sample.captured_at] = sample
 
-    def prune_power_samples(self, household_id: UUID, before: datetime) -> None:
-        with self._lock:
-            self._power_samples = {
-                k: s
-                for k, s in self._power_samples.items()
-                if s.household_id != household_id or s.captured_at >= before
-            }
 
-    def home_commands(
-        self,
-        household_id: UUID,
-        actor_id: UUID,
-        run_id: UUID | None = None,
-        *,
-        thread_id: UUID | None = None,
-        limit: int = 100,
-    ) -> tuple[HomeCommand, ...]:
-        with self._lock:
-            rows = sorted(
-                (
-                    c
-                    for c in self._home_commands.values()
-                    if c.household_id == household_id
-                    and c.actor_id == actor_id
-                    and (run_id is None or c.run_id == run_id)
-                    and (thread_id is None or c.thread_id == thread_id)
-                ),
-                key=lambda c: (c.created_at, c.id),
-                reverse=True,
-            )
-            return tuple(rows[:limit])
 
-    def save_home_command(self, command: HomeCommand) -> None:
-        with self._lock:
-            self._home_commands[command.id] = command
 
-    def home_devices(self, household_id: UUID) -> tuple[HomeDevice, ...]:
-        with self._lock:
-            return tuple(d for (h, _), d in self._home_devices.items() if h == household_id)
 
-    def save_home_device(self, device: HomeDevice) -> None:
-        with self._lock:
-            self._home_devices[device.household_id, device.id] = device
 
-    def home_sync(self, household_id: UUID, provider: str) -> HomeSync | None:
-        with self._lock:
-            return self._home_syncs.get((household_id, provider))
 
-    def save_home_sync(self, sync: HomeSync) -> None:
-        with self._lock:
-            self._home_syncs[sync.household_id, sync.provider] = sync
 
     def response_preferences(
         self, household_id: UUID, actor_id: UUID
@@ -641,9 +276,16 @@ class InMemoryStore:
 
     def answer_runs(self, thread_id: UUID, offset: int, limit: int) -> tuple[Run, ...]:
         with self._lock:
+            # Message sequence is conversation order, even when clocks tie or move
+            # backwards. Legacy snapshots without their output remain before it.
             rows = sorted(
                 (r for r in self._runs.values() if r.thread_id == thread_id),
-                key=lambda r: (r.created_at, r.id),
+                key=lambda r: (
+                    message.sequence
+                    if (message := self._messages.get(r.output_message_id)) is not None
+                    and message.thread_id == thread_id else 0,
+                    r.created_at, r.id,
+                ),
             )
             return tuple(rows[offset : offset + limit])
 
@@ -651,7 +293,12 @@ class InMemoryStore:
         with self._lock:
             return max(
                 (r for r in self._runs.values() if r.thread_id == thread_id),
-                key=lambda r: (r.created_at, r.id),
+                key=lambda r: (
+                    message.sequence
+                    if (message := self._messages.get(r.output_message_id)) is not None
+                    and message.thread_id == thread_id else 0,
+                    r.created_at, r.id,
+                ),
                 default=None,
             )
 

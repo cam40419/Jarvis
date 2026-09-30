@@ -1,0 +1,31 @@
+{
+  "team_id": "research",
+  "idempotency_key": "sample-research-plan-001",
+  "tasks": [
+    {
+      "id": "research-a",
+      "agent_id": "researcher",
+      "objective": "Compare the available materials and record source evidence.",
+      "depth": 2,
+      "importance": 2
+    },
+    {
+      "id": "research-b",
+      "agent_id": "researcher",
+      "objective": "Identify cost and manufacturing considerations.",
+      "depth": 2,
+      "importance": 2
+    },
+    {
+      "id": "review",
+      "agent_id": "reviewer",
+      "objective": "Compare the evidence and identify unresolved issues.",
+      "depends_on": [
+        "research-a",
+        "research-b"
+      ],
+      "depth": 4,
+      "importance": 4
+    }
+  ]
+}

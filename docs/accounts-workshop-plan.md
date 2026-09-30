@@ -126,7 +126,7 @@ See [the proposed tool manifest](../examples/tools/plate-swap.proposed.json). It
 
 ## Automation phase
 
-Automations will be full durable workflows with scheduled steps, condition monitoring, branches, recovery, and a visible run timeline. The [workflow automation plan](workflow-automation-plan.md) defines their execution model, scheduling policies, UI, and acceptance checks. Its delivery sequence moves the workflow foundation ahead of printer execution; the sequence below describes the subsystem dependencies rather than requiring the scheduler to wait for the A1 integration.
+Automations will be full durable workflows with scheduled steps, condition monitoring, branches, recovery, and a visible run timeline. The [workflow automation plan](https://github.com/cam40419/RobbinsHome/blob/main/docs/workflow-automation-plan.md) defines their execution model, scheduling policies, UI, and acceptance checks. Its delivery sequence moves the workflow foundation ahead of printer execution; the sequence below describes the subsystem dependencies rather than requiring the scheduler to wait for the A1 integration.
 
 ```text
 Requested → Validate files/profiles → Slice → Review or standing authorization

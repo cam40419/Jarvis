@@ -24,6 +24,7 @@ from simon.adapters.google import (
     GoogleAPI,
     GoogleTokens,
 )
+from simon.adapters.home_client import HomeClient
 from simon.config import Settings
 from simon.domain.connected_tools import (
     ActionProposal,
@@ -38,30 +39,18 @@ from simon.domain.connected_tools import (
     ToolName,
 )
 from simon.domain.context import ForgetFact, RecallQuery, RememberFact
-from simon.domain.displays import ConfigureDisplay
 from simon.domain.errors import AuthorizationError, DomainError, NotFoundError, ValidationError
-from simon.domain.home import (
-    HomeControl,
-    HomeOrganization,
-    HomeOutletSetup,
-    HomeQuery,
-    HomeRename,
-    HomeStatusQuery,
-    OutletSetup,
-)
 from simon.domain.models import ActorContext, utc_now
 from simon.domain.ports import Store
 from simon.domain.tasks import ControlAssistantTask, CreateAssistantTask, SteerAssistantTask
 from simon.services.audit import AuditService
 from simon.services.canonical import digest
 from simon.services.conversations import ConversationService
-from simon.services.home import HomeService
 from simon.services.identity import IDENTITY_LOCK, IdentityService, token_hash
 from simon.services.memory import MemoryService
 from simon.services.recall import RecallService
 
 if TYPE_CHECKING:
-    from simon.services.displays import DisplayService
     from simon.services.tasks import AssistantTaskService
 
 
@@ -72,7 +61,7 @@ class ConnectedService:
         self.store, self.audit, self.settings, self.identity = store, audit, settings, identity
         self.api = GoogleAPI(settings)
         self.conversations = ConversationService(store, audit)
-        self.home = HomeService(store, audit, settings)
+        self.home = HomeClient(settings)
         self.memories = MemoryService(store, audit)
         self.recall = RecallService(store)
         from simon.services.project_files import ProjectFileService
@@ -82,7 +71,6 @@ class ConnectedService:
 
         self.local_files = LocalFileService(self)
         self.tasks: AssistantTaskService | None = None
-        self.displays: DisplayService | None = None
 
     @property
     def configured(self) -> bool:
@@ -194,28 +182,8 @@ class ConnectedService:
                 tools.extend(("gmail_search_messages", "gmail_read_message"))
             if {DRIVE_READ_SCOPE, DRIVE_WRITE_SCOPE} & set(scopes):
                 tools.extend(("drive_search_files", "drive_read_file", "drive_list_folder"))
-        if "home:read" in actor.scopes and (
-            any(self.home.catalog.configured(actor.household_id).values())
-            or self.home.inventory(actor)
-        ):
-            tools.extend(
-                (
-                    "home_list_devices",
-                    "home_get_status",
-                    "home_get_statuses",
-                    "home_refresh_devices",
-                )
-            )
-            if "home:control" in actor.scopes:
-                tools.append("home_control")
-            if "home:organize" in actor.scopes:
-                tools.extend(("home_organize_devices", "home_rename_device"))
-            if "identity:manage" in actor.scopes:
-                tools.append("home_setup_outlet")
-        if self.displays and "home:read" in actor.scopes:
-            tools.append("display_list")
-            if "identity:manage" in actor.scopes:
-                tools.append("display_configure")
+        if self.home.configured:
+            tools.extend(self.home.available(actor))
         if {"jobs:read", "jobs:write", "memories:read", "memories:write"} <= actor.scopes:
             tools.extend(("project_list", "project_create", "project_unlink_drive"))
             if self.configured and connections and DRIVE_WRITE_SCOPE in scopes:
@@ -396,63 +364,6 @@ class ConnectedService:
                     )
                 )
         return tokens.access_token
-
-    def edit_home(
-        self,
-        actor: ActorContext,
-        run_id: UUID,
-        change: HomeRename | HomeOutletSetup,
-        revalidate: Callable[[], ActorContext],
-    ) -> dict[str, object]:
-        """Persist chat configuration once, while the originating request is still active."""
-        with self.store.transaction(IDENTITY_LOCK), self.store.transaction(actor.household_id):
-            current = revalidate()
-            if (current.actor_id, current.household_id) != (actor.actor_id, actor.household_id):
-                raise AuthorizationError("Home access changed")
-            self.conversations.authorize(current, "threads:write")
-            self.conversations.authorize(current, "home:read")
-            self.conversations.authorize(
-                current,
-                "identity:manage" if isinstance(change, HomeOutletSetup) else "home:organize",
-            )
-            attempt = self.store.attempt(run_id)
-            if (
-                not attempt
-                or attempt.household_id != actor.household_id
-                or attempt.run.actor_id != actor.actor_id
-                or attempt.run.parent_run_id is not None
-                or attempt.status != "pending"
-                or attempt.expires_at <= utc_now()
-            ):
-                raise AuthorizationError("The chat request is no longer active.")
-            self.conversations.get(current, attempt.run.thread_id)
-
-            def apply() -> dict[str, object]:
-                if isinstance(change, HomeRename):
-                    return self.home.catalog.rename(current, change, self.home.devices)
-                device = self.home.setup_outlet(
-                    current,
-                    change.device_id,
-                    OutletSetup.model_validate(change.model_dump(exclude={"device_id"})),
-                )
-                return {
-                    "device_id": device.id,
-                    "name": device.name,
-                    "room": device.room,
-                    "load_type": device.load_type,
-                    "control_enabled": device.control_enabled,
-                    "scope": "Simon inventory",
-                    "device_commands_sent": False,
-                }
-
-            request_digest = digest(change.model_dump(mode="json"))
-            result, _ = self.store.execute_once(
-                f"{actor.household_id}:home.edit:{actor.actor_id}",
-                f"{run_id}:{type(change).__name__}:{request_digest}",
-                request_digest,
-                apply,
-            )
-            return result
 
     def create_calendar_event(
         self,
@@ -645,100 +556,32 @@ class ConnectedService:
                         return self.memories.retract(
                             current, ForgetFact.model_validate_json(arguments).memory_id
                         ).model_dump_json()
-                if name == "home_list_devices":
-                    if json.loads(arguments) != {}:
-                        raise ValueError("no arguments expected")
-                    return json.dumps(self.home.inventory(checked))
-                if name == "home_refresh_devices":
-                    if json.loads(arguments) != {}:
-                        raise ValueError("no arguments expected")
+                if name.startswith(("home_", "display_")):
+                    current = revalidate()
+                    if (current.actor_id, current.household_id) != (
+                        actor.actor_id,
+                        actor.household_id,
+                    ):
+                        raise AuthorizationError("Tool access changed")
+                    attempt = self.store.attempt(run_id)
+                    if (
+                        not attempt
+                        or attempt.household_id != actor.household_id
+                        or attempt.run.actor_id != actor.actor_id
+                        or attempt.run.parent_run_id is not None
+                        or attempt.status != "pending"
+                        or attempt.expires_at <= utc_now()
+                    ):
+                        raise AuthorizationError("The chat request is no longer active.")
+                    self.conversations.get(current, attempt.run.thread_id)
                     return json.dumps(
-                        {
-                            "providers": self.home.catalog.sync(checked, force=True),
-                            "devices": self.home.inventory(checked),
-                        }
-                    )
-                if name == "home_organize_devices":
-                    change = HomeOrganization.model_validate_json(arguments)
-                    with self.store.transaction(IDENTITY_LOCK):
-                        current = revalidate()
-                        if (current.actor_id, current.household_id) != (
-                            actor.actor_id,
-                            actor.household_id,
-                        ):
-                            raise AuthorizationError("Home access changed")
-                        return json.dumps(
-                            self.home.catalog.organize(
-                                current,
-                                change,
-                                self.home.devices,
-                                operation_key=str(run_id)
-                                + ":"
-                                + hashlib.sha256(change.model_dump_json().encode()).hexdigest(),
-                            )
+                        self.home.execute(
+                            current,
+                            name,
+                            json.loads(arguments),
+                            run_id=run_id,
+                            thread_id=attempt.run.thread_id,
                         )
-                if name == "home_get_status":
-                    query_home = HomeQuery.model_validate_json(arguments)
-                    return self.home.read(checked, query_home.device_id).model_dump_json()
-                if name == "home_get_statuses":
-                    return json.dumps(
-                        self.home.read_many(checked, HomeStatusQuery.model_validate_json(arguments))
-                    )
-                if name in {"home_rename_device", "home_setup_outlet"}:
-                    edit = (
-                        HomeRename.model_validate_json(arguments)
-                        if name == "home_rename_device"
-                        else HomeOutletSetup.model_validate_json(arguments)
-                    )
-                    return json.dumps(self.edit_home(checked, run_id, edit, revalidate))
-                if name == "home_control":
-                    commands = self.home.control(
-                        checked, run_id, HomeControl.model_validate_json(arguments), revalidate
-                    )
-                    return json.dumps(
-                        {
-                            "requires_confirmation": False,
-                            "commands": [command.model_dump(mode="json") for command in commands],
-                            "instruction": "Report each result accurately. Never retry unknown or "
-                            "executing commands without a fresh user request.",
-                        }
-                    )
-                if name == "display_list":
-                    if json.loads(arguments) != {}:
-                        raise ValueError("no arguments expected")
-                    display_service = cast("DisplayService", self.displays)
-                    return json.dumps(
-                        [
-                            {
-                                "id": str(device.id),
-                                "name": device.name,
-                                "configuration": device.configuration.model_dump(mode="json"),
-                                "image_count": len(device.images),
-                                "revision": device.revision,
-                            }
-                            for device in display_service.list(checked)
-                        ],
-                        ensure_ascii=False,
-                    )
-                if name == "display_configure":
-                    display_change = ConfigureDisplay.model_validate_json(arguments)
-                    if display_change.display_id is None:
-                        raise ValueError("display_id is required")
-                    display_service = cast("DisplayService", self.displays)
-                    updated = display_service.configure(
-                        checked, display_change.display_id, display_change
-                    )
-                    return json.dumps(
-                        {
-                            "id": str(updated.id),
-                            "name": updated.name,
-                            "configuration": updated.configuration.model_dump(mode="json"),
-                            "revision": updated.revision,
-                            "instruction": (
-                                "The display will update automatically within 15 seconds."
-                            ),
-                        },
-                        ensure_ascii=False,
                     )
                 if name == "google_accounts_list":
                     if json.loads(arguments):
@@ -897,7 +740,7 @@ class ConnectedService:
         self.conversations.authorize(actor, "threads:write")
         existing = self.get_action(actor, action_id)
         if existing.kind == "home.set":
-            return self.home.decide(actor, action_id, confirm=confirm, revalidate=revalidate)
+            raise AuthorizationError("This legacy preview is retired. Request a new home action.")
         with self.store.transaction(IDENTITY_LOCK), self.store.transaction(actor.household_id):
             current_actor = revalidate()
             if (current_actor.actor_id, current_actor.household_id) != (

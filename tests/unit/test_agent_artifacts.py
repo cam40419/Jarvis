@@ -1,0 +1,193 @@
+from __future__ import annotations
+
+import hashlib
+import stat
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+from types import SimpleNamespace
+from typing import Any
+from uuid import uuid4
+
+import pytest
+
+from simon.domain.artifacts import Artifact, ArtifactError
+from simon.services.artifacts import ArtifactStore
+
+
+def publish(store: ArtifactStore, text: str = "An answer.") -> Artifact:
+    return store.publish_text(
+        workspace_id=uuid4(), actor_id=uuid4(), run_id=uuid4(), task_id=uuid4(), text=text
+    )
+
+
+def content_path(root: Path, artifact: Artifact) -> Path:
+    return root.joinpath(
+        str(artifact.workspace_id), str(artifact.actor_id), str(artifact.run_id),
+        str(artifact.task_id), str(artifact.id), "content",
+    )
+
+
+def test_constructor_does_not_create_storage(tmp_path: Path) -> None:
+    root = tmp_path / "artifacts"
+    ArtifactStore(root)
+    assert not root.exists()
+
+
+def test_publish_roundtrip_utf8_and_descriptor_has_no_local_path(tmp_path: Path) -> None:
+    store = ArtifactStore(tmp_path)
+    artifact = publish(store, "Research: café ☕")
+    expected = "Research: café ☕".encode()
+    assert store.read(artifact) == expected
+    assert artifact.size == len(expected)
+    assert artifact.sha256 == hashlib.sha256(expected).hexdigest()
+    assert "path" not in artifact.model_dump_json()
+    assert artifact.created_at.tzinfo is not None
+
+
+def test_identical_publication_is_idempotent_and_changed_content_is_new(tmp_path: Path) -> None:
+    store = ArtifactStore(tmp_path)
+    original = publish(store)
+    references = {
+        "workspace_id": original.workspace_id, "actor_id": original.actor_id,
+        "run_id": original.run_id, "task_id": original.task_id,
+    }
+    same = store.publish_text(**references, text="An answer.")
+    changed = store.publish_text(**references, text="A revised answer.")
+    assert same == original
+    assert changed.id != original.id
+    assert store.read(original) == b"An answer."
+    assert store.read(changed) == b"A revised answer."
+
+
+def test_concurrent_identical_publications_return_one_complete_artifact(tmp_path: Path) -> None:
+    store = ArtifactStore(tmp_path)
+    references = {
+        "workspace_id": uuid4(), "actor_id": uuid4(), "run_id": uuid4(), "task_id": uuid4(),
+    }
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        futures = [
+            executor.submit(store.publish_text, **references, text="Concurrent result")
+            for _ in range(16)
+        ]
+        artifacts = [future.result() for future in futures]
+    assert all(artifact == artifacts[0] for artifact in artifacts)
+    assert store.read(artifacts[0]) == b"Concurrent result"
+    assert not list(tmp_path.rglob(".publishing-*"))
+
+
+@pytest.mark.parametrize("name", ["../outside", "absolute/file", "C:\\secret", "..", "bad\n"])
+def test_names_cannot_supply_paths(tmp_path: Path, name: str) -> None:
+    store = ArtifactStore(tmp_path)
+    with pytest.raises(ArtifactError, match="metadata is invalid"):
+        store.publish_text(
+            workspace_id=uuid4(), actor_id=uuid4(), run_id=uuid4(), task_id=uuid4(),
+            text="text", name=name,
+        )
+    assert not list(tmp_path.iterdir())
+
+
+def test_storage_limit_counts_bytes_and_applies_to_reads(tmp_path: Path) -> None:
+    store = ArtifactStore(tmp_path, max_bytes=4)
+    with pytest.raises(ArtifactError, match="size limit"):
+        publish(store, "ééé")
+    artifact = publish(store, "éé")
+    with pytest.raises(ArtifactError, match="read limit"):
+        store.read(artifact, max_bytes=3)
+    assert store.read(artifact) == "éé".encode()
+
+
+def test_tampered_content_is_never_returned_or_overwritten(tmp_path: Path) -> None:
+    store = ArtifactStore(tmp_path)
+    artifact = publish(store)
+    content_path(tmp_path, artifact).write_bytes(b"Altered!!!")
+    with pytest.raises(ArtifactError, match="integrity"):
+        store.read(artifact)
+    with pytest.raises(ArtifactError, match="integrity"):
+        store.publish_text(
+            workspace_id=artifact.workspace_id, actor_id=artifact.actor_id,
+            run_id=artifact.run_id, task_id=artifact.task_id, text="An answer.",
+        )
+    assert content_path(tmp_path, artifact).read_bytes() == b"Altered!!!"
+
+
+def test_tampered_metadata_or_reference_cannot_read_another_artifact(tmp_path: Path) -> None:
+    store = ArtifactStore(tmp_path)
+    artifact = publish(store)
+    with pytest.raises(ArtifactError):
+        store.read(artifact.model_copy(update={"actor_id": uuid4()}))
+    with pytest.raises(ArtifactError, match="identity"):
+        store.read(artifact.model_copy(update={"name": "changed.txt"}))
+    metadata = content_path(tmp_path, artifact).with_name("metadata.json")
+    metadata.write_text(
+        artifact.model_copy(update={"actor_id": uuid4()}).model_dump_json(), encoding="utf-8"
+    )
+    with pytest.raises(ArtifactError, match="authorized reference"):
+        store.read(artifact)
+
+
+def test_symlinks_cannot_redirect_storage_reads(tmp_path: Path) -> None:
+    store = ArtifactStore(tmp_path / "artifacts")
+    artifact = publish(store)
+    path = content_path(store.root, artifact)
+    outside = tmp_path / "outside.txt"
+    outside.write_bytes(b"An answer.")
+    path.unlink()
+    try:
+        path.symlink_to(outside)
+    except OSError:
+        pytest.skip("This Windows account cannot create filesystem symlinks")
+    with pytest.raises(ArtifactError, match="redirect"):
+        store.read(artifact)
+
+
+def test_symlink_root_is_rejected_before_publication(tmp_path: Path) -> None:
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    root = tmp_path / "artifacts"
+    try:
+        root.symlink_to(outside, target_is_directory=True)
+    except OSError:
+        pytest.skip("This Windows account cannot create filesystem symlinks")
+    with pytest.raises(ArtifactError, match="redirect"):
+        ArtifactStore(root)
+
+
+def test_invalid_storage_limits_rejected(tmp_path: Path) -> None:
+    for invalid in (0, -1, True, 10 * 1024 * 1024 + 1):
+        with pytest.raises(ValueError):
+            ArtifactStore(tmp_path, max_bytes=invalid)
+
+
+def test_windows_reparse_point_is_rejected(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "junction"
+    original_lstat = Path.lstat
+
+    def reparse_lstat(path: Path) -> Any:
+        if path == root:
+            return SimpleNamespace(st_mode=stat.S_IFDIR, st_file_attributes=0x400)
+        return original_lstat(path)
+
+    monkeypatch.setattr(Path, "lstat", reparse_lstat)
+    with pytest.raises(ArtifactError, match="redirect"):
+        ArtifactStore(root)
+
+
+def test_partial_publication_is_not_visible(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store = ArtifactStore(tmp_path)
+    write_file = store._write_file
+
+    def fail_metadata(path: Path, data: bytes) -> None:
+        if path.name == "metadata.json":
+            raise OSError("disk unavailable")
+        write_file(path, data)
+
+    monkeypatch.setattr(store, "_write_file", fail_metadata)
+    with pytest.raises(ArtifactError, match="could not be written"):
+        publish(store)
+    assert not list(tmp_path.rglob("content"))
+    assert not list(tmp_path.rglob("metadata.json"))
+    assert not list(tmp_path.rglob(".publishing-*"))

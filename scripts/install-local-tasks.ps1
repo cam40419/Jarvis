@@ -48,7 +48,7 @@ if (-not $OnlyWorkflow) {
 }
 Register-SimonTask -Name 'Simon-Workflow' -Script 'start-workflow-worker.ps1' `
     -ExtraArguments '' -Trigger $startup -Limit ([timespan]::Zero) `
-    -Description 'Run read-only Simon workflows for project and home inventory checks.'
+    -Description 'Run Simon assistant tasks and work sessions.'
 if (-not $OnlyWorkflow) {
     Register-SimonTask -Name 'Simon-Backup' -Script 'backup-local.ps1' `
         -ExtraArguments '' -Trigger $backup -Limit (New-TimeSpan -Hours 2) `

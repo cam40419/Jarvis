@@ -50,7 +50,7 @@ try {
     $env:SIMON_DEV_LOGIN_ENABLED = 'false'
     Remove-Item Env:SIMON_DEV_LOGIN_TOKEN -ErrorAction SilentlyContinue
     $env:SIMON_MODEL_PROVIDER = if ($DatabaseOnly) { 'local' } else { 'openai' }
-    $env:SIMON_HOME_HOUSEHOLD_ID = $HouseholdId.ToString()
+    $env:SIMON_ACCOUNT_HOUSEHOLD_ID = $HouseholdId.ToString()
     $env:SIMON_ACCOUNT_ADMIN_ACTOR_ID = $ActorId.ToString()
 
     Push-Location $repoRoot

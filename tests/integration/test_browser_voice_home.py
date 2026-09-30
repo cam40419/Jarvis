@@ -1,5 +1,4 @@
 import os
-from datetime import timedelta
 from uuid import uuid4
 
 import pytest
@@ -153,91 +152,6 @@ def test_voice_home_and_chat_under_public_prefix(postgres_url, tmp_path):
             )
             assert "/simon/chat#" in page.url
 
-            device = {
-                "id": "office-outlet",
-                "name": "Office purifier",
-                "room": "Office",
-                "provider": "shelly",
-                "load_type": "air_purifier",
-                "present": True,
-                "control_enabled": True,
-                "setup_available": True,
-            }
-            page.route("**/simon/v1/home/devices", lambda route: route.fulfill(json=[device]))
-            page.route(
-                "**/simon/v1/home/power",
-                lambda route: route.fulfill(
-                    json={"poll_seconds": 60, "monitoring_enabled": True, "devices": []}
-                ),
-            )
-            page.route(
-                "**/simon/v1/home/devices/*/status",
-                lambda route: route.fulfill(
-                    json={
-                        "device_id": device["id"],
-                        "online": True,
-                        "on": False,
-                        "watts": 0,
-                        "capabilities": ["power"],
-                    }
-                ),
-            )
-            writes = []
-
-            def control(route):
-                writes.append(route.request.post_data_json)
-                route.fulfill(json={"status": "succeeded", "verified": True})
-
-            page.route("**/simon/v1/home/devices/*/control", control)
-            samples = [
-                {
-                    "captured_at": (utc_now() - timedelta(minutes=n)).isoformat(),
-                    "state": "ok",
-                    "reading": {"watts": 10 + n},
-                }
-                for n in (20, 19, 2, 1)
-            ]
-            page.route(
-                "**/simon/v1/home/devices/*/power?*",
-                lambda route: route.fulfill(
-                    json={
-                        "samples": samples,
-                        "summary": {
-                            "observed_energy_kwh": 0.012,
-                            "covered_seconds": 120,
-                            "requested_seconds": 86400,
-                            "gaps": 1,
-                            "counter_resets": 0,
-                        },
-                    }
-                ),
-            )
-            page.locator("#home-open").click()
-            card = page.locator(".home-card")
-            expect(card).to_contain_text("Office purifier")
-            card.get_by_role("button", name="Turn on", exact=True).click()
-            expect(card).to_contain_text("Updated and verified")
-            assert writes[0]["on"] is True and writes[0]["idempotency_key"]
-            card.locator("summary").click()
-            expect(card).to_contain_text("0.012 kWh observed")
-            expect(card.locator("polyline")).to_have_count(2)
-            expect(card).to_contain_text("0 meter resets")
-            page.set_viewport_size({"width": 390, "height": 844})
-            assert page.locator("#home-panel").evaluate("e => e.scrollWidth <= e.clientWidth + 1")
-            page.screenshot(path=str(tmp_path / "home-mobile.png"))
-            # Tuya supplies cloud state without asserting online connectivity.
-            # Unknown connectivity must not be displayed as offline or disable power.
-            state = {"online": None, "on": False, "capabilities": ["power", "color"]}
-            device.update(provider="tuya", load_type="lighting", setup_available=False)
-            page.route("**/simon/v1/home/devices/*/status", lambda route: route.fulfill(json=state))
-            page.locator("#home-refresh").click()
-            expect(card).to_contain_text("connectivity unverified")
-            expect(card.get_by_role("button", name="Turn on", exact=True)).to_be_enabled()
-            state["online"] = False
-            card.get_by_role("button", name="Check status").click()
-            expect(card).to_contain_text("Offline")
-            expect(card.get_by_role("button", name="Turn on", exact=True)).to_be_disabled()
-            page.locator("#home-close").click()
             page.locator("#voice-open").click()
             page.locator("#voice-history").select_option(session_id)
             expect(page.locator("#voice-captions")).to_contain_text("A saved voice transcript.")
