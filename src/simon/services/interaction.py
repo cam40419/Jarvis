@@ -43,6 +43,7 @@ class InteractionService:
                         "Preferences changed elsewhere. Reload before saving."
                     )
                 preferences = ResponsePreferences(
+                    persona=request.persona if request.persona is not None else current.persona,
                     profile=request.profile,
                     answer_length=request.answer_length,
                     auto_deep_enabled=request.auto_deep_enabled,

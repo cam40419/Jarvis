@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Simon idle display
+Comment=Launch the Simon dashboard in Chromium kiosk mode
+Exec=chromium --kiosk --noerrdialogs --disable-infobars --disable-session-crashed-bubble --check-for-update-interval=31536000 "PASTE_PROVISIONING_URL_HERE"
+Terminal=false
+X-GNOME-Autostart-enabled=true

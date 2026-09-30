@@ -13,6 +13,7 @@ class Thread(StrictModel):
     id: UUID = Field(default_factory=uuid4)
     household_id: UUID
     created_by: UUID
+    visibility: Literal["personal", "household"] = "household"
     title: str = Field(min_length=1, max_length=200)
     created_at: AwareDatetime = Field(default_factory=utc_now)
 

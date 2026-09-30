@@ -106,6 +106,11 @@ class HomeInventory:
     def status(self, actor: ActorContext) -> list[dict[str, object]]:
         ConversationService.authorize(actor, "home:read")
         result = []
+        # Shelly keeps registered plugs when a multicast scan misses their
+        # announcements, so the latest scan size is not the inventory size.
+        shelly_count = sum(
+            device.provider == "shelly" for device in self.devices(actor.household_id, ())
+        )
         for provider, configured in self.configured(actor.household_id).items():
             record = self.store.home_sync(actor.household_id, provider)
             if record and record.account_key != self.account_key(provider):
@@ -119,7 +124,12 @@ class HomeInventory:
                     else "pending"
                     if configured
                     else "unconfigured",
-                    "count": record.count if configured and record else 0,
+                    "count": shelly_count
+                    if provider == "shelly"
+                    else record.count
+                    if configured and record
+                    else 0,
+                    "last_scan_count": record.count if configured and record else None,
                     "error": record.error if configured and record else None,
                     "completed_at": record.completed_at.isoformat()
                     if configured and record and record.completed_at

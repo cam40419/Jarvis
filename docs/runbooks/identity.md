@@ -1,5 +1,9 @@
 # Identity: run and test
 
+For the active `cam40419` localhost installation, sign in with the existing password and follow
+[local operations](local-operations.md). The development launch instructions below are for a
+separate test session; the running local service has development-token login disabled.
+
 ## First passkey
 
 Start Docker Desktop. In PowerShell, from the repository root:
@@ -81,10 +85,10 @@ $env:SIMON_DATABASE_URL = 'postgresql://jarvis:local-development-only@127.0.0.1:
 .\venv\Scripts\python.exe -m simon.identity_admin --help
 ```
 
-The commands are `membership`, `remove-membership`, `enroll`, `revoke-sessions`, and
-`revoke-passkey`. Membership creation/update takes `--actor-id`, `--household-id`, and
+The commands are `membership`, `remove-membership`, `enroll`, `password-recovery`,
+`revoke-sessions`, and `revoke-passkey`. Membership creation/update takes `--actor-id`, `--household-id`, and
 `--role owner|member|guest`, plus optional display and household names. These are privileged
-local operations; no public enrollment or recovery API is exposed. Existing display/household
+local operations; no unauthenticated code issuance API is exposed. Existing display/household
 names are preserved when updating a role. Removing a membership revokes all sessions for that
 user; other memberships remain available on the next valid passkey login.
 
@@ -101,6 +105,29 @@ Keep the token in the local terminal and enrollment form; it is not placed in a 
 Revoke a lost credential with `revoke-passkey --credential-id ID`; this also revokes that user's
 sessions. Local database access is the recovery authority. Session revocation alone leaves
 passkeys usable for a new login.
+
+## Password recovery
+
+On localhost, a signed-in user can change their username and password under **Username and
+password**. A password session requires the current password; a passkey session can set a new
+password without it.
+
+For a lost password on an invited account, the site administrator can select **Issue password
+recovery code** in Accounts and share the code privately. The account holder opens **Forgot your
+password?** on the login page, enters the code, their existing username, and a new password of
+at least 15 characters. The code lasts 15 minutes and works once. Completing the reset revokes
+the account's other sessions and signs in the account holder.
+
+For the site administrator's own account, a local operator with database access can issue a code:
+
+```powershell
+.\venv\Scripts\python.exe -m simon.identity_admin password-recovery `
+    --actor-id YOUR_ACTOR_ID --household-id YOUR_HOUSEHOLD_ID
+```
+
+Recovery codes use the enrollment mechanism, so they also authorize passkey setup. Treat them
+as full account recovery secrets and share them only with the account holder. Password sign-in
+and reset remain available only on localhost.
 
 ## Verification
 
@@ -137,3 +164,17 @@ operational work. Threads/runs and the chat interface are the next implementatio
 Latest local verification: 108 tests passed, including the Edge browser test, with 96.93%
 branch-inclusive coverage. Ruff and strict mypy passed. The identity migration applied to the
 existing development database, and a subsequent backup/restore compared all 19 public tables.
+
+## Private account invitations
+
+The configured site administrator can open the login/account page and use Accounts to create
+a private workspace for an invited person. Share its one-use code and the login URL privately.
+The recipient chooses Set up a passkey. Codes expire after 15 minutes; Renew invitation invalidates
+the old code. The web UI cannot issue enrollment for an already registered account.
+
+Disable account revokes sessions and blocks further sign-in without deleting data or passkeys.
+Enable account permits a new sign-in; an unregistered account needs a renewed invitation.
+The administrator is identified by SIMON_ACCOUNT_ADMIN_ACTOR_ID, separately from workspace
+ownership. The production launcher sets it from -ActorId. Existing shared memberships are unchanged.
+See [account boundaries and workshop plan](../accounts-workshop-plan.md) for remaining sharing
+and per-account billing work. Invited accounts currently use the server's OpenAI billing.

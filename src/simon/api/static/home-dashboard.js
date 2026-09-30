@@ -1,7 +1,7 @@
 'use strict';
 (() => {
   const panel = el('home-panel'), grid = el('home-grid'), notice = el('home-status');
-  let devices = [], generation = 0, pollSeconds = 60;
+  let devices = [], generation = 0, pollSeconds = 60, activeReads = [], checking = false;
   const path = device => '/v1/home/devices/' + encodeURIComponent(device.id);
   const uncertain = new Set();
   function button(text, action) { const b = make('button', text, 'text-button'); b.type = 'button'; b.onclick = action; return b; }
@@ -61,13 +61,13 @@
     }));
     const lighting = make('div', undefined, 'home-lighting'); lighting.append(brightnessLabel, colorLabel, apply); lighting.hidden = true;
     function controls() {
-      on.disabled = off.disabled = working || !device.control_enabled || uncertain.has(device.id) || !state?.online;
+      on.disabled = off.disabled = working || !device.control_enabled || uncertain.has(device.id) || !state || state.online === false || !state.capabilities.includes('power');
       apply.disabled = on.disabled; check.disabled = working;
       brightness.disabled = color.disabled = working;
     }
     function show(value) {
       state = value;
-      status.textContent = value.online ? `${value.on == null ? 'Available' : value.on ? 'On' : 'Off'}${value.watts == null ? '' : ' · ' + value.watts.toFixed(1) + ' W'}` : 'Offline';
+      status.textContent = value.online === false ? 'Offline' : `${value.on == null ? 'Power state unknown' : value.on ? 'On' : 'Off'}${value.watts == null ? '' : ' · ' + value.watts.toFixed(1) + ' W'}${value.online == null ? ' · Cloud-reported; connectivity unverified' : ''}`;
       brightnessLabel.hidden = !value.capabilities.includes('brightness'); colorLabel.hidden = !value.capabilities.includes('color');
       lighting.hidden = device.provider === 'shelly' || (brightnessLabel.hidden && colorLabel.hidden);
       if (value.brightness != null) brightness.value = value.brightness;
@@ -76,7 +76,7 @@
     async function read() {
       if (working) return;
       working = true; controls();
-      try { const value = await api(path(device) + '/status'); if (gen !== generation) return; show(value); if (value.online && value.on != null) uncertain.delete(device.id); }
+      try { const value = await api(path(device) + '/status'); if (gen !== generation) return; show(value); if (value.online !== false && value.on != null) uncertain.delete(device.id); }
       catch (error) { state = null; status.textContent = error.message; }
       finally { working = false; controls(); }
     }
@@ -124,10 +124,25 @@
       }
       notice.textContent = devices.length ? `${devices.length} devices · ${power.monitoring_enabled ? 'Power monitoring enabled' : 'Power monitoring paused'}` : 'No devices yet. Add your provider credentials, then refresh discovery in Connections.';
       // Avoid a burst of simultaneous LAN/cloud requests.
+      activeReads = reads;
       for (let i = 0; i < reads.length && gen === generation && panel.open; i += 4) await Promise.all(reads.slice(i, i + 4).map(read => read()));
+      if (gen === generation && panel.open && reads.length) notice.textContent += ` · Status checked ${new Date().toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'})}`;
     } catch (error) { notice.textContent = error.message; }
     finally { if (gen === generation) el('home-refresh').disabled = false; }
   }
+  async function poll() {
+    if (!panel.open || document.hidden || checking || el('home-refresh').disabled) return;
+    checking = true; el('home-refresh').disabled = true;
+    const gen = generation;
+    try {
+      for (let i = 0; i < activeReads.length && gen === generation && panel.open; i += 4) {
+        await Promise.all(activeReads.slice(i, i + 4).map(read => read()));
+      }
+      if (gen === generation && panel.open && activeReads.length) notice.textContent = `${devices.length} devices · Status checked ${new Date().toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'})} · Updates every 30 seconds`;
+    } finally { checking = false; if (gen === generation) el('home-refresh').disabled = false; }
+  }
+  setInterval(poll, 30000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
   el('home-open').onclick = () => { if (ready) { panel.showModal(); refresh(); } };
   el('home-refresh').onclick = refresh;
   el('home-close').onclick = () => panel.close();

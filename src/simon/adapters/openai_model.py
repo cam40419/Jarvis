@@ -60,7 +60,13 @@ class OpenAIModel:
                 calls: list[str] = []
                 # Device setup may need list, name, configure, organize, then control.
                 max_rounds = (
-                    6
+                    8
+                    if {
+                        "project_file_read",
+                        "local_file_read",
+                        "google_accounts_list",
+                    }.intersection(request.tools)
+                    else 6
                     if {"home_rename_device", "home_setup_outlet"}.intersection(request.tools)
                     else 4
                 )

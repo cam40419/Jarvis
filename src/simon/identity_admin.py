@@ -5,7 +5,7 @@ from uuid import UUID
 
 from simon.adapters.postgres import PostgresStore
 from simon.config import get_settings
-from simon.domain.errors import NotFoundError
+from simon.domain.errors import InvalidTransitionError, NotFoundError
 from simon.domain.identity import Membership
 from simon.services.identity import IDENTITY_LOCK, IdentityService
 
@@ -18,6 +18,11 @@ def main() -> None:
     )
     enroll.add_argument("--actor-id", type=UUID, required=True)
     enroll.add_argument("--household-id", type=UUID, required=True)
+    recovery = commands.add_parser(
+        "password-recovery", help="Issue a one-use password recovery code, valid for 15 minutes"
+    )
+    recovery.add_argument("--actor-id", type=UUID, required=True)
+    recovery.add_argument("--household-id", type=UUID, required=True)
     revoke = commands.add_parser("revoke-sessions")
     revoke.add_argument("--actor-id", type=UUID, required=True)
     remove = commands.add_parser("revoke-passkey")
@@ -39,6 +44,10 @@ def main() -> None:
     service = IdentityService(store, settings)
     with store.transaction(IDENTITY_LOCK):
         if args.command == "enroll":
+            secret = service.enroll(args.actor_id, args.household_id)
+        elif args.command == "password-recovery":
+            if store.password_for_actor(args.actor_id) is None:
+                raise InvalidTransitionError("Account has no password to reset.")
             secret = service.enroll(args.actor_id, args.household_id)
         elif args.command == "revoke-sessions":
             store.revoke_sessions(args.actor_id)
@@ -72,8 +81,8 @@ def main() -> None:
                 )
             )
             service.operator_audit("identity.membership_updated", args.actor_id, args.household_id)
-    if args.command == "enroll":
-        print("One-use enrollment token (expires in 15 minutes):\n" + secret)
+    if args.command in {"enroll", "password-recovery"}:
+        print("One-use code (expires in 15 minutes):\n" + secret)
     else:
         print("Identity records updated.")
 

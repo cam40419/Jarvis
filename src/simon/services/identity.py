@@ -3,11 +3,15 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import re
 import secrets
-from datetime import timedelta
+from contextlib import suppress
+from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 from uuid import UUID
 
+from argon2 import PasswordHasher
+from argon2.exceptions import InvalidHashError, VerificationError
 from webauthn import (
     generate_authentication_options,
     generate_registration_options,
@@ -25,7 +29,7 @@ from webauthn.helpers.structs import (
 )
 
 from simon.config import Settings
-from simon.domain.errors import AuthenticationError, AuthorizationError
+from simon.domain.errors import AuthenticationError, AuthorizationError, ValidationError
 from simon.domain.identity import (
     DEV_ACTOR_ID,
     DEV_HOUSEHOLD_ID,
@@ -33,6 +37,7 @@ from simon.domain.identity import (
     Enrollment,
     Membership,
     Passkey,
+    PasswordCredential,
     Session,
 )
 from simon.domain.models import ActorContext, Channel, utc_now
@@ -41,6 +46,14 @@ from simon.services.audit import AuditService
 
 # One initial transaction lock for identity state, shared across API processes.
 IDENTITY_LOCK = UUID("00000000-0000-4000-8000-000000000001")
+PASSWORD_HASHER = PasswordHasher(time_cost=2, memory_cost=19456, parallelism=1)
+UNKNOWN_PASSWORD_HASH = PASSWORD_HASHER.hash("unknown-account-password-placeholder")
+USERNAME_PATTERN = re.compile(r"^[a-z0-9][a-z0-9._-]{2,31}$")
+COMMON_PASSWORDS = frozenset({
+    "passwordpassword", "password123456789", "123456789012345", "qwertyuiopasdfgh",
+    "correcthorsebatterystaple", "letmeinletmeinletmein", "simonpassword123",
+})
+NONEXPIRING_SESSION = datetime.max.replace(tzinfo=UTC)
 ROLE_SCOPES = {
     "owner": frozenset(
         {
@@ -104,6 +117,9 @@ class IdentityService:
         self.audit = AuditService(store)
 
     def membership(self, actor_id: UUID, household_id: UUID) -> Membership:
+        account = self.store.managed_account(actor_id)
+        if account and account.disabled:
+            raise AuthorizationError("Account access has been disabled.")
         for membership in self.store.memberships(actor_id):
             if membership.household_id == household_id:
                 return membership
@@ -133,7 +149,7 @@ class IdentityService:
         self,
         actor_id: UUID,
         household_id: UUID,
-        method: Literal["passkey", "development"],
+        method: Literal["passkey", "development", "password"],
         previous_token: str | None = None,
         previous_session: Session | None = None,
     ) -> tuple[str, Session]:
@@ -144,7 +160,11 @@ class IdentityService:
             actor_id=actor_id,
             household_id=household_id,
             method=method,
-            expires_at=utc_now() + timedelta(hours=self.settings.session_hours),
+            expires_at=(
+                utc_now() + timedelta(hours=self.settings.session_hours)
+                if self.settings.session_hours
+                else NONEXPIRING_SESSION
+            ),
         )
         if previous_session is not None:
             session = session.model_copy(
@@ -175,6 +195,139 @@ class IdentityService:
             raise AuthenticationError("development login unavailable or token invalid")
         with self.store.transaction(IDENTITY_LOCK):
             return self._issue(DEV_ACTOR_ID, DEV_HOUSEHOLD_ID, "development", previous_token)
+
+    def password_username(self, token: str) -> str | None:
+        session, _actor = self.resolve(token)
+        credential = self.store.password_for_actor(session.actor_id)
+        return credential.username if credential else None
+
+    def _password_credential(
+        self, actor_id: UUID, username: str, password: str
+    ) -> PasswordCredential:
+        normalized = username.strip().casefold()
+        if not USERNAME_PATTERN.fullmatch(normalized):
+            raise ValidationError(
+                "Username must be 3-32 lowercase letters, numbers, dots, dashes, or underscores."
+            )
+        if len(password) < 15 or len(password) > 128:
+            raise ValidationError("Password must be between 15 and 128 characters.")
+        if password.casefold() in COMMON_PASSWORDS or password.casefold() == normalized:
+            raise ValidationError("Choose a less common password.")
+        return PasswordCredential(
+            actor_id=actor_id,
+            username=normalized,
+            password_hash=PASSWORD_HASHER.hash(password),
+        )
+
+    def register_password(
+        self, enrollment_token: str, username: str, password: str, previous_token: str | None
+    ) -> tuple[str, Session]:
+        with self.store.transaction(IDENTITY_LOCK):
+            enrollment = self._enrollment(token_hash(enrollment_token))
+            credential = self._password_credential(enrollment.actor_id, username, password)
+            if self.store.password_for_actor(enrollment.actor_id):
+                raise AuthenticationError("account already has a password")
+            if self.store.password_for_username(credential.username):
+                raise ValidationError("Username is already in use.")
+            self.store.save_password(credential)
+            self.store.delete_enrollment(enrollment.token_hash)
+            self.operator_audit(
+                "identity.password_registered", enrollment.actor_id, enrollment.household_id
+            )
+            return self._issue(
+                enrollment.actor_id, enrollment.household_id, "password", previous_token
+            )
+
+    def reset_password(
+        self, enrollment_token: str, username: str, password: str,
+        previous_token: str | None,
+    ) -> tuple[str, Session]:
+        with self.store.transaction(IDENTITY_LOCK):
+            enrollment = self._enrollment(token_hash(enrollment_token))
+            previous = self.store.password_for_actor(enrollment.actor_id)
+            if previous is None or previous.username != username.strip().casefold():
+                raise AuthenticationError("Recovery code or username invalid.")
+            credential = self._password_credential(enrollment.actor_id, username, password)
+            self.store.save_password(credential)
+            self.store.delete_enrollment(enrollment.token_hash)
+            self.store.revoke_sessions(enrollment.actor_id)
+            self.operator_audit(
+                "identity.password_recovered", enrollment.actor_id, enrollment.household_id
+            )
+            return self._issue(
+                enrollment.actor_id, enrollment.household_id, "password", previous_token
+            )
+
+    def set_password(
+        self, token: str, username: str, password: str, current_password: str | None
+    ) -> str:
+        _session, actor = self.resolve(token)
+        credential = self._password_credential(actor.actor_id, username, password)
+        with self.store.transaction(IDENTITY_LOCK):
+            session, actor = self.resolve(token)
+            previous = self.store.password_for_actor(actor.actor_id)
+            if previous and session.method == "password":
+                if not current_password:
+                    raise AuthenticationError("current password required")
+                try:
+                    PASSWORD_HASHER.verify(previous.password_hash, current_password)
+                except (VerificationError, InvalidHashError) as exc:
+                    raise AuthenticationError("current password invalid") from exc
+            existing = self.store.password_for_username(credential.username)
+            if existing and existing.actor_id != actor.actor_id:
+                raise ValidationError("Username is already in use.")
+            self.store.save_password(credential)
+            self.audit.record(
+                event_type="identity.password_updated",
+                actor=actor,
+                resource_type="user",
+                resource_id=str(actor.actor_id),
+                payload={},
+            )
+            return credential.username
+
+    def password_login(
+        self, username: str, password: str, previous_token: str | None
+    ) -> tuple[str, Session]:
+        normalized = username.strip().casefold()
+        issued: tuple[str, Session] | None = None
+        with self.store.transaction(IDENTITY_LOCK):
+            credential = self.store.password_for_username(normalized)
+            if credential and (
+                credential.locked_until is None or credential.locked_until <= utc_now()
+            ):
+                valid: bool = False
+                with suppress(VerificationError, InvalidHashError):
+                    valid = bool(PASSWORD_HASHER.verify(credential.password_hash, password))
+                if valid:
+                    memberships = self.store.memberships(credential.actor_id)
+                    if memberships:
+                        try:
+                            self.membership(credential.actor_id, memberships[0].household_id)
+                        except AuthorizationError:
+                            pass
+                        else:
+                            self.store.save_password(
+                                credential.model_copy(
+                                    update={"failed_attempts": 0, "locked_until": None}
+                                )
+                            )
+                            issued = self._issue(
+                                credential.actor_id, memberships[0].household_id,
+                                "password", previous_token,
+                            )
+                if not valid:
+                    attempts = credential.failed_attempts + 1
+                    self.store.save_password(credential.model_copy(update={
+                        "failed_attempts": attempts,
+                        "locked_until": utc_now() + timedelta(minutes=5) if attempts >= 5 else None,
+                    }))
+            elif credential is None:
+                with suppress(VerificationError, InvalidHashError):
+                    PASSWORD_HASHER.verify(UNKNOWN_PASSWORD_HASH, password)
+        if issued is None:
+            raise AuthenticationError("Invalid username or password.")
+        return issued
 
     def logout(self, token: str) -> None:
         with self.store.transaction(IDENTITY_LOCK):

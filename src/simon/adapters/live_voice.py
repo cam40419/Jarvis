@@ -9,6 +9,7 @@ from websockets.asyncio.client import connect
 
 from simon.config import Settings
 from simon.domain.errors import ModelError
+from simon.domain.personality import VoiceName
 
 
 class VoiceSocket(Protocol):
@@ -27,7 +28,9 @@ class LiveVoiceAPI:
             raise ModelError("model_not_configured")
         return {"Authorization": "Bearer " + self.settings.openai_api_key.get_secret_value()}
 
-    async def create(self, sdp: str, instructions: str) -> tuple[str, str]:
+    async def create(
+        self, sdp: str, instructions: str, *, voice: VoiceName | None = None
+    ) -> tuple[str, str]:
         try:
             async with httpx.AsyncClient(timeout=25, follow_redirects=False) as client:
                 response = await client.post(
@@ -38,7 +41,7 @@ class LiveVoiceAPI:
                             "model": self.settings.voice_model,
                             "instructions": instructions,
                             "store": False,
-                            "audio": {"output": {"voice": self.settings.voice_name}},
+                            "audio": {"output": {"voice": voice or self.settings.voice_name}},
                             "delegation": {"type": "client"},
                             "client": {
                                 "data_channel": {

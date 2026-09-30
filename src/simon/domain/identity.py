@@ -21,7 +21,7 @@ class Session(StrictModel):
     token_hash: str
     actor_id: UUID
     household_id: UUID
-    method: Literal["passkey", "development"]
+    method: Literal["passkey", "development", "password"]
     created_at: datetime = Field(default_factory=utc_now)
     expires_at: datetime
 
@@ -51,6 +51,14 @@ class Passkey(StrictModel):
     sign_count: int
     device_type: str
     backed_up: bool
+
+
+class PasswordCredential(StrictModel):
+    actor_id: UUID
+    username: str
+    password_hash: str = Field(repr=False)
+    failed_attempts: int = 0
+    locked_until: datetime | None = None
 
 
 DEV_ACTOR_ID = UUID("11111111-1111-4111-8111-111111111111")

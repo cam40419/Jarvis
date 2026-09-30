@@ -178,3 +178,6 @@ secret/
 
 # Local database backups and verification reports
 .local/
+
+# Downloaded Google OAuth client credentials (keep local)
+client_secret*.json

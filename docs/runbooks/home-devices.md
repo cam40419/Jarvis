@@ -16,7 +16,7 @@ was verified again: both controllers are present in Office with color control ad
 2. Simon imports devices in the background on startup, then refreshes every five minutes.
    **Connections > Home devices > Refresh devices** or "Refresh my home devices" requests a
    refresh immediately. Duplicate requests have a short 15-second cooldown. Listing devices in
-   chat also refreshes stale discovery. Background discovery can be disabled with
+   ordinary chat inventory reads use saved devices immediately. Background discovery can be disabled with
    `SIMON_HOME_AUTO_DISCOVERY=false`; explicit chat/UI refresh remains available.
 3. Ask "Put Beam, Up Arrow and Down Arrow in the Office room" or "Add both arrows to a group
    called Accent lights". Simon saves the organization immediately without changing lights.
@@ -37,8 +37,9 @@ applies both. Provider errors preserve previous
 inventory and appear in Connections; a successful complete discovery marks missing devices
 unavailable for control. No partial page result is committed, and discovery sends no commands.
 
-The standard local development household is selected automatically. A deployment with another
-household must set `SIMON_HOME_HOUSEHOLD_ID` to that household's ID (visible at `/auth/session`).
+This PC sets `SIMON_HOME_HOUSEHOLD_ID` to the `cam40419` workspace, which owns the discovered
+devices and power history. A new local development installation defaults to the development
+household until this setting is supplied (the household ID is visible at `/auth/session`).
 Production discovery has no implicit household. Environment credentials are assigned only to this
 household, never to whichever user signs in first. Owners and members can organize devices;
 guests cannot access them.
@@ -124,6 +125,7 @@ Simon discovers Plug US Gen4 devices automatically on the local Wi-Fi/Ethernet n
 `_http._tcp`, accepts private IPv4 addresses on port 80, and verifies each device's exact ID,
 model `S4PL-00116US`, and generation 4 through `Shelly.GetDeviceInfo`. It does not sweep subnets.
 A changed DHCP address updates the saved destination; a missed broadcast does not delete a plug.
+The Shelly provider count shows registered plugs, even when the latest mDNS scan finds none.
 Simon keeps checking identity before every command and meter read. LAN discovery can be disabled
 without hiding already registered plugs. Existing manual Shelly entries remain supported and are
 deduplicated against discovery by device ID.
@@ -273,9 +275,13 @@ find them in **Connections > Home devices > Recent device commands**. Stop preve
 dispatch once observed; it cannot undo commands already sent. Old pending home previews are
 not automatically executed?ask Simon again for the current desired state.
 
-"Reported device state matches the request" means the immediate status readback matched (with a
-small tolerance for brightness rounding). "Command accepted" means readback did not verify the
-request; use **Check status** and observe the fixture. An unknown outcome or an action stuck at
+"Reported device state matches the request" means a status readback matched (with a
+small tolerance for brightness rounding). After an accepted LIFX or Tuya command, Simon waits
+briefly for cloud status to catch up and repeats status reads only. The dashboard continues
+checking an accepted but unverified command for a short time and updates its receipt when the
+reported state matches. "Command accepted" means the readback has not verified the request;
+use **Check status** and observe the fixture if automatic checks finish without a match.
+An unknown outcome or an action stuck at
 "Command started" is never automatically resent, including after restart. Check the device before
 making a fresh request. Do not infer failure merely from a slow cloud update.
 

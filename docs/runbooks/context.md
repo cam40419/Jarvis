@@ -1,5 +1,9 @@
 # Context v1
 
+Historical implementation notes below describe the original manual-memory release. For the
+current UI, personal memories, cross-conversation recall, and voice integration, use the
+[shared context runbook](shared-context.md).
+
 ## Try it
 
 Run `./scripts/start-dev.ps1`, sign in at http://localhost:8000/login, and open conversations.

@@ -1,0 +1,2 @@
+ALTER TABLE workflow_triggers
+DROP CONSTRAINT IF EXISTS workflow_triggers_definition_id_key;

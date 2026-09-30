@@ -31,3 +31,5 @@ dialog{background:var(--surface);color:var(--ink);border:1px solid var(--line);b
 .action-status { font-size: .85rem; color: var(--muted); }
 #google-connect { margin-top: 16px; }
 .outlet-setup fieldset{border:0;padding:0;margin:16px 0;min-width:0}.outlet-setup legend{font-size:12px;font-weight:600;margin-bottom:12px}.outlet-setup .checkbox-label{align-items:flex-start;margin:4px 0 12px}.outlet-setup .checkbox-label input{flex:0 0 16px;margin:1px 0;width:16px;height:16px}.outlet-setup .primary{margin-top:12px;min-height:42px}.outlet-power{display:flex;gap:8px;margin:10px 0}.outlet-power button{flex:1;min-height:42px;border:1px solid var(--line);border-radius:8px;background:var(--surface);font-size:12px}.outlet-power button[aria-pressed=true]{background:var(--user);color:var(--green);border-color:var(--green);font-weight:600}.outlet-status{font-weight:600}.home-notice{padding:10px;border-radius:8px;background:var(--user);color:var(--green)!important}
+
+#persona-fields{border:0;padding:0;margin:0;min-width:0}

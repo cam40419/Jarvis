@@ -3,10 +3,11 @@ import hashlib
 import json
 import secrets
 from collections.abc import Callable
-from datetime import timedelta
+from datetime import UTC, timedelta
 from time import time
+from typing import TYPE_CHECKING, cast
 from urllib.parse import urlencode
-from uuid import UUID
+from uuid import UUID, uuid5
 
 from cryptography.fernet import Fernet, InvalidToken
 from pydantic import HttpUrl
@@ -14,7 +15,10 @@ from pydantic import ValidationError as PydanticError
 
 from simon.adapters.google import (
     CALENDAR_SCOPE,
+    DRIVE_READ_SCOPE,
+    DRIVE_WRITE_SCOPE,
     EMAIL_SCOPE,
+    GMAIL_READ_SCOPE,
     SCOPES,
     ConnectedError,
     GoogleAPI,
@@ -26,10 +30,15 @@ from simon.domain.connected_tools import (
     CalendarDraft,
     CalendarQuery,
     EmailDraft,
+    GoogleAccountSelect,
     GoogleConnection,
+    GoogleItem,
     GoogleOAuthState,
+    GoogleSearch,
     ToolName,
 )
+from simon.domain.context import ForgetFact, RecallQuery, RememberFact
+from simon.domain.displays import ConfigureDisplay
 from simon.domain.errors import AuthorizationError, DomainError, NotFoundError, ValidationError
 from simon.domain.home import (
     HomeControl,
@@ -37,15 +46,23 @@ from simon.domain.home import (
     HomeOutletSetup,
     HomeQuery,
     HomeRename,
+    HomeStatusQuery,
     OutletSetup,
 )
 from simon.domain.models import ActorContext, utc_now
 from simon.domain.ports import Store
+from simon.domain.tasks import ControlAssistantTask, CreateAssistantTask, SteerAssistantTask
 from simon.services.audit import AuditService
 from simon.services.canonical import digest
 from simon.services.conversations import ConversationService
 from simon.services.home import HomeService
 from simon.services.identity import IDENTITY_LOCK, IdentityService, token_hash
+from simon.services.memory import MemoryService
+from simon.services.recall import RecallService
+
+if TYPE_CHECKING:
+    from simon.services.displays import DisplayService
+    from simon.services.tasks import AssistantTaskService
 
 
 class ConnectedService:
@@ -56,6 +73,16 @@ class ConnectedService:
         self.api = GoogleAPI(settings)
         self.conversations = ConversationService(store, audit)
         self.home = HomeService(store, audit, settings)
+        self.memories = MemoryService(store, audit)
+        self.recall = RecallService(store)
+        from simon.services.project_files import ProjectFileService
+
+        self.projects = ProjectFileService(self)
+        from simon.services.local_files import LocalFileService
+
+        self.local_files = LocalFileService(self)
+        self.tasks: AssistantTaskService | None = None
+        self.displays: DisplayService | None = None
 
     @property
     def configured(self) -> bool:
@@ -89,43 +116,150 @@ class ConnectedService:
                 "Google credentials cannot be read. Restore the token key or reconnect."
             ) from None
 
+    @staticmethod
+    def account_status(connection: GoogleConnection) -> dict[str, object]:
+        return {
+            "id": str(connection.id),
+            "email": connection.email,
+            "is_default": connection.is_default,
+            "calendar": CALENDAR_SCOPE in connection.scopes,
+            "email_send": EMAIL_SCOPE in connection.scopes,
+            "gmail_read": GMAIL_READ_SCOPE in connection.scopes,
+            "drive_read": bool({DRIVE_READ_SCOPE, DRIVE_WRITE_SCOPE} & set(connection.scopes)),
+            "drive_write": DRIVE_WRITE_SCOPE in connection.scopes,
+            "needs_reconnect": not {
+                CALENDAR_SCOPE,
+                EMAIL_SCOPE,
+                GMAIL_READ_SCOPE,
+                DRIVE_WRITE_SCOPE,
+            }.issubset(connection.scopes),
+        }
+
     def status(self, actor: ActorContext) -> dict[str, object]:
         self.conversations.authorize(actor, "threads:read")
-        connection = self.store.google_connection(actor.household_id, actor.actor_id)
+        connections = self.store.google_connections(actor.household_id, actor.actor_id)
         return {
             "configured": self.configured,
-            "connected": bool(connection),
-            "email": connection.email if connection else None,
-            "calendar": bool(connection and CALENDAR_SCOPE in connection.scopes),
-            "email_send": bool(connection and EMAIL_SCOPE in connection.scopes),
+            "connected": bool(connections),
+            "email": None,
+            "calendar": False,
+            "email_send": False,
+            "gmail_read": False,
+            "drive_read": False,
+            "drive_write": False,
+            "needs_reconnect": False,
+            **(self.account_status(connections[0]) if connections else {}),
+            "accounts": [self.account_status(c) for c in connections],
             "redirect_uri": self.redirect_uri,
         }
 
+    def set_default(self, actor: ActorContext, account: str) -> None:
+        self.conversations.authorize(actor, "threads:write")
+        with self.store.transaction(actor.household_id):
+            connection = self.connection(actor, account=account)
+            self.store.set_default_google_connection(
+                actor.household_id, actor.actor_id, connection.id
+            )
+            self.audit.record(
+                event_type="google.default_changed",
+                actor=actor,
+                resource_type="google_connection",
+                resource_id=str(connection.id),
+                payload={},
+            )
+
     def available(self, actor: ActorContext) -> tuple[ToolName, ...]:
         tools: list[ToolName] = ["web_search"] if self.settings.web_search_enabled else []
-        connection = self.store.google_connection(actor.household_id, actor.actor_id)
-        if self.configured and connection:
-            if CALENDAR_SCOPE in connection.scopes:
-                tools.extend(("calendar_list_events", "propose_calendar_event"))
-            if EMAIL_SCOPE in connection.scopes:
+        if "threads:read" in actor.scopes:
+            tools.append("context_search")
+        if {"memories:read", "memories:write"} <= actor.scopes:
+            tools.extend(("memory_remember", "memory_forget"))
+        if self.tasks and {"jobs:read", "jobs:write"} <= actor.scopes:
+            tools.extend(("task_create", "task_list", "task_control", "task_steer"))
+        connections = self.store.google_connections(actor.household_id, actor.actor_id)
+        scopes = {scope for c in connections for scope in c.scopes}
+        if self.configured and connections:
+            tools.append("google_accounts_list")
+            if CALENDAR_SCOPE in scopes:
+                tools.extend(
+                    (
+                        "calendar_list_events",
+                        "calendar_create_event",
+                        "propose_calendar_event",
+                    )
+                )
+            if EMAIL_SCOPE in scopes:
                 tools.append("propose_email")
+            if GMAIL_READ_SCOPE in scopes:
+                tools.extend(("gmail_search_messages", "gmail_read_message"))
+            if {DRIVE_READ_SCOPE, DRIVE_WRITE_SCOPE} & set(scopes):
+                tools.extend(("drive_search_files", "drive_read_file", "drive_list_folder"))
         if "home:read" in actor.scopes and (
             any(self.home.catalog.configured(actor.household_id).values())
             or self.home.inventory(actor)
         ):
-            tools.extend(("home_list_devices", "home_get_status", "home_refresh_devices"))
+            tools.extend(
+                (
+                    "home_list_devices",
+                    "home_get_status",
+                    "home_get_statuses",
+                    "home_refresh_devices",
+                )
+            )
             if "home:control" in actor.scopes:
                 tools.append("home_control")
             if "home:organize" in actor.scopes:
                 tools.extend(("home_organize_devices", "home_rename_device"))
             if "identity:manage" in actor.scopes:
                 tools.append("home_setup_outlet")
+        if self.displays and "home:read" in actor.scopes:
+            tools.append("display_list")
+            if "identity:manage" in actor.scopes:
+                tools.append("display_configure")
+        if {"jobs:read", "jobs:write", "memories:read", "memories:write"} <= actor.scopes:
+            tools.extend(("project_list", "project_create", "project_unlink_drive"))
+            if self.configured and connections and DRIVE_WRITE_SCOPE in scopes:
+                tools.extend(
+                    (
+                        "project_link_drive",
+                        "project_drive_trash",
+                        "project_sync",
+                        "project_files_list",
+                        "project_file_read",
+                        "project_file_create",
+                        "project_file_edit",
+                        "project_sheet_read",
+                        "project_sheet_write",
+                        "project_file_rename",
+                    )
+                )
+        if self.settings.local_files_enabled and {"jobs:read", "jobs:write"} <= actor.scopes:
+            tools.extend(
+                (
+                    "local_files_roots",
+                    "local_files_list",
+                    "local_files_search",
+                    "local_file_read",
+                    "local_file_write",
+                    "local_file_edit",
+                    "local_file_move",
+                    "local_folder_create",
+                    "local_zip_inspect",
+                    "local_zip_extract",
+                    "local_zip_create",
+                    "local_file_import_drive",
+                    "local_file_export_drive",
+                )
+            )
         return tuple(tools)
 
-    def start(self, actor: ActorContext, session_token: str) -> tuple[str, str]:
+    def start(self, actor: ActorContext, session_token: str, account: str = "") -> tuple[str, str]:
         self.conversations.authorize(actor, "threads:write")
         state, binding, verifier = (secrets.token_urlsafe(32) for _ in range(3))
-        encrypted = self.encrypt(json.dumps({"session": session_token, "verifier": verifier}))
+        email = self.connection(actor, account=account).email if account else ""
+        encrypted = self.encrypt(
+            json.dumps({"session": session_token, "verifier": verifier, "email": email})
+        )
         self.store.save_google_state(
             GoogleOAuthState(
                 state_hash=token_hash(state),
@@ -147,7 +281,8 @@ class ConnectedService:
                 "scope": " ".join(SCOPES),
                 "state": state,
                 "access_type": "offline",
-                "prompt": "consent",
+                "prompt": "consent select_account",
+                **({"login_hint": email} if email else {}),
                 "code_challenge": challenge,
                 "code_challenge_method": "S256",
             }
@@ -163,10 +298,20 @@ class ConnectedService:
         _, actor = self.identity.resolve(data["session"])
         self.conversations.authorize(actor, "threads:write")
         tokens, scopes = self.api.exchange(code, data["verifier"], self.redirect_uri)
-        email = self.api.account_email(tokens.access_token)
-        if not {CALENDAR_SCOPE, EMAIL_SCOPE}.intersection(scopes):
+        email = self.api.account_email(tokens.access_token).strip().lower()
+        if data.get("email") and data["email"].casefold() != email.casefold():
+            raise ConnectedError("Choose the same Google account when reconnecting it.")
+        granted_tools = {
+            CALENDAR_SCOPE,
+            EMAIL_SCOPE,
+            GMAIL_READ_SCOPE,
+            DRIVE_READ_SCOPE,
+            DRIVE_WRITE_SCOPE,
+        }
+        if not granted_tools.intersection(scopes):
             raise ConnectedError(
-                "No Calendar or Gmail permission was granted. Connect again and select a tool."
+                "No Calendar, Gmail or Drive permission was granted. "
+                "Connect again and select a tool."
             )
         with self.store.transaction(IDENTITY_LOCK), self.store.transaction(actor.household_id):
             _, current = self.identity.resolve(data["session"])
@@ -188,10 +333,11 @@ class ConnectedService:
                 payload={"scopes": list(scopes)},
             )
 
-    def disconnect(self, actor: ActorContext) -> None:
+    def disconnect(self, actor: ActorContext, account: str = "") -> None:
         self.conversations.authorize(actor, "threads:write")
         with self.store.transaction(actor.household_id):
-            self.store.delete_google_connection(actor.household_id, actor.actor_id)
+            connection = self.connection(actor, account=account)
+            self.store.delete_google_connection(actor.household_id, actor.actor_id, connection.id)
             self.audit.record(
                 event_type="google.disconnected",
                 actor=actor,
@@ -200,13 +346,41 @@ class ConnectedService:
                 payload={},
             )
 
-    def connection(self, actor: ActorContext, expected: UUID | None = None) -> GoogleConnection:
-        connection = self.store.google_connection(actor.household_id, actor.actor_id)
-        if not connection or (expected and connection.id != expected):
+    def connection(
+        self, actor: ActorContext, expected: UUID | None = None, *, account: str = ""
+    ) -> GoogleConnection:
+        connections = self.store.google_connections(actor.household_id, actor.actor_id)
+        if expected:
+            connection = next((c for c in connections if c.id == expected), None)
+        elif account:
+            connection = next(
+                (c for c in connections if account.casefold() in {c.email.casefold(), str(c.id)}),
+                None,
+            )
+        else:
+            connection = connections[0] if connections else None
+        if not connection:
             raise ConnectedError(
-                "The Google connection changed. Connect again and request a new preview."
+                "Google account is not connected or its connection changed. "
+                "Open Connections or list the connected accounts."
             )
         return connection
+
+    @staticmethod
+    def require_google_scope(connection: GoogleConnection, name: str) -> None:
+        required = (
+            {CALENDAR_SCOPE}
+            if name.startswith("calendar_") or name == "propose_calendar_event"
+            else {EMAIL_SCOPE}
+            if name == "propose_email"
+            else {GMAIL_READ_SCOPE}
+            if name.startswith("gmail_")
+            else {DRIVE_READ_SCOPE, DRIVE_WRITE_SCOPE}
+        )
+        if not required.intersection(connection.scopes):
+            raise ConnectedError(
+                "This Google account lacks permission for this tool. Reconnect it in Connections."
+            )
 
     def access_token(self, actor: ActorContext, connection: GoogleConnection) -> str:
         tokens = GoogleTokens.model_validate_json(self.decrypt(connection.encrypted_tokens))
@@ -280,6 +454,80 @@ class ConnectedService:
             )
             return result
 
+    def create_calendar_event(
+        self,
+        actor: ActorContext,
+        run_id: UUID,
+        draft: CalendarDraft,
+        revalidate: Callable[[], ActorContext],
+    ) -> ActionProposal:
+        # Normalize equivalent offsets so a repeated tool call has one provider event ID.
+        canonical = draft.model_dump(mode="json")
+        canonical.update(
+            start=draft.start.astimezone(UTC).isoformat(),
+            end=draft.end.astimezone(UTC).isoformat(),
+        )
+        action_id = uuid5(run_id, "calendar.create:" + digest(canonical))
+        with self.store.transaction(IDENTITY_LOCK), self.store.transaction(actor.household_id):
+            current = revalidate()
+            self._calendar_access(actor, current, run_id)
+            existing = self.store.action(action_id)
+            if existing:
+                return existing
+            attempt = self.store.attempt(run_id)
+            assert attempt is not None
+            actions = self.store.recent_actions(attempt.run.thread_id, actor.actor_id, 100)
+            if sum(action.run_id == run_id for action in actions) >= 3:
+                raise ValidationError("At most three calendar creations per request.")
+            connection = self.connection(current, account=draft.account)
+            self.require_google_scope(connection, "calendar_create_event")
+            action = ActionProposal(
+                id=action_id,
+                actor_id=actor.actor_id,
+                household_id=actor.household_id,
+                run_id=run_id,
+                connection_id=connection.id,
+                account_email=connection.email,
+                kind="calendar.create",
+                calendar=draft,
+                status="executing",
+                immediate=True,
+            )
+            self.store.save_action(action)
+            self.audit.record(
+                event_type="action.requested",
+                actor=current,
+                resource_type="action",
+                resource_id=str(action.id),
+                payload={"kind": action.kind, "immediate": True},
+            )
+
+        def check_active() -> ActorContext:
+            checked = revalidate()
+            self._calendar_access(actor, checked, run_id)
+            return checked
+
+        return self._dispatch(actor, action, connection, check_active)
+
+    def _calendar_access(self, actor: ActorContext, current: ActorContext, run_id: UUID) -> None:
+        if (current.actor_id, current.household_id) != (actor.actor_id, actor.household_id):
+            raise AuthorizationError("Google access changed")
+        self.conversations.authorize(current, "threads:write")
+        attempt = self.store.attempt(run_id)
+        if (
+            not attempt
+            or attempt.household_id != actor.household_id
+            or attempt.run.actor_id != actor.actor_id
+            or attempt.status != "pending"
+            or attempt.expires_at <= utc_now()
+            or attempt.run.parent_run_id is not None
+            or "calendar_create_event" not in attempt.run.capability_manifest
+        ):
+            raise AuthorizationError("Calendar creation requires an active original request.")
+        self.conversations.get(current, attempt.run.thread_id)
+        if "calendar_create_event" not in self.available(current):
+            raise AuthorizationError("Calendar creation permission is unavailable.")
+
     def executor(
         self,
         actor: ActorContext,
@@ -295,12 +543,111 @@ class ConnectedService:
             if name not in self.available(checked) or name == "web_search":
                 raise AuthorizationError("tool unavailable")
             try:
-                if len(arguments) > 20000:
+                if len(arguments) > (450000 if name.startswith(("project_", "local_")) else 20000):
                     raise ValueError("arguments too long")
+                if name.startswith("local_"):
+                    return self.local_files.execute(checked, run_id, name, arguments, revalidate)
+                if name == "drive_list_folder":
+                    from simon.domain.project_files import DriveBrowse
+
+                    return json.dumps(
+                        self.projects.browse(
+                            checked, DriveBrowse.model_validate_json(arguments), revalidate
+                        ),
+                        ensure_ascii=False,
+                    )
+                if name.startswith("project_"):
+                    return self.projects.execute(checked, run_id, name, arguments, revalidate)
+                if name in {
+                    "context_search",
+                    "memory_remember",
+                    "memory_forget",
+                    "task_create",
+                    "task_list",
+                    "task_control",
+                    "task_steer",
+                }:
+                    with (
+                        self.store.transaction(IDENTITY_LOCK),
+                        self.store.transaction(actor.household_id),
+                    ):
+                        current = revalidate()
+                        if (current.actor_id, current.household_id) != (
+                            actor.actor_id,
+                            actor.household_id,
+                        ):
+                            raise AuthorizationError("Context access changed")
+                        attempt = self.store.attempt(run_id)
+                        if (
+                            not attempt
+                            or attempt.status != "pending"
+                            or attempt.expires_at <= utc_now()
+                            or attempt.run.actor_id != actor.actor_id
+                            or attempt.household_id != actor.household_id
+                        ):
+                            raise NotFoundError("active request not found")
+                        thread = self.conversations.get(current, attempt.run.thread_id)
+                        if thread.visibility != "personal":
+                            raise AuthorizationError(
+                                "Personal context requires a new private conversation"
+                            )
+                        if name == "context_search":
+                            return json.dumps(
+                                self.recall.search(
+                                    current,
+                                    RecallQuery.model_validate_json(arguments),
+                                ),
+                                ensure_ascii=False,
+                            )
+                        if name == "memory_remember":
+                            return self.memories.remember(
+                                current, run_id, RememberFact.model_validate_json(arguments)
+                            ).model_dump_json()
+                        if name == "task_list":
+                            task_service = cast("AssistantTaskService", self.tasks)
+                            if json.loads(arguments) != {}:
+                                raise ValueError("no arguments expected")
+                            return json.dumps(
+                                [
+                                    task.model_dump(mode="json")
+                                    for task in task_service.list(current)
+                                ],
+                                ensure_ascii=False,
+                            )
+                        if name == "task_create":
+                            task_service = cast("AssistantTaskService", self.tasks)
+                            values = json.loads(arguments)
+                            values["idempotency_key"] = (
+                                "chat-task:"
+                                + str(run_id)
+                                + ":"
+                                + hashlib.sha256(arguments.encode()).hexdigest()
+                            )
+                            return task_service.create(
+                                current,
+                                CreateAssistantTask.model_validate(values),
+                                origin_thread_id=thread.id,
+                            ).model_dump_json()
+                        if name == "task_control":
+                            task_service = cast("AssistantTaskService", self.tasks)
+                            values = json.loads(arguments)
+                            identifier = UUID(values.pop("task_id"))
+                            return task_service.control(
+                                current, identifier, ControlAssistantTask.model_validate(values)
+                            ).model_dump_json()
+                        if name == "task_steer":
+                            task_service = cast("AssistantTaskService", self.tasks)
+                            values = json.loads(arguments)
+                            identifier = UUID(values.pop("task_id"))
+                            return task_service.steer(
+                                current, identifier, SteerAssistantTask.model_validate(values)
+                            ).model_dump_json()
+                        return self.memories.retract(
+                            current, ForgetFact.model_validate_json(arguments).memory_id
+                        ).model_dump_json()
                 if name == "home_list_devices":
                     if json.loads(arguments) != {}:
                         raise ValueError("no arguments expected")
-                    self.home.catalog.sync(checked)
                     return json.dumps(self.home.inventory(checked))
                 if name == "home_refresh_devices":
                     if json.loads(arguments) != {}:
@@ -333,6 +680,10 @@ class ConnectedService:
                 if name == "home_get_status":
                     query_home = HomeQuery.model_validate_json(arguments)
                     return self.home.read(checked, query_home.device_id).model_dump_json()
+                if name == "home_get_statuses":
+                    return json.dumps(
+                        self.home.read_many(checked, HomeStatusQuery.model_validate_json(arguments))
+                    )
                 if name in {"home_rename_device", "home_setup_outlet"}:
                     edit = (
                         HomeRename.model_validate_json(arguments)
@@ -352,12 +703,132 @@ class ConnectedService:
                             "executing commands without a fresh user request.",
                         }
                     )
-                connection = self.connection(checked)
+                if name == "display_list":
+                    if json.loads(arguments) != {}:
+                        raise ValueError("no arguments expected")
+                    display_service = cast("DisplayService", self.displays)
+                    return json.dumps(
+                        [
+                            {
+                                "id": str(device.id),
+                                "name": device.name,
+                                "configuration": device.configuration.model_dump(mode="json"),
+                                "image_count": len(device.images),
+                                "revision": device.revision,
+                            }
+                            for device in display_service.list(checked)
+                        ],
+                        ensure_ascii=False,
+                    )
+                if name == "display_configure":
+                    display_change = ConfigureDisplay.model_validate_json(arguments)
+                    if display_change.display_id is None:
+                        raise ValueError("display_id is required")
+                    display_service = cast("DisplayService", self.displays)
+                    updated = display_service.configure(
+                        checked, display_change.display_id, display_change
+                    )
+                    return json.dumps(
+                        {
+                            "id": str(updated.id),
+                            "name": updated.name,
+                            "configuration": updated.configuration.model_dump(mode="json"),
+                            "revision": updated.revision,
+                            "instruction": (
+                                "The display will update automatically within 15 seconds."
+                            ),
+                        },
+                        ensure_ascii=False,
+                    )
+                if name == "google_accounts_list":
+                    if json.loads(arguments):
+                        raise ValueError("No arguments expected")
+                    return json.dumps({"accounts": self.status(checked)["accounts"]})
+                values = json.loads(arguments)
+                account = GoogleAccountSelect.model_validate(
+                    {"account": values.get("account", "")}
+                ).account
+                connection = self.connection(checked, account=account)
+                self.require_google_scope(connection, name)
+                if name in {
+                    "gmail_search_messages",
+                    "gmail_read_message",
+                    "drive_search_files",
+                    "drive_read_file",
+                }:
+                    if name in {"gmail_search_messages", "drive_search_files"}:
+                        search = GoogleSearch.model_validate_json(arguments)
+                        search_method = (
+                            self.api.gmail_search
+                            if name == "gmail_search_messages"
+                            else self.api.drive_search
+                        )
+                        result = search_method(self.access_token(checked, connection), search)
+                    else:
+                        item = GoogleItem.model_validate_json(arguments)
+                        read_method = (
+                            self.api.gmail_message
+                            if name == "gmail_read_message"
+                            else self.api.drive_file
+                        )
+                        result = read_method(self.access_token(checked, connection), item)
+                    # Do not release private results after access changes during network I/O.
+                    current = revalidate()
+                    if (current.actor_id, current.household_id) != (
+                        actor.actor_id,
+                        actor.household_id,
+                    ):
+                        raise AuthorizationError("Google access changed")
+                    self.conversations.authorize(current, "threads:write")
+                    if name not in self.available(current):
+                        raise AuthorizationError("Google tool access changed")
+                    self.require_google_scope(self.connection(current, connection.id), name)
+                    return json.dumps(
+                        {**result, "account_email": connection.email}, ensure_ascii=False
+                    )
                 if name == "calendar_list_events":
                     query = CalendarQuery.model_validate_json(arguments)
                     result = self.api.events(self.access_token(checked, connection), query)
-                    self.connection(checked, connection.id)
-                    return json.dumps(result, ensure_ascii=False)
+                    current = revalidate()
+                    if (current.actor_id, current.household_id) != (
+                        actor.actor_id,
+                        actor.household_id,
+                    ):
+                        raise AuthorizationError("Google access changed")
+                    self.conversations.authorize(current, "threads:write")
+                    self.require_google_scope(self.connection(current, connection.id), name)
+                    return json.dumps(
+                        {**result, "account_email": connection.email}, ensure_ascii=False
+                    )
+                if name == "calendar_create_event":
+                    receipt = self.create_calendar_event(
+                        checked,
+                        run_id,
+                        CalendarDraft.model_validate_json(arguments),
+                        revalidate,
+                    )
+                    proposals[:] = [p for p in proposals if p.id != receipt.id]
+                    proposals.append(receipt)
+                    return json.dumps(
+                        {
+                            "action_id": str(receipt.id),
+                            "status": receipt.status,
+                            "account_email": receipt.account_email,
+                            "requires_confirmation": False,
+                            "created": receipt.status == "succeeded",
+                            "calendar": receipt.calendar.model_dump(mode="json")
+                            if receipt.calendar
+                            else None,
+                            "url": str(receipt.result_url) if receipt.result_url else None,
+                            "error": receipt.error,
+                            "instruction": (
+                                "Report this receipt accurately. Succeeded means created. "
+                                "Never ask for confirmation. "
+                                "Do not retry unknown or executing actions."
+                            ),
+                        },
+                        ensure_ascii=False,
+                    )
                 if len(proposals) >= 3:
                     return (
                         '{"error":"At most three previews per answer. Ask the user to continue."}'
@@ -402,8 +873,18 @@ class ConnectedService:
             actor.household_id,
         ):
             raise NotFoundError("action not found")
-        self.conversations.run(actor, action.run_id)
+        if self.store.run(action.run_id):
+            self.conversations.run(actor, action.run_id)
+        else:
+            attempt = self.store.attempt(action.run_id)
+            if not attempt or attempt.household_id != actor.household_id:
+                raise NotFoundError("action request not found")
+            self.conversations.get(actor, attempt.run.thread_id)
         return action
+
+    def actions(self, actor: ActorContext, thread_id: UUID) -> tuple[ActionProposal, ...]:
+        self.conversations.get(actor, thread_id)
+        return tuple(self.store.recent_actions(thread_id, actor.actor_id, 100))
 
     def decide(
         self,
@@ -449,6 +930,15 @@ class ConnectedService:
                 resource_id=str(action.id),
                 payload={"kind": action.kind},
             )
+        return self._dispatch(actor, action, connection, revalidate)
+
+    def _dispatch(
+        self,
+        actor: ActorContext,
+        action: ActionProposal,
+        connection: GoogleConnection,
+        revalidate: Callable[[], ActorContext],
+    ) -> ActionProposal:
         # Refresh and external effects never hold a database transaction open.
         dispatched = False
         try:

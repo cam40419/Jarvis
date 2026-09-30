@@ -13,10 +13,14 @@ const drafts = new Map();
 const googleReturn = new URLSearchParams(location.search).get('google');
 const titleCase = text => text ? text[0].toUpperCase() + text.slice(1) : '';
 function status(text = '', error = false) { el('status').textContent = text; el('status').className = error ? 'error' : ''; }
-async function api(path, body) {
+async function api(path, body, method) {
+  const verb = method || (body === undefined ? 'GET' : 'POST');
   const response = await fetch(appPath(path), {
-    method: body === undefined ? 'GET' : 'POST', credentials: 'same-origin',
-    headers: body === undefined ? {} : {'Content-Type': 'application/json', 'X-CSRF-Token': session.csrf_token},
+    method: verb, credentials: 'same-origin',
+    headers: verb === 'GET' ? {} : {
+      ...(body === undefined ? {} : {'Content-Type': 'application/json'}),
+      'X-CSRF-Token': session.csrf_token,
+    },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   if (response.status === 401) { location.assign(appPath('/login')); throw Error('Sign in to continue.'); }
@@ -54,14 +58,15 @@ el('menu-toggle').onclick = () => navigation(!document.body.classList.contains('
 el('sidebar-scrim').onclick = () => navigation(false);
 function setBusy(value) {
   busy = value;
-  el('new-chat').disabled = value || !ready;
+  el('new-chat').disabled = (value && !assistant?.background_sessions) || !ready;
   el('profile').disabled = value || savingPreferences || assistant?.provider !== 'openai';
   el('answer-length').disabled = value || savingPreferences || assistant?.provider !== 'openai';
   el('auto-deep').disabled = value || !ready || !assistant?.auto_deep_enabled || savingPreferences;
   el('save-preferences').disabled = value || !ready || savingPreferences;
   el('stop').hidden = !value || assistant?.provider !== 'openai';
   el('send-button').hidden = value && assistant?.provider === 'openai';
-  document.querySelectorAll('.thread-button, [data-prompt], #deepen').forEach(button => button.disabled = value);
+  document.querySelectorAll('[data-prompt], #deepen').forEach(button => button.disabled = value);
+  document.querySelectorAll('.thread-button').forEach(button => button.disabled = value && !assistant?.background_sessions);
   el('messages').setAttribute('aria-busy', String(value));
   autosize();
 }
@@ -77,7 +82,7 @@ function renderThreads() {
     const button = make('button', row.title, 'thread-button');
     button.title = row.title; button.dataset.threadId = row.id;
     button.setAttribute('aria-current', String(row.id === activeThread));
-    button.disabled = busy;
+    button.disabled = busy && !assistant?.background_sessions;
     button.onclick = () => selectThread(row.id).catch(report);
     nodes.push(button);
   }
@@ -192,12 +197,22 @@ async function messages(forceScroll = true) {
     if (page.length < 100) break;
   }
   if (activeThread !== id || ticket !== loading) return;
+  const actions = await api('/v1/threads/' + id + '/actions');
+  if (activeThread !== id || ticket !== loading) return;
   el('messages').replaceChildren(...found.map(row => message(row)));
   el('welcome').hidden = found.length > 0;
   showRun(run); answers.forEach(answer => { showFeedback(answer); showConnectedResults(answer); }); scrollDown(forceScroll);
+  // A Google action can finish even if the model answer fails or is stopped afterward.
+  for (const action of actions) {
+    if (action.immediate && !el('messages').querySelector('[data-action-id="' + action.id + '"]')) {
+      el('messages').append(actionCard(action));
+      el('welcome').hidden = true;
+    }
+  }
 }
 async function selectThread(id) {
-  if (busy) return;
+  if (busy && !assistant?.background_sessions) return;
+  if (assistant?.background_sessions) setBusy(false);
   drafts.set(activeThread || 'new', el('text').value);
   activeThread = id; latestRun = null; pending = null; pendingThread = null; loading++;
   el('text').value = drafts.get(id || 'new') || ''; autosize();
@@ -207,11 +222,12 @@ async function selectThread(id) {
   renderThreads(); navigation(false);
   if (id) await messages();
   status(); el('text').focus();
+  window.dispatchEvent(new Event("simon-thread-selected"));
 }
 el('new-chat').onclick = () => selectThread(null).catch(report);
 window.addEventListener('hashchange', () => {
   if (!ready) return;
-  if (busy) {
+  if (busy && !assistant?.background_sessions) {
     history.replaceState(null, '', appPath(activeThread ? '/chat#' + activeThread : '/chat'));
     return;
   }
@@ -262,16 +278,24 @@ el('text').onkeydown = event => {
 };
 el('send').onsubmit = event => { event.preventDefault(); sendMessage(el('text').value.trim()); };
 async function sendMessage(text, parentRun = null) {
+  if (assistant?.background_sessions) return window.SimonBackground.send(text, parentRun);
   if (busy || savingPreferences || !text.trim()) return;
   setBusy(true); status(); el('response-settings').open = false;
   controller = new AbortController(); activeRun = null;
   const startingDraft = el('text').value;
+  if (!parentRun) {
+    el('text').value = '';
+    drafts.delete(activeThread || 'new');
+    autosize();
+  }
   let preview, userPreview, thought, run;
   try {
     if (!activeThread) {
       pendingThread ||= {title: text.replace(/\s+/g, ' ').slice(0, 65), idempotency_key: crypto.randomUUID()};
       const thread = await api('/v1/threads', pendingThread);
-      activeThread = thread.id; pendingThread = null; drafts.delete('new');
+      activeThread = thread.id; pendingThread = null;
+      if (drafts.has('new')) drafts.set(activeThread, drafts.get('new'));
+      drafts.delete('new');
       history.replaceState(null, '', appPath('/chat#' + activeThread));
       el('chat-title').textContent = thread.title;
       await refreshThreads();
@@ -326,11 +350,14 @@ async function sendMessage(text, parentRun = null) {
       run = await api('/v1/threads/' + activeThread + '/runs', payload);
     }
     pending = null;
-    if (!parentRun && el('text').value === startingDraft) { el('text').value = ''; drafts.delete(activeThread); }
     await messages(); status('Run complete. Messages saved.');
   } catch (error) {
+    if (!parentRun && !run && !el('text').value) {
+      el('text').value = startingDraft;
+      drafts.set(activeThread || 'new', startingDraft);
+    }
     if (error.code === 'model_error' || error.name === 'AbortError') pending = null;
-    if (error.name === 'AbortError') status('Stopped. Draft kept. Any completed answer is saved.');
+    if (error.name === 'AbortError') status('Stopped. Any completed answer is saved.');
     else report(error);
     userPreview?.remove(); preview?.remove();
     // Recover a completion that won a race with Stop or a lost connection.
@@ -343,12 +370,16 @@ async function sendMessage(text, parentRun = null) {
   }
 }
 el('stop').onclick = () => {
+  if (assistant?.background_sessions) { window.SimonBackground.stop(); return; }
   const runId = activeRun;
   controller?.abort();
   if (runId) api('/v1/runs/' + runId + '/cancel', {}).catch(report);
 };
 function openPanel(id) { navigation(false); el(id).showModal(); }
-el('memory-open').onclick = () => openPanel('memory-panel');
+el('memory-open').onclick = async () => {
+  openPanel('memory-panel');
+  try { await memories(); } catch (error) { el('memory-status').textContent = error.message; }
+};
 el('about-open').onclick = () => openPanel('about-panel');
 document.querySelectorAll('[data-close]').forEach(button => {
   button.onclick = () => el(button.dataset.close).close();
@@ -366,6 +397,8 @@ async function memories() {
   el('memories').replaceChildren(...(list.length ? list.map(row => {
     const card = make('div', undefined, 'memory-card');
     card.append(make('strong', row.subject), make('p', row.content));
+    card.append(make('p', (row.scope === 'personal' ? 'Personal' : 'Shared workspace') +
+      ' · ' + (row.category || 'fact'), 'muted fine'));
     if (row.created_by === session.actor_id || session.scopes.includes('memories:manage')) {
       const button = make('button', 'Retract', 'text-button'); button.type = 'button';
       button.onclick = async () => {
@@ -382,20 +415,17 @@ el('memory-form').onsubmit = async event => {
   event.preventDefault(); const button = event.submitter; button.disabled = true;
   try {
     const subject = el('memory-subject').value, content = el('memory-content').value;
-    if (pendingMemory?.subject !== subject || pendingMemory?.content !== content) pendingMemory = {subject, content, idempotency_key: crypto.randomUUID()};
+    const scope = el('memory-scope').value, category = el('memory-category').value;
+    if (pendingMemory?.subject !== subject || pendingMemory?.content !== content ||
+        pendingMemory?.scope !== scope || pendingMemory?.category !== category) {
+      pendingMemory = {subject, content, scope, category, idempotency_key: crypto.randomUUID()};
+    }
     await api('/v1/memories', pendingMemory); pendingMemory = null;
     el('memory-content').value = ''; el('memory-subject').value = ''; await memories();
-    el('memory-status').textContent = 'Shared memory saved.';
+    el('memory-status').textContent = scope === 'personal' ? 'Personal memory saved.' : 'Shared memory saved.';
   } catch (error) { el('memory-status').textContent = error.message; }
   finally { button.disabled = false; }
 };
-function theme(value) {
-  document.documentElement.dataset.theme = value;
-  el('theme-toggle').setAttribute('aria-label', 'Switch to ' + (value === 'dark' ? 'light' : 'dark') + ' theme');
-  try { localStorage.setItem('simon-theme', value); } catch { /* Storage may be disabled. */ }
-}
-try { theme(localStorage.getItem('simon-theme') || 'light'); } catch { theme('light'); }
-el('theme-toggle').onclick = () => theme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
 document.addEventListener('DOMContentLoaded', async () => {
   setBusy(false);
   try {
@@ -414,8 +444,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     await refreshThreads();
     const wanted = location.hash.slice(1);
     ready = true; setBusy(false);
+    el('voice-open').disabled = false;
     el('connections-open').disabled = false;
     await selectThread(rows.some(row => row.id === wanted) ? wanted : null);
+    window.dispatchEvent(new Event('simon-ready'));
     await memories();
     if (googleReturn) { openPanel('connections-panel'); await connections(); }
   } catch (error) { report(error); }

@@ -1,9 +1,9 @@
 param(
-    [string]$PublicOrigin = 'https://camrobbins.com',
+    [string]$PublicOrigin = 'https://www.camrobbins.com',
     [string]$PublicPath = '/simon',
     [string]$DatabaseUrl = 'postgresql://jarvis:local-development-only@127.0.0.1:5432/jarvis',
-    [guid]$HouseholdId = '22222222-2222-4222-8222-222222222222',
-    [guid]$ActorId = '11111111-1111-4111-8111-111111111111',
+    [guid]$HouseholdId = 'eff4172f-8892-5123-821a-55fed2969246',
+    [guid]$ActorId = '31de7ca5-7ea4-5614-b2b6-099dacc91b0e',
     [switch]$Enroll,
     [switch]$Check
 )
@@ -22,6 +22,7 @@ try {
     $env:SIMON_DEV_LOGIN_ENABLED = 'false'
     $env:SIMON_MODEL_PROVIDER = 'openai'
     $env:SIMON_HOME_HOUSEHOLD_ID = $HouseholdId.ToString()
+    $env:SIMON_ACCOUNT_ADMIN_ACTOR_ID = $ActorId.ToString()
     & $python -c "from simon.config import Settings; s=Settings(); print('Configuration valid:', s.public_origin + s.public_path)"
     if ($LASTEXITCODE -ne 0) { throw 'Server configuration is invalid.' }
     if ($Check) { return }

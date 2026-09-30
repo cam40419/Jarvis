@@ -2,8 +2,11 @@
 
 Run all commands in PowerShell from the repository root. Use Python 3.11 or newer;
 CI uses 3.11. The local verification on 2026-09-10 used Python 3.13.7.
+For this PC's active `cam40419` installation, use the
+[local operations runbook](local-operations.md). The development-token procedure below is for
+isolated development sessions.
 
-## Start the persistent API
+## Start a development test session
 
 Identity now uses authenticated sessions; the old actor/scope headers no longer work.
 Start Docker Desktop, then:
@@ -163,7 +166,29 @@ Populated preference/feedback records also passed a separate API process-restart
   Delivery is at least once: consumers must deduplicate by event ID because a process can
   crash after delivery and before its database commit. Callbacks must be bounded and must not
   call back into the Simon store. No external consumer or notification sender is enabled.
-- Each synchronous transaction opens its own connection. Connection pooling, worker leases,
-  persistent capability administration and rate limiting remain future work. The chat UI and
-  connected-tool previews are implemented.
+- The local app uses a bounded, process-local PostgreSQL connection pool (up to 16 connections).
+  Transactions still have isolated connections; nested calls share their transaction. Standalone
+  store instances can run without a pool for tests and one-off tools. Worker leases, persistent
+  capability administration and rate limiting remain future work. The chat UI and connected-tool
+  previews are implemented.
   Passkeys, sessions, and server-resolved membership scopes are implemented; see the identity runbook.
+
+## Background Work sessions and project pages
+
+Production chat requests are saved as private `assistant.session` jobs before the UI
+reports them queued. The standalone workflow worker executes two sessions concurrently,
+alongside its assistant-task worker. Switching conversations or tabs, losing focus, and
+closing the browser do not cancel saved work. Stop explicitly cancels the selected session.
+Partial text and final messages are persisted in PostgreSQL and restored on return.
+The computer and worker must remain running to make progress.
+
+Queued requests survive process restarts. Recovery checks interrupted sessions after five
+minutes and assistant tasks after ten minutes without updates. Requests that never started
+a model run return to the queue; completed runs retain their results. Interrupted model runs
+are flagged for review (tasks are paused with Resume) instead of automatically replaying
+possibly completed external actions. An active voice connection still requires an open client.
+
+Open a project title or Open project in Work to visit `/chat?project=<project-id>`.
+The project page collects its sessions, tasks and controls, saved outputs, Drive and local
+file access, and recent file activity. Start a session associates subsequent messages in that
+conversation with the project and supplies its context to the assistant.

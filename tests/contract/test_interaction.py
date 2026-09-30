@@ -136,8 +136,10 @@ def test_feedback_can_change_clear_and_survive_replays(model_setup):
     service.store.put_membership(
         Membership(actor_id=other.actor_id, household_id=actor.household_id, role="member")
     )
-    assert interactions.answers(other, thread.id)[0].feedback is None
-    interactions.save_feedback(other, run.id, request)
+    with pytest.raises(NotFoundError):
+        interactions.answers(other, thread.id)
+    with pytest.raises(NotFoundError):
+        interactions.save_feedback(other, run.id, request)
     assert interactions.answers(actor, thread.id)[0].feedback == cleared
     with pytest.raises(InvalidTransitionError):
         interactions.save_feedback(

@@ -40,7 +40,10 @@ class ConversationService:
 
             def operation() -> dict[str, object]:
                 thread = Thread(
-                    household_id=actor.household_id, created_by=actor.actor_id, title=request.title
+                    household_id=actor.household_id,
+                    created_by=actor.actor_id,
+                    title=request.title,
+                    visibility="personal",
                 )
                 self.store.insert_thread(thread)
                 self.audit.record(
@@ -63,13 +66,15 @@ class ConversationService:
     def get(self, actor: ActorContext, thread_id: UUID) -> Thread:
         self.authorize(actor, "threads:read")
         thread = self.store.thread(actor.household_id, thread_id)
-        if thread is None:
+        if thread is None or (
+            thread.visibility == "personal" and thread.created_by != actor.actor_id
+        ):
             raise NotFoundError("thread not found")
         return thread
 
     def list(self, actor: ActorContext, offset: int, limit: int) -> tuple[Thread, ...]:
         self.authorize(actor, "threads:read")
-        return tuple(self.store.threads(actor.household_id, offset, limit))
+        return tuple(self.store.threads(actor.household_id, offset, limit, actor.actor_id))
 
     def messages(
         self, actor: ActorContext, thread_id: UUID, after: int, limit: int
@@ -97,7 +102,13 @@ class ConversationService:
                     text=f"Test runner received: {request.text}",
                 )
                 memories = (
-                    self.store.explicit_memories(actor.household_id, 0, 100)
+                    self.store.explicit_memories(
+                        actor.household_id,
+                        0,
+                        500,
+                        actor.actor_id,
+                        personal=self.get(actor, thread_id).visibility == "personal",
+                    )
                     if "memories:read" in actor.scopes
                     else ()
                 )

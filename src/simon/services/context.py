@@ -69,7 +69,11 @@ class ContextAssembler:
             selected = [*pair, *selected]
         for memory in memories:
             candidate = MemoryContext(
-                source_memory_id=memory.id, subject=memory.subject, text=memory.content
+                source_memory_id=memory.id,
+                subject=memory.subject,
+                text=memory.content,
+                scope=memory.scope,
+                category=memory.category,
             )
             if context_cost(selected, [*memory_items, candidate], None) <= budget:
                 memory_items.append(candidate)

@@ -1,5 +1,6 @@
 import hmac
 from typing import Any
+from urllib.parse import urlsplit
 from uuid import UUID
 
 from fastapi import APIRouter, Request, Response
@@ -9,6 +10,11 @@ from simon.domain.errors import AuthorizationError
 from simon.domain.identity import Session
 from simon.domain.models import utc_now
 from simon.services.identity import IdentityService, csrf_token
+
+# Max-Age itself must be finite even when Simon does not expire the server
+# session. Browsers may clamp this further, but Simon will not sign the user
+# out on its own.
+PERSISTENT_COOKIE_MAX_AGE = 2_147_483_647
 
 
 class SecretRequest(BaseModel):
@@ -27,6 +33,24 @@ class HouseholdRequest(BaseModel):
     household_id: UUID
 
 
+class PasswordLoginRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    username: str = Field(min_length=3, max_length=32)
+    password: str = Field(min_length=1, max_length=128, repr=False)
+
+
+class PasswordSetRequest(PasswordLoginRequest):
+    current_password: str | None = Field(default=None, max_length=128, repr=False)
+
+
+class PasswordRegisterRequest(PasswordLoginRequest):
+    token: str = Field(min_length=1, max_length=200, repr=False)
+
+
+class PasswordResetRequest(PasswordRegisterRequest):
+    pass
+
+
 def session_cookie(identity: IdentityService) -> str:
     return "__Host-simon_session" if identity.settings.secure_cookies else "simon_session"
 
@@ -38,6 +62,15 @@ def ceremony_cookie(identity: IdentityService) -> str:
 def same_origin(request: Request, identity: IdentityService) -> None:
     if request.headers.get("origin") != identity.settings.public_origin:
         raise AuthorizationError("request origin is not allowed")
+
+
+def password_enabled(identity: IdentityService) -> bool:
+    return urlsplit(identity.settings.public_origin).hostname in {"localhost", "127.0.0.1"}
+
+
+def local_password_access(identity: IdentityService) -> None:
+    if not password_enabled(identity):
+        raise AuthorizationError("Password sign-in is currently available only on localhost.")
 
 
 def require_csrf(request: Request, identity: IdentityService, token: str) -> None:
@@ -53,6 +86,8 @@ def payload(identity: IdentityService, token: str, session: Session) -> dict[str
         "actor_id": str(actor.actor_id),
         "household_id": str(actor.household_id),
         "scopes": sorted(actor.scopes),
+        "can_manage_accounts": actor.actor_id == identity.settings.account_admin_actor_id
+        and "identity:manage" in actor.scopes,
         "method": session.method,
         "expires_at": session.expires_at.isoformat(),
         "csrf_token": csrf_token(token),
@@ -69,7 +104,11 @@ def set_session(
     response.set_cookie(
         session_cookie(identity),
         token,
-        max_age=max(1, int((session.expires_at - utc_now()).total_seconds())),
+        max_age=(
+            PERSISTENT_COOKIE_MAX_AGE
+            if identity.settings.session_hours == 0
+            else max(1, int((session.expires_at - utc_now()).total_seconds()))
+        ),
         httponly=True,
         secure=identity.settings.secure_cookies,
         samesite="strict",
@@ -107,6 +146,7 @@ def auth_router(identity: IdentityService) -> APIRouter:
     def config() -> dict[str, Any]:
         return {
             "dev_login_enabled": identity.settings.dev_login_enabled,
+            "password_enabled": password_enabled(identity),
             "origin": identity.settings.public_origin,
         }
 
@@ -124,6 +164,65 @@ def auth_router(identity: IdentityService) -> APIRouter:
             identity,
             identity.development_login(body.token, request.cookies.get(session_cookie(identity))),
         )
+
+    @router.post("/password/login")
+    def password_login(
+        body: PasswordLoginRequest, request: Request, response: Response
+    ) -> dict[str, Any]:
+        local_password_access(identity)
+        same_origin(request, identity)
+        return set_session(
+            response,
+            identity,
+            identity.password_login(
+                body.username, body.password, request.cookies.get(session_cookie(identity))
+            ),
+        )
+
+    @router.post("/password/register")
+    def password_register(
+        body: PasswordRegisterRequest, request: Request, response: Response
+    ) -> dict[str, Any]:
+        local_password_access(identity)
+        same_origin(request, identity)
+        return set_session(
+            response,
+            identity,
+            identity.register_password(
+                body.token, body.username, body.password,
+                request.cookies.get(session_cookie(identity)),
+            ),
+        )
+
+    @router.post("/password/reset")
+    def password_reset(
+        body: PasswordResetRequest, request: Request, response: Response
+    ) -> dict[str, Any]:
+        local_password_access(identity)
+        same_origin(request, identity)
+        return set_session(
+            response,
+            identity,
+            identity.reset_password(
+                body.token, body.username, body.password,
+                request.cookies.get(session_cookie(identity)),
+            ),
+        )
+
+    @router.get("/password")
+    def password_status(request: Request) -> dict[str, str | None]:
+        local_password_access(identity)
+        token = request.cookies.get(session_cookie(identity), "")
+        return {"username": identity.password_username(token)}
+
+    @router.post("/password")
+    def set_password(body: PasswordSetRequest, request: Request) -> dict[str, str]:
+        local_password_access(identity)
+        token = request.cookies.get(session_cookie(identity), "")
+        require_csrf(request, identity, token)
+        return {"username": identity.set_password(
+            token, body.username, body.password, body.current_password
+        )}
 
     @router.post("/passkeys/register/options")
     def registration_options(

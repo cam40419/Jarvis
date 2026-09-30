@@ -4,26 +4,57 @@ async function connections() {
   await homeDevices();
   googleConnection = await api('/v1/connections/google');
   el('web-connection').textContent = assistant.web_search ? 'Ready · Public web search is enabled' : 'Unavailable · Enable OpenAI and web search on the server';
-  el('google-connection').textContent = googleConnection.connected ? 'Connected as ' + googleConnection.email +
-    (googleConnection.calendar ? ' · Calendar' : '') + (googleConnection.email_send ? ' · Send email' : '') :
-    (googleReturn === 'failed' ? 'Connection did not finish. Check setup and try connecting again.' : 'Not connected');
-  el('google-connect').textContent = googleConnection.connected ? 'Reconnect Google' : 'Connect Google';
+  const accounts = googleConnection.accounts || [];
+  el('google-connection').textContent = accounts.length ? accounts.length + ' Google account(s) connected' :
+    (googleReturn === 'failed' ? 'Connection did not finish. Check setup and try again.' : 'Not connected');
+  el('google-connect').textContent = accounts.length ? 'Add another Google account' : 'Connect Google';
   el('google-connect').disabled = !googleConnection.configured || !el('google-sharing').checked;
-  el('google-disconnect').hidden = !googleConnection.connected;
-  el('google-setup').textContent = googleConnection.configured ? 'Google will ask which permissions you want to grant.' :
+  el('google-disconnect').hidden = true;
+  const list = el('google-accounts'); list.replaceChildren();
+  for (const account of accounts) {
+    const row = make('section', undefined, 'memory-card');
+    row.append(make('strong', account.email + (account.is_default ? ' (default)' : '')));
+    const permissions = [];
+    if (account.calendar) permissions.push('Calendar');
+    if (account.gmail_read) permissions.push('Read Gmail');
+    if (account.email_send) permissions.push('Send email');
+    if (account.drive_write) permissions.push('Read and edit Drive');
+    else if (account.drive_read) permissions.push('Read Drive');
+    row.append(make('p', permissions.join(' / ')));
+    async function change(path) {
+      row.querySelectorAll('button').forEach(button => button.disabled = true);
+      try { await api('/v1/connections/google/' + path, {account: account.id}); await connections(); }
+      catch (error) { row.append(make('p', error.message)); row.querySelectorAll('button').forEach(button => button.disabled = false); }
+    }
+    if (!account.is_default) {
+      const use = make('button', 'Make default'); use.onclick = () => change('default'); row.append(use);
+    }
+    const reconnect = make('button', 'Reconnect', 'text-button');
+    reconnect.disabled = !googleConnection.configured;
+    reconnect.onclick = () => beginGoogle(account.id);
+    const remove = make('button', 'Disconnect', 'text-button'); remove.onclick = () => change('disconnect');
+    row.append(reconnect, remove);
+    if (account.needs_reconnect) row.append(make('p', 'Reconnect this account to grant missing Google permissions.', 'muted'));
+    list.append(row);
+  }
+  el('google-setup').textContent = googleConnection.configured ?
+    'Add each account separately. For reconnecting, choose the same Google account. Chat uses the default unless you name another account. Project folders keep their linked account.' :
     'Server setup needed: follow docs/runbooks/google.md, then restart Simon. OAuth redirect: ' + googleConnection.redirect_uri;
 }
+
 el('connections-open').onclick = () => { openPanel('connections-panel'); connections().catch(report); };
 el('google-sharing').onchange = () => { el('google-connect').disabled = !googleConnection?.configured || !el('google-sharing').checked; };
-el('google-connect').onclick = async () => {
+el('google-connect').onclick = () => beginGoogle('');
+async function beginGoogle(account) {
+  if (!el('google-sharing').checked) { el('google-connection').textContent = 'Check the Google sharing acknowledgment before connecting.'; el('google-sharing').focus(); return; }
   el('google-connect').disabled = true;
   try {
-    const result = await api('/v1/connections/google/start', {shared_chat_acknowledged: true});
+    const result = await api('/v1/connections/google/start', {shared_chat_acknowledged: true, account});
     const url = new URL(result.url);
     if (url.origin !== 'https://accounts.google.com') throw Error('Unexpected connection address.');
     location.assign(url.href);
   } catch (error) { el('google-connection').textContent = error.message; el('google-connect').disabled = false; }
-};
+}
 el('google-disconnect').onclick = async () => {
   el('google-disconnect').disabled = true;
   try { await api('/v1/connections/google/disconnect', {}); await connections(); }
@@ -76,9 +107,10 @@ function homeCommandCard(command) {
 function actionCard(action) {
   const card = make('section', undefined, 'action-card'); card.dataset.actionId = action.id;
   const home = action.home;
-  card.setAttribute('aria-label', home ? 'Device preview' : action.kind === 'email.send' ? 'Email preview' : 'Calendar preview');
+  card.setAttribute('aria-label', home ? 'Device preview' : action.kind === 'email.send' ? 'Email preview' : action.immediate ? 'Calendar result' : 'Calendar preview');
   const email = action.email;
-  card.append(make('h3', home ? 'Previous device request' : email ? 'Review email' : 'Review calendar event'));
+  card.append(make('h3', home ? 'Previous device request' : email ? 'Review email' : action.immediate ?
+    (action.status === 'succeeded' ? 'Calendar event created' : 'Calendar event status') : 'Review calendar event'));
   if (!home) card.append(make('p', (email ? 'From: ' : 'Calendar account: ') + action.account_email, 'muted'));
   if (home) {
     card.append(make('strong', action.device_name), make('p', [action.device_room, action.device_provider].filter(Boolean).join(' / ')));
@@ -88,7 +120,10 @@ function actionCard(action) {
     card.append(make('p', 'To: ' + email.to), make('strong', email.subject), make('pre', email.body));
   } else {
     const draft = action.calendar;
-    card.append(make('strong', draft.title), make('p', 'Starts: ' + draft.start), make('p', 'Ends: ' + draft.end));
+    const formatDate = value => action.immediate ? new Intl.DateTimeFormat(undefined,
+      {dateStyle: 'medium', timeStyle: 'short'}).format(new Date(value)) : value;
+    card.append(make('strong', draft.title), make('p', 'Starts: ' + formatDate(draft.start)), make('p', 'Ends: ' + formatDate(draft.end)));
+    if (action.immediate) card.append(make('p', Intl.DateTimeFormat().resolvedOptions().timeZone, 'muted'));
     if (draft.location) card.append(make('p', 'Location: ' + draft.location));
     if (draft.description) card.append(make('pre', draft.description));
     card.append(make('p', 'Primary calendar · No invitations', 'muted fine'));
@@ -118,7 +153,7 @@ function actionCard(action) {
       controls.querySelectorAll('button').forEach(button => button.disabled = false);
     }
   }
-  if (!home && action.status === 'pending' && !expired) {
+  if (!home && !action.immediate && action.status === 'pending' && !expired) {
     const confirm = make('button', home ? 'Confirm & apply change' : email ? 'Confirm & send email' : 'Confirm & create event', 'primary');
     confirm.type = 'button'; confirm.onclick = () => decide('confirm');
     const cancel = make('button', 'Cancel preview', 'text-button'); cancel.type = 'button'; cancel.onclick = () => decide('cancel');
@@ -238,9 +273,10 @@ async function homeDevices(notice = '') {
   if (notice) { const saved = make('p', notice, 'home-notice'); saved.setAttribute('role', 'status'); target.append(saved); }
   for (const provider of providers) {
     const label = {lifx: 'LIFX', tuya: 'Tuya / Smart Life', shelly: 'Shelly LAN'}[provider.provider] || provider.provider;
-    const status = !provider.configured ? provider.provider === 'shelly' ? 'LAN discovery is disabled.' : 'Add account credentials on the server to discover devices.' :
-      provider.status === 'ready' ? 'Synced ' + provider.count + ' device(s).' :
-      provider.status === 'error' ? provider.error : 'Discovering devices...';
+    const saved = provider.provider === 'shelly' ? provider.count + ' registered device(s). ' : '';
+    const status = !provider.configured ? saved + (provider.provider === 'shelly' ? 'LAN discovery is disabled.' : 'Add account credentials on the server to discover devices.') :
+      provider.status === 'ready' ? (saved || 'Synced ' + provider.count + ' device(s).') :
+      provider.status === 'error' ? saved + provider.error : saved + 'Discovering devices...';
     target.append(make('p', label + ': ' + status, 'muted'));
   }
   const refresh = make('button', 'Refresh devices', 'text-button'); refresh.type = 'button';

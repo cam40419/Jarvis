@@ -10,16 +10,25 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
+from simon.domain.accounts import ManagedAccount
 from simon.domain.connected_tools import ActionProposal, GoogleConnection, GoogleOAuthState
-from simon.domain.context import ExplicitMemory
+from simon.domain.context import ExplicitMemory, RecallDocument
 from simon.domain.conversations import Message, ModelAttempt, Run, RunEvent, Thread
 from simon.domain.errors import (
     AuthenticationError,
     IdempotencyConflictError,
     InvalidTransitionError,
+    NotFoundError,
 )
 from simon.domain.home import HomeCommand, HomeDevice, HomeSync, PowerSample
-from simon.domain.identity import Challenge, Enrollment, Membership, Passkey, Session
+from simon.domain.identity import (
+    Challenge,
+    Enrollment,
+    Membership,
+    Passkey,
+    PasswordCredential,
+    Session,
+)
 from simon.domain.interaction import ResponsePreferences, RunFeedback
 from simon.domain.models import (
     AuditEvent,
@@ -30,11 +39,24 @@ from simon.domain.models import (
     utc_now,
 )
 from simon.domain.ports import CapabilityHandler
+from simon.domain.project_files import ProjectDrive, ProjectFileOperation
+from simon.domain.tasks import ProjectArtifact
 from simon.domain.voice import VoiceSession
+from simon.domain.workflows import (
+    WorkerHeartbeat,
+    WorkflowDefinition,
+    WorkflowEvent,
+    WorkflowRun,
+    WorkflowSchedule,
+    WorkflowTrigger,
+)
 
 
 class InMemoryStore:
     """Thread-safe reference adapter used for tests and local smoke runs."""
+
+    def close(self) -> None:
+        pass
 
     def __init__(self) -> None:
         self._lock = RLock()
@@ -51,6 +73,7 @@ class InMemoryStore:
         self._enrollments: dict[str, Enrollment] = {}
         self._challenges: dict[str, Challenge] = {}
         self._passkeys: dict[str, Passkey] = {}
+        self._passwords: dict[UUID, PasswordCredential] = {}
         self._threads: dict[UUID, Thread] = {}
         self._messages: dict[UUID, Message] = {}
         self._runs: dict[UUID, Run] = {}
@@ -58,7 +81,7 @@ class InMemoryStore:
         self._explicit_memories: dict[UUID, ExplicitMemory] = {}
         self._attempts: dict[UUID, ModelAttempt] = {}
         self._response_preferences: dict[tuple[UUID, UUID], ResponsePreferences] = {}
-        self._google: dict[tuple[UUID, UUID], GoogleConnection] = {}
+        self._google: dict[tuple[UUID, UUID, str], GoogleConnection] = {}
         self._google_states: dict[str, GoogleOAuthState] = {}
         self._actions: dict[UUID, ActionProposal] = {}
         self._home_devices: dict[tuple[UUID, str], HomeDevice] = {}
@@ -67,6 +90,17 @@ class InMemoryStore:
         self._power_samples: dict[tuple[UUID, str, datetime], PowerSample] = {}
         self._feedback: dict[tuple[UUID, UUID, UUID], RunFeedback] = {}
         self._voice_sessions: dict[UUID, VoiceSession] = {}
+        self._managed_accounts: dict[UUID, ManagedAccount] = {}
+        self._workflow_versions: dict[tuple[UUID, int], WorkflowDefinition] = {}
+        self._deleted_workflows: set[UUID] = set()
+        self._workflow_runs: dict[UUID, WorkflowRun] = {}
+        self._workflow_events: dict[tuple[UUID, int], WorkflowEvent] = {}
+        self._workflow_workers: dict[str, WorkerHeartbeat] = {}
+        self._workflow_schedules: dict[UUID, WorkflowSchedule] = {}
+        self._workflow_triggers: dict[UUID, WorkflowTrigger] = {}
+        self._project_artifacts: dict[UUID, tuple[ProjectArtifact, bytes]] = {}
+        self._project_drive: dict[tuple[UUID, UUID, UUID], ProjectDrive] = {}
+        self._project_file_ops: dict[UUID, ProjectFileOperation] = {}
 
     @contextmanager
     def transaction(self, household_id: UUID | None = None) -> Iterator[None]:
@@ -83,6 +117,7 @@ class InMemoryStore:
                     self._enrollments,
                     self._challenges,
                     self._passkeys,
+                    self._passwords,
                     self._threads,
                     self._messages,
                     self._runs,
@@ -99,6 +134,17 @@ class InMemoryStore:
                     self._home_commands,
                     self._power_samples,
                     self._voice_sessions,
+                    self._managed_accounts,
+                    self._workflow_versions,
+                    self._deleted_workflows,
+                    self._workflow_runs,
+                    self._workflow_events,
+                    self._workflow_workers,
+                    self._workflow_schedules,
+                    self._workflow_triggers,
+                    self._project_artifacts,
+                    self._project_drive,
+                    self._project_file_ops,
                 )
             )
             try:
@@ -115,6 +161,7 @@ class InMemoryStore:
                     self._enrollments,
                     self._challenges,
                     self._passkeys,
+                    self._passwords,
                     self._threads,
                     self._messages,
                     self._runs,
@@ -131,8 +178,345 @@ class InMemoryStore:
                     self._home_commands,
                     self._power_samples,
                     self._voice_sessions,
+                    self._managed_accounts,
+                    self._workflow_versions,
+                    self._deleted_workflows,
+                    self._workflow_runs,
+                    self._workflow_events,
+                    self._workflow_workers,
+                    self._workflow_schedules,
+                    self._workflow_triggers,
+                    self._project_artifacts,
+                    self._project_drive,
+                    self._project_file_ops,
                 ) = snapshot
                 raise
+
+    def workflow(self, identifier: UUID, version: int | None = None) -> WorkflowDefinition | None:
+        with self._lock:
+            return max(
+                (
+                    w
+                    for (i, v), w in self._workflow_versions.items()
+                    if i == identifier
+                    and i not in self._deleted_workflows
+                    and (version is None or v == version)
+                ),
+                key=lambda w: w.version,
+                default=None,
+            )
+
+    def workflows(
+        self, household_id: UUID, actor_id: UUID, offset: int, limit: int
+    ) -> tuple[WorkflowDefinition, ...]:
+        with self._lock:
+            latest: dict[UUID, WorkflowDefinition] = {}
+            for w in self._workflow_versions.values():
+                if (
+                    w.household_id == household_id
+                    and w.actor_id == actor_id
+                    and w.id not in self._deleted_workflows
+                    and (w.id not in latest or latest[w.id].version < w.version)
+                ):
+                    latest[w.id] = w
+            return tuple(
+                sorted(latest.values(), key=lambda w: (w.created_at, w.id), reverse=True)[
+                    offset : offset + limit
+                ]
+            )
+
+    def insert_workflow(self, definition: WorkflowDefinition) -> None:
+        with self._lock:
+            key = definition.id, definition.version
+            if key in self._workflow_versions:
+                raise InvalidTransitionError("workflow version already exists")
+            self._workflow_versions[key] = definition
+
+    def delete_workflow(self, identifier: UUID, household_id: UUID, actor_id: UUID) -> bool:
+        with self._lock:
+            owned = any(
+                workflow.id == identifier
+                and workflow.household_id == household_id
+                and workflow.actor_id == actor_id
+                for workflow in self._workflow_versions.values()
+            )
+            if owned and identifier not in self._deleted_workflows:
+                self._deleted_workflows.add(identifier)
+                return True
+            return False
+
+    def workflow_run(self, identifier: UUID) -> WorkflowRun | None:
+        with self._lock:
+            return self._workflow_runs.get(identifier)
+
+    def workflow_runs(
+        self, household_id: UUID, actor_id: UUID, offset: int, limit: int
+    ) -> tuple[WorkflowRun, ...]:
+        with self._lock:
+            return tuple(
+                sorted(
+                    (
+                        r
+                        for r in self._workflow_runs.values()
+                        if r.household_id == household_id and r.actor_id == actor_id
+                    ),
+                    key=lambda r: (r.created_at, r.id),
+                    reverse=True,
+                )[offset : offset + limit]
+            )
+
+    def save_workflow_run(self, run: WorkflowRun, expected_version: int) -> None:
+        with self._lock:
+            old = self._workflow_runs.get(run.id)
+            if (old.version if old else 0) != expected_version:
+                raise InvalidTransitionError("workflow run changed; reload before retrying")
+            self._workflow_runs[run.id] = run
+
+    def due_workflows(self, now: datetime, limit: int) -> tuple[WorkflowRun, ...]:
+        with self._lock:
+            return tuple(
+                sorted(
+                    (
+                        r
+                        for r in self._workflow_runs.values()
+                        if r.next_wake_at is not None and r.next_wake_at <= now
+                    ),
+                    key=lambda r: (r.next_wake_at, str(r.id)),
+                )[:limit]
+            )
+
+    def append_workflow_event(self, event: WorkflowEvent) -> None:
+        with self._lock:
+            key = event.run_id, event.sequence
+            if key in self._workflow_events:
+                raise InvalidTransitionError("workflow event already exists")
+            self._workflow_events[key] = event
+
+    def workflow_events(self, run_id: UUID, after: int) -> tuple[WorkflowEvent, ...]:
+        with self._lock:
+            return tuple(
+                sorted(
+                    (
+                        e
+                        for e in self._workflow_events.values()
+                        if e.run_id == run_id and e.sequence > after
+                    ),
+                    key=lambda e: e.sequence,
+                )[:100]
+            )
+
+    def worker_heartbeat(self, heartbeat: WorkerHeartbeat) -> None:
+        with self._lock:
+            self._workflow_workers[heartbeat.id] = heartbeat
+
+    def workflow_workers(self) -> tuple[WorkerHeartbeat, ...]:
+        with self._lock:
+            return tuple(
+                sorted(self._workflow_workers.values(), key=lambda w: w.seen_at, reverse=True)[:20]
+            )
+
+    def workflow_schedule(self, identifier: UUID) -> WorkflowSchedule | None:
+        with self._lock:
+            return self._workflow_schedules.get(identifier)
+
+    def workflow_schedules(
+        self, household_id: UUID, actor_id: UUID, offset: int, limit: int
+    ) -> tuple[WorkflowSchedule, ...]:
+        with self._lock:
+            return tuple(
+                sorted(
+                    (
+                        schedule
+                        for schedule in self._workflow_schedules.values()
+                        if schedule.household_id == household_id and schedule.actor_id == actor_id
+                    ),
+                    key=lambda schedule: (schedule.created_at, schedule.id),
+                    reverse=True,
+                )[offset : offset + limit]
+            )
+
+    def due_workflow_schedules(self, now: datetime, limit: int) -> tuple[WorkflowSchedule, ...]:
+        with self._lock:
+            return tuple(
+                sorted(
+                    (
+                        schedule
+                        for schedule in self._workflow_schedules.values()
+                        if schedule.enabled
+                        and schedule.next_run_at is not None
+                        and schedule.next_run_at <= now
+                    ),
+                    key=lambda schedule: (schedule.next_run_at, schedule.id),
+                )[:limit]
+            )
+
+    def save_workflow_schedule(self, schedule: WorkflowSchedule, expected_version: int) -> None:
+        with self._lock:
+            old = self._workflow_schedules.get(schedule.id)
+            if (old.version if old else 0) != expected_version:
+                raise InvalidTransitionError("workflow schedule changed; reload before retrying")
+            self._workflow_schedules[schedule.id] = schedule
+
+    def delete_workflow_schedule(
+        self, identifier: UUID, household_id: UUID, actor_id: UUID
+    ) -> bool:
+        with self._lock:
+            schedule = self._workflow_schedules.get(identifier)
+            if not schedule or (schedule.household_id, schedule.actor_id) != (
+                household_id,
+                actor_id,
+            ):
+                return False
+            del self._workflow_schedules[identifier]
+            return True
+
+    def delete_workflow_schedules(
+        self, definition_id: UUID, household_id: UUID, actor_id: UUID
+    ) -> int:
+        with self._lock:
+            identifiers = [
+                schedule.id
+                for schedule in self._workflow_schedules.values()
+                if schedule.definition_id == definition_id
+                and schedule.household_id == household_id
+                and schedule.actor_id == actor_id
+            ]
+            for identifier in identifiers:
+                del self._workflow_schedules[identifier]
+            return len(identifiers)
+
+    def workflow_trigger(self, identifier: UUID) -> WorkflowTrigger | None:
+        with self._lock:
+            return self._workflow_triggers.get(identifier)
+
+    def workflow_trigger_for_definition(self, definition_id: UUID) -> WorkflowTrigger | None:
+        with self._lock:
+            return next(
+                (
+                    item
+                    for item in self._workflow_triggers.values()
+                    if item.definition_id == definition_id
+                ),
+                None,
+            )
+
+    def workflow_triggers_for_definition(self, definition_id: UUID) -> tuple[WorkflowTrigger, ...]:
+        with self._lock:
+            return tuple(
+                item
+                for item in self._workflow_triggers.values()
+                if item.definition_id == definition_id
+            )
+
+    def workflow_triggers(
+        self, household_id: UUID, actor_id: UUID, offset: int, limit: int
+    ) -> tuple[WorkflowTrigger, ...]:
+        with self._lock:
+            return tuple(
+                sorted(
+                    (
+                        item
+                        for item in self._workflow_triggers.values()
+                        if item.household_id == household_id and item.actor_id == actor_id
+                    ),
+                    key=lambda item: (item.created_at, item.id),
+                    reverse=True,
+                )[offset : offset + limit]
+            )
+
+    def due_workflow_triggers(self, now: datetime, limit: int) -> tuple[WorkflowTrigger, ...]:
+        with self._lock:
+            return tuple(
+                sorted(
+                    (
+                        item
+                        for item in self._workflow_triggers.values()
+                        if item.enabled
+                        and item.next_check_at is not None
+                        and item.next_check_at <= now
+                    ),
+                    key=lambda item: (item.next_check_at, item.id),
+                )[:limit]
+            )
+
+    def save_workflow_trigger(self, trigger: WorkflowTrigger, expected_version: int) -> None:
+        with self._lock:
+            old = self._workflow_triggers.get(trigger.id)
+            if (old.version if old else 0) != expected_version:
+                raise InvalidTransitionError("workflow trigger changed; reload before retrying")
+            self._workflow_triggers[trigger.id] = trigger
+
+    def delete_workflow_trigger(self, identifier: UUID, household_id: UUID, actor_id: UUID) -> bool:
+        with self._lock:
+            trigger = self._workflow_triggers.get(identifier)
+            if not trigger or (trigger.household_id, trigger.actor_id) != (
+                household_id,
+                actor_id,
+            ):
+                return False
+            del self._workflow_triggers[identifier]
+            return True
+
+    def delete_workflow_trigger_for_definition(
+        self, definition_id: UUID, household_id: UUID, actor_id: UUID
+    ) -> int:
+        with self._lock:
+            identifiers = [
+                item.id
+                for item in self._workflow_triggers.values()
+                if item.definition_id == definition_id
+                and item.household_id == household_id
+                and item.actor_id == actor_id
+            ]
+            for identifier in identifiers:
+                del self._workflow_triggers[identifier]
+            return len(identifiers)
+
+    def save_project_artifact(self, artifact: ProjectArtifact, content: bytes) -> None:
+        with self._lock:
+            existing = self._project_artifacts.get(artifact.id)
+            if existing and existing != (artifact, content):
+                raise InvalidTransitionError("project artifact already exists")
+            self._project_artifacts[artifact.id] = (artifact, content)
+
+    def project_artifact(self, identifier: UUID) -> tuple[ProjectArtifact, bytes] | None:
+        with self._lock:
+            return self._project_artifacts.get(identifier)
+
+    def project_artifacts(
+        self,
+        household_id: UUID,
+        actor_id: UUID,
+        project_id: UUID | None,
+        offset: int,
+        limit: int,
+    ) -> tuple[ProjectArtifact, ...]:
+        with self._lock:
+            return tuple(
+                sorted(
+                    (
+                        artifact
+                        for artifact, _content in self._project_artifacts.values()
+                        if artifact.household_id == household_id
+                        and artifact.actor_id == actor_id
+                        and (project_id is None or artifact.project_id == project_id)
+                    ),
+                    key=lambda artifact: (artifact.created_at, artifact.id),
+                    reverse=True,
+                )[offset : offset + limit]
+            )
+
+    def managed_accounts(self) -> tuple[ManagedAccount, ...]:
+        with self._lock:
+            return tuple(self._managed_accounts.values())
+
+    def managed_account(self, actor_id: UUID) -> ManagedAccount | None:
+        with self._lock:
+            return self._managed_accounts.get(actor_id)
+
+    def save_managed_account(self, account: ManagedAccount) -> None:
+        with self._lock:
+            self._managed_accounts[account.actor_id] = account
 
     def voice_sessions(self, household_id: UUID, actor_id: UUID) -> tuple[VoiceSession, ...]:
         with self._lock:
@@ -192,7 +576,13 @@ class InMemoryStore:
             }
 
     def home_commands(
-        self, household_id: UUID, actor_id: UUID, run_id: UUID | None = None
+        self,
+        household_id: UUID,
+        actor_id: UUID,
+        run_id: UUID | None = None,
+        *,
+        thread_id: UUID | None = None,
+        limit: int = 100,
     ) -> tuple[HomeCommand, ...]:
         with self._lock:
             rows = sorted(
@@ -202,11 +592,12 @@ class InMemoryStore:
                     if c.household_id == household_id
                     and c.actor_id == actor_id
                     and (run_id is None or c.run_id == run_id)
+                    and (thread_id is None or c.thread_id == thread_id)
                 ),
                 key=lambda c: (c.created_at, c.id),
                 reverse=True,
             )
-            return tuple(rows[:100])
+            return tuple(rows[:limit])
 
     def save_home_command(self, command: HomeCommand) -> None:
         with self._lock:
@@ -298,14 +689,24 @@ class InMemoryStore:
             self._explicit_memories[memory.id] = memory
 
     def explicit_memories(
-        self, household_id: UUID, offset: int, limit: int
+        self,
+        household_id: UUID,
+        offset: int,
+        limit: int,
+        actor_id: UUID | None = None,
+        personal: bool = True,
     ) -> tuple[ExplicitMemory, ...]:
         with self._lock:
             rows = sorted(
                 (
                     m
                     for m in self._explicit_memories.values()
-                    if m.household_id == household_id and m.accepted
+                    if m.household_id == household_id
+                    and m.accepted
+                    and (
+                        m.scope == "household"
+                        or (personal and (actor_id is None or m.created_by == actor_id))
+                    )
                 ),
                 key=lambda m: (m.created_at, m.id),
             )
@@ -326,13 +727,86 @@ class InMemoryStore:
                 raise InvalidTransitionError("thread already exists")
             self._threads[thread.id] = thread
 
-    def threads(self, household_id: UUID, offset: int, limit: int) -> tuple[Thread, ...]:
+    def threads(
+        self, household_id: UUID, offset: int, limit: int, actor_id: UUID | None = None
+    ) -> tuple[Thread, ...]:
         with self._lock:
             rows = sorted(
-                (t for t in self._threads.values() if t.household_id == household_id),
+                (
+                    t
+                    for t in self._threads.values()
+                    if t.household_id == household_id
+                    and (
+                        actor_id is None or t.visibility == "household" or t.created_by == actor_id
+                    )
+                ),
                 key=lambda t: (t.created_at, t.id),
             )
             return tuple(rows[offset : offset + limit])
+
+    def recall_documents(
+        self,
+        household_id: UUID,
+        actor_id: UUID,
+        terms: tuple[str, ...],
+        offset: int,
+        limit: int,
+        exclude_thread: UUID | None = None,
+    ) -> tuple[RecallDocument, ...]:
+        with self._lock:
+            threads = {
+                t.id: t
+                for t in self._threads.values()
+                if t.household_id == household_id
+                and t.created_by == actor_id
+                and t.id != exclude_thread
+            }
+            voice_threads = {s.thread_id for s in self._voice_sessions.values()}
+            documents = [
+                RecallDocument(
+                    id=m.id,
+                    thread_id=m.thread_id,
+                    title=threads[m.thread_id].title,
+                    source="text",
+                    role=m.role,
+                    text=m.text,
+                    created_at=m.created_at,
+                )
+                for m in self._messages.values()
+                if m.thread_id in threads and m.thread_id not in voice_threads
+            ]
+            documents.extend(
+                RecallDocument(
+                    id=s.id,
+                    thread_id=s.thread_id,
+                    title=threads[s.thread_id].title,
+                    source="voice",
+                    role="transcript",
+                    created_at=s.created_at,
+                    text="".join(
+                        (
+                            f"\n{f.speaker}: "
+                            if i == 0 or s.fragments[i - 1].speaker != f.speaker
+                            else ""
+                        )
+                        + f.text
+                        for i, f in enumerate(s.fragments)
+                    ),
+                )
+                for s in self._voice_sessions.values()
+                if s.thread_id in threads
+                and s.actor_id == actor_id
+                and s.household_id == household_id
+                and s.fragments
+            )
+
+            def score(doc: RecallDocument) -> int:
+                text = (doc.title + " " + doc.text).lower()
+                return sum(term in text for term in terms)
+
+            documents = [d for d in documents if not terms or score(d)]
+            documents.sort(key=lambda d: (score(d), d.created_at, d.id), reverse=True)
+            return tuple(documents[offset : offset + limit])
 
     def thread(self, household_id: UUID, thread_id: UUID) -> Thread | None:
         with self._lock:
@@ -438,6 +912,51 @@ class InMemoryStore:
         with self._lock:
             job = self._jobs.get(job_id)
             return job.model_copy(deep=True) if job else None
+
+    def jobs(
+        self, household_id: UUID, actor_id: UUID, kind: str, offset: int, limit: int
+    ) -> tuple[Job, ...]:
+        with self._lock:
+            rows = [
+                job
+                for job in self._jobs.values()
+                if job.household_id == household_id
+                and job.created_by == actor_id
+                and job.kind == kind
+            ]
+            rows.sort(
+                key=lambda job: (
+                    -int(job.input.get("priority", 3)),
+                    int(job.input.get("rank", 0)),
+                    job.created_at,
+                )
+            )
+            return tuple(job.model_copy(deep=True) for job in rows[offset : offset + limit])
+
+    def jobs_all(self, kind: str, limit: int, status: str = "queued") -> tuple[Job, ...]:
+        with self._lock:
+            rows = [
+                job
+                for job in self._jobs.values()
+                if job.kind == kind and job.status.value == status
+            ]
+            rows.sort(
+                key=lambda job: (
+                    -int(job.input.get("priority", 3)),
+                    int(job.input.get("rank", 0)),
+                    job.created_at,
+                )
+            )
+            return tuple(job.model_copy(deep=True) for job in rows[:limit])
+
+    def save_job(self, job: Job, expected_version: int) -> Job:
+        with self._lock:
+            current = self._jobs.get(job.id)
+            if current is None or current.version != expected_version:
+                raise InvalidTransitionError("job missing or stale job version")
+            updated = job.model_copy(update={"version": expected_version + 1})
+            self._jobs[job.id] = updated.model_copy(deep=True)
+            return updated
 
     def transition_job(
         self,
@@ -596,17 +1115,73 @@ class InMemoryStore:
         with self._lock:
             self._passkeys.pop(credential_id, None)
 
-    def google_connection(self, household_id: UUID, actor_id: UUID) -> GoogleConnection | None:
+    def password_for_actor(self, actor_id: UUID) -> PasswordCredential | None:
         with self._lock:
-            return self._google.get((household_id, actor_id))
+            return self._passwords.get(actor_id)
+
+    def password_for_username(self, username: str) -> PasswordCredential | None:
+        with self._lock:
+            return next(
+                (item for item in self._passwords.values() if item.username == username), None
+            )
+
+    def save_password(self, credential: PasswordCredential) -> None:
+        with self._lock:
+            if any(
+                item.actor_id != credential.actor_id and item.username == credential.username
+                for item in self._passwords.values()
+            ):
+                raise AuthenticationError("username is already in use")
+            self._passwords[credential.actor_id] = credential
+
+    def google_connections(
+        self, household_id: UUID, actor_id: UUID
+    ) -> tuple[GoogleConnection, ...]:
+        with self._lock:
+            return tuple(
+                sorted(
+                    (
+                        c
+                        for c in self._google.values()
+                        if (c.household_id, c.actor_id) == (household_id, actor_id)
+                    ),
+                    key=lambda c: (not c.is_default, c.email.casefold()),
+                )
+            )
+
+    def google_connection(self, household_id: UUID, actor_id: UUID) -> GoogleConnection | None:
+        connections = self.google_connections(household_id, actor_id)
+        return connections[0] if connections else None
 
     def save_google_connection(self, connection: GoogleConnection) -> None:
         with self._lock:
-            self._google[connection.household_id, connection.actor_id] = connection
+            key = (connection.household_id, connection.actor_id, connection.email.casefold())
+            old = self._google.get(key)
+            default = old.is_default if old else not self.google_connections(*key[:2])
+            self._google[key] = connection.model_copy(update={"is_default": default})
 
-    def delete_google_connection(self, household_id: UUID, actor_id: UUID) -> None:
+    def set_default_google_connection(
+        self, household_id: UUID, actor_id: UUID, connection_id: UUID
+    ) -> None:
         with self._lock:
-            self._google.pop((household_id, actor_id), None)
+            connections = self.google_connections(household_id, actor_id)
+            if not any(c.id == connection_id for c in connections):
+                raise NotFoundError("Google account not found.")
+            for c in connections:
+                self._google[household_id, actor_id, c.email.casefold()] = c.model_copy(
+                    update={"is_default": c.id == connection_id}
+                )
+
+    def delete_google_connection(
+        self, household_id: UUID, actor_id: UUID, connection_id: UUID | None = None
+    ) -> None:
+        with self._lock:
+            for c in self.google_connections(household_id, actor_id):
+                if connection_id is None or c.id == connection_id:
+                    self._google.pop((household_id, actor_id, c.email.casefold()))
+            remaining = self.google_connections(household_id, actor_id)
+            if remaining and not any(c.is_default for c in remaining):
+                self.set_default_google_connection(household_id, actor_id, remaining[0].id)
 
     def save_google_state(self, state: GoogleOAuthState) -> None:
         with self._lock:
@@ -622,9 +1197,86 @@ class InMemoryStore:
                 return None
             return self._google_states.pop(state_hash)
 
+    def google_accounts(self) -> tuple[tuple[UUID, UUID], ...]:
+        with self._lock:
+            return tuple(dict.fromkeys((h, a) for h, a, _ in self._google))
+
+    def project_drive(
+        self,
+        household_id: UUID,
+        actor_id: UUID,
+        project_id: UUID,
+    ) -> ProjectDrive | None:
+        with self._lock:
+            return self._project_drive.get((household_id, actor_id, project_id))
+
+    def save_project_drive(self, binding: ProjectDrive) -> None:
+        with self._lock:
+            key = (binding.household_id, binding.actor_id, binding.project_id)
+            self._project_drive[key] = binding
+
+    def project_file_operation(self, identifier: UUID) -> ProjectFileOperation | None:
+        with self._lock:
+            return self._project_file_ops.get(identifier)
+
+    def save_project_file_operation(self, operation: ProjectFileOperation) -> None:
+        with self._lock:
+            self._project_file_ops[operation.id] = operation
+
+    def project_file_operations(
+        self,
+        household_id: UUID,
+        actor_id: UUID,
+        project_id: UUID,
+        limit: int,
+    ) -> tuple[ProjectFileOperation, ...]:
+        with self._lock:
+            return tuple(
+                sorted(
+                    (
+                        operation
+                        for operation in self._project_file_ops.values()
+                        if (operation.household_id, operation.actor_id, operation.project_id)
+                        == (household_id, actor_id, project_id)
+                    ),
+                    key=lambda operation: operation.created_at,
+                    reverse=True,
+                )[:limit]
+            )
+
     def action(self, action_id: UUID) -> ActionProposal | None:
         with self._lock:
             return self._actions.get(action_id)
+
+    def recent_actions(
+        self, thread_id: UUID, actor_id: UUID, limit: int
+    ) -> tuple[ActionProposal, ...]:
+        with self._lock:
+            action_ids = {
+                action_id
+                for run in self._runs.values()
+                if run.thread_id == thread_id
+                for action_id in run.action_ids
+            }
+            action_ids.update(
+                action.id
+                for action in self._actions.values()
+                if action.immediate
+                and (attempt := self._attempts.get(action.run_id))
+                and attempt.run.thread_id == thread_id
+                and attempt.household_id == action.household_id
+            )
+            return tuple(
+                sorted(
+                    (
+                        action
+                        for action in self._actions.values()
+                        if action.id in action_ids and action.actor_id == actor_id
+                    ),
+                    key=lambda action: (action.created_at, action.id),
+                    reverse=True,
+                )[:limit]
+            )
 
     def save_action(self, action: ActionProposal) -> None:
         with self._lock:

@@ -107,3 +107,38 @@ def test_dashboard_control_color_and_duplicate_receipts(client, container, auth_
         client.post(path, json=body | {"brightness": 10}, headers=auth_headers).status_code == 400
     )
     assert len(writes) == 1
+
+
+def test_dashboard_can_confirm_delayed_cloud_status(client, container, auth_headers, monkeypatch):
+    from simon.domain.home import HomeStatus
+    from tests.unit.test_home_adapters import device
+
+    _, actor = container.identity.resolve(client.cookies.get("simon_session"))
+    light = device().model_copy(
+        update={
+            "household_id": actor.household_id,
+            "control_enabled": True,
+            "load_type": "lighting",
+        }
+    )
+    home = container.connected.home
+    home.devices = (light,)
+    state, writes = {"on": False}, []
+    monkeypatch.setattr("simon.services.home.sleep", lambda delay: None)
+    home.lifx.read = lambda target: HomeStatus(
+        device_id=target.id, on=state["on"], online=True, capabilities=("power",)
+    )
+    home.lifx.set = lambda target, change: writes.append(change.on)
+    response = client.post(
+        f"/v1/home/devices/{light.id}/control",
+        json={"on": True, "idempotency_key": str(uuid4())},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200 and not response.json()["verified"]
+    path = f"/v1/home/commands/{response.json()['id']}/verify"
+    assert client.post(path).status_code == 403
+    state["on"] = True
+    verified = client.post(path, headers=auth_headers)
+    assert verified.status_code == 200 and verified.json()["verified"]
+    assert client.get("/v1/home/commands").json()[0]["verified"]
+    assert writes == [True]

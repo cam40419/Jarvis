@@ -23,10 +23,18 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from simon.adapters.memory import InMemoryStore
 from simon.api.auth import auth_router, require_csrf, session_cookie
+from simon.api.displays import display_router
+from simon.api.local_files import local_file_router
 from simon.api.model_stream import model_stream
+from simon.api.print_batches import PrintBatchService, print_batch_router
+from simon.api.project_files import project_router
+from simon.api.tasks import task_router
+from simon.api.work_sessions import session_router
+from simon.api.workflows import workflow_router
 from simon.config import Settings, get_settings
-from simon.domain.connected_tools import ActionProposal, GoogleStart
-from simon.domain.context import CreateMemory, ExplicitMemory
+from simon.domain.accounts import AccountAccess, InviteAccount
+from simon.domain.connected_tools import ActionProposal, GoogleAccountSelect, GoogleStart
+from simon.domain.context import CreateMemory, ExplicitMemory, RecallQuery
 from simon.domain.conversations import CreateThread, Message, Run, SubmitRun, Thread
 from simon.domain.errors import AuthorizationError, DomainError, ModelError
 from simon.domain.home import DirectHomeControl, HomeOrganization, OutletPower, OutletSetup
@@ -49,10 +57,12 @@ from simon.domain.models import (
 )
 from simon.domain.ports import Store
 from simon.domain.voice import VoiceOffer
+from simon.services.accounts import AccountService
 from simon.services.audit import AuditService
 from simon.services.capabilities import CapabilityBroker
 from simon.services.connected import ConnectedService
 from simon.services.conversations import ConversationService
+from simon.services.displays import DisplayService
 from simon.services.identity import IdentityService
 from simon.services.interaction import InteractionService
 from simon.services.jobs import JobService
@@ -60,7 +70,11 @@ from simon.services.memory import MemoryService
 from simon.services.model_conversations import ModelConversationService
 from simon.services.policy import PolicyEngine
 from simon.services.power import PowerMonitor
+from simon.services.printer_status import PrinterStatusService
+from simon.services.tasks import AssistantTaskService
 from simon.services.voice import VoiceService
+from simon.services.work_sessions import WorkSessionService
+from simon.services.workflows import WorkflowService
 
 
 class EchoInput(BaseModel):
@@ -88,7 +102,7 @@ class AppContainer:
         elif self.settings.storage_backend == "postgres":
             from simon.adapters.postgres import PostgresStore
 
-            self.store = PostgresStore(self.settings.database_url.get_secret_value())
+            self.store = PostgresStore(self.settings.database_url.get_secret_value(), pool_size=16)
         else:
             self.store = InMemoryStore()
         if self.settings.dev_login_enabled and self.settings.storage_backend == "memory":
@@ -102,6 +116,7 @@ class AppContainer:
                 )
             )
         self.identity = IdentityService(self.store, self.settings)
+        self.accounts = AccountService(self.identity)
         self.audit = AuditService(self.store)
         self.connected = ConnectedService(self.store, self.audit, self.settings, self.identity)
         self.power = PowerMonitor(self.connected.home)
@@ -109,6 +124,13 @@ class AppContainer:
         self.policy = PolicyEngine()
         self.capabilities = CapabilityBroker(self.store, self.store, self.policy, self.audit)
         self.jobs = JobService(self.store, self.audit)
+        self.displays = DisplayService(self.settings.display_data_dir)
+        self.connected.displays = self.displays
+        self.printer_status = PrinterStatusService(self.settings, self.identity)
+        self.workflows = WorkflowService(
+            self.store, self.identity, home=self.connected.home, printer=self.printer_status
+        )
+        self.print_batches = PrintBatchService(self.settings, self.identity, self.printer_status)
         self.conversations = ConversationService(self.store, self.audit)
         if self.settings.model_provider == "openai":
             from simon.adapters.openai_model import OpenAIModel
@@ -121,6 +143,15 @@ class AppContainer:
                 self.settings,
                 self.connected,
             )
+        self.tasks = AssistantTaskService(
+            self.store,
+            self.identity,
+            self.conversations
+            if isinstance(self.conversations, ModelConversationService)
+            else None,
+        )
+        self.connected.tasks = self.tasks
+        self.work_sessions = WorkSessionService(self.tasks)
         self.memories = MemoryService(self.store, self.audit)
         self.voice = VoiceService(
             self.connected,
@@ -167,6 +198,21 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
                     )
                 await asyncio.sleep(300)
 
+        async def project_sync() -> None:
+            while True:
+                try:
+                    await asyncio.to_thread(services.connected.projects.tick)
+                except Exception:
+                    logging.getLogger(__name__).warning(
+                        "Project Drive sync unavailable; retrying later."
+                    )
+                await asyncio.sleep(60)
+
+        project_task = (
+            asyncio.create_task(project_sync())
+            if services.settings.project_drive_sync_enabled
+            else None
+        )
         task = asyncio.create_task(discovery()) if services.settings.home_auto_discovery else None
 
         async def metering() -> None:
@@ -195,6 +241,10 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
             yield
         finally:
             await services.voice.shutdown()
+            if project_task:
+                project_task.cancel()
+                with suppress(asyncio.CancelledError):
+                    await project_task
             if task:
                 task.cancel()
                 with suppress(asyncio.CancelledError):
@@ -203,6 +253,13 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
                 meter_task.cancel()
                 with suppress(asyncio.CancelledError):
                     await meter_task
+            for adapter in (
+                services.connected.home.lifx,
+                services.connected.home.tuya,
+                services.connected.home.shelly,
+            ):
+                adapter.transport.close()
+            services.store.close()
 
     app = FastAPI(title="Simon API", version="0.1.0", lifespan=lifespan)
     app.state.container = services
@@ -216,7 +273,7 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
 
     @app.get("/", include_in_schema=False)
     def home() -> RedirectResponse:
-        return RedirectResponse(services.settings.public_path + "/login")
+        return RedirectResponse(services.settings.public_path + "/home")
 
     def page(name: str) -> HTMLResponse:
         base = services.settings.public_path
@@ -230,9 +287,17 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
     def login_page() -> HTMLResponse:
         return page("login.html")
 
+    @app.get("/home", include_in_schema=False)
+    def dashboard_page() -> HTMLResponse:
+        return page("dashboard.html")
+
     @app.get("/chat", include_in_schema=False)
     def chat_page() -> HTMLResponse:
         return page("chat.html")
+
+    @app.get("/automations", include_in_schema=False)
+    def automations_page() -> HTMLResponse:
+        return page("automations.html")
 
     @app.middleware("http")
     async def security_headers(request: Request, call_next: Any) -> Any:
@@ -250,7 +315,14 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "no-referrer"
         response.headers["X-Frame-Options"] = "DENY"
-        if path in {"/login", "/chat"} or path.startswith("/assets/"):
+        if path.startswith("/display/"):
+            response.headers["Content-Security-Policy"] = (
+                "default-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'none'"
+                "; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'"
+            )
+        elif path in {"/login", "/chat", "/automations", "/displays"} or path.startswith(
+            "/assets/"
+        ):
             response.headers["Content-Security-Policy"] = (
                 "default-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'none'"
                 "; media-src 'self' blob:; connect-src 'self'"
@@ -267,6 +339,48 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
         if request.method not in {"GET", "HEAD", "OPTIONS"}:
             require_csrf(request, services.identity, token)
         return actor
+
+    app.include_router(workflow_router(services.workflows, checked_actor))
+    app.include_router(print_batch_router(services.print_batches, checked_actor))
+    app.include_router(task_router(services.tasks, checked_actor))
+    app.include_router(project_router(services.connected.projects, checked_actor))
+    if services.tasks.conversations:
+        app.include_router(session_router(services.work_sessions, checked_actor))
+    app.include_router(local_file_router(services.connected.local_files, checked_actor))
+    app.include_router(display_router(services.displays, checked_actor, services, page))
+
+    @app.get("/v1/work/overview")
+    def work_overview(
+        actor: Annotated[ActorContext, Depends(checked_actor)],
+    ) -> dict[str, Any]:
+        projects = services.connected.projects.list(actor)
+        project_ids = {project["id"] for project in projects}
+        return {
+            "projects": projects,
+            "project_artifacts": [
+                artifact.model_dump(mode="json")
+                for artifact in services.tasks.artifacts(actor)
+                if str(artifact.project_id) in project_ids
+            ],
+            "tasks": [task.model_dump(mode="json") for task in services.tasks.list(actor)],
+            "workflows": [
+                flow.model_dump(mode="json")
+                for flow in services.workflows.definitions(actor, 0, 50)
+            ],
+            "workflow_runs": [
+                run.model_dump(mode="json") for run in services.workflows.runs(actor, 0, 50)
+            ],
+            "workflow_schedules": [
+                schedule.model_dump(mode="json")
+                for schedule in services.workflows.schedules(actor, 0, 100)
+            ],
+            "workflow_health": services.workflows.health(actor),
+            "print_batches": services.print_batches.batches(actor),
+        }
+
+    @app.get("/v1/printers/a1/status")
+    def a1_status(actor: Annotated[ActorContext, Depends(checked_actor)]) -> dict[str, Any]:
+        return services.printer_status.status(actor)
 
     @app.exception_handler(RequestValidationError)
     async def request_validation_error(
@@ -306,6 +420,51 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
     @app.get("/health/live")
     def live() -> dict[str, str]:
         return {"status": "ok"}
+
+    @app.get("/v1/accounts")
+    def accounts(actor: Annotated[ActorContext, Depends(checked_actor)]) -> list[dict[str, Any]]:
+        return services.accounts.list(actor)
+
+    @app.post("/v1/accounts/invite")
+    def invite_account(
+        body: InviteAccount,
+        request: Request,
+        actor: Annotated[ActorContext, Depends(checked_actor)],
+    ) -> dict[str, Any]:
+        from simon.services.identity import IDENTITY_LOCK
+
+        with services.store.transaction(IDENTITY_LOCK):
+            return services.accounts.invite(checked_actor(request), body)
+
+    @app.post("/v1/accounts/{identifier}/invitation")
+    def renew_invitation(
+        identifier: UUID, request: Request, actor: Annotated[ActorContext, Depends(checked_actor)]
+    ) -> dict[str, Any]:
+        from simon.services.identity import IDENTITY_LOCK
+
+        with services.store.transaction(IDENTITY_LOCK):
+            return services.accounts.renew(checked_actor(request), identifier)
+
+    @app.post("/v1/accounts/{identifier}/password-recovery")
+    def account_password_recovery(
+        identifier: UUID, request: Request, actor: Annotated[ActorContext, Depends(checked_actor)]
+    ) -> dict[str, Any]:
+        from simon.api.auth import local_password_access
+
+        local_password_access(services.identity)
+        return services.accounts.recovery(checked_actor(request), identifier)
+
+    @app.post("/v1/accounts/{identifier}/access")
+    def account_access(
+        identifier: UUID,
+        body: AccountAccess,
+        request: Request,
+        actor: Annotated[ActorContext, Depends(checked_actor)],
+    ) -> dict[str, Any]:
+        from simon.services.identity import IDENTITY_LOCK
+
+        with services.store.transaction(IDENTITY_LOCK):
+            return services.accounts.access(checked_actor(request), identifier, body)
 
     @app.get("/v1/voice")
     def voice_config(actor: Annotated[ActorContext, Depends(checked_actor)]) -> dict[str, Any]:
@@ -504,6 +663,14 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
             headers={"X-Accel-Buffering": "no"},
         )
 
+    @app.get("/v1/context/search")
+    def search_context(
+        actor: Annotated[ActorContext, Depends(checked_actor)],
+        query: Annotated[str, Query(max_length=200)] = "",
+        offset: Annotated[int, Query(ge=0, le=10000)] = 0,
+    ) -> dict[str, object]:
+        return services.connected.recall.search(actor, RecallQuery(query=query, offset=offset))
+
     @app.get("/v1/memories", response_model=list[ExplicitMemory])
     def memories(
         actor: Annotated[ActorContext, Depends(checked_actor)],
@@ -564,6 +731,8 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
             "profiles": ["auto", "quick", "balanced", "deep"],
             "answer_lengths": ["auto", "brief", "normal", "detailed"],
             "auto_deep_enabled": services.settings.auto_deep_enabled,
+            "background_sessions": services.settings.storage_backend == "postgres"
+            and services.settings.model_provider == "openai",
             "web_search": services.settings.model_provider == "openai"
             and services.settings.web_search_enabled,
         }
@@ -577,6 +746,13 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
         actor: Annotated[ActorContext, Depends(checked_actor)],
     ) -> list[dict[str, object]]:
         return [c.model_dump(mode="json") for c in services.connected.home.commands(actor)]
+
+    @app.post("/v1/home/commands/{command_id}/verify")
+    def verify_home_command(
+        command_id: UUID,
+        actor: Annotated[ActorContext, Depends(checked_actor)],
+    ) -> dict[str, object]:
+        return services.connected.home.verify_command(actor, command_id).model_dump(mode="json")
 
     @app.get("/v1/home/devices")
     def home_devices(
@@ -715,6 +891,7 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
         url, binding = services.connected.start(
             actor,
             request.cookies.get(session_cookie(services.identity), ""),
+            body.account,
         )
         response = JSONResponse({"url": url})
         response.set_cookie(
@@ -756,15 +933,30 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
         return response
 
     @app.post("/v1/connections/google/disconnect", status_code=204)
-    def google_disconnect(actor: Annotated[ActorContext, Depends(checked_actor)]) -> Response:
-        services.connected.disconnect(actor)
+    def google_disconnect(
+        body: GoogleAccountSelect, actor: Annotated[ActorContext, Depends(checked_actor)]
+    ) -> Response:
+        services.connected.disconnect(actor, body.account)
         return Response(status_code=204)
+
+    @app.post("/v1/connections/google/default")
+    def google_default(
+        body: GoogleAccountSelect, actor: Annotated[ActorContext, Depends(checked_actor)]
+    ) -> dict[str, object]:
+        services.connected.set_default(actor, body.account)
+        return services.connected.status(actor)
 
     @app.get("/v1/actions/{action_id}", response_model=ActionProposal)
     def action_status(
         action_id: UUID, actor: Annotated[ActorContext, Depends(checked_actor)]
     ) -> ActionProposal:
         return services.connected.get_action(actor, action_id)
+
+    @app.get("/v1/threads/{thread_id}/actions", response_model=tuple[ActionProposal, ...])
+    def thread_actions(
+        thread_id: UUID, actor: Annotated[ActorContext, Depends(checked_actor)]
+    ) -> tuple[ActionProposal, ...]:
+        return services.connected.actions(actor, thread_id)
 
     @app.post("/v1/actions/{action_id}/confirm", response_model=ActionProposal)
     def confirm_action(

@@ -8,7 +8,7 @@ import pytest
 from pydantic import SecretStr, ValidationError
 
 from simon.adapters.google import ConnectedError
-from simon.adapters.home import LIFXAPI, ShellyAPI, TuyaAPI, request_json
+from simon.adapters.home import LIFXAPI, DeviceTransport, ShellyAPI, TuyaAPI, request_json
 from simon.adapters.memory import InMemoryStore
 from simon.config import Settings
 from simon.domain.home import HomeChange, HomeDevice
@@ -150,6 +150,7 @@ def test_tuya_signed_requests_capability_bounds_and_token_reuse(monkeypatch):
     assert state.on and state.brightness == 50 and state.online is None
     api.set(light, HomeChange(device_id=light.id, on=False, brightness=50))
     assert requests.count("/v1.0/token?grant_type=1") == 1
+    assert sum(path.endswith("/specification") for path in requests) == 1
 
 
 def test_tuya_unknown_dp_and_color_modes_do_not_send(monkeypatch):
@@ -301,3 +302,62 @@ def test_invalid_inventory_fails_closed(tmp_path, contents):
 def test_invalid_device_changes_rejected(change):
     with pytest.raises(ValidationError):
         HomeChange(device_id="office-light", **change)
+
+
+def test_lan_transport_reuses_connection_and_never_retries_writes(monkeypatch):
+    real = httpx.Client
+    clients, requests = [], []
+    fail = [True]
+
+    def respond(request):
+        requests.append(request)
+        if fail[0]:
+            fail[0] = False
+            raise httpx.ConnectTimeout("private network details", request=request)
+        return httpx.Response(200, json={"output": True})
+
+    def client(**kwargs):
+        clients.append(kwargs)
+        instance = real(**kwargs, transport=httpx.MockTransport(respond))
+        # A short connect timeout incorrectly rejects reachable plugs on lossy Wi-Fi.
+        assert instance.timeout.connect == 8 and instance.timeout.read == 8
+        return instance
+
+    monkeypatch.setattr("simon.adapters.home.httpx.Client", client)
+    adapter = DeviceTransport(lan=True)
+    try:
+        assert adapter.request("POST", "http://192.168.1.50/rpc/Switch.GetStatus")["output"]
+        assert len(requests) == 2 and len(clients) == 1
+        adapter.request("POST", "http://192.168.1.50/rpc/Switch.GetStatus")
+        assert len(clients) == 1
+        fail[0] = True
+        with pytest.raises(ConnectedError) as error:
+            adapter.request("POST", "http://192.168.1.50/rpc/Switch.Set", write=True)
+        assert error.value.unknown and len(requests) == 4
+        assert "private network" not in str(error.value)
+    finally:
+        adapter.close()
+
+
+def test_tuya_specification_cache_expires_but_power_state_is_always_live(monkeypatch):
+    now = [1000.0]
+    monkeypatch.setattr("simon.adapters.home.monotonic", lambda: now[0])
+    api = TuyaAPI(Settings(_env_file=None))
+    monkeypatch.setattr(api, "token", lambda: "test")
+    calls = []
+
+    def call(method, path, token):
+        calls.append(path)
+        if path.endswith("specification"):
+            return {"functions": [{"code": "switch_led", "type": "Boolean"}]}
+        return [{"code": "switch_led", "value": len(calls) % 2 == 0}]
+
+    monkeypatch.setattr(api, "_call", call)
+    light = device("tuya")
+    assert api.read(light).on is True
+    assert api.read(light).on is False
+    assert sum(p.endswith("specification") for p in calls) == 1
+    now[0] += 301
+    api.read(light)
+    assert sum(p.endswith("specification") for p in calls) == 2
+    assert sum(p.endswith("status") for p in calls) == 3

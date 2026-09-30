@@ -11,18 +11,31 @@ physical-automation subsystem. The repository is being rebuilt from first princi
 runtime remains recoverable from Git history but is no longer part of the working tree.
 
 Try voice with **Talk to Simon** in chat, and open **Home** for device controls and power charts.
-For phone access at `camrobbins.com/simon`, follow the [remote and voice setup](docs/runbooks/remote-voice.md).
-The public route still needs its tunnel and Vercel portfolio configuration deployed.
+The primary app runs on this PC at **http://localhost:8000/login**. The former website route is
+paused while remote access is redesigned as a thin route to this PC; the tunnel is stopped.
+See the [remote and voice runbook](docs/runbooks/remote-voice.md) for the previous deployment and
+the local-first direction.
 See the [next phases](docs/next-phases.md) for the remaining rollout, scenes, and schedules.
+
+Account invitations are under **Account & access &rarr; Accounts**. Choose **Personality & voice**
+in chat to edit Simon's manner and voice. The [accounts and workshop plan](docs/accounts-workshop-plan.md)
+covers filesystem tools, the Bambu A1, your plate-swap generator, and the proposed app layout.
+
+The [workflow foundation](docs/workflow-architecture.md) now supports durable runs, timed steps,
+dependencies, recovery, and API controls. Start its separate read-only worker with
+`.\scripts\start-workflow-worker.ps1`; the guide includes a working demo. Chat/UI integration,
+condition monitoring, recurring schedules, and device writes are next.
 
 ## Current state
 
-- Passkey enrollment and sign-in, persistent sessions, logout, and local recovery tools
+- Username/password and passkey sign-in, persistent sessions, logout, and local recovery tools
+- Administrator-issued account invitations, private workspaces, and account disable/re-enable
+- Personal personality/voice settings, including Jarvis mode and Vesper voice
 - Server-resolved household permissions, session-bound CSRF checks, and secure cookie settings
 - A browser sign-in page with an authenticated connection test
-- Real OpenAI Responses API answers with bounded context and shared household memories
+- Real OpenAI Responses API answers with bounded context and personal/shared memories
 - Automatic model, reasoning effort, and answer length; streaming, Stop, and Think deeper
-- A responsive chat interface with searchable history, Markdown/code, copy, themes, and shared memory
+- A responsive chat interface with searchable history, Markdown/code, copy, themes, and memory controls
 - Saved personal response defaults, an automatic Deep preference, and persistent answer feedback
 - Public web search with saved citations and source links
 - Google account connection, primary calendar reads, and confirmed email/event previews
@@ -31,10 +44,11 @@ See the [next phases](docs/next-phases.md) for the remaining rollout, scenes, an
 - Outlet name, room, load type, and immediate on/off controls in Connections
 - Backend power/energy monitoring with persistent meter history
 - A Home dashboard with room cards, immediate light/outlet controls, and Shelly power charts
+- Raspberry Pi idle displays with uploaded slideshows, live widgets, and chat-managed layouts
 - Live browser voice with captions, mute, interruption support, backend task cancellation, and call history
 - Configurable `/simon` hosting, private passkey sign-in, and Vercel/home-tunnel deployment examples
 - Persistent conversations, immutable run snapshots, and resumable run event streams
-- Bounded context selection, source-linked excerpts, and explicit shared household memories
+- Shared recall across text and voice; conversational saving of personal facts, preferences, and projects
 - An idempotent `system.echo` health capability and a bounded connected-tool runtime
 - Persistent jobs with optimistic version checks and household-scoped lookup
 - Household audit chains and transactional outbox delivery intents
@@ -56,43 +70,52 @@ not substitute for action-bound confirmation.
 
 ## Run locally
 
-Use Python 3.11 or newer and start Docker Desktop. From the repository root in PowerShell:
+On this PC, Simon starts when `cam40` signs in to Windows. From the repository root in PowerShell:
 
 ```powershell
-# Create venv only if it does not already exist.
-py -3.11 -m venv venv
-.\venv\Scripts\python.exe -m pip install -e ".[dev,postgres]"
-# Set SIMON_OPENAI_API_KEY in .env first. Keep this file private.
-.\scripts\start-dev.ps1 -Enroll
+Start-ScheduledTask -TaskName Simon-PostgreSQL
+Start-ScheduledTask -TaskName Simon-Local
+Start-ScheduledTask -TaskName Simon-Workflow
 ```
 
-Open **http://localhost:8000/login**, expand **Set up a passkey**, and use the enrollment token
-printed by the launcher. Complete the browser/device prompt. Try **Test connection**, **Sign out**,
-and **Sign in with a passkey**. For subsequent launches use `.\scripts\start-dev.ps1`.
+Open **http://localhost:8000/login** and sign in as `cam40419` with the existing password. The
+server uses PostgreSQL and one Uvicorn worker, with development-token login disabled. New installs
+need Python 3.11 or newer, Docker Desktop, a virtual environment with `.[dev,postgres]`, and a
+private `.env` with `SIMON_OPENAI_API_KEY`; run `.\scripts\install-local-tasks.ps1` after account
+setup. See [local operations](docs/runbooks/local-operations.md) for startup, recovery, logs,
+graceful shutdown, and backups.
 
-Select **Open conversations** after signing in. Send a message to start a conversation, and reload
+Select **Open home dashboard** after signing in. The Home tab shows connected devices by room,
+their current status, power readings, and recent commands. Outlet and light status is checked
+on load, every 30 seconds while the page is visible, and when you return to it. Lights have direct power, brightness,
+and color controls; outlets can be configured from their device cards. The Simon tab has Chat,
+Work, and Voice entry points. Work shows project context and read only workflows.
+
+Open **Displays** to provision a Raspberry Pi, upload slideshow images, and choose its layout.
+The Pi setup and kiosk/autostart instructions are in the
+[idle display runbook](docs/runbooks/idle-display.md). After provisioning, ask Simon things like
+“put power in the top right and the printer in the bottom right” or “switch the kitchen display
+to split layout”; the screen picks up changes automatically.
+
+In Simon, send a message to start a conversation, and reload
 to verify that both messages persist. See the [conversation runbook](docs/runbooks/conversations.md)
 for restart and event-stream reconnection checks.
-Open **Shared memories** in the sidebar to save a fact. Expand the response's small run label to
+Open **Memory** in the sidebar to review saved facts, preferences, and projects. New entries default
+to personal; you can explicitly share a manual entry with the workspace. Simon can also save
+durable context as you talk and search your earlier text/voice conversations. Start a new chat or
+voice call to use private recall; older shared threads retain their existing access.
+Expand the response's small run label to
 inspect its selected context, model, reasoning, and usage.
-The [context runbook](docs/runbooks/context.md) explains selection, budgets, and retraction.
+The [context runbook](docs/runbooks/shared-context.md) explains selection, budgets, and retraction.
 Leave the composer on **Auto** and ask a question. Simon chooses the model, reasoning effort, and
 answer length. The Auto menu provides optional overrides. **Stop** cancels an unfinished answer;
 **Think deeper** makes a new, linked Deep response. The [model management plan](docs/model-management-plan.md)
 tracks spending controls, feedback, and adaptive routing planned after these controls.
 
-To try the session flow without a passkey, use `.\scripts\start-dev.ps1 -DevelopmentLogin`
-and enter its printed token under **Local development login**. For a database-free smoke test,
-`.\scripts\start-dev.ps1 -Memory` enables temporary development login and loses state on restart.
-
-The launcher initializes the local database and development membership without editing `.env`.
-The standard password matches Compose's local default; use `-DatabaseUrl` for a custom connection.
-Use `localhost` consistently: `127.0.0.1` is a different browser origin.
-The launcher defaults to OpenAI using `SIMON_OPENAI_API_KEY`; requests use your API billing.
-Use `-TestRunner` for the offline echo path, which needs no API key.
-The development launcher watches `.env` and restarts the app when it changes. Restart the launcher
-once to pick up this behavior if it was already running. A process-level `SIMON_OPENAI_API_KEY`
-overrides `.env`; remove or update that process variable if changing the file has no effect.
+Invited users can use a one-use enrollment code to create a username and password or a passkey.
+Passwords are stored as Argon2id hashes. The development launcher remains available for isolated
+tests, but `start-local.ps1` is the normal launcher for this PC. Use `localhost` consistently:
+`127.0.0.1` is a different browser origin. OpenAI requests use your API billing.
 See [using the assistant](docs/runbooks/assistant.md) for examples and troubleshooting.
 
 **The old identity headers no longer authenticate requests.** APIs use a session cookie, and

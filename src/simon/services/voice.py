@@ -13,13 +13,18 @@ from uuid import UUID, uuid4
 from simon.adapters.live_voice import LiveVoiceAPI, VoiceSocket
 from simon.domain.conversations import CreateThread, Run, SubmitRun
 from simon.domain.errors import AuthorizationError, ModelBusyError, ModelError, NotFoundError
+from simon.domain.interaction import ResponsePreferences
 from simon.domain.models import ActorContext, utc_now
 from simon.domain.voice import VoiceFragment, VoiceOffer, VoiceSession
 from simon.services.connected import ConnectedService
 from simon.services.identity import IDENTITY_LOCK
 from simon.services.model_conversations import ModelConversationService
+from simon.services.personality import persona_instructions
 
 VOICE_INSTRUCTIONS = (
+    "Multiple Google accounts are supported. Delegate account listing and account-specific "
+    "Google requests to the assistant, preserving the requested email. "
+
     "You are Simon, a friendly, concise personal voice assistant. Speak naturally in short "
     "responses. Explain that your voice is AI-generated if asked. "
     "Backchannel policy: Use brief, occasional acknowledgments. "
@@ -27,8 +32,17 @@ VOICE_INSTRUCTIONS = (
     "Delegation policy: Backend tools: {tools}. Delegate when the user requests one of these "
     "capabilities, needs current facts, asks a complex question, or changes/cancels an active "
     "task. Wait for their complete request before delegating. Do not delegate greetings or "
+    "small talk. You have shared memory and searchable previous text and voice conversations. "
+    "Delegate recall questions and requests to remember, correct, or forget personal details. "
+    "Also delegate when the user shares durable facts about themselves, their projects, or "
+    "preferences so the backend can save them, unless they ask not to store them. Do not "
+    "claim you lack access to previous conversations before backend retrieval. Do not claim "
+    "to have remembered something until the backend confirms saving it. Never "
     "repeat completed actions without a fresh request. Never claim a task succeeded until the "
-    "backend reports success. Device changes need no confirmation. Email/calendar writes "
+    "backend reports success. Device changes and requested calendar/project file writes need "
+    "no confirmation. Delegate local/project folder browsing, reading, editing, ZIP extraction "
+    "and file organization to the backend. Local files refer to Simon's server computer. "
+    "Email writes "
     "require review cards in the linked conversation; spoken approval does not send them. "
     "When the user cancels a task, delegate the cancellation and explain that an action already "
     "sent cannot be undone merely by interrupting speech."
@@ -51,6 +65,8 @@ class ActiveVoice:
     run_id: UUID | None = None
     last_heartbeat: float = field(default_factory=monotonic)
     last_saved: float = 0
+    transcript_chars: int = 0
+    dirty: bool = False
     last_request_end: int = -1
     finished: asyncio.Event = field(default_factory=asyncio.Event)
     closing: bool = False
@@ -103,6 +119,7 @@ class VoiceService:
         with self.store.transaction(live.actor.household_id):
             self.store.save_voice_session(live.record)
         live.last_saved = monotonic()
+        live.dirty = False
 
     async def start(self, actor: ActorContext, token: str, offer: VoiceOffer) -> dict[str, Any]:
         if not self.enabled:
@@ -137,7 +154,13 @@ class VoiceService:
                     idempotency_key="voice:" + str(offer.idempotency_key),
                 ),
             )
+            persona = (
+                self.store.response_preferences(actor.household_id, actor.actor_id)
+                or ResponsePreferences()
+            ).persona
             record = VoiceSession(
+                persona=persona,
+                voice_name=persona.voice or self.settings.voice_name,
                 household_id=actor.household_id,
                 actor_id=actor.actor_id,
                 thread_id=thread.id,
@@ -145,12 +168,17 @@ class VoiceService:
                 expires_at=utc_now() + timedelta(seconds=self.settings.voice_max_seconds),
             )
             self.store.save_voice_session(record)
+            shared_context = self.connected.recall.startup(checked)
         live = ActiveVoice(record, actor, token, offer.timezone)
         self.active[record.id] = live
         try:
             tools = ", ".join(self.connected.available(actor)) or "general reasoning"
             identifier, answer = await self.api.create(
-                offer.sdp, VOICE_INSTRUCTIONS.format(tools=tools)
+                offer.sdp,
+                VOICE_INSTRUCTIONS.format(tools=tools)
+                + persona_instructions(persona)
+                + shared_context,
+                voice=record.voice_name,
             )
             self.save(live, provider_id=identifier)
             live.socket = await self.api.attach(identifier)
@@ -199,18 +227,25 @@ class VoiceService:
                 return
             if (
                 len(live.record.fragments) >= 3900
-                or sum(len(f.text) for f in live.record.fragments) + len(fragment.text) > 100000
+                or live.transcript_chars + len(fragment.text) > 100000
             ):
                 await self.close(live, error="Conversation length limit reached. Start a new call.")
                 return
             live.seen_events.add(fragment.event_id)
+            live.transcript_chars += len(fragment.text)
             live.record = live.record.model_copy(
                 update={"fragments": (*live.record.fragments, fragment)}
             )
+            live.dirty = True
         elif kind in {"session.usage.updated", "session.closed"}:
             seconds = event.get("usage", {}).get("seconds", live.record.seconds)
-            if isinstance(seconds, (int, float)) and 0 <= seconds <= 86400:
+            if (
+                isinstance(seconds, (int, float))
+                and 0 <= seconds <= 86400
+                and seconds != live.record.seconds
+            ):
                 live.record = live.record.model_copy(update={"seconds": seconds})
+                live.dirty = True
             if kind == "session.closed":
                 self.save(live, state="closed", usage_final=True, backend_status="Call ended")
                 live.finished.set()
@@ -255,7 +290,7 @@ class VoiceService:
             self.save(
                 live, backend_status="Voice service reported an error. Please repeat or reconnect."
             )
-        if monotonic() - live.last_saved > 1:
+        if live.dirty and monotonic() - live.last_saved > 1:
             self.save(live)
 
     async def stop_work(self, live: ActiveVoice) -> None:
@@ -309,6 +344,7 @@ class VoiceService:
                 live.record.thread_id,
                 request,
                 on_started=started,
+                routing_text=text,
                 revalidate=lambda: self.check(live, generation),
             )
             self.check(live, generation)
@@ -350,7 +386,8 @@ class VoiceService:
                 self.check(live)
                 if monotonic() - live.last_heartbeat > 35:
                     raise AuthorizationError("Browser disconnected")
-                self.save(live)
+                if live.dirty:
+                    self.save(live)
         except Exception:
             await self.close(
                 live, error="Voice ended after inactivity, expiry, or an access change."

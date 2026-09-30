@@ -11,6 +11,11 @@ from simon.services.profiles import request_digest, select_profile
     [
         ("Rewrite this paragraph", "quick"),
         ("Hello", "quick"),
+        ("Turn off all the lights", "quick"),
+        ("Please check the office devices", "quick"),
+        ("all off", "quick"),
+        ("Diagnose why the lights are offline", "deep"),
+        ("Turn off the lights and debug the network", "deep"),
         ("Plan dinner for six people", "balanced"),
         ("Debug a difficult issue", "deep"),
     ],

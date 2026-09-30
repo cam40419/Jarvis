@@ -7,9 +7,11 @@ from simon.domain.connected_tools import ActionProposal, WebSource
 from simon.domain.home import HomeCommand
 from simon.domain.model import AnswerLength, ProfileName
 from simon.domain.models import StrictModel, utc_now
+from simon.domain.personality import AssistantPersona
 
 
 class ResponsePreferences(StrictModel):
+    persona: AssistantPersona = Field(default_factory=AssistantPersona)
     profile: ProfileName = "auto"
     answer_length: AnswerLength | Literal["auto"] = "auto"
     auto_deep_enabled: bool = True
@@ -17,6 +19,8 @@ class ResponsePreferences(StrictModel):
 
 
 class SavePreferences(StrictModel):
+    # Omission preserves personality when an older client saves response settings.
+    persona: AssistantPersona | None = None
     profile: ProfileName
     answer_length: AnswerLength | Literal["auto"]
     auto_deep_enabled: bool

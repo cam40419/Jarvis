@@ -2,6 +2,7 @@
 
 import os
 import wave
+from uuid import uuid4
 
 import pytest
 
@@ -37,6 +38,20 @@ def test_live_voice_webrtc_connects_and_closes(postgres_url, tmp_path):
             json={"token": "process-development-secret-32-characters"},
         )
         assert login.status_code == 200
+        preferences = api.get("/simon/v1/preferences").json()
+        configured = api.post(
+            "/simon/v1/preferences",
+            headers={"Origin": origin, "X-CSRF-Token": login.json()["csrf_token"]},
+            json={
+                "profile": preferences["profile"],
+                "answer_length": preferences["answer_length"],
+                "auto_deep_enabled": preferences["auto_deep_enabled"],
+                "expected_version": preferences["version"],
+                "idempotency_key": str(uuid4()),
+                "persona": {"preset": "jarvis", "address_as": "sir", "voice": "vesper"},
+            },
+        )
+        assert configured.status_code == 200
         options = {
             "headless": True,
             "args": [
@@ -94,5 +109,6 @@ def test_live_voice_webrtc_connects_and_closes(postgres_url, tmp_path):
             record = api.get("/simon/v1/voice/sessions/" + identifier).json()
             assert record["state"] == "closed" and record["usage_final"], record["error"]
             assert record["seconds"] >= 0
+            assert record["voice_name"] == "vesper" and record["persona"]["preset"] == "jarvis"
         finally:
             browser.close()

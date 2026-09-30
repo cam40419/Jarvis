@@ -225,6 +225,18 @@ def test_voice_home_and_chat_under_public_prefix(postgres_url, tmp_path):
             page.set_viewport_size({"width": 390, "height": 844})
             assert page.locator("#home-panel").evaluate("e => e.scrollWidth <= e.clientWidth + 1")
             page.screenshot(path=str(tmp_path / "home-mobile.png"))
+            # Tuya supplies cloud state without asserting online connectivity.
+            # Unknown connectivity must not be displayed as offline or disable power.
+            state = {"online": None, "on": False, "capabilities": ["power", "color"]}
+            device.update(provider="tuya", load_type="lighting", setup_available=False)
+            page.route("**/simon/v1/home/devices/*/status", lambda route: route.fulfill(json=state))
+            page.locator("#home-refresh").click()
+            expect(card).to_contain_text("connectivity unverified")
+            expect(card.get_by_role("button", name="Turn on", exact=True)).to_be_enabled()
+            state["online"] = False
+            card.get_by_role("button", name="Check status").click()
+            expect(card).to_contain_text("Offline")
+            expect(card.get_by_role("button", name="Turn on", exact=True)).to_be_disabled()
             page.locator("#home-close").click()
             page.locator("#voice-open").click()
             page.locator("#voice-history").select_option(session_id)

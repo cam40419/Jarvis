@@ -74,6 +74,26 @@ def test_production_requires_persistent_secure_identity():
     assert not settings.dev_login_enabled
 
 
+def test_sessions_do_not_expire_automatically_by_default():
+    settings = Settings(_env_file=None)
+    assert settings.session_hours == 0
+
+
+def test_finite_session_timeout_remains_configurable():
+    assert Settings(_env_file=None, session_hours=8).session_hours == 8
+
+
+def test_login_session_has_no_automatic_expiry(client):
+    response = client.post(
+        "/auth/dev-login",
+        headers={"Origin": "http://localhost:8000"},
+        json={"token": "test-development-secret-32-characters"},
+    )
+    assert response.status_code == 200
+    assert response.json()["expires_at"].startswith("9999-12-31T23:59:59.999999")
+    assert "Max-Age=2147483647" in response.headers["set-cookie"]
+
+
 def test_signin_page_and_cookie_security(client, auth_headers):
     page = client.get("/login")
     assert page.status_code == 200

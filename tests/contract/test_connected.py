@@ -98,9 +98,17 @@ def test_oauth_binding_single_use_encryption_and_scopes(setup):
     assert "refresh-secret" not in str(service.store.audit_events())
     assert service.available(actor) == (
         "web_search",
+        "context_search",
+        "memory_remember",
+        "memory_forget",
+        "google_accounts_list",
         "calendar_list_events",
+        "calendar_create_event",
         "propose_calendar_event",
         "propose_email",
+        "project_list",
+        "project_create",
+        "project_unlink_drive",
     )
     url, binding = service.start(actor, token)
     params = parse_qs(urlsplit(url).query)
@@ -111,7 +119,15 @@ def test_oauth_binding_single_use_encryption_and_scopes(setup):
     with pytest.raises(ValidationError):
         service.callback(params["state"][0], binding, "code")
     service.disconnect(actor)
-    assert service.available(actor) == ("web_search",)
+    assert service.available(actor) == (
+        "web_search",
+        "context_search",
+        "memory_remember",
+        "memory_forget",
+        "project_list",
+        "project_create",
+        "project_unlink_drive",
+    )
     assert not service.status(actor)["connected"]
 
 
@@ -139,7 +155,8 @@ def test_preview_confirmation_is_durable_scoped_and_once(setup, kind):
     assert answers[0].actions == (action,)
     assert run.capability_manifest == service.available(actor)
     other = actor.model_copy(update={"actor_id": uuid4()})
-    assert not InteractionService(service.store, service.audit).answers(other, thread.id)[0].actions
+    with pytest.raises(NotFoundError):
+        InteractionService(service.store, service.audit).answers(other, thread.id)
     with pytest.raises(NotFoundError):
         service.get_action(other, action.id)
     result = service.decide(actor, action.id, confirm=True, revalidate=lambda: actor)

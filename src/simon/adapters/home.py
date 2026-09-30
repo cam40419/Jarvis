@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import json
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import nullcontext
 from threading import Lock
 from time import monotonic, time
 from typing import Any
@@ -41,17 +42,27 @@ def request_json(
     body: bytes | None = None,
     auth: httpx.Auth | None = None,
     write: bool = False,
+    client: httpx.Client | None = None,
+    retry_connect: bool = False,
 ) -> Any:
     try:
         started = monotonic()
         # Bypass proxy environment variables for explicit LAN destinations as well as cloud calls.
         with (
-            httpx.Client(timeout=8, follow_redirects=False, trust_env=False, auth=auth) as client,
-            client.stream(method, url, headers=headers, content=body) as response,
+            (
+                nullcontext(client)
+                if client is not None
+                else httpx.Client(timeout=8, follow_redirects=False, trust_env=False)
+            ) as active,
+            active.stream(method, url, headers=headers, content=body, auth=auth) as response,
         ):
             if not 200 <= response.status_code < 300:
                 raise ConnectedError(
-                    "Device API rejected the request. Check connection settings.",
+                    "Device authentication failed. Check its password or provider credentials."
+                    if response.status_code in (401, 403)
+                    else "Device provider rate limit reached. Wait before trying again."
+                    if response.status_code == 429
+                    else "Device API rejected the request. Check connection settings.",
                     unknown=write and (response.status_code >= 500 or response.status_code == 408),
                 )
             content = bytearray()
@@ -60,6 +71,16 @@ def request_json(
                 if len(content) > 200000 or monotonic() - started > 15:
                     raise ConnectedError("Device response exceeded its limit.", unknown=write)
             return json.loads(content)
+    except (httpx.ConnectError, httpx.ConnectTimeout):
+        if retry_connect and not write:
+            return request_json(method, url, headers=headers, body=body, auth=auth, client=client)
+        raise ConnectedError(
+            "Cannot connect to the device API. Check power and network access.", unknown=write
+        ) from None
+    except httpx.TimeoutException:
+        raise ConnectedError(
+            "Device API timed out. Check power and Wi-Fi connectivity.", unknown=write
+        ) from None
     except httpx.HTTPError:
         raise ConnectedError(
             "Device API is unavailable. Check the connection.", unknown=write
@@ -68,9 +89,39 @@ def request_json(
         raise ConnectedError("Device API returned an invalid response.", unknown=write) from None
 
 
+class DeviceTransport:
+    """Reuse connections within one configured adapter; never retry a device write."""
+
+    def __init__(self, *, lan: bool = False) -> None:
+        self.lan = lan
+        self._client: httpx.Client | None = None
+        self._lock = Lock()
+
+    def request(self, method: str, url: str, **kwargs: Any) -> Any:
+        with self._lock:
+            if self._client is None:
+                self._client = httpx.Client(
+                    # LAN handshakes can exceed two seconds during Wi-Fi retransmission.
+                    # Keep the original connection budget as well as the response budget.
+                    timeout=8,
+                    follow_redirects=False,
+                    trust_env=False,
+                    limits=httpx.Limits(max_connections=16, max_keepalive_connections=8),
+                )
+            client = self._client
+        return request_json(method, url, client=client, retry_connect=self.lan, **kwargs)
+
+    def close(self) -> None:
+        with self._lock:
+            if self._client is not None:
+                self._client.close()
+                self._client = None
+
+
 class LIFXAPI:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
+        self.transport = DeviceTransport()
 
     @property
     def headers(self) -> dict[str, str]:
@@ -82,7 +133,7 @@ class LIFXAPI:
         }
 
     def read(self, device: HomeDevice) -> HomeStatus:
-        rows = request_json(
+        rows = self.transport.request(
             "GET", f"https://api.lifx.com/v1/lights/id:{device.remote_id}", headers=self.headers
         )
         if not isinstance(rows, list) or len(rows) != 1 or rows[0].get("id") != device.remote_id:
@@ -104,7 +155,9 @@ class LIFXAPI:
         )
 
     def discover(self) -> tuple[DiscoveredDevice, ...]:
-        rows = request_json("GET", "https://api.lifx.com/v1/lights/all", headers=self.headers)
+        rows = self.transport.request(
+            "GET", "https://api.lifx.com/v1/lights/all", headers=self.headers
+        )
         if not isinstance(rows, list) or len(rows) > 1000:
             raise ConnectedError("LIFX discovery returned an invalid or oversized inventory.")
         devices = []
@@ -130,7 +183,7 @@ class LIFXAPI:
         if change.color is not None:
             hue, saturation = color_hs(change.color)
             body["color"] = f"hue:{hue:.4f} saturation:{saturation:.6f}"
-        result = request_json(
+        result = self.transport.request(
             "PUT",
             f"https://api.lifx.com/v1/lights/id:{device.remote_id}/state",
             headers=self.headers,
@@ -149,6 +202,9 @@ class LIFXAPI:
 class TuyaAPI:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
+        self.transport = DeviceTransport()
+        self._specifications: dict[str, tuple[float, dict[str, Any]]] = {}
+        self._spec_lock = Lock()
         self._token = ""
         self._expires = 0.0
         self._lock = Lock()
@@ -187,7 +243,7 @@ class TuyaAPI:
         }
         if token:
             headers["access_token"] = token
-        result = request_json(
+        result = self.transport.request(
             method,
             TUYA_ENDPOINTS[self.settings.tuya_region] + path,
             headers=headers,
@@ -220,7 +276,18 @@ class TuyaAPI:
     def properties(self, device: HomeDevice) -> tuple[dict[str, Any], dict[str, Any]]:
         token = self.token()
         base = "/v1.0/iot-03/devices/" + device.remote_id
-        spec = self._call("GET", base + "/specification", token)
+        with self._spec_lock:
+            cached = self._specifications.get(device.remote_id)
+        if cached and cached[0] > monotonic():
+            spec = cached[1]
+        else:
+            spec = self._call("GET", base + "/specification", token)
+            if not isinstance(spec, dict) or not isinstance(spec.get("functions"), list):
+                raise ConnectedError("Tuya returned an invalid device specification.")
+            with self._spec_lock:
+                if len(self._specifications) >= 128:
+                    self._specifications.pop(next(iter(self._specifications)))
+                self._specifications[device.remote_id] = (monotonic() + 300, spec)
         values = self._call("GET", base + "/status", token)
         functions = {item["code"]: item for item in spec.get("functions", [])}
         for code in ("colour_data", "colour_data_v2"):
@@ -478,6 +545,7 @@ class TuyaAPI:
 class ShellyAPI:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
+        self.transport = DeviceTransport(lan=True)
 
     def discover(self) -> tuple[DiscoveredDevice, ...]:
         from simon.adapters.lan_discovery import shelly_candidates
@@ -519,7 +587,7 @@ class ShellyAPI:
         assert device.address
         password = self.settings.shelly_password
         auth = httpx.DigestAuth("admin", password.get_secret_value()) if password else None
-        return request_json(
+        return self.transport.request(
             "POST",
             f"http://{device.address}/rpc/{method}",
             headers={"Content-Type": "application/json"},

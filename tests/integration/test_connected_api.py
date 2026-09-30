@@ -5,8 +5,10 @@ from cryptography.fernet import Fernet
 from pydantic import SecretStr
 
 from simon.adapters.google import CALENDAR_SCOPE, EMAIL_SCOPE, GoogleTokens
+from simon.domain.connected_tools import CalendarDraft
 from simon.services.connected import ConnectedService
-from tests.contract.test_connected import make_proposal
+from tests.contract.test_calendar_immediate import pending_calendar
+from tests.contract.test_connected import EVENT, make_proposal
 
 
 def test_google_connection_callback_and_confirm_api(client, container, auth_headers):
@@ -64,6 +66,37 @@ def test_google_connection_callback_and_confirm_api(client, container, auth_head
         == "/chat?google=failed"
     )
     _, actor = container.identity.resolve(session)
+    from tests.contract.test_multiple_google_accounts import add
+
+    original = service.connection(actor)
+    second = add(service, actor)
+    accounts = client.get("/v1/connections/google").json()["accounts"]
+    assert len(accounts) == 2 and "encrypted_tokens" not in str(accounts)
+    assert (
+        client.post("/v1/connections/google/default", json={"account": second.email}).status_code
+        == 403
+    )
+    result = client.post(
+        "/v1/connections/google/default", headers=auth_headers, json={"account": second.email}
+    )
+    assert result.status_code == 200 and result.json()["email"] == second.email
+    assert (
+        client.post(
+            "/v1/connections/google/default",
+            headers=auth_headers,
+            json={"account": "missing@example.com"},
+        ).status_code
+        != 200
+    )
+    assert (
+        client.post(
+            "/v1/connections/google/disconnect",
+            headers=auth_headers,
+            json={"account": second.email},
+        ).status_code
+        == 204
+    )
+    assert service.connection(actor).id == original.id
     action, _, _ = make_proposal(service, actor)
     calls = []
     service.api.execute = lambda *args: (calls.append(1) or "receipt", None)
@@ -83,6 +116,18 @@ def test_google_connection_callback_and_confirm_api(client, container, auth_head
         == "cancelled"
     )
     assert calls == [1]
+    attempt = pending_calendar(service, actor)
+    direct = service.create_calendar_event(
+        actor,
+        attempt.run.id,
+        CalendarDraft(**EVENT),
+        lambda: actor,
+    )
+    assert direct.status == "succeeded" and direct.immediate and calls == [1, 1]
+    assert client.get(f"/v1/actions/{direct.id}").json()["status"] == "succeeded"
+    assert client.get(f"/v1/threads/{attempt.run.thread_id}/actions").json()[0]["id"] == str(
+        direct.id
+    )
     assert (
         client.post("/v1/connections/google/disconnect", headers=auth_headers, json={}).status_code
         == 204

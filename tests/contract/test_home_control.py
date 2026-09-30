@@ -75,6 +75,53 @@ def test_all_off_immediate_mixed_receipts_and_no_repeat(home_setup):
     assert service.home.commands(actor.model_copy(update={"household_id": uuid4()})) == ()
 
 
+def test_cloud_toggle_waits_for_matching_status_without_repeating_write(home_setup, monkeypatch):
+    service, actor, _ = home_setup
+    reads, writes, waits = [], [], []
+    monkeypatch.setattr("simon.services.home.sleep", waits.append)
+
+    def read(device):
+        reads.append(1)
+        return HomeStatus(
+            device_id=device.id,
+            on=len(reads) >= 4,
+            online=True,
+            capabilities=("power",),
+        )
+
+    service.home.lifx.read = read
+    service.home.lifx.set = lambda device, change: writes.append(change.on)
+    command = service.home.control(
+        actor, pending(service, actor).run.id, HomeControl(all_lights=True, on=True), lambda: actor
+    )[0]
+    assert command.status == "succeeded" and command.verified
+    assert command.observed and command.observed.on is True
+    assert writes == [True]
+    assert waits == [0.75, 1.5]
+
+
+def test_later_status_check_can_verify_accepted_cloud_command(home_setup, monkeypatch):
+    service, actor, _ = home_setup
+    state, writes = {"on": False}, []
+    monkeypatch.setattr("simon.services.home.sleep", lambda delay: None)
+    service.home.lifx.read = lambda device: HomeStatus(
+        device_id=device.id, on=state["on"], online=True, capabilities=("power",)
+    )
+    service.home.lifx.set = lambda device, change: writes.append(change.on)
+    command = service.home.control(
+        actor, pending(service, actor).run.id, HomeControl(all_lights=True, on=True), lambda: actor
+    )[0]
+    assert command.status == "succeeded" and not command.verified
+    assert service.home.verify_command(actor, command.id).verified is False
+    state["on"] = True
+    verified = service.home.verify_command(actor, command.id)
+    assert verified.verified and verified.observed and verified.observed.on is True
+    assert service.home.verify_command(actor, command.id) == verified
+    assert writes == [True]
+    with pytest.raises(NotFoundError):
+        service.home.verify_command(actor.model_copy(update={"actor_id": uuid4()}), command.id)
+
+
 @pytest.mark.parametrize(
     "target", [{"room": "office"}, {"group": "Desk"}, {"device_ids": ["office-beam"]}]
 )

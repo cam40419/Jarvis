@@ -4,6 +4,7 @@ from uuid import UUID, uuid4
 from pydantic import AwareDatetime, Field
 
 from simon.domain.models import StrictModel, utc_now
+from simon.domain.personality import AssistantPersona, VoiceName
 
 
 class VoiceOffer(StrictModel):
@@ -21,6 +22,8 @@ class VoiceFragment(StrictModel):
 
 
 class VoiceSession(StrictModel):
+    persona: AssistantPersona = Field(default_factory=AssistantPersona)
+    voice_name: VoiceName | None = None
     id: UUID = Field(default_factory=uuid4)
     household_id: UUID
     actor_id: UUID

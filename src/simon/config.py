@@ -39,7 +39,11 @@ class Settings(BaseSettings):
     rp_id: str = "localhost"
     dev_login_enabled: bool = False
     dev_login_token: SecretStr | None = None
-    session_hours: int = Field(default=8, ge=1, le=24)
+    # Zero keeps sessions active until explicit logout/revocation. A finite
+    # value remains available for deployments that require timed sessions.
+    session_hours: int = Field(default=0, ge=0, le=8760)
+    # Site administration is separate from ownership of an invited user's workspace.
+    account_admin_actor_id: UUID = UUID("11111111-1111-4111-8111-111111111111")
     log_level: str = "INFO"
     database_url: SecretStr = SecretStr("postgresql://jarvis:jarvis@localhost:5432/jarvis")
     # Do not let an inherited legacy key override the renamed application's credential.
@@ -54,8 +58,17 @@ class Settings(BaseSettings):
     google_client_id: str = ""
     google_client_secret: SecretStr | None = None
     google_token_key: SecretStr | None = None
+    project_drive_sync_enabled: bool = True
+    local_files_enabled: bool = True
+    local_files_dir: Path = Path(".local/files")
+    local_files_actor_id: UUID | None = None
+    local_file_roots: dict[str, Path] = Field(default_factory=dict)
     home_devices_file: Path | None = None
     home_household_id: UUID | None = None
+    bambu_env_file: Path | None = None
+    bambu_host: str = ""
+    bambu_serial: str = ""
+    bambu_access_code: SecretStr | None = None
     home_auto_discovery: bool = True
     lifx_token: SecretStr | None = None
     tuya_client_id: str = ""
@@ -66,6 +79,7 @@ class Settings(BaseSettings):
     power_monitoring_enabled: bool = True
     power_poll_seconds: int = Field(default=60, ge=30, le=900)
     power_retention_days: int = Field(default=90, ge=1, le=365)
+    display_data_dir: Path = Path(".local/displays")
     voice_enabled: bool = True
     voice_model: Literal["gpt-live-1"] = "gpt-live-1"
     voice_name: Literal["marin", "cedar", "meridian", "vesper"] = "cedar"

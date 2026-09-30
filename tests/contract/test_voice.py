@@ -46,7 +46,7 @@ def setup_voice(store):
     service = VoiceService(connected, conversations)
     socket = Socket()
 
-    async def create(sdp, instructions):
+    async def create(sdp, instructions, *, voice=None):
         assert "Backend tools:" in instructions
         return "live_private_provider_id", "v=0\r\nanswer"
 
@@ -123,6 +123,26 @@ def test_voice_delegates_only_trusted_events_and_persists_usage(store):
             store.save_voice_session(saved.model_copy(update={"seconds": 99}))
             raise RuntimeError("rollback")
         assert store.voice_session(actor.household_id, saved.id).seconds == 12.5
+
+    asyncio.run(scenario())
+
+
+def test_voice_routes_latest_home_request_without_reasoning_about_context_wrapper(store):
+    async def scenario():
+        service, actor, token, model, _ = setup_voice(store)
+        live, _ = await opened(service, actor, token)
+        try:
+            await service.event(
+                live, transcript("Earlier we discussed architecture.", speaker="output")
+            )
+            await service.event(live, transcript("Turn off all the lights", end=200))
+            await service.event(live, delegation())
+            await asyncio.gather(*live.work)
+            assert model.requests[0].reasoning_effort == "none"
+            assert "Earlier conversation" in model.requests[0].input_text
+            assert "Turn off all the lights" in model.requests[0].input_text
+        finally:
+            await service.shutdown()
 
     asyncio.run(scenario())
 

@@ -61,6 +61,13 @@ def select_profile(
         and len(text) < 600
         and not followup
     )
+    home_command = (
+        len(text) < 300
+        and bool(
+            re.match(r"\s*(?:please\s+)?(?:turn|switch|dim|brighten|set|check|list|show)\b", text)
+            and re.search(r"\b(lights?|lamps?|outlets?|plugs?|beam|purifier|devices?)\b", text)
+        )
+    ) or bool(re.fullmatch(r"\s*(?:please\s+)?all (?:lights )?(?:on|off)[.! ]*", text))
     selected = request.profile
     reason = "Your response setting"
     effort: ReasoningEffort
@@ -71,6 +78,8 @@ def select_profile(
             selected, reason = "deep", "Complex analysis or multiple constraints"
         elif score >= 2:
             selected, reason = "balanced", "Comparison or analysis needs more reasoning"
+        elif home_command and score == 0:
+            selected, reason = "quick", "Direct home command or status check"
         elif simple and score == 0:
             selected, reason = "quick", "A direct answer or simple transformation"
         else:

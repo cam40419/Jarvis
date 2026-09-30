@@ -1,6 +1,8 @@
 import hashlib
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
+from datetime import timedelta
+from time import sleep
 from uuid import UUID, uuid5
 
 from pydantic import TypeAdapter
@@ -17,6 +19,7 @@ from simon.domain.home import (
     HomeControl,
     HomeDevice,
     HomeStatus,
+    HomeStatusQuery,
     OutletPower,
     OutletSetup,
     color_hs,
@@ -77,14 +80,14 @@ class HomeService:
 
     def device(self, actor: ActorContext, device_id: str, *, control: bool = False) -> HomeDevice:
         self.policy.authorize(actor, HOME_CAPABILITIES["control" if control else "read"], None)
-        device = next(
-            (
-                d
-                for d in self.catalog.devices(actor.household_id, self.devices)
-                if d.id == device_id
-            ),
-            None,
-        )
+        devices = {d.id: d for d in self.catalog.devices(actor.household_id, self.devices)}
+        return self._select_device(devices, device_id, control=control)
+
+    @staticmethod
+    def _select_device(
+        devices: dict[str, HomeDevice], device_id: str, *, control: bool = False
+    ) -> HomeDevice:
+        device = devices.get(device_id)
         if not device:
             raise NotFoundError("home device not found")
         if control and (
@@ -108,12 +111,33 @@ class HomeService:
 
     def read(self, actor: ActorContext, device_id: str) -> HomeStatus:
         device = self.device(actor, device_id)
+        return self._read_device(device)
+
+    def _read_device(self, device: HomeDevice) -> HomeStatus:
         try:
             return self.adapter(device).read(device)
         except (KeyError, ValueError, TypeError, AttributeError):
             raise ConnectedError(
                 "Device status could not be interpreted. Check model compatibility."
             ) from None
+
+    def read_many(self, actor: ActorContext, query: HomeStatusQuery) -> list[dict[str, object]]:
+        # Resolve every ID in this workspace before making any network request.
+        self.policy.authorize(actor, HOME_CAPABILITIES["read"], None)
+        available = {d.id: d for d in self.catalog.devices(actor.household_id, self.devices)}
+        devices = [self._select_device(available, key) for key in query.device_ids]
+
+        def read(device: HomeDevice) -> dict[str, object]:
+            try:
+                return {
+                    "device_id": device.id,
+                    "status": self._read_device(device).model_dump(mode="json"),
+                }
+            except DomainError as error:
+                return {"device_id": device.id, "error": str(error)}
+
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            return list(pool.map(read, devices))
 
     def binding(self, device: HomeDevice) -> UUID:
         credentials = {
@@ -142,7 +166,10 @@ class HomeService:
         self.policy.authorize(actor, HOME_CAPABILITIES["control"], None)
         devices = self.catalog.devices(actor.household_id, self.devices)
         if request.device_ids:
-            selected = [self.device(actor, key) for key in request.device_ids]
+            available = {d.id: d for d in devices}
+            selected = [
+                self._select_device(available, key, control=True) for key in request.device_ids
+            ]
         else:
             selected = [
                 d
@@ -252,10 +279,19 @@ class HomeService:
                 raise AuthorizationError("Device configuration changed.")
             dispatched = True
             self.adapter(device).set(device, change)
-            try:
-                observed = self.read(checked, device.id)
-            except Exception:
-                observed = None  # An accepted write stays accepted even when readback fails.
+            observed = None
+            # Cloud status commonly trails an accepted write. Only repeat reads;
+            # another write could toggle or otherwise duplicate the command.
+            delays = (0, 0.75, 1.5, 2.5) if device.provider in {"lifx", "tuya"} else (0,)
+            for delay in delays:
+                if delay:
+                    sleep(delay)
+                try:
+                    observed = self.read(checked, device.id)
+                except Exception:
+                    continue  # An accepted write stays accepted when readback fails.
+                if self.matches(change, observed):
+                    break
             command = command.model_copy(
                 update={
                     "status": "succeeded",
@@ -283,6 +319,35 @@ class HomeService:
                 payload={"device_id": device.id, "verified": command.verified},
             )
         return command
+
+    def verify_command(self, actor: ActorContext, command_id: UUID) -> HomeCommand:
+        """Recheck an accepted cloud write while its status may still be propagating."""
+        self.conversations.authorize(actor, "threads:read")
+        self.policy.authorize(actor, HOME_CAPABILITIES["read"], None)
+        command = self.store.home_command(actor.household_id, actor.actor_id, command_id)
+        if command is None:
+            raise NotFoundError("home command not found")
+        if (
+            command.status != "succeeded"
+            or command.verified
+            or utc_now() - command.created_at > timedelta(seconds=60)
+        ):
+            return command
+        device = self.device(actor, command.change.device_id)
+        if device.provider not in {"lifx", "tuya"}:
+            return command
+        observed = self.read(actor, device.id)
+        with self.store.transaction(actor.household_id):
+            current = self.store.home_command(actor.household_id, actor.actor_id, command_id)
+            if current is None:
+                raise NotFoundError("home command not found")
+            if current.status != "succeeded" or current.verified:
+                return current
+            updated = current.model_copy(
+                update={"observed": observed, "verified": self.matches(current.change, observed)}
+            )
+            self.store.save_home_command(updated)
+            return updated
 
     def direct_control(
         self,

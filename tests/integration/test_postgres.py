@@ -69,6 +69,33 @@ def test_api_state_survives_new_container(seeded_url: str) -> None:
     assert len(restarted.store.audit_events()) == len(restarted.store.outbox_events()) == 3
 
 
+def test_connection_pool_reuses_connections_and_recovers_from_disconnection(
+    postgres_url: str,
+) -> None:
+    import psycopg
+
+    from simon.adapters.postgres import PostgresStore
+
+    store = PostgresStore(postgres_url, pool_size=2)
+    try:
+        with store.transaction():
+            first = store.connection.execute("SELECT pg_backend_pid() AS pid").fetchone()
+            assert first is not None
+            with store.transaction():
+                nested = store.connection.execute("SELECT pg_backend_pid() AS pid").fetchone()
+                assert nested == first
+        with store.transaction():
+            reused = store.connection.execute("SELECT pg_backend_pid() AS pid").fetchone()
+            assert reused == first
+        with psycopg.connect(postgres_url, autocommit=True) as connection:
+            connection.execute("SELECT pg_terminate_backend(%s)", (first["pid"],))
+        with store.transaction():
+            recovered = store.connection.execute("SELECT pg_backend_pid() AS pid").fetchone()
+            assert recovered is not None and recovered != first
+    finally:
+        store.close()
+
+
 def test_migration_replay_and_changed_checksum(postgres_url: str, tmp_path: Path) -> None:
     from simon.migrate import migrate, migration_directory
 

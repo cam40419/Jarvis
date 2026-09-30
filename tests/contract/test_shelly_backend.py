@@ -98,8 +98,11 @@ def test_discovery_address_updates_preserve_setup_and_missed_broadcasts(shelly):
     assert changed.control_enabled and changed.load_type == "air_purifier"
     refresh(())
     assert home.device(actor, device.id).present
+    shelly_status = next(p for p in home.catalog.status(actor) if p["provider"] == "shelly")
+    assert shelly_status["count"] == 1 and shelly_status["last_scan_count"] == 0
     home.catalog.settings = home.catalog.settings.model_copy(update={"shelly_lan_discovery": False})
     assert home.device(actor, device.id).control_enabled
+    assert next(p for p in home.catalog.status(actor) if p["provider"] == "shelly")["count"] == 1
     home.devices = (device.model_copy(update={"id": "legacy-plug", "source": "configured"}),)
     inventory = home.inventory(actor)
     assert len(inventory) == 1 and inventory[0]["id"] == "legacy-plug"

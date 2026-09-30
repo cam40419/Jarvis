@@ -60,6 +60,17 @@ class HomeQuery(StrictModel):
     device_id: str = Field(min_length=1, max_length=64)
 
 
+class HomeStatusQuery(StrictModel):
+    device_ids: tuple[str, ...] = Field(min_length=1, max_length=32)
+
+    @field_validator("device_ids")
+    @classmethod
+    def unique_devices(cls, values: tuple[str, ...]) -> tuple[str, ...]:
+        if len(set(values)) != len(values) or any(not 1 <= len(v) <= 64 for v in values):
+            raise ValueError("provide distinct device IDs of at most 64 characters")
+        return values
+
+
 class HomeRename(HomeQuery):
     name: str = Field(min_length=1, max_length=100)
 

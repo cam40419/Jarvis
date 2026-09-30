@@ -78,7 +78,14 @@ class JobService:
     ) -> Job:
         with self._store.transaction(actor.household_id):
             current = self._store.get_job(job_id)
-            if current is None or current.household_id != actor.household_id:
+            if (
+                current is None
+                or current.household_id != actor.household_id
+                or (
+                    current.kind in {"workflow.action", "assistant.task", "assistant.session"}
+                    and current.created_by != actor.actor_id
+                )
+            ):
                 raise NotFoundError("job not found")
             if (
                 current.status in TERMINAL_JOB_STATUSES
@@ -99,6 +106,13 @@ class JobService:
 
     def get(self, actor: ActorContext, job_id: UUID) -> Job:
         job = self._store.get_job(job_id)
-        if job is None or job.household_id != actor.household_id:
+        if (
+            job is None
+            or job.household_id != actor.household_id
+            or (
+                job.kind in {"workflow.action", "assistant.task", "assistant.session"}
+                and job.created_by != actor.actor_id
+            )
+        ):
             raise NotFoundError("job not found")
         return job

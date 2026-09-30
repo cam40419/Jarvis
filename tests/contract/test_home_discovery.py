@@ -191,10 +191,11 @@ def test_organization_is_atomic_and_rolls_back_with_audit(discovery, monkeypatch
     assert service.home.inventory(actor) == devices
 
 
-def test_model_tool_discovers_then_organizes_with_replay(discovery):
+def test_model_tool_lists_saved_inventory_then_organizes_with_replay(discovery):
     import json
 
     service, actor = discovery
+    service.home.catalog.sync(actor)
     executor = service.executor(actor, uuid4(), [], lambda: actor)
     devices = json.loads(executor("home_list_devices", "{}"))
     arguments = json.dumps(
