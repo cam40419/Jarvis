@@ -1,5 +1,8 @@
 # Simon: practical-use roadmap
 
+The current prioritized follow-up list is [Project roadmap](project-roadmap.md), including
+durable response waits and schedules for teams or individual agents.
+
 > Historical roadmap for the former combined system. Home control now lives in
 > RobbinsHome; several items below have since shipped or moved. For the current
 > implementation use the README and agent runbooks. The next storage/recovery

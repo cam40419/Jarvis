@@ -1,4 +1,4 @@
-param([switch]$Check)
+param([switch]$Check, [switch]$Supervised)
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 if (-not $Check -and (Test-Path -LiteralPath (Join-Path $repoRoot '.local\maintenance.request'))) {
@@ -6,7 +6,12 @@ if (-not $Check -and (Test-Path -LiteralPath (Join-Path $repoRoot '.local\mainte
     return
 }
 $stopRequest = Join-Path $repoRoot '.local\simon-stop.request'
-if (-not $Check -and (Test-Path -LiteralPath $stopRequest)) {
+if ($Supervised -and -not $Check -and (Test-Path -LiteralPath $stopRequest)) {
+    Write-Host 'Server stop request is active; use resume-local.ps1 to resume.'
+    $global:LASTEXITCODE = 0
+    return
+}
+if (-not $Check -and -not $Supervised -and (Test-Path -LiteralPath $stopRequest)) {
     Remove-Item -LiteralPath $stopRequest
 }
 $python = Join-Path $repoRoot 'venv\Scripts\python.exe'

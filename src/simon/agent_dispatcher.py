@@ -14,6 +14,7 @@ import signal
 from collections.abc import Callable, Iterator, Sequence
 from concurrent.futures import Future, ThreadPoolExecutor
 from contextlib import contextmanager
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from threading import Event
 from types import FrameType
@@ -33,6 +34,7 @@ from simon.adapters.native_tools import (
     with_native_tools,
 )
 from simon.adapters.project_board_binding import project_board_service
+from simon.adapters.project_output_tools import project_output_transport_factory
 from simon.adapters.project_work_tools import project_transport_factory
 from simon.adapters.tool_preflight import INSTALLED_TRANSPORTS
 from simon.config import Settings
@@ -46,6 +48,7 @@ from simon.services.connected import ConnectedService
 from simon.services.identity import IdentityService
 from simon.services.project_autonomy import ProjectAutonomyService
 from simon.services.project_coordinator import ProjectCoordinator
+from simon.services.project_outputs import ProjectOutputService
 from simon.services.project_work import ProjectWorkService
 from simon.services.tasks import AssistantTaskService
 
@@ -73,9 +76,12 @@ def _finish(future: Future[AgentRun | None]) -> bool:
         return False
     try:
         run = future.result()
-    except Exception:
+    except Exception as error:
         # Provider/DB exception strings can contain credentials or sensitive payloads.
-        logger.error("Agent dispatch failed; inspect interrupted runs before operator recovery")
+        logger.error(
+            "Agent dispatch failed (%s); inspect interrupted runs before operator recovery",
+            type(error).__name__,
+        )
         return False
     if run is not None:
         _print_run(run)
@@ -116,8 +122,9 @@ def _serve(
         if not future.cancelled():
             try:
                 future.result()
-            except Exception:
-                logger.error("Project scheduling failed; saved work requires review")
+            except Exception as error:
+                logger.error("Project scheduling failed (%s); saved work requires review",
+                             type(error).__name__)
 
     try:
         while not stop.is_set():
@@ -176,6 +183,8 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser.add_argument("--stop-file", type=Path, help=(
         "Watch an operator-owned request file for graceful shutdown; existing requests are honored"
     ))
+    parser.add_argument("--log-file", type=Path,
+                        help="Append rotating operational logs (5 MiB, 3 backups)")
     args = parser.parse_args(argv)
     if not 0.2 <= args.poll_seconds <= 10:
         parser.error("poll-seconds must be between 0.2 and 10")
@@ -202,7 +211,14 @@ def main(argv: Sequence[str] | None = None) -> None:
     except (DomainError, OSError):
         parser.exit(2, "Agent dispatcher manifest or state configuration is unavailable.\n")
     logging.basicConfig(level=logging.INFO)
+    file_handler = None
     try:
+        if args.log_file is not None:
+            args.log_file.parent.mkdir(parents=True, exist_ok=True)
+            file_handler = RotatingFileHandler(args.log_file, maxBytes=5 * 1024 * 1024,
+                                              backupCount=3, encoding="utf-8")
+            file_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+            logger.addHandler(file_handler)
         connected = ConnectedService(
             store, AuditService(store), settings, IdentityService(store, settings),
         )
@@ -238,7 +254,10 @@ def main(argv: Sequence[str] | None = None) -> None:
             return boards.tick() + autonomy.tick()
 
         dispatcher = AgentDispatcher(runs, transport_factory=external_transport_factory(
-            project_transport_factory(native_transport_factory(connected), project_work, runs),
+            project_transport_factory(project_output_transport_factory(
+                native_transport_factory(connected),
+                ProjectOutputService(runs, connected.local_files),
+            ), project_work, runs),
             external_actions,
         ))
         stop = Event()
@@ -261,12 +280,22 @@ def main(argv: Sequence[str] | None = None) -> None:
         # Signal handlers normally request graceful draining; keep direct
         # interruption safe for callers invoking main() programmatically too.
         logger.info("Simon agent dispatcher stopped")
-    except DomainError:
+    except DomainError as error:
+        logger.error("Agent operation rejected (%s)", type(error).__name__)
         parser.exit(1, "Agent operation was rejected; verify run version and configuration.\n")
-    except Exception:
+    except Exception as error:
+        logger.error("Agent dispatcher failed (%s)", type(error).__name__)
         parser.exit(1, "Agent dispatcher failed; inspect run state before operator recovery.\n")
     finally:
-        store.close()
+        try:
+            store.close()
+        except Exception as error:
+            logger.error("Agent database cleanup failed (%s)", type(error).__name__)
+            parser.exit(1, "Agent database cleanup failed; inspect service availability.\n")
+        finally:
+            if file_handler is not None:
+                logger.removeHandler(file_handler)
+                file_handler.close()
 
 
 if __name__ == "__main__":

@@ -20,8 +20,12 @@ function Test-RecoveryAllowed {
 
 $databaseHealthy = $false
 try {
-    $container = (& docker compose -f $compose ps -q postgres 2>$null | Select-Object -First 1)
-    if ($LASTEXITCODE -eq 0 -and $container) {
+    # Drain native stdout before selecting an item. Select-Object -First in the
+    # native pipeline can terminate docker early and replace its success with -1.
+    $containers = @(& docker compose -f $compose ps -q postgres 2>$null)
+    $composeExit = $LASTEXITCODE
+    $container = $containers | Select-Object -First 1
+    if ($composeExit -eq 0 -and $container) {
         $status = & docker inspect --format '{{.State.Health.Status}}' $container 2>$null
         $databaseHealthy = $LASTEXITCODE -eq 0 -and $status -eq 'healthy'
     }

@@ -69,9 +69,9 @@
   $('pc-command-form').before(cyclePanel);
   const boardSlot = node('div'); boardSlot.id = 'pc-board-slot'; root.querySelector('.pc-project-header').after(boardSlot);
   const navigation = root.querySelector('.pc-tabs');
-  const sections = [['overview', 'Overview'], ['tasks', 'Execution tasks'], ['files', 'Files'], ['history', 'Run history'], ['board', 'Board'], ['findings', 'Findings'], ['activity', 'Activity'], ['sessions', 'Sessions'], ['team', 'Team']];
+  const sections = [['overview', 'Overview'], ['tasks', 'Execution tasks'], ['files', 'Files'], ['history', 'Run history'], ['board', 'Board'], ['knowledge', 'Knowledge'], ['activity', 'Activity'], ['sessions', 'Sessions'], ['team', 'Team']];
   navigation.replaceChildren(...sections.map(([id, label]) => {
-    const item = node('button', label); item.id = 'pc-tab-' + id; item.type = 'button'; item.dataset.pcTab = id; item.setAttribute('role', 'tab'); item.setAttribute('aria-controls', ['tasks', 'findings', 'activity'].includes(id) ? 'pc-panel' : 'pc-' + id + '-panel'); item.setAttribute('aria-selected', String(id === tab)); item.tabIndex = id === tab ? 0 : -1; return item;
+    const item = node('button', label); item.id = 'pc-tab-' + id; item.type = 'button'; item.dataset.pcTab = id; item.setAttribute('role', 'tab'); item.setAttribute('aria-controls', ['tasks', 'knowledge', 'activity'].includes(id) ? 'pc-panel' : 'pc-' + id + '-panel'); item.setAttribute('aria-selected', String(id === tab)); item.tabIndex = id === tab ? 0 : -1; return item;
   }));
   boardSlot.before(navigation);
   const overviewPanel = node('div'); overviewPanel.id = 'pc-overview-panel'; overviewPanel.setAttribute('role', 'tabpanel'); overviewPanel.setAttribute('aria-labelledby', 'pc-tab-overview');
@@ -93,6 +93,7 @@
   }).observe(boardSlot, {childList: true, subtree: true});
   const overviewLinks = node('div', undefined, 'pc-overview-links'); overviewLinks.id = 'pc-overview-links';
   $('pc-metrics').after(overviewLinks);
+  const knowledgeSummary = node('section'); knowledgeSummary.id = 'pc-knowledge-summary'; overviewLinks.after(knowledgeSummary);
   const panelAction = button('Add task', () => openTodo()); panelAction.id = 'pc-panel-action';
   $('pc-task-filter').after(panelAction);
   $('pc-task-filter').append(new Option('Archived', 'archived'));
@@ -184,6 +185,7 @@
   async function selectProject(id, updateUrl = true) {
     if (selected) drafts.set(selected, $('pc-command').value);
     selected = id; ++selectionEpoch; detail = null; tab = 'overview'; resourceProject = null; localFiles = null; driveFiles = null; resourceLoading = false; historyPage = null; historyLoading = false; historyError = ''; resourceError = ''; localError = ''; driveError = ''; commandSubmission = null; olderActivity = []; nextActivityOffset = null; activityCount = null; archivedTasks = null; nextArchiveOffset = null; savedRuns.clear(); ++generation;
+    window.dispatchEvent(new CustomEvent('simon-project-changing', {detail: {projectId: id}}));
     $('pc-project-body').dataset.fingerprint = ''; $('pc-panel-content').dataset.fingerprint = '';
     if (updateUrl && window.SimonWork) {
       window.SimonWork.prepareProject(id);
@@ -296,17 +298,17 @@
     }
   }
   function setTab(value) {
-    tab = value;
+    tab = value === 'findings' ? 'knowledge' : value;
     root.querySelectorAll('[data-pc-tab]').forEach(item => { const current = item.dataset.pcTab === tab; item.setAttribute('aria-selected', String(current)); item.tabIndex = current ? 0 : -1; });
     $('pc-panel').setAttribute('aria-labelledby', 'pc-tab-' + tab); renderPanel(); renderSections();
-    if (tab === 'files') loadResources(true);
+    if (tab === 'files') { loadResources(true); window.SimonProjectOutputs?.refresh(); }
     if (tab === 'history' && !historyPage) loadHistory();
     if (tab === 'sessions') window.SimonWork?.openProject(selected);
   }
   function renderSections() {
     root.querySelectorAll('[data-pc-tab]').forEach(item => { const current = item.dataset.pcTab === tab; item.setAttribute('aria-selected', String(current)); item.tabIndex = current ? 0 : -1; });
     overviewPanel.hidden = tab !== 'overview';
-    $('pc-panel').hidden = !['overview', 'tasks', 'findings', 'activity'].includes(tab);
+    $('pc-panel').hidden = !['overview', 'tasks', 'knowledge', 'activity'].includes(tab);
     $('pc-panel').setAttribute('aria-labelledby', 'pc-tab-' + (tab === 'overview' ? 'overview' : tab));
     for (const [id, panel] of Object.entries(workspacePanels)) panel.hidden = tab !== id;
     $('pc-context').hidden = !['overview', 'team'].includes(tab);
@@ -361,7 +363,7 @@
     const row = node('article', undefined, 'pc-resource-row'); const copy = node('div'); copy.append(node('strong', name), node('small', description)); row.append(copy); const controls = node('div', undefined, 'pc-resource-actions'); controls.append(...actions); row.append(controls); return row;
   }
   function renderFiles() {
-    const target = workspacePanels.files; target.replaceChildren(sectionHeading('Project files', 'Files on your server, linked Drive documents, and generated outputs.', button('Refresh project files', () => loadResources(true))));
+    const target = workspacePanels.files; target.replaceChildren(sectionHeading('Project files', 'Files on your server, linked Drive documents, and generated outputs.', button('Refresh project files', () => Promise.all([loadResources(true), window.SimonProjectOutputs?.refresh()]))));
     if (resourceError) target.append(node('p', resourceError, 'pc-notice error'));
     const local = node('section', undefined, 'pc-file-section'); local.id = 'pc-local-files';
     local.append(sectionHeading('Local storage', 'Stored on Simon’s server and available from your signed-in devices.', button('Browse local files', () => window.SimonLocalFiles?.open('project:' + selected))));
@@ -387,19 +389,13 @@
     else for (const file of driveFiles.files) drive.append(fileRow(file.name, file.modifiedTime ? 'Updated ' + date(file.modifiedTime) : file.mimeType, [externalLink('Open in Drive', file.url)]));
     if (linked) drive.append(button('Change Drive folder', () => window.SimonWork?.chooseDriveFolder(resourceProject), 'pc-text-button'));
     target.append(drive);
-    const outputs = node('section', undefined, 'pc-file-section'); outputs.id = 'pc-generated-files'; outputs.append(sectionHeading('Generated outputs', 'Background files and outputs from the current cycle or runs you have opened. Browse run history for earlier files.', button('Browse run outputs', () => setTab('history'))));
+    const generated = node('div'); generated.id = 'pc-generated-files'; target.append(generated); window.SimonProjectOutputs?.mount(generated, selected);
+    const outputs = node('section', undefined, 'pc-file-section'); outputs.id = 'pc-background-files'; outputs.append(sectionHeading('Background work files', 'Files created by the project’s background tasks.', button('Browse background work', () => setTab('sessions'))));
     for (const artifact of resourceProject?.artifacts || []) {
       const link = node('a', 'Download', 'pc-file-link'); link.href = appPath('/v1/assistant-tasks/artifacts/' + encodeURIComponent(artifact.id) + '/download'); link.download = artifact.name;
       outputs.append(fileRow(artifact.name, fileSize(artifact.byte_count), [link]));
     }
-    const runs = new Map([...savedRuns.values(), ...(detail?.runs || [])].map(run => [run.id, run]));
-    let outputCount = 0;
-    for (const run of runs.values()) for (const task of run.tasks || []) for (const artifact of task.artifacts || []) {
-      const link = node('a', 'Download', 'pc-file-link'); link.href = appPath('/v1/agent-platform/runs/' + encodeURIComponent(run.id) + '/artifacts/' + encodeURIComponent(artifact.id)); link.download = artifact.name;
-      outputs.append(fileRow(artifact.name, [profileName(task.agent_id), human(task.id), date(run.finished_at || run.started_at)].filter(Boolean).join(' · '), [link])); outputCount++;
-    }
-    if (!outputCount && !resourceProject?.artifacts?.length) outputs.append(node('p', 'No outputs are loaded yet. Run history includes files from every earlier run.', 'pc-section-empty'));
-    target.append(outputs);
+    if (resourceProject?.artifacts?.length) target.append(outputs);
     if (resourceProject?.activity?.length) {
       const activity = node('details', undefined, 'pc-file-section'); activity.append(node('summary', 'Recent file activity'));
       for (const entry of resourceProject.activity) activity.append(fileRow(human(entry.kind), date(entry.created_at), [badge(entry.status)]));
@@ -461,7 +457,7 @@
       if (task.output) { const output = node('div', undefined, 'pc-markdown'); output.append(SimonMarkdown.render(task.output)); section.append(output); }
       else section.append(node('p', 'No output was saved for this task.', 'muted'));
       const files = node('div', undefined, 'pc-resource-actions');
-      for (const artifact of task.artifacts || []) { const link = node('a', artifact.name, 'pc-file-link'); link.href = appPath('/v1/agent-platform/runs/' + encodeURIComponent(run.id) + '/artifacts/' + encodeURIComponent(artifact.id)); link.download = artifact.name; files.append(link); }
+      for (const artifact of task.artifacts || []) { const link = node('a', artifact.name, 'pc-file-link'); link.href = appPath('/v1/agent-platform/runs/' + encodeURIComponent(run.id) + '/artifacts/' + encodeURIComponent(artifact.id)); link.download = artifact.name; files.append(link); if (task.status === 'succeeded' && session?.scopes?.includes('jobs:write') && window.SimonProjectOutputs) files.append(window.SimonProjectOutputs.saveButton(selected, run.id, artifact)); }
       section.append(files); target.append(section);
     }
   }
@@ -478,6 +474,8 @@
     $('pc-task-filter').hidden = !taskView; $('pc-task-summary').textContent = '';
     panelAction.textContent = taskView ? 'Add task' : 'Add entry';
     panelAction.onclick = () => taskView ? openTodo() : openNote();
+    panelAction.hidden = tab === 'knowledge' && !session?.scopes?.includes('jobs:write');
+    if (tab === 'knowledge') { window.SimonProjectKnowledge?.mount(target, selected); return; }
     if (taskView) {
       const filter = $('pc-task-filter').value;
       if (filter === 'archived') {
@@ -547,6 +545,7 @@
     for (const artifact of output?.artifacts || []) {
       const link = node('a', artifact.name, 'pc-button');
       link.href = appPath('/v1/agent-platform/runs/' + encodeURIComponent(run.id) + '/artifacts/' + encodeURIComponent(artifact.id)); link.download = artifact.name; actions.append(link);
+      if (output.status === 'succeeded' && session?.scopes?.includes('jobs:write') && window.SimonProjectOutputs) actions.append(window.SimonProjectOutputs.saveButton(selected, run.id, artifact));
     }
     if (task.run_id && !run) actions.append(button('Load saved files', async () => {
       const epoch = selectionEpoch;
@@ -739,7 +738,7 @@
   }
   function openNote() {
     if (!detail) return;
-    noteDialog.dataset.project = selected; $('pc-note-kind').value = tab === 'findings' ? 'finding' : 'note'; $('pc-note-error').hidden = true;
+    noteDialog.dataset.project = selected; $('pc-note-kind').value = tab === 'knowledge' ? 'finding' : 'note'; $('pc-note-error').hidden = true;
     noteDialog.showModal(); $('pc-note-text').focus();
   }
   function openReview() {
@@ -841,7 +840,13 @@
   window.addEventListener('simon-project-close', () => { $('work-status').after(root); root.hidden = false; root.classList.remove('pc-embedded'); root.setAttribute('aria-labelledby', 'pc-heading'); schedule(); });
   window.addEventListener('simon-ready', () => { initialized = true; refresh(true); });
   window.addEventListener('simon-agent-library-updated', event => { catalog = event.detail.catalog; if (detail) { renderContext(); $('pc-project-body').dataset.fingerprint = ''; } });
+  window.addEventListener('simon-project-output-saved', event => { if (event.detail.projectId === selected) loadResources(true); });
   document.addEventListener('visibilitychange', () => { if (visible()) refresh(true); else clearTimeout(timer); });
   new MutationObserver(() => { if (visible()) refresh(true); else clearTimeout(timer); }).observe($('work-view'), {attributes: true, attributeFilter: ['hidden']});
-  window.SimonProjectCommand = {refresh, open: selectProject, navigate: setTab, getSnapshot: () => selected && detail ? {projectId: selected, detail} : null};
+  function reuseFile(projectId, path) {
+    if (projectId !== selected) return;
+    setTab('overview'); const field = $('pc-command'); const reference = 'Use the saved project file "' + path + '" in the next task.';
+    field.value = field.value.trim() ? field.value.trimEnd() + '\n\n' + reference : reference + '\n'; drafts.set(selected, field.value); field.focus(); field.scrollIntoView({block: 'center'});
+  }
+  window.SimonProjectCommand = {refresh, open: selectProject, navigate: setTab, reuseFile, getSnapshot: () => selected && detail ? {projectId: selected, detail} : null};
 })();

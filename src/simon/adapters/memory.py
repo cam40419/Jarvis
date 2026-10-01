@@ -602,6 +602,27 @@ class InMemoryStore:
             rows.sort(key=lambda job: (job.created_at, job.id), reverse=True)
             return tuple(job.model_copy(deep=True) for job in rows[:limit])
 
+    def project_activity_jobs(
+        self, household_id: UUID, actor_id: UUID, project_id: UUID,
+        query: str, activity_kind: str | None, before_sequence: int | None, limit: int,
+    ) -> tuple[Job, ...]:
+        with self._lock:
+            rows = []
+            for job in self._jobs.values():
+                if (job.household_id, job.created_by, job.kind) != (
+                    household_id, actor_id, "platform.project_activity." + project_id.hex,
+                ):
+                    continue
+                activity = job.input["initial_state"]
+                if (
+                    (activity_kind is None or activity["kind"] == activity_kind)
+                    and (before_sequence is None or activity["sequence"] < before_sequence)
+                    and query.lower() in activity["text"].lower()
+                ):
+                    rows.append(job)
+            rows.sort(key=lambda job: int(job.input["initial_state"]["sequence"]), reverse=True)
+            return tuple(job.model_copy(deep=True) for job in rows[:limit])
+
     def jobs_all(self, kind: str, limit: int, status: str = "queued") -> tuple[Job, ...]:
         with self._lock:
             rows = [

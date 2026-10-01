@@ -14,7 +14,7 @@ from simon.domain.tool_catalog import ToolDefinition
 INSTALLED_TRANSPORTS = (
     "http", "environment", "native", "git", "mcp", "workspace_files", "processing",
     "github", "webdav", "dropbox", "box", "onedrive", "browser", "generative", "cad", "pcb",
-    "project_work", "external_actions",
+    "project_work", "project_outputs", "external_actions",
 )
 
 
@@ -33,6 +33,14 @@ def uses_network(tool: ToolDefinition) -> bool:
 def integration_status(
     tool: ToolDefinition, actor: ActorContext, environ: Mapping[str, str],
 ) -> tuple[str, tuple[str, ...]]:
+    if tool.transport == "project_outputs":
+        from simon.adapters.project_output_tools import project_output_configuration_reason
+        if reason := project_output_configuration_reason(tool):
+            return "unconfigured", (reason,)
+    if tool.transport == "workspace_files":
+        from simon.adapters.workspace_files import workspace_file_configuration_reason
+        if reason := workspace_file_configuration_reason(tool):
+            return "unconfigured", (reason,)
     if tool.transport == "external_actions":
         from simon.adapters.external_action_tools import external_action_configuration_reason
         if reason := external_action_configuration_reason(tool):

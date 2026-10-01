@@ -81,6 +81,11 @@ class JobStore(TransactionStore, Protocol):
         before: tuple[datetime, UUID] | None, limit: int,
     ) -> Sequence[Job]: ...
 
+    def project_activity_jobs(
+        self, household_id: UUID, actor_id: UUID, project_id: UUID,
+        query: str, activity_kind: str | None, before_sequence: int | None, limit: int,
+    ) -> Sequence[Job]: ...
+
     def save_job(self, job: Job, expected_version: int) -> Job: ...
 
     def transition_job(

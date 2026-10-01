@@ -1,6 +1,7 @@
 param(
     [switch]$Check,
     [switch]$DatabaseOnly,
+    [switch]$Supervised,
     [string]$DatabaseUrl = 'postgresql://jarvis:local-development-only@127.0.0.1:5432/jarvis',
     [guid]$HouseholdId = 'eff4172f-8892-5123-821a-55fed2969246',
     [guid]$ActorId = '31de7ca5-7ea4-5614-b2b6-099dacc91b0e'
@@ -14,7 +15,13 @@ if (Test-Path -LiteralPath (Join-Path $repoRoot '.local\maintenance.request')) {
     exit 0
 }
 if (-not $Check -and -not $DatabaseOnly) {
-    Remove-Item -LiteralPath (Join-Path $repoRoot '.local\simon-stop.request') -ErrorAction SilentlyContinue
+    if ($Supervised -and (Test-Path -LiteralPath (Join-Path $repoRoot '.local\simon-stop.request'))) {
+        Write-Host 'Server stop request is active; use resume-local.ps1 to resume.'
+        exit 0
+    }
+    if (-not $Supervised) {
+        Remove-Item -LiteralPath (Join-Path $repoRoot '.local\simon-stop.request') -ErrorAction SilentlyContinue
+    }
 }
 $python = Join-Path $repoRoot 'venv\Scripts\python.exe'
 $compose = Join-Path $repoRoot 'deploy\compose\compose.yaml'

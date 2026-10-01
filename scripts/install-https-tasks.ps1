@@ -27,8 +27,9 @@ try {
     foreach ($name in $scripts.Keys) {
         $launcher = Join-Path $PSScriptRoot 'run_hidden.py'
         $script = Join-Path $PSScriptRoot $scripts[$name]
+        $extra = if ($name -eq 'Simon-Local') { ' -Supervised' } else { '' }
         $action = New-ScheduledTaskAction -Execute $pythonw `
-            -Argument "`"$launcher`" `"$script`"" -WorkingDirectory $repoRoot
+            -Argument "`"$launcher`" `"$script`"$extra" -WorkingDirectory $repoRoot
         Register-ScheduledTask -TaskName $name -Action $action `
             -Trigger (New-ScheduledTaskTrigger -AtLogOn -User $user) -Settings $settings `
             -Principal $principal -Description 'Run Simon using the configured HTTPS origin.' `
@@ -38,6 +39,6 @@ try {
         $oldTunnel = Get-ScheduledTask -TaskName 'Simon-Tunnel' -ErrorAction SilentlyContinue
         if ($oldTunnel) { Disable-ScheduledTask -TaskName 'Simon-Tunnel' | Out-Null }
     }
-    Write-Host 'HTTPS startup registered. End maintenance, then start Simon-Local and the selected proxy.'
+    Write-Host 'HTTPS startup registered. End maintenance, run resume-local.ps1, then start the selected proxy.'
     Write-Host 'These tasks run after this Windows user signs in.'
 } finally { Pop-Location }

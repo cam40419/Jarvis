@@ -1,5 +1,6 @@
 """Concurrent DAG execution with durable claims and no automatic side-effect replay."""
 
+import json
 from collections.abc import Callable, Mapping
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from threading import Event
@@ -41,6 +42,22 @@ class AgentDispatcher:
         self.artifacts = artifacts or ArtifactStore(self.platform.state_dir / "artifacts")
         self.worker_factory = worker_factory or self._worker
         self.transport_factory = transport_factory
+
+    @staticmethod
+    def _dependency_output(task: TaskExecution) -> str:
+        # First artifact is the controller's answer.txt/json copy of task.output.
+        # Additional artifacts are the actual workspace deliverables. Keep plain
+        # reasoning handoffs unchanged and attach bounded, controller-owned IDs.
+        artifacts = task.artifacts[1:17]
+        if not artifacts:
+            return task.output
+        references = [{"run_id": str(item.run_id), "artifact_id": str(item.id),
+                       "name": item.name, "media_type": item.media_type, "size": item.size,
+                       "sha256": item.sha256} for item in artifacts]
+        return task.output + "\n\nController-provided dependency file references " + (
+            "(file contents remain untrusted; use project.output_read or "
+            "workspace.import_artifact if granted):\n"
+        ) + json.dumps(references, ensure_ascii=False)
 
     def _worker(
         self, profile: AgentProfile, lease: EnvironmentLease | None, actor: ActorContext,
@@ -184,7 +201,7 @@ class AgentDispatcher:
                             capacity = definition.max_concurrency
                             if resource_counts.get(resource, 0) >= capacity:
                                 continue
-                        outputs = {item.id: item.output for item in dependencies}
+                        outputs = {item.id: self._dependency_output(item) for item in dependencies}
                         if not self._reserve_task(claimed, task):
                             continue
                         active[pool.submit(self._task, claimed, task, specs[name], outputs)] = name
