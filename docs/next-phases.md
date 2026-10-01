@@ -1,5 +1,66 @@
 # Simon: practical-use roadmap
 
+> Historical roadmap for the former combined system. Home control now lives in
+> RobbinsHome; several items below have since shipped or moved. For the current
+> implementation use the README and agent runbooks. The next storage/recovery
+> sequence is recorded in [local storage and recovery](runbooks/storage-recovery.md).
+
+## September 30: current implementation and remaining setup
+
+The [Work dashboard](runbooks/work-platform.md) now provides reusable teams, task
+dependencies, plan review, durable execution, cancellation and authenticated
+deliverable downloads. Tool discovery includes configuration blockers and a
+searchable catalog. Local files remain the primary storage; cloud adapters add
+bounded access to connected sources rather than replacing the local filesystem.
+
+Concrete adapters now cover local/project files, Google, Docker Python/Git,
+documents/OCR/media, static browser capture, OpenSCAD/Blender CAD, KiCad PCB checks/exports,
+image generation/transcription,
+GitHub, WebDAV, Dropbox, Box, OneDrive/SharePoint and remote MCP tools. Configuration
+templates for other applications remain disabled; template presence does not mean
+the application is installed. The starter has nine teams and separate grants for
+readers, writers and isolated workers.
+
+[Project teams](runbooks/project-teams.md) now support a custom roster, lead and role
+responsibilities. Natural-language commands create durable lead planning runs, validated
+specialist dependency graphs and final reviews. Saved todos, findings, archived tasks and
+activity support bounded scheduled work with pause and recovery controls. Project state
+uses the existing PostgreSQL job journal; closing a browser does not stop its workers.
+
+[Managed project boards](runbooks/project-boards.md) connect selected ClickUp tasks to
+the local execution backlog. ClickUp supplies the shared company workspace and board
+views. Explicit bindings control task publishing, progress comments and status updates;
+durable operation records hold interrupted writes for reconciliation. Local artifacts
+remain on the server. A ClickUp account, token and allowed workspace/list IDs must be
+configured before using the connection. OpenProject is the planned self-hosted alternative.
+
+[External actions](runbooks/external-actions.md) add reviewable booking/order/reservation
+proposals, optional merchant quote/commit adapters and Twilio outbound phone messages.
+Live commitments require exact user confirmation and configured providers. Unknown outcomes
+are held for reconciliation instead of being submitted again. Interactive conversational
+phone agents and general website checkout remain additional integrations.
+
+Deployment work that depends on the operator's infrastructure:
+
+- Select the permanent data volume and an encrypted off-machine backup destination.
+  Combined database/file bundles and isolated restore checks are implemented.
+- Select and authenticate the private HTTPS hostname for remote access; update
+  passkey enrollment and Google callbacks on that origin.
+- Provision repository/folder-scoped tokens for additional cloud services and
+  define their workspace/actor grants. Their API adapters are implemented; a shared
+  in-app OAuth enrollment/refresh flow for these providers is still future work.
+
+The HTTPS setup tool now stages a consistent origin, passkey RP, callback and proxy
+configuration with private rollback copies. Startup/recovery tasks, HSTS and HTTP
+body/authentication limits are implemented. Provider selection/login and final
+remote-device acceptance remain deployment steps.
+
+Additional application work remains for other CAD/PCB desktop integrations, video
+generation, interactive authenticated browser tasks, remote Git publishing,
+artifact transfer between isolated tasks, and distributed machine-runner software.
+These require their own concrete adapters, application provisioning and acceptance
+tests. They are not enabled by turning on a generic template.
+
 ## Workflow execution foundation
 
 The [workflow architecture](https://github.com/cam40419/RobbinsHome/blob/main/docs/workflow-architecture.md) now has an executable first phase: versioned

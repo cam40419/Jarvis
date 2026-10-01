@@ -1,0 +1,6 @@
+*.kicad_prl
+*.kicad_sch.lck
+*.kicad_pcb.lck
+*.dsn
+*.ses
+*-backups/

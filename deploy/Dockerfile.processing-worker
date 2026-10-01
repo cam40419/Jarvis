@@ -1,0 +1,46 @@
+FROM python:3.11-slim AS pandoc
+
+ARG TARGETARCH
+RUN python - <<'PY'
+import hashlib
+import io
+import os
+import tarfile
+import urllib.request
+from pathlib import Path
+
+digests = {
+    "amd64": "37edb3bbcf722f921a009941bf5874e2e0c09263226c9b4a2d980788cb062ab6",
+    "arm64": "56ed5566ec41d22ec9ee0704e6ac0b98ba102e92384efd5306173a22d314c79a",
+}
+architecture = os.environ["TARGETARCH"]
+expected = digests[architecture]
+url = "https://github.com/jgm/pandoc/releases/download/3.11/pandoc-3.11-linux-" + architecture + ".tar.gz"
+with urllib.request.urlopen(url, timeout=60) as response:
+    content = response.read(50 * 1024 * 1024)
+if hashlib.sha256(content).hexdigest() != expected:
+    raise RuntimeError("Pandoc release checksum mismatch")
+with tarfile.open(fileobj=io.BytesIO(content), mode="r:gz") as archive:
+    binary = archive.extractfile("pandoc-3.11/bin/pandoc")
+    if binary is None:
+        raise RuntimeError("Pandoc executable missing from verified archive")
+    destination = Path("/usr/local/bin/pandoc")
+    destination.write_bytes(binary.read())
+    destination.chmod(0o755)
+PY
+
+FROM python:3.11-slim
+
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends \
+       ffmpeg poppler-utils tesseract-ocr tesseract-ocr-eng \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --gid 1000 worker \
+    && useradd --uid 1000 --gid 1000 --no-create-home worker
+
+COPY --from=pandoc /usr/local/bin/pandoc /usr/bin/pandoc
+
+WORKDIR /workspace
+USER 1000:1000
+ENTRYPOINT ["/bin/sleep"]
+CMD ["infinity"]

@@ -1,0 +1,639 @@
+[
+  {
+    "id": "git.branches",
+    "description": "List local branches in a leased repository.",
+    "categories": [
+      "git",
+      "software"
+    ],
+    "capabilities": [
+      "git.branches"
+    ],
+    "transport": "git",
+    "input_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repository": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        }
+      },
+      "required": []
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "exit_code": {
+          "type": "integer"
+        },
+        "stdout": {
+          "type": "string"
+        },
+        "stderr": {
+          "type": "string"
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "exit_code",
+        "stdout",
+        "stderr",
+        "truncated"
+      ]
+    },
+    "enabled": false,
+    "configured": false,
+    "required_scopes": [
+      "jobs:read"
+    ],
+    "environment_capabilities": [
+      "git",
+      "python"
+    ],
+    "side_effect": false,
+    "action_policy": "read",
+    "endpoint": null,
+    "credential_env": null,
+    "settings": {
+      "author_name": "Simon Agent",
+      "author_email": "agent@simon.local"
+    }
+  },
+  {
+    "id": "git.diff",
+    "description": "Read a bounded staged or unstaged patch; paths are literal relative paths.",
+    "categories": [
+      "git",
+      "software"
+    ],
+    "capabilities": [
+      "git.diff"
+    ],
+    "transport": "git",
+    "input_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repository": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "staged": {
+          "type": "boolean"
+        },
+        "paths": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "maxItems": 50
+        }
+      },
+      "required": []
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "exit_code": {
+          "type": "integer"
+        },
+        "stdout": {
+          "type": "string"
+        },
+        "stderr": {
+          "type": "string"
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "exit_code",
+        "stdout",
+        "stderr",
+        "truncated"
+      ]
+    },
+    "enabled": false,
+    "configured": false,
+    "required_scopes": [
+      "jobs:read"
+    ],
+    "environment_capabilities": [
+      "git",
+      "python"
+    ],
+    "side_effect": false,
+    "action_policy": "read",
+    "endpoint": null,
+    "credential_env": null,
+    "settings": {
+      "author_name": "Simon Agent",
+      "author_email": "agent@simon.local"
+    }
+  },
+  {
+    "id": "git.log",
+    "description": "Read up to 100 recent commits from the current local branch.",
+    "categories": [
+      "git",
+      "software"
+    ],
+    "capabilities": [
+      "git.log"
+    ],
+    "transport": "git",
+    "input_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repository": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": []
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "exit_code": {
+          "type": "integer"
+        },
+        "stdout": {
+          "type": "string"
+        },
+        "stderr": {
+          "type": "string"
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "exit_code",
+        "stdout",
+        "stderr",
+        "truncated"
+      ]
+    },
+    "enabled": false,
+    "configured": false,
+    "required_scopes": [
+      "jobs:read"
+    ],
+    "environment_capabilities": [
+      "git",
+      "python"
+    ],
+    "side_effect": false,
+    "action_policy": "read",
+    "endpoint": null,
+    "credential_env": null,
+    "settings": {
+      "author_name": "Simon Agent",
+      "author_email": "agent@simon.local"
+    }
+  },
+  {
+    "id": "git.status",
+    "description": "Inspect branch and working-tree changes in a leased local repository.",
+    "categories": [
+      "git",
+      "software"
+    ],
+    "capabilities": [
+      "git.status"
+    ],
+    "transport": "git",
+    "input_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repository": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        }
+      },
+      "required": []
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "exit_code": {
+          "type": "integer"
+        },
+        "stdout": {
+          "type": "string"
+        },
+        "stderr": {
+          "type": "string"
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "exit_code",
+        "stdout",
+        "stderr",
+        "truncated"
+      ]
+    },
+    "enabled": false,
+    "configured": false,
+    "required_scopes": [
+      "jobs:read"
+    ],
+    "environment_capabilities": [
+      "git",
+      "python"
+    ],
+    "side_effect": false,
+    "action_policy": "read",
+    "endpoint": null,
+    "credential_env": null,
+    "settings": {
+      "author_name": "Simon Agent",
+      "author_email": "agent@simon.local"
+    }
+  },
+  {
+    "id": "git.init",
+    "description": "Create a local repository without replacing existing Git metadata.",
+    "categories": [
+      "git",
+      "software"
+    ],
+    "capabilities": [
+      "git.init"
+    ],
+    "transport": "git",
+    "input_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repository": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "branch": {
+          "type": "string",
+          "maxLength": 100
+        }
+      },
+      "required": []
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "exit_code": {
+          "type": "integer"
+        },
+        "stdout": {
+          "type": "string"
+        },
+        "stderr": {
+          "type": "string"
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "exit_code",
+        "stdout",
+        "stderr",
+        "truncated"
+      ]
+    },
+    "enabled": false,
+    "configured": false,
+    "required_scopes": [
+      "jobs:write"
+    ],
+    "environment_capabilities": [
+      "git",
+      "python"
+    ],
+    "side_effect": true,
+    "action_policy": "write",
+    "endpoint": null,
+    "credential_env": null,
+    "settings": {
+      "author_name": "Simon Agent",
+      "author_email": "agent@simon.local"
+    }
+  },
+  {
+    "id": "git.branch",
+    "description": "Create a local branch without switching or replacing an existing branch.",
+    "categories": [
+      "git",
+      "software"
+    ],
+    "capabilities": [
+      "git.branch"
+    ],
+    "transport": "git",
+    "input_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repository": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 100
+        }
+      },
+      "required": [
+        "name"
+      ]
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "exit_code": {
+          "type": "integer"
+        },
+        "stdout": {
+          "type": "string"
+        },
+        "stderr": {
+          "type": "string"
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "exit_code",
+        "stdout",
+        "stderr",
+        "truncated"
+      ]
+    },
+    "enabled": false,
+    "configured": false,
+    "required_scopes": [
+      "jobs:write"
+    ],
+    "environment_capabilities": [
+      "git",
+      "python"
+    ],
+    "side_effect": true,
+    "action_policy": "write",
+    "endpoint": null,
+    "credential_env": null,
+    "settings": {
+      "author_name": "Simon Agent",
+      "author_email": "agent@simon.local"
+    }
+  },
+  {
+    "id": "git.switch",
+    "description": "Switch to an existing local branch; uncommitted conflicts are preserved.",
+    "categories": [
+      "git",
+      "software"
+    ],
+    "capabilities": [
+      "git.switch"
+    ],
+    "transport": "git",
+    "input_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repository": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 100
+        }
+      },
+      "required": [
+        "name"
+      ]
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "exit_code": {
+          "type": "integer"
+        },
+        "stdout": {
+          "type": "string"
+        },
+        "stderr": {
+          "type": "string"
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "exit_code",
+        "stdout",
+        "stderr",
+        "truncated"
+      ]
+    },
+    "enabled": false,
+    "configured": false,
+    "required_scopes": [
+      "jobs:write"
+    ],
+    "environment_capabilities": [
+      "git",
+      "python"
+    ],
+    "side_effect": true,
+    "action_policy": "write",
+    "endpoint": null,
+    "credential_env": null,
+    "settings": {
+      "author_name": "Simon Agent",
+      "author_email": "agent@simon.local"
+    }
+  },
+  {
+    "id": "git.add",
+    "description": "Stage explicit relative paths in the leased local repository.",
+    "categories": [
+      "git",
+      "software"
+    ],
+    "capabilities": [
+      "git.add"
+    ],
+    "transport": "git",
+    "input_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repository": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "paths": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "maxItems": 50,
+          "minItems": 1
+        }
+      },
+      "required": [
+        "paths"
+      ]
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "exit_code": {
+          "type": "integer"
+        },
+        "stdout": {
+          "type": "string"
+        },
+        "stderr": {
+          "type": "string"
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "exit_code",
+        "stdout",
+        "stderr",
+        "truncated"
+      ]
+    },
+    "enabled": false,
+    "configured": false,
+    "required_scopes": [
+      "jobs:write"
+    ],
+    "environment_capabilities": [
+      "git",
+      "python"
+    ],
+    "side_effect": true,
+    "action_policy": "write",
+    "endpoint": null,
+    "credential_env": null,
+    "settings": {
+      "author_name": "Simon Agent",
+      "author_email": "agent@simon.local"
+    }
+  },
+  {
+    "id": "git.commit",
+    "description": "Commit staged changes locally under the configured agent identity.",
+    "categories": [
+      "git",
+      "software"
+    ],
+    "capabilities": [
+      "git.commit"
+    ],
+    "transport": "git",
+    "input_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repository": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        }
+      },
+      "required": [
+        "message"
+      ]
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "exit_code": {
+          "type": "integer"
+        },
+        "stdout": {
+          "type": "string"
+        },
+        "stderr": {
+          "type": "string"
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "exit_code",
+        "stdout",
+        "stderr",
+        "truncated"
+      ]
+    },
+    "enabled": false,
+    "configured": false,
+    "required_scopes": [
+      "jobs:write"
+    ],
+    "environment_capabilities": [
+      "git",
+      "python"
+    ],
+    "side_effect": true,
+    "action_policy": "write",
+    "endpoint": null,
+    "credential_env": null,
+    "settings": {
+      "author_name": "Simon Agent",
+      "author_email": "agent@simon.local"
+    }
+  }
+]

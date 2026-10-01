@@ -1,0 +1,909 @@
+{
+  "source": "pi5-camera-mux.net",
+  "source_sha256": "212d4d32e4c28987f15eee1d1d1bddcdeb105c145180223f1f638df395588eae",
+  "scope": "Independent schematic-netlist connectivity only; no fabrication or SI approval",
+  "passed": true,
+  "check_count": 225,
+  "checks": [
+    {
+      "check": "HOST_D0_N: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "HOST_D0_P: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "HOST_D1_N: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "HOST_D1_P: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "HOST_CLK_N: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "HOST_CLK_P: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "BANK_AB_D0_N: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "BANK_AB_D0_P: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "BANK_AB_D1_N: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "BANK_AB_D1_P: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "BANK_AB_CLK_N: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "BANK_AB_CLK_P: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "BANK_CD_D0_N: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "BANK_CD_D0_P: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "BANK_CD_D1_N: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "BANK_CD_D1_P: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "BANK_CD_CLK_N: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "BANK_CD_CLK_P: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "CAM_A_D0_N: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "CAM_A_D0_P: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "CAM_A_D1_N: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "CAM_A_D1_P: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "CAM_A_CLK_N: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "CAM_A_CLK_P: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "CAM_B_D0_N: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "CAM_B_D0_P: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "CAM_B_D1_N: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "CAM_B_D1_P: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "CAM_B_CLK_N: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "CAM_B_CLK_P: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "CAM_C_D0_N: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "CAM_C_D0_P: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "CAM_C_D1_N: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "CAM_C_D1_P: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "CAM_C_CLK_N: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "CAM_C_CLK_P: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "CAM_D_D0_N: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "CAM_D_D0_P: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "CAM_D_D1_N: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "CAM_D_D1_P: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "CAM_D_CLK_N: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "CAM_D_CLK_P: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "J1.1 = GND",
+      "passed": true
+    },
+    {
+      "check": "J1.4 = GND",
+      "passed": true
+    },
+    {
+      "check": "J1.7 = GND",
+      "passed": true
+    },
+    {
+      "check": "J1.10 = GND",
+      "passed": true
+    },
+    {
+      "check": "J1.13 = GND",
+      "passed": true
+    },
+    {
+      "check": "J1.16 = GND",
+      "passed": true
+    },
+    {
+      "check": "J1.19 = GND",
+      "passed": true
+    },
+    {
+      "check": "J1.11 unconnected",
+      "passed": true
+    },
+    {
+      "check": "J1.12 unconnected",
+      "passed": true
+    },
+    {
+      "check": "J1.14 unconnected",
+      "passed": true
+    },
+    {
+      "check": "J1.15 unconnected",
+      "passed": true
+    },
+    {
+      "check": "J1.22 = HOST_3V3",
+      "passed": true
+    },
+    {
+      "check": "J1.17 = CAM_IO0",
+      "passed": true
+    },
+    {
+      "check": "J1.18 = HOST_IO1",
+      "passed": true
+    },
+    {
+      "check": "CAM_IO0: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "J2.1 = GND",
+      "passed": true
+    },
+    {
+      "check": "J2.4 = GND",
+      "passed": true
+    },
+    {
+      "check": "J2.7 = GND",
+      "passed": true
+    },
+    {
+      "check": "J2.10 = GND",
+      "passed": true
+    },
+    {
+      "check": "J2.15 = CAM_3V3",
+      "passed": true
+    },
+    {
+      "check": "CAM_A_IO1: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "R16.1 = HOST_IO1",
+      "passed": true
+    },
+    {
+      "check": "R16: IO1 link DNP",
+      "passed": true
+    },
+    {
+      "check": "CAM_A_SDA: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "CAM_A_SCL: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "R8.2 = CAM_3V3",
+      "passed": true
+    },
+    {
+      "check": "R9.2 = CAM_3V3",
+      "passed": true
+    },
+    {
+      "check": "J2: TE upper-contact footprint",
+      "passed": true
+    },
+    {
+      "check": "J3.1 = GND",
+      "passed": true
+    },
+    {
+      "check": "J3.4 = GND",
+      "passed": true
+    },
+    {
+      "check": "J3.7 = GND",
+      "passed": true
+    },
+    {
+      "check": "J3.10 = GND",
+      "passed": true
+    },
+    {
+      "check": "J3.15 = CAM_3V3",
+      "passed": true
+    },
+    {
+      "check": "CAM_B_IO1: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "R17.1 = HOST_IO1",
+      "passed": true
+    },
+    {
+      "check": "R17: IO1 link DNP",
+      "passed": true
+    },
+    {
+      "check": "CAM_B_SDA: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "CAM_B_SCL: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "R10.2 = CAM_3V3",
+      "passed": true
+    },
+    {
+      "check": "R11.2 = CAM_3V3",
+      "passed": true
+    },
+    {
+      "check": "J3: TE upper-contact footprint",
+      "passed": true
+    },
+    {
+      "check": "J4.1 = GND",
+      "passed": true
+    },
+    {
+      "check": "J4.4 = GND",
+      "passed": true
+    },
+    {
+      "check": "J4.7 = GND",
+      "passed": true
+    },
+    {
+      "check": "J4.10 = GND",
+      "passed": true
+    },
+    {
+      "check": "J4.15 = CAM_3V3",
+      "passed": true
+    },
+    {
+      "check": "CAM_C_IO1: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "R18.1 = HOST_IO1",
+      "passed": true
+    },
+    {
+      "check": "R18: IO1 link DNP",
+      "passed": true
+    },
+    {
+      "check": "CAM_C_SDA: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "CAM_C_SCL: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "R12.2 = CAM_3V3",
+      "passed": true
+    },
+    {
+      "check": "R13.2 = CAM_3V3",
+      "passed": true
+    },
+    {
+      "check": "J4: TE upper-contact footprint",
+      "passed": true
+    },
+    {
+      "check": "J5.1 = GND",
+      "passed": true
+    },
+    {
+      "check": "J5.4 = GND",
+      "passed": true
+    },
+    {
+      "check": "J5.7 = GND",
+      "passed": true
+    },
+    {
+      "check": "J5.10 = GND",
+      "passed": true
+    },
+    {
+      "check": "J5.15 = CAM_3V3",
+      "passed": true
+    },
+    {
+      "check": "CAM_D_IO1: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "R19.1 = HOST_IO1",
+      "passed": true
+    },
+    {
+      "check": "R19: IO1 link DNP",
+      "passed": true
+    },
+    {
+      "check": "CAM_D_SDA: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "CAM_D_SCL: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "R14.2 = CAM_3V3",
+      "passed": true
+    },
+    {
+      "check": "R15.2 = CAM_3V3",
+      "passed": true
+    },
+    {
+      "check": "J5: TE upper-contact footprint",
+      "passed": true
+    },
+    {
+      "check": "U1.1 = HOST_3V3",
+      "passed": true
+    },
+    {
+      "check": "U1.16 = HOST_3V3",
+      "passed": true
+    },
+    {
+      "check": "U1.43 = GND",
+      "passed": true
+    },
+    {
+      "check": "U1.3 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U1.4 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U1.9 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U1.12 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U1.13 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U1.14 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U1.15 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U1.18 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U1.19 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U1.20 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U1.21 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U1.22 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U1.23 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U1.30 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U1.31 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U1.32 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U1.39 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U1.40 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U1.41 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U1.42 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U2.1 = HOST_3V3",
+      "passed": true
+    },
+    {
+      "check": "U2.16 = HOST_3V3",
+      "passed": true
+    },
+    {
+      "check": "U2.43 = GND",
+      "passed": true
+    },
+    {
+      "check": "U2.3 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U2.4 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U2.9 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U2.12 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U2.13 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U2.14 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U2.15 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U2.18 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U2.19 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U2.20 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U2.21 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U2.22 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U2.23 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U2.30 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U2.31 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U2.32 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U2.39 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U2.40 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U2.41 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U2.42 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U3.1 = HOST_3V3",
+      "passed": true
+    },
+    {
+      "check": "U3.16 = HOST_3V3",
+      "passed": true
+    },
+    {
+      "check": "U3.43 = GND",
+      "passed": true
+    },
+    {
+      "check": "U3.3 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U3.4 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U3.9 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U3.12 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U3.13 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U3.14 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U3.15 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U3.18 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U3.19 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U3.20 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U3.21 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U3.22 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U3.23 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U3.30 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U3.31 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U3.32 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U3.39 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U3.40 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U3.41 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U3.42 unconnected",
+      "passed": true
+    },
+    {
+      "check": "U1.2 = HOST_3V3",
+      "passed": true
+    },
+    {
+      "check": "GPIO4_PORT: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "GPIO17_BANK: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "GPIO18_EN_AB: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "R1.2 = GND",
+      "passed": true
+    },
+    {
+      "check": "R2.2 = GND",
+      "passed": true
+    },
+    {
+      "check": "R3.2 = GND",
+      "passed": true
+    },
+    {
+      "check": "R4.2 = GND",
+      "passed": true
+    },
+    {
+      "check": "J6.1 = GND",
+      "passed": true
+    },
+    {
+      "check": "U4.1 = GND",
+      "passed": true
+    },
+    {
+      "check": "U4.2 = GND",
+      "passed": true
+    },
+    {
+      "check": "U4.3 = GND",
+      "passed": true
+    },
+    {
+      "check": "U4.10 = GND",
+      "passed": true
+    },
+    {
+      "check": "U4.4 = HOST_3V3",
+      "passed": true
+    },
+    {
+      "check": "U4.7 = HOST_3V3",
+      "passed": true
+    },
+    {
+      "check": "U4.11 = HOST_3V3",
+      "passed": true
+    },
+    {
+      "check": "U4.14 = HOST_3V3",
+      "passed": true
+    },
+    {
+      "check": "U4.20 = HOST_3V3",
+      "passed": true
+    },
+    {
+      "check": "U4.17 unconnected",
+      "passed": true
+    },
+    {
+      "check": "HOST_SCL: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "HOST_SDA: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "R6: extra host pullup DNP",
+      "passed": true
+    },
+    {
+      "check": "R7: extra host pullup DNP",
+      "passed": true
+    },
+    {
+      "check": "U5.1 = EXT_3V3",
+      "passed": true
+    },
+    {
+      "check": "U5.2 = GND",
+      "passed": true
+    },
+    {
+      "check": "U5.3 = HOST_3V3",
+      "passed": true
+    },
+    {
+      "check": "U5.4 = SLEW_CT",
+      "passed": true
+    },
+    {
+      "check": "U5.5 = DISCHARGE",
+      "passed": true
+    },
+    {
+      "check": "U5.6 = CAM_3V3",
+      "passed": true
+    },
+    {
+      "check": "EXT_3V3: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "DISCHARGE: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "SLEW_CT: exact endpoints",
+      "passed": true
+    },
+    {
+      "check": "R5.2 = CAM_3V3",
+      "passed": true
+    },
+    {
+      "check": "J7.2 = GND",
+      "passed": true
+    },
+    {
+      "check": "R4.1 = HOST_3V3",
+      "passed": true
+    },
+    {
+      "check": "C1.2 = GND",
+      "passed": true
+    },
+    {
+      "check": "C2.2 = GND",
+      "passed": true
+    },
+    {
+      "check": "C3.2 = GND",
+      "passed": true
+    },
+    {
+      "check": "C4.2 = GND",
+      "passed": true
+    },
+    {
+      "check": "C5.2 = GND",
+      "passed": true
+    },
+    {
+      "check": "C6.2 = GND",
+      "passed": true
+    },
+    {
+      "check": "C7.2 = GND",
+      "passed": true
+    },
+    {
+      "check": "C1.1 = HOST_3V3",
+      "passed": true
+    },
+    {
+      "check": "C2.1 = HOST_3V3",
+      "passed": true
+    },
+    {
+      "check": "C3.1 = HOST_3V3",
+      "passed": true
+    },
+    {
+      "check": "C4.1 = HOST_3V3",
+      "passed": true
+    },
+    {
+      "check": "C6.1 = CAM_3V3",
+      "passed": true
+    }
+  ]
+}

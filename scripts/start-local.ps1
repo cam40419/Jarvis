@@ -8,6 +8,14 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
+# The legacy -Check also starts Docker/applies migrations, so maintenance blocks it too.
+if (Test-Path -LiteralPath (Join-Path $repoRoot '.local\maintenance.request')) {
+    Write-Host 'Maintenance is active; local services remain stopped.'
+    exit 0
+}
+if (-not $Check -and -not $DatabaseOnly) {
+    Remove-Item -LiteralPath (Join-Path $repoRoot '.local\simon-stop.request') -ErrorAction SilentlyContinue
+}
 $python = Join-Path $repoRoot 'venv\Scripts\python.exe'
 $compose = Join-Path $repoRoot 'deploy\compose\compose.yaml'
 $logDirectory = Join-Path $repoRoot '.local\logs'

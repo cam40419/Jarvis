@@ -1,0 +1,556 @@
+{
+  "source_sha256": "0629e26b3ce161c13f72c06446fa56c5a309f0011482e602ea294d23a6905aeb",
+  "panels": [
+    {
+      "page": 2,
+      "title": "J1 / Raspberry Pi 5 host",
+      "source_clip_points": [
+        85.0,
+        164.0,
+        241.0,
+        366.0
+      ],
+      "scale": 2.212871287128713,
+      "partial_source_words": []
+    },
+    {
+      "page": 2,
+      "title": "U1 / root switch",
+      "source_clip_points": [
+        375.0,
+        150.0,
+        577.0,
+        376.0
+      ],
+      "scale": 1.8712871287128714,
+      "partial_source_words": []
+    },
+    {
+      "page": 3,
+      "title": "U2 / cameras A and B",
+      "source_clip_points": [
+        715.0,
+        44.0,
+        945.0,
+        276.0
+      ],
+      "scale": 1.6347826086956523,
+      "partial_source_words": []
+    },
+    {
+      "page": 3,
+      "title": "U3 / cameras C and D",
+      "source_clip_points": [
+        715.0,
+        390.0,
+        945.0,
+        622.0
+      ],
+      "scale": 1.6347826086956523,
+      "partial_source_words": []
+    },
+    {
+      "page": 4,
+      "title": "J2",
+      "source_clip_points": [
+        1115.0,
+        50.0,
+        1280.0,
+        204.0
+      ],
+      "scale": 2.278787878787879,
+      "partial_source_words": []
+    },
+    {
+      "page": 4,
+      "title": "J3",
+      "source_clip_points": [
+        1115.0,
+        224.0,
+        1280.0,
+        378.0
+      ],
+      "scale": 2.278787878787879,
+      "partial_source_words": []
+    },
+    {
+      "page": 5,
+      "title": "J4",
+      "source_clip_points": [
+        1115.0,
+        395.6,
+        1280.0,
+        549.6
+      ],
+      "scale": 2.278787878787879,
+      "partial_source_words": []
+    },
+    {
+      "page": 5,
+      "title": "J5",
+      "source_clip_points": [
+        1115.0,
+        569.6,
+        1280.0,
+        723.6
+      ],
+      "scale": 2.278787878787879,
+      "partial_source_words": []
+    },
+    {
+      "page": 6,
+      "title": "U4 / PCA9544A I2C selector",
+      "source_clip_points": [
+        1460.0,
+        208.0,
+        1690.0,
+        331.0
+      ],
+      "scale": 1.6347826086956523,
+      "partial_source_words": []
+    },
+    {
+      "page": 6,
+      "title": "U5 / TPS22918 load switch",
+      "source_clip_points": [
+        1460.0,
+        651.0,
+        1690.0,
+        723.0
+      ],
+      "scale": 1.6347826086956523,
+      "partial_source_words": []
+    },
+    {
+      "page": 6,
+      "title": "J6 / GPIO control",
+      "source_clip_points": [
+        85.0,
+        672.0,
+        238.0,
+        741.0
+      ],
+      "scale": 2.3768115942028984,
+      "partial_source_words": []
+    },
+    {
+      "page": 6,
+      "title": "J7 / regulated 3.3 V input",
+      "source_clip_points": [
+        1800.0,
+        651.0,
+        1940.0,
+        723.0
+      ],
+      "scale": 2.2777777777777777,
+      "partial_source_words": []
+    },
+    {
+      "page": 7,
+      "title": "C1",
+      "source_clip_points": [
+        88.40151977539062,
+        929.0560913085938,
+        258.4015197753906,
+        990.0560913085938
+      ],
+      "scale": 1.4470588235294117,
+      "partial_source_words": []
+    },
+    {
+      "page": 7,
+      "title": "C2",
+      "source_clip_points": [
+        304.40150451660156,
+        929.0560913085938,
+        474.40150451660156,
+        990.0560913085938
+      ],
+      "scale": 1.4470588235294117,
+      "partial_source_words": []
+    },
+    {
+      "page": 7,
+      "title": "C3",
+      "source_clip_points": [
+        520.4015197753906,
+        929.0560913085938,
+        690.4015197753906,
+        990.0560913085938
+      ],
+      "scale": 1.4470588235294117,
+      "partial_source_words": []
+    },
+    {
+      "page": 7,
+      "title": "C4",
+      "source_clip_points": [
+        736.4014587402344,
+        929.0560913085938,
+        906.4014587402344,
+        990.0560913085938
+      ],
+      "scale": 1.4470588235294117,
+      "partial_source_words": []
+    },
+    {
+      "page": 7,
+      "title": "C5",
+      "source_clip_points": [
+        952.4014587402344,
+        929.0560913085938,
+        1122.4014587402344,
+        990.0560913085938
+      ],
+      "scale": 1.4470588235294117,
+      "partial_source_words": []
+    },
+    {
+      "page": 7,
+      "title": "C6",
+      "source_clip_points": [
+        1168.4015502929688,
+        929.0560913085938,
+        1338.4015502929688,
+        990.0560913085938
+      ],
+      "scale": 1.4470588235294117,
+      "partial_source_words": []
+    },
+    {
+      "page": 7,
+      "title": "C7",
+      "source_clip_points": [
+        1384.4015502929688,
+        929.0560913085938,
+        1554.4015502929688,
+        990.0560913085938
+      ],
+      "scale": 1.4470588235294117,
+      "partial_source_words": []
+    },
+    {
+      "page": 7,
+      "title": "#FLG01",
+      "source_clip_points": [
+        1786.9409790039062,
+        929.0560913085938,
+        1956.9409790039062,
+        990.0560913085938
+      ],
+      "scale": 1.4470588235294117,
+      "partial_source_words": []
+    },
+    {
+      "page": 7,
+      "title": "#FLG02",
+      "source_clip_points": [
+        1945.3410034179688,
+        929.0560913085938,
+        2115.3410034179688,
+        990.0560913085938
+      ],
+      "scale": 1.4470588235294117,
+      "partial_source_words": []
+    },
+    {
+      "page": 7,
+      "title": "#FLG03",
+      "source_clip_points": [
+        2103.7410888671875,
+        929.0560913085938,
+        2273.7410888671875,
+        990.0560913085938
+      ],
+      "scale": 1.4470588235294117,
+      "partial_source_words": []
+    },
+    {
+      "page": 8,
+      "title": "R1",
+      "source_clip_points": [
+        88.40151977539062,
+        1073.0560302734375,
+        258.4015197753906,
+        1134.0560302734375
+      ],
+      "scale": 1.4470588235294117,
+      "partial_source_words": []
+    },
+    {
+      "page": 8,
+      "title": "R2",
+      "source_clip_points": [
+        304.40150451660156,
+        1073.0560302734375,
+        474.40150451660156,
+        1134.0560302734375
+      ],
+      "scale": 1.4470588235294117,
+      "partial_source_words": []
+    },
+    {
+      "page": 8,
+      "title": "R3",
+      "source_clip_points": [
+        520.4015197753906,
+        1073.0560302734375,
+        690.4015197753906,
+        1134.0560302734375
+      ],
+      "scale": 1.4470588235294117,
+      "partial_source_words": []
+    },
+    {
+      "page": 8,
+      "title": "R4",
+      "source_clip_points": [
+        736.4014587402344,
+        1073.0560302734375,
+        906.4014587402344,
+        1134.0560302734375
+      ],
+      "scale": 1.4470588235294117,
+      "partial_source_words": []
+    },
+    {
+      "page": 8,
+      "title": "R5",
+      "source_clip_points": [
+        952.4014587402344,
+        1073.0560302734375,
+        1122.4014587402344,
+        1134.0560302734375
+      ],
+      "scale": 1.4470588235294117,
+      "partial_source_words": []
+    },
+    {
+      "page": 8,
+      "title": "R6",
+      "source_clip_points": [
+        1168.4015502929688,
+        1073.0560302734375,
+        1338.4015502929688,
+        1134.0560302734375
+      ],
+      "scale": 1.4470588235294117,
+      "partial_source_words": []
+    },
+    {
+      "page": 8,
+      "title": "R7",
+      "source_clip_points": [
+        1384.4015502929688,
+        1073.0560302734375,
+        1554.4015502929688,
+        1134.0560302734375
+      ],
+      "scale": 1.4470588235294117,
+      "partial_source_words": []
+    },
+    {
+      "page": 9,
+      "title": "R8",
+      "source_clip_points": [
+        88.40151977539062,
+        1217.0560302734375,
+        258.4015197753906,
+        1278.0560302734375
+      ],
+      "scale": 1.4470588235294117,
+      "partial_source_words": []
+    },
+    {
+      "page": 9,
+      "title": "R9",
+      "source_clip_points": [
+        304.40150451660156,
+        1217.0560302734375,
+        474.40150451660156,
+        1278.0560302734375
+      ],
+      "scale": 1.4470588235294117,
+      "partial_source_words": []
+    },
+    {
+      "page": 9,
+      "title": "R10",
+      "source_clip_points": [
+        520.0812683105469,
+        1217.0560302734375,
+        690.0812683105469,
+        1278.0560302734375
+      ],
+      "scale": 1.4470588235294117,
+      "partial_source_words": []
+    },
+    {
+      "page": 9,
+      "title": "R11",
+      "source_clip_points": [
+        736.0812683105469,
+        1217.0560302734375,
+        906.0812683105469,
+        1278.0560302734375
+      ],
+      "scale": 1.4470588235294117,
+      "partial_source_words": []
+    },
+    {
+      "page": 9,
+      "title": "R12",
+      "source_clip_points": [
+        952.0812072753906,
+        1217.0560302734375,
+        1122.0812072753906,
+        1278.0560302734375
+      ],
+      "scale": 1.4470588235294117,
+      "partial_source_words": []
+    },
+    {
+      "page": 9,
+      "title": "R13",
+      "source_clip_points": [
+        1168.0811767578125,
+        1217.0560302734375,
+        1338.0811767578125,
+        1278.0560302734375
+      ],
+      "scale": 1.4470588235294117,
+      "partial_source_words": []
+    },
+    {
+      "page": 9,
+      "title": "R14",
+      "source_clip_points": [
+        1384.0811767578125,
+        1217.0560302734375,
+        1554.0811767578125,
+        1278.0560302734375
+      ],
+      "scale": 1.4470588235294117,
+      "partial_source_words": []
+    },
+    {
+      "page": 9,
+      "title": "R15",
+      "source_clip_points": [
+        88.08126831054688,
+        1361.0560302734375,
+        258.0812683105469,
+        1422.0560302734375
+      ],
+      "scale": 1.4470588235294117,
+      "partial_source_words": []
+    },
+    {
+      "page": 10,
+      "title": "R16",
+      "source_clip_points": [
+        304.0812683105469,
+        1361.0560302734375,
+        474.0812683105469,
+        1422.0560302734375
+      ],
+      "scale": 1.4470588235294117,
+      "partial_source_words": []
+    },
+    {
+      "page": 10,
+      "title": "R17",
+      "source_clip_points": [
+        520.0812683105469,
+        1361.0560302734375,
+        690.0812683105469,
+        1422.0560302734375
+      ],
+      "scale": 1.4470588235294117,
+      "partial_source_words": []
+    },
+    {
+      "page": 10,
+      "title": "R18",
+      "source_clip_points": [
+        736.0812683105469,
+        1361.0560302734375,
+        906.0812683105469,
+        1422.0560302734375
+      ],
+      "scale": 1.4470588235294117,
+      "partial_source_words": []
+    },
+    {
+      "page": 10,
+      "title": "R19",
+      "source_clip_points": [
+        952.0812072753906,
+        1361.0560302734375,
+        1122.0812072753906,
+        1422.0560302734375
+      ],
+      "scale": 1.4470588235294117,
+      "partial_source_words": []
+    },
+    {
+      "page": 10,
+      "title": "Original design notes",
+      "source_clip_points": [
+        45.0,
+        1548.0,
+        410.0,
+        1634.0
+      ],
+      "scale": 1.8604651162790697,
+      "partial_source_words": []
+    }
+  ],
+  "component_references_covered": [
+    "#FLG01",
+    "#FLG02",
+    "#FLG03",
+    "C1",
+    "C2",
+    "C3",
+    "C4",
+    "C5",
+    "C6",
+    "C7",
+    "J1",
+    "J2",
+    "J3",
+    "J4",
+    "J5",
+    "J6",
+    "J7",
+    "R1",
+    "R10",
+    "R11",
+    "R12",
+    "R13",
+    "R14",
+    "R15",
+    "R16",
+    "R17",
+    "R18",
+    "R19",
+    "R2",
+    "R3",
+    "R4",
+    "R5",
+    "R6",
+    "R7",
+    "R8",
+    "R9",
+    "U1",
+    "U2",
+    "U3",
+    "U4",
+    "U5"
+  ],
+  "master_raster_comparison_equal": true,
+  "pages": 10,
+  "text_preserved": true,
+  "raster_images": 0
+}

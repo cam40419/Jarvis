@@ -2,12 +2,14 @@
 
 from collections.abc import Callable
 from typing import Annotated, Any
+from urllib.parse import quote
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request, Response
 from pydantic import Field
 
 from simon.domain.agent_platform import AgentProfile, AgentTaskSpec, AgentTeamPlan, PlanTeamRequest
+from simon.domain.agent_profiles import AgentProfileRecord, CreateAgentProfile, UpdateAgentProfile
 from simon.domain.agent_runs import AgentRun, ReconcileAgentRun, StartAgentRun
 from simon.domain.errors import NotFoundError
 from simon.domain.models import ActorContext, StrictModel
@@ -34,6 +36,19 @@ def agent_platform_router(
         result = service.catalog(actor)
         result["execution_enabled"] = runs.enabled if runs else False
         return result
+
+    @router.post("/agents", status_code=201)
+    def create_agent(
+        body: CreateAgentProfile, actor: Annotated[ActorContext, Depends(authenticate)],
+    ) -> AgentProfileRecord:
+        return service.agent_profiles.create(actor, body)
+
+    @router.patch("/agents/{identifier}")
+    def update_agent(
+        identifier: str, body: UpdateAgentProfile,
+        actor: Annotated[ActorContext, Depends(authenticate)],
+    ) -> AgentProfileRecord:
+        return service.agent_profiles.update(actor, identifier, body)
 
     @router.get("/agents/{identifier}")
     def agent(
@@ -118,7 +133,10 @@ def agent_platform_router(
             content = ArtifactStore(service.state_dir / "artifacts").read(reference)
             return Response(
                 content, media_type=reference.media_type,
-                headers={"Content-Disposition": f'attachment; filename="{reference.name}"'},
+                headers={"Content-Disposition": (
+                    f'attachment; filename="{reference.name}"' if reference.name.isascii()
+                    else "attachment; filename*=UTF-8''" + quote(reference.name, safe="")
+                )},
             )
 
     return router

@@ -1,15 +1,85 @@
 # Configure an agent's instructions, prompts and limits
 
-Each agent has an operator-owned profile in the manifest selected by
-`SIMON_AGENT_MANIFEST_FILE`. The same profile can participate in several teams;
+Agents can be created in the browser or supplied as operator-owned profiles in the
+manifest selected by `SIMON_AGENT_MANIFEST_FILE`. The same profile can participate in several teams;
 teams organize agents into tasks, projects or companies. Simon can coordinate a
 company such as the clothing brand while home control remains a separately
 granted external tool.
 
-This phase uses manifest configuration and the existing authenticated planning
-API. There is no browser profile editor yet. Profile text changes how an agent
-works, but execution permissions come from the profile's tool grants, the acting
-user's scopes, configured transports and runtime checks.
+## Configure each project member
+
+In a project's **Team** settings, use **Configure** on any member to edit that member's
+role title, description and individual skills. File search, file reading, file writing,
+and each other available tool are independent checkboxes. Skill groups organize the list;
+selecting a skill grants only that skill. Use **Add agent** to create another member in
+the team draft, with an optional existing profile as a starting point.
+
+Save the member, then save the project settings (or create the project). The configuration
+belongs to that member in that project. Editing it does not change another member, another
+project, or a reusable profile in the Agents library. Each member can have a different
+combination, and any member can be chosen as lead. These choices persist in the database
+and are enforced during planning and execution, including automatic project cycles.
+
+The catalog's `individual_skills` contains the available individual capabilities. Project
+team requests store role definitions in `members`, keyed by the member's stable agent ID.
+Each definition contains `name`, `description`, and `skill_ids`. Server-owned permission
+snapshots are captured when a member changes; clients cannot submit or edit those grants.
+The project command response includes `member_profiles` with each member's current
+effective profile and availability. See [project teams](project-teams.md).
+
+## Create a reusable agent
+
+Open **Work → Agents → New agent** to create a reusable starting profile.
+Select its skills, enter a role title and description, then save it. For example,
+combine file research and document writing under "Research & documentation" and describe
+the reports, evidence standards, and audience it should handle. An agent can use several
+skills during one assignment; selecting several skills does not create separate agents.
+
+Saved agents appear in the Agents library and project team picker immediately. Add the
+agent to a team and, if appropriate, make it the project lead. Configure that member in the
+project to specialize its title, role and individual skills without changing the reusable definition.
+Use **Edit** in the library to change its title, description, or skills.
+
+Custom agents are stored in the server database for your account and workspace and
+survive a restart. Skills come from the server's authorized agent capabilities.
+Integration readiness is shown separately: selecting a connected skill does not connect
+an account or configure its provider. Existing permission checks and confirmations for
+external actions continue to apply. Role descriptions cannot grant new tool access.
+
+Editing an agent changes its revision. Plans record the exact profile used to create
+them; recreate a plan if its agent has changed before execution. Historical plans remain
+viewable. If an operator removes a skill's grant, the affected saved agent remains in the
+library for editing but cannot execute with that removed grant.
+
+The API provides `POST /v1/agent-platform/agents` with `name`, `description`,
+`skill_ids`, and `idempotency_key`. Update a custom agent with
+`PATCH /v1/agent-platform/agents/{id}` with `expected_version`, a new `idempotency_key`,
+and the edited fields.
+The authenticated catalog includes skill choices and your saved custom agents.
+
+## Give an agent several responsibilities
+
+A profile describes a capable worker, and can cover several related roles. For example,
+one research-and-document agent can find source files, read them, compare the evidence,
+write a brief, and check the saved document within one assignment. Use a deliverable such
+as "Research the supplier files and save a sourced comparison" as the task objective.
+Individual tool calls and routine preparation steps do not need their own agent or todo.
+
+The starter `file-writer` profile covers local file research and document creation. The
+`drive-writer` profile covers connected Drive research and editing in linked project folders.
+Their profile IDs remain stable so existing project assignments and history still refer to
+the same agents. The narrower `file-reader` and `google-reader` profiles remain available
+through the optional read-only research team.
+
+In a project's member editor, describe responsibilities such as "Find source files,
+compare the evidence, draft the launch brief, and verify the saved document." Select the
+individual search, read and write skills it needs. Role text guides the assignment;
+permission to call a tool comes from that member's selected skills and current account access.
+
+The project lead prefers the smallest useful set of deliverables and owners. It may split
+independent deliverables, work requiring different capabilities, or an explicitly requested
+independent review. Existing task dependencies remain binding, and the cycle still includes
+the lead's planning and final progress review. See [project teams](project-teams.md).
 
 ## Example profile
 

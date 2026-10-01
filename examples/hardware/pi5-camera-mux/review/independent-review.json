@@ -1,0 +1,53 @@
+{
+  "status": "CAD review passed; not released for fabrication or operation",
+  "schematic_netlist_sha256": "212d4d32e4c28987f15eee1d1d1bddcdeb105c145180223f1f638df395588eae",
+  "pcb_sha256": "dcc29d94eef476e0034d6c41a2a14266b6fae18dcd7bfd40f2587fa7990fcb64",
+  "passed": {
+    "independent_schematic_checks": 225,
+    "board_pad_net_mismatches": 0,
+    "csi_simple_pad_to_pad_chains": 42,
+    "csi_front_copper_pairs": 21,
+    "csi_signal_vias": 0,
+    "maximum_computed_intra_pair_trace_difference_mm": 0.0,
+    "ground_reference_samples": 24438,
+    "missing_ground_reference_samples": 0,
+    "single_ground_region_under_all_samples": true,
+    "drc_violations": 0,
+    "unconnected_items": 0,
+    "schematic_parity_issues": 0,
+    "te_camera_connector_reference_land_pattern": "visually compared with manufacturer catalog pp10-11",
+    "erc_violations": 0,
+    "tool_exported_netlist_independent_checks": 225
+  },
+  "measured_copper_paths": {
+    "minimum_mm": 109.5515,
+    "maximum_mm": 113.6643,
+    "lane_to_lane_length_spread_mm": {
+      "A": 1.3762,
+      "B": 1.6776,
+      "C": 0.8106,
+      "D": 2.2432
+    },
+    "excluded": [
+      "IC internal paths",
+      "ribbon cables",
+      "connector internal paths"
+    ]
+  },
+  "release_blocks": [
+    "Fabricator dielectric stackup and controlled 100-ohm differential impedance not specified or verified",
+    "Physical two-switch/cable signal integrity, capture modes and error margin not tested",
+    "All power-sequence/backfeed states, loaded voltage, inrush and thermal/current limits need bench qualification",
+    "Exact target camera modules and installed Pi5 kernel/overlay/libcamera versions need confirmation and tests",
+    "Amphenol host land-pattern/pin1 drawing comparison and actual cable continuity remain open",
+    "Latest purchased connector revision, solder paste and filled/plugged/tented exposed-pad vias need assembly review"
+  ],
+  "evidence": {
+    "netlist": "../connectivity-review.json",
+    "layout": "layout-review.json",
+    "drc": "drc.json",
+    "engineering_review": "../engineering-review.md",
+    "erc": "erc.json",
+    "tool_smoke": "tool-smoke.json"
+  }
+}

@@ -1,0 +1,499 @@
+[
+  {
+    "id": "document.extract_pdf",
+    "description": "Read bounded PDF text from a local worker file, up to 100 pages.",
+    "categories": [
+      "document"
+    ],
+    "capabilities": [
+      "document.extract_pdf"
+    ],
+    "transport": "processing",
+    "input_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "input": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "max_pages": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "input"
+      ]
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "exit_code": {
+          "type": "integer"
+        },
+        "stdout": {
+          "type": "string"
+        },
+        "stderr": {
+          "type": "string"
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "exit_code",
+        "stdout",
+        "stderr",
+        "truncated"
+      ]
+    },
+    "enabled": false,
+    "configured": false,
+    "required_scopes": [
+      "jobs:read"
+    ],
+    "environment_capabilities": [
+      "pdf",
+      "python"
+    ],
+    "side_effect": false,
+    "action_policy": "read",
+    "endpoint": null,
+    "credential_env": null,
+    "settings": {}
+  },
+  {
+    "id": "document.convert",
+    "description": "Convert Markdown, text, or DOCX to a new Markdown/text/DOCX file.",
+    "categories": [
+      "document"
+    ],
+    "capabilities": [
+      "document.convert"
+    ],
+    "transport": "processing",
+    "input_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "input": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "output": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        }
+      },
+      "required": [
+        "input",
+        "output"
+      ]
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "exit_code": {
+          "type": "integer"
+        },
+        "stdout": {
+          "type": "string"
+        },
+        "stderr": {
+          "type": "string"
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "exit_code",
+        "stdout",
+        "stderr",
+        "truncated"
+      ]
+    },
+    "enabled": false,
+    "configured": false,
+    "required_scopes": [
+      "jobs:write"
+    ],
+    "environment_capabilities": [
+      "documents",
+      "python"
+    ],
+    "side_effect": true,
+    "action_policy": "write",
+    "endpoint": null,
+    "credential_env": null,
+    "settings": {}
+  },
+  {
+    "id": "image.ocr",
+    "description": "Read English text from a local PNG, JPEG, or TIFF using OCR.",
+    "categories": [
+      "image"
+    ],
+    "capabilities": [
+      "image.ocr"
+    ],
+    "transport": "processing",
+    "input_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "input": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        }
+      },
+      "required": [
+        "input"
+      ]
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "exit_code": {
+          "type": "integer"
+        },
+        "stdout": {
+          "type": "string"
+        },
+        "stderr": {
+          "type": "string"
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "exit_code",
+        "stdout",
+        "stderr",
+        "truncated"
+      ]
+    },
+    "enabled": false,
+    "configured": false,
+    "required_scopes": [
+      "jobs:read"
+    ],
+    "environment_capabilities": [
+      "ocr",
+      "python"
+    ],
+    "side_effect": false,
+    "action_policy": "read",
+    "endpoint": null,
+    "credential_env": null,
+    "settings": {}
+  },
+  {
+    "id": "media.inspect",
+    "description": "Read local audio/video stream metadata without contacting a network.",
+    "categories": [
+      "media"
+    ],
+    "capabilities": [
+      "media.inspect"
+    ],
+    "transport": "processing",
+    "input_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "input": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        }
+      },
+      "required": [
+        "input"
+      ]
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "exit_code": {
+          "type": "integer"
+        },
+        "stdout": {
+          "type": "string"
+        },
+        "stderr": {
+          "type": "string"
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "exit_code",
+        "stdout",
+        "stderr",
+        "truncated"
+      ]
+    },
+    "enabled": false,
+    "configured": false,
+    "required_scopes": [
+      "jobs:read"
+    ],
+    "environment_capabilities": [
+      "media",
+      "python"
+    ],
+    "side_effect": false,
+    "action_policy": "read",
+    "endpoint": null,
+    "credential_env": null,
+    "settings": {}
+  },
+  {
+    "id": "media.thumbnail",
+    "description": "Create a PNG frame from local video at a bounded timestamp and width.",
+    "categories": [
+      "media"
+    ],
+    "capabilities": [
+      "media.thumbnail"
+    ],
+    "transport": "processing",
+    "input_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "input": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "output": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "width": {
+          "type": "integer",
+          "minimum": 64,
+          "maximum": 1920,
+          "multipleOf": 2
+        },
+        "seconds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600
+        }
+      },
+      "required": [
+        "input",
+        "output"
+      ]
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "exit_code": {
+          "type": "integer"
+        },
+        "stdout": {
+          "type": "string"
+        },
+        "stderr": {
+          "type": "string"
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "exit_code",
+        "stdout",
+        "stderr",
+        "truncated"
+      ]
+    },
+    "enabled": false,
+    "configured": false,
+    "required_scopes": [
+      "jobs:write"
+    ],
+    "environment_capabilities": [
+      "media",
+      "python"
+    ],
+    "side_effect": true,
+    "action_policy": "write",
+    "endpoint": null,
+    "credential_env": null,
+    "settings": {}
+  },
+  {
+    "id": "media.extract_audio",
+    "description": "Create up to ten minutes of mono 16 kHz WAV for transcription.",
+    "categories": [
+      "media"
+    ],
+    "capabilities": [
+      "media.extract_audio"
+    ],
+    "transport": "processing",
+    "input_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "input": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "output": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "duration_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 600
+        }
+      },
+      "required": [
+        "input",
+        "output"
+      ]
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "exit_code": {
+          "type": "integer"
+        },
+        "stdout": {
+          "type": "string"
+        },
+        "stderr": {
+          "type": "string"
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "exit_code",
+        "stdout",
+        "stderr",
+        "truncated"
+      ]
+    },
+    "enabled": false,
+    "configured": false,
+    "required_scopes": [
+      "jobs:write"
+    ],
+    "environment_capabilities": [
+      "media",
+      "python"
+    ],
+    "side_effect": true,
+    "action_policy": "write",
+    "endpoint": null,
+    "credential_env": null,
+    "settings": {}
+  },
+  {
+    "id": "media.transcode",
+    "description": "Create up to ten minutes of H.264/AAC MP4 with a bounded width.",
+    "categories": [
+      "media"
+    ],
+    "capabilities": [
+      "media.transcode"
+    ],
+    "transport": "processing",
+    "input_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "input": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "output": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "width": {
+          "type": "integer",
+          "minimum": 64,
+          "maximum": 1920,
+          "multipleOf": 2
+        },
+        "duration_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 600
+        }
+      },
+      "required": [
+        "input",
+        "output"
+      ]
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "exit_code": {
+          "type": "integer"
+        },
+        "stdout": {
+          "type": "string"
+        },
+        "stderr": {
+          "type": "string"
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "exit_code",
+        "stdout",
+        "stderr",
+        "truncated"
+      ]
+    },
+    "enabled": false,
+    "configured": false,
+    "required_scopes": [
+      "jobs:write"
+    ],
+    "environment_capabilities": [
+      "media",
+      "python"
+    ],
+    "side_effect": true,
+    "action_policy": "write",
+    "endpoint": null,
+    "credential_env": null,
+    "settings": {}
+  }
+]

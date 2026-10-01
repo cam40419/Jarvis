@@ -9,15 +9,35 @@
   };
   let pendingProject = null, editingTask = null;
   let snapshot = {projects: [], project_artifacts: [], tasks: [], };
-  let refreshTimer = null, currentProject = null;
+  let refreshTimer = null, currentProject = null, currentProjectDetail = null;
+  let projectLoadGeneration = 0;
+  const backgroundDrafts = new Map();
   const initialProject = new URLSearchParams(location.search).get('project');
   const projectPage = node('section', undefined, 'project-page'); projectPage.id = 'project-page'; projectPage.hidden = true;
   $('work-view').append(projectPage);
   projectPage.innerHTML = '<button type="button" id="project-back">Back to Work</button><p class="eyebrow">PROJECT</p><h1 id="project-page-title"></h1><p id="project-page-description"></p><p id="project-page-drive" class="muted"></p><div id="project-page-actions" class="work-item-actions"></div><div class="project-page-grid"><section class="work-card"><h2>Sessions</h2><p class="muted">Sessions run in the background. Return here to view saved progress.</p><div id="project-page-sessions"></div></section><section class="work-card"><h2>Files and outputs</h2><div id="project-page-files"></div></section></div><section class="work-card"><h2>Project work</h2><div id="project-page-tasks"></div><form id="project-work-form"><label>Task title<input id="project-work-title" required maxlength="120"></label><label>Instructions<textarea id="project-work-instructions" required maxlength="4000" rows="3"></textarea></label><button class="primary">Start background work</button><p id="project-work-feedback" role="status"></p></form></section><section class="work-card"><h2>Recent file activity</h2><div id="project-page-activity"></div></section>';
+  const projectResources = node('details', undefined, 'project-resources'); projectResources.id = 'project-resources';
+  projectResources.append(node('summary', 'Files, sessions & background work'));
+  for (const item of [...projectPage.children].filter(item => item.id !== 'project-back')) projectResources.append(item);
+  projectPage.append(projectResources);
+  projectResources.hidden = true;
+  $('project-back').className = 'pc-button pc-text-button';
+  $('project-page-sessions').closest('section').id = 'project-session-resources';
+  $('project-page-tasks').closest('section').id = 'project-background-resources';
+  $('project-page-tasks').closest('section').querySelector('h2').textContent = 'Background work';
+  $('project-page-title').hidden = true;
+  $('project-page-description').hidden = true;
   function projectLayout(id) {
+    if (currentProject !== id) {
+      if (currentProject) backgroundDrafts.set(currentProject, {title: $('project-work-title').value, instructions: $('project-work-instructions').value});
+      const draft = backgroundDrafts.get(id); $('project-work-title').value = draft?.title || ''; $('project-work-instructions').value = draft?.instructions || ''; $('project-work-feedback').textContent = '';
+      currentProjectDetail = null; ++projectLoadGeneration;
+      $('project-session-resources').hidden = true; $('project-background-resources').hidden = true;
+    }
     currentProject = id;
     for (const child of $('work-view').children) if (child !== projectPage) child.hidden = Boolean(id);
     projectPage.hidden = !id;
+    if (!id) window.dispatchEvent(new Event('simon-project-close'));
   }
   async function openProject(id) {
     projectLayout(id); showView('work');
@@ -26,9 +46,12 @@
   }
   async function loadProject() {
     const id = currentProject; if (!id) return;
+    const request = ++projectLoadGeneration;
     try {
       const project = await api('/v1/projects/' + id);
-      if (currentProject !== id) return;
+      if (currentProject !== id || projectLoadGeneration !== request) return;
+      currentProjectDetail = project;
+      $('project-session-resources').hidden = false; $('project-background-resources').hidden = false;
       $('chat-title').textContent = project.subject;
       $('project-page-title').textContent = project.subject;
       $('project-page-description').textContent = project.content;
@@ -46,7 +69,8 @@
       renderTasks(project.tasks, $('project-page-tasks'));
       $('project-page-files').replaceChildren(...(project.artifacts.length ? project.artifacts.map(artifactLink) : [node('p', 'Generated outputs will appear here. Browse Drive or local files above.', 'muted')]));
       $('project-page-activity').replaceChildren(...(project.activity.length ? project.activity.map(item => node('p', item.kind.replaceAll('_',' ') + ' / ' + item.status + ' / ' + new Date(item.created_at).toLocaleString())) : [node('p', 'No file activity yet.', 'muted')]));
-    } catch (error) { $('project-page-description').textContent = error.message; }
+      window.dispatchEvent(new CustomEvent('simon-project-open', {detail: {id, project}}));
+    } catch (error) { if (currentProject === id && projectLoadGeneration === request) $('project-page-description').textContent = error.message; }
   }
   $('project-back').onclick = () => { projectLayout(null); history.replaceState(null, '', appPath('/chat')); loadWork(); };
   $('project-work-form').onsubmit = async event => {
@@ -342,5 +366,20 @@
     if (!pendingProject || pendingProject.name !== subject || pendingProject.description !== content) pendingProject = {name: subject, description: content, idempotency_key: crypto.randomUUID()};
     try { await api('/v1/projects', pendingProject); pendingProject = null; event.target.reset(); await loadWork(); await memories(); say('Project saved. Its Drive folder is managed automatically.'); }
     catch (error) { say(error.message, true); } finally { button.disabled = false; }
+  };
+  window.SimonWork = {
+    openProject,
+    prepareProject(id) { projectLayout(id); showView('work'); },
+    getProject: () => currentProjectDetail,
+    refreshProject: loadProject,
+    browseDrive: project => browseFiles(project),
+    chooseDriveFolder: project => linkProjectFolder(project),
+    startProjectSession: async project => { await window.SimonBackground.project(project.id); showView('chat'); $('chat-title').textContent = project.subject; $('text').focus(); },
+    mountSessions(target, expectedProject) {
+      const matched = currentProjectDetail?.id === expectedProject;
+      for (const id of ['project-session-resources', 'project-background-resources']) { $(id).hidden = !matched; target.append($(id)); }
+      return matched;
+    },
+    showOverview() { projectLayout(null); showView('work'); history.replaceState(null, '', appPath('/chat')); loadWork(); },
   };
 })();

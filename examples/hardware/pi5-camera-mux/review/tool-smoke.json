@@ -1,0 +1,51 @@
+{
+  "lease_released": true,
+  "source_sha256": {
+    "CameraMux.kicad_sym": "1268b4a8d188df8ce531c7266d4daa65b0a7dff2f0e6631ee30ebd15d6c424c8",
+    "fp-lib-table": "5a8d53b28f02ac65d5bf0295add01056f1af91ce10a69bbdb04a3bba3c47a336",
+    "pi5-camera-mux.kicad_pcb": "dcc29d94eef476e0034d6c41a2a14266b6fae18dcd7bfd40f2587fa7990fcb64",
+    "pi5-camera-mux.kicad_pro": "af0d23190d862c5456f1773cb94ec33d8a6a9a2f86e76752438a96bc17ebb6ef",
+    "pi5-camera-mux.kicad_sch": "896b5c31bdfb502ad50b15f89d0f5808f6a7b633169203d3898f6b64681d055c",
+    "sym-lib-table": "c211763053c8848d70eac6e0d81b839c1790aff826b25ab25e235692f97c3ef1"
+  },
+  "operations": {
+    "pcb.erc": {
+      "exit_code": 0,
+      "output": "erc.json",
+      "counts": {
+        "violations": 0
+      }
+    },
+    "pcb.schematic_pdf": {
+      "exit_code": 0,
+      "output": "schematic.pdf"
+    },
+    "pcb.netlist": {
+      "exit_code": 0,
+      "output": "connectivity.net"
+    },
+    "pcb.bom": {
+      "exit_code": 0,
+      "output": "bom.csv"
+    },
+    "pcb.drc": {
+      "exit_code": 0,
+      "output": "drc.json",
+      "counts": {
+        "violations": 0,
+        "unconnected_items": 0,
+        "schematic_parity": 0
+      }
+    },
+    "pcb.board_svg": {
+      "exit_code": 0,
+      "output": "board.svg"
+    },
+    "pcb.gerbers": {
+      "exit_code": 0,
+      "output": "gerbers-review.zip"
+    }
+  },
+  "workspace_python_pcbnew_edit": "passed using /usr/bin/python3 subprocess",
+  "hardware_validation": "Not performed; see engineering review and board audit"
+}

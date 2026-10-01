@@ -1,0 +1,224 @@
+[
+  {
+    "id": "browser.read",
+    "description": "Read text/title from an allowed public HTTPS page with scripts disabled.",
+    "categories": [
+      "web"
+    ],
+    "capabilities": [
+      "browser.read"
+    ],
+    "transport": "browser",
+    "input_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "url": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "max_text_chars": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 16000
+        }
+      },
+      "required": [
+        "url"
+      ]
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "exit_code": {
+          "type": "integer"
+        },
+        "stdout": {
+          "type": "string"
+        },
+        "stderr": {
+          "type": "string"
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "exit_code",
+        "stdout",
+        "stderr",
+        "truncated"
+      ]
+    },
+    "enabled": false,
+    "configured": false,
+    "required_scopes": [
+      "jobs:read"
+    ],
+    "environment_capabilities": [
+      "python",
+      "browser"
+    ],
+    "side_effect": false,
+    "action_policy": "read",
+    "endpoint": null,
+    "credential_env": null,
+    "settings": {
+      "allowed_origins": []
+    }
+  },
+  {
+    "id": "browser.render_html",
+    "description": "Render local HTML to a new PNG with scripts and network disabled.",
+    "categories": [
+      "web"
+    ],
+    "capabilities": [
+      "browser.render_html"
+    ],
+    "transport": "browser",
+    "input_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "input": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "max_text_chars": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 16000
+        },
+        "output": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        }
+      },
+      "required": [
+        "input",
+        "output"
+      ]
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "exit_code": {
+          "type": "integer"
+        },
+        "stdout": {
+          "type": "string"
+        },
+        "stderr": {
+          "type": "string"
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "exit_code",
+        "stdout",
+        "stderr",
+        "truncated"
+      ]
+    },
+    "enabled": false,
+    "configured": false,
+    "required_scopes": [
+      "jobs:write"
+    ],
+    "environment_capabilities": [
+      "python",
+      "browser"
+    ],
+    "side_effect": true,
+    "action_policy": "write",
+    "endpoint": null,
+    "credential_env": null,
+    "settings": {
+      "allowed_origins": []
+    }
+  },
+  {
+    "id": "browser.screenshot",
+    "description": "Read an allowed HTTPS page and save a new 1365 by 900 PNG image.",
+    "categories": [
+      "web"
+    ],
+    "capabilities": [
+      "browser.screenshot"
+    ],
+    "transport": "browser",
+    "input_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "url": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "max_text_chars": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 16000
+        },
+        "output": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        }
+      },
+      "required": [
+        "url",
+        "output"
+      ]
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "exit_code": {
+          "type": "integer"
+        },
+        "stdout": {
+          "type": "string"
+        },
+        "stderr": {
+          "type": "string"
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "exit_code",
+        "stdout",
+        "stderr",
+        "truncated"
+      ]
+    },
+    "enabled": false,
+    "configured": false,
+    "required_scopes": [
+      "jobs:write"
+    ],
+    "environment_capabilities": [
+      "python",
+      "browser"
+    ],
+    "side_effect": true,
+    "action_policy": "write",
+    "endpoint": null,
+    "credential_env": null,
+    "settings": {
+      "allowed_origins": []
+    }
+  }
+]

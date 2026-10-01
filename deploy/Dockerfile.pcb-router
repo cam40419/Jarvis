@@ -1,0 +1,22 @@
+# Optional offline autorouter for the reproducible hardware example.
+# The runtime PCB transport uses the smaller simon-pcb:local image.
+FROM eclipse-temurin:25-jre AS java
+FROM simon-pcb:local
+USER root
+COPY --from=java /opt/java/openjdk /opt/java/openjdk
+RUN python3 - <<'PY'
+import hashlib
+import urllib.request
+from pathlib import Path
+
+url = "https://github.com/freerouting/freerouting/releases/download/v2.4.1/freerouting-2.4.1.jar"
+with urllib.request.urlopen(url, timeout=60) as response:
+    content = response.read(100 * 1024 * 1024)
+if hashlib.sha256(content).hexdigest() != "251101c3eeac22d7e7dfcf6796603279e5d1000283eb82d8f093780f7afc6aa9":
+    raise RuntimeError("Freerouting release checksum mismatch")
+Path("/opt/freerouting.jar").write_bytes(content)
+PY
+ENV HOME=/tmp
+ENV JAVA_HOME=/opt/java/openjdk
+ENV PATH=/opt/java/openjdk/bin:$PATH
+USER 1000:1000

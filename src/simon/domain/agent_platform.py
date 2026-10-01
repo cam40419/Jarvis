@@ -154,6 +154,7 @@ class AgentTaskSpec(StrictModel):
 
 class PlanTeamRequest(StrictModel):
     team_id: str
+    project_id: UUID | None = None
     context_id: str | None = None
     tasks: tuple[AgentTaskSpec, ...] = Field(min_length=1, max_length=100)
     max_parallel: int | None = Field(default=None, ge=1, le=128)
@@ -198,6 +199,7 @@ class AgentTeamPlan(StrictModel):
     actor_id: UUID
     team_id: str
     team_version: int
+    project_id: UUID | None = None
     context_id: str | None
     manifest_digest: str
     max_parallel: int

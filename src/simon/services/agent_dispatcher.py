@@ -1,14 +1,18 @@
 """Concurrent DAG execution with durable claims and no automatic side-effect replay."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from threading import Event
 from typing import Any
 from uuid import UUID, uuid5
 
+from simon.adapters.cloud_storage_tools import BoxTransport, DropboxTransport, OneDriveTransport
 from simon.adapters.environment_tools import EnvironmentCommandTransport
+from simon.adapters.github_tools import GitHubTransport
+from simon.adapters.mcp_http import MCPHttpTransport
 from simon.adapters.model_endpoints import ModelEndpointClient
-from simon.adapters.tool_transports import HttpJsonTransport, TransportRegistry
+from simon.adapters.tool_transports import HttpJsonTransport, ToolHandler, TransportRegistry
+from simon.adapters.webdav_tools import WebDAVTransport
 from simon.domain.agent_platform import AgentProfile, AgentTaskSpec, AgentTeamPlan, PlannedAgentTask
 from simon.domain.agent_runs import AgentRun, TaskExecution
 from simon.domain.agent_worker import WorkerResult
@@ -21,30 +25,104 @@ from simon.services.agent_worker import AgentWorker, WorkerCheckpointError
 from simon.services.artifacts import ArtifactStore
 
 WorkerFactory = Callable[[AgentProfile, EnvironmentLease | None, ActorContext, UUID], AgentWorker]
+TransportFactory = Callable[
+    [ActorContext, UUID, Callable[[], ActorContext], EnvironmentLease | None],
+    Mapping[str, ToolHandler],
+]
 
 
 class AgentDispatcher:
     def __init__(
         self, runs: AgentRunService, *, artifacts: ArtifactStore | None = None,
         worker_factory: WorkerFactory | None = None,
+        transport_factory: TransportFactory | None = None,
     ) -> None:
         self.runs, self.platform = runs, runs.platform
         self.artifacts = artifacts or ArtifactStore(self.platform.state_dir / "artifacts")
         self.worker_factory = worker_factory or self._worker
+        self.transport_factory = transport_factory
 
     def _worker(
         self, profile: AgentProfile, lease: EnvironmentLease | None, actor: ActorContext,
         run_id: UUID,
     ) -> AgentWorker:
+        executor_id = self.runs.view(self.runs.job(run_id)).executor_id
+
+        def revalidate() -> ActorContext:
+            job = self.runs.job(run_id)
+            state = self.runs.view(job)
+            if (state.cancel_requested or state.status != JobStatus.RUNNING
+                    or state.executor_id != executor_id):
+                raise WorkerCheckpointError("cancelled")
+            if lease is not None:
+                live_lease = self.platform.environments.get(lease.id)
+                if (live_lease.status != "active" or live_lease.plan != lease.plan
+                        or live_lease.fencing_token != lease.fencing_token):
+                    raise WorkerCheckpointError("environment_lease_changed")
+            return self.runs.live_actor(job)
+
         transports = TransportRegistry()
         transports.register("http", HttpJsonTransport(
             timeout_seconds=min(30, profile.timeout_seconds), environ=self.platform._environ,
         ))
+        transports.register("mcp", MCPHttpTransport(
+            timeout_seconds=min(30, profile.timeout_seconds), environ=self.platform._environ,
+            before_call=revalidate,
+        ))
+        transports.register("github", GitHubTransport(
+            timeout_seconds=min(30, profile.timeout_seconds), environ=self.platform._environ,
+        ))
+        transports.register("webdav", WebDAVTransport(
+            timeout_seconds=min(30, profile.timeout_seconds), environ=self.platform._environ,
+        ))
+        for name, transport_type in (
+            ("dropbox", DropboxTransport), ("box", BoxTransport), ("onedrive", OneDriveTransport),
+        ):
+            transports.register(name, transport_type(
+                timeout_seconds=min(30, profile.timeout_seconds), environ=self.platform._environ,
+            ))
         if lease is not None:
             transports.register("environment", EnvironmentCommandTransport(
                 self.platform.environments, lease, actor_id=actor.actor_id, run_id=run_id,
                 max_timeout_seconds=min(60, profile.timeout_seconds),
             ))
+            from simon.adapters.browser_tools import BrowserToolTransport
+            from simon.adapters.cad_tools import CadToolTransport
+            from simon.adapters.generative_tools import GenerativeToolTransport
+            from simon.adapters.git_tools import GitToolTransport
+            from simon.adapters.pcb_tools import PCBToolTransport
+            from simon.adapters.processing_tools import ProcessingToolTransport
+
+            transports.register("git", GitToolTransport(
+                self.platform.environments, lease, actor_id=actor.actor_id, run_id=run_id,
+                max_timeout_seconds=min(60, profile.timeout_seconds),
+            ))
+            transports.register("processing", ProcessingToolTransport(
+                self.platform.environments, lease, actor_id=actor.actor_id, run_id=run_id,
+                max_timeout_seconds=min(60, profile.timeout_seconds),
+            ))
+            transports.register("browser", BrowserToolTransport(
+                self.platform.environments, lease, actor_id=actor.actor_id, run_id=run_id,
+                max_timeout_seconds=min(60, profile.timeout_seconds),
+            ))
+            transports.register("cad", CadToolTransport(
+                self.platform.environments, lease, actor_id=actor.actor_id, run_id=run_id,
+                max_timeout_seconds=min(300, profile.timeout_seconds),
+            ))
+            transports.register("pcb", PCBToolTransport(
+                self.platform.environments, lease, actor_id=actor.actor_id, run_id=run_id,
+                max_timeout_seconds=min(120, profile.timeout_seconds),
+            ))
+            if lease.definition.kind == "docker":
+                transports.register("generative", GenerativeToolTransport(
+                    lease, actor=actor, run_id=run_id, revalidate=revalidate,
+                    environ=self.platform._environ,
+                    timeout_seconds=min(120, profile.timeout_seconds),
+                ))
+        if self.transport_factory is not None:
+            handlers = self.transport_factory(actor, run_id, revalidate, lease)
+            for transport, handler in handlers.items():
+                transports.register(transport, handler)
         return AgentWorker(
             ModelEndpointClient(
                 self.platform.manifest.models, environ=self.platform._environ,
@@ -189,8 +267,9 @@ class AgentDispatcher:
             if self.runs.view(job).cancel_requested:
                 raise WorkerCheckpointError("cancelled")
             actor = self.runs.live_actor(job)
-            profile = self.runs.profile(planned.agent_id)
-            current = self.platform._task(actor, run.plan_id, spec, profile)
+            profile = self.runs.profile(actor, planned.agent_id, run.plan_id)
+            project_id = self.platform.get(actor, run.plan_id).project_id
+            current = self.platform._task(actor, run.plan_id, spec, profile, project_id)
             if current.blocked_reasons or current.model != planned.model:
                 raise WorkerCheckpointError("assignment_no_longer_available")
             task = planned.model_copy(update={"attempt_id": attempt})
@@ -246,13 +325,29 @@ class AgentDispatcher:
                 else:
                     # Artifact publication is owned by the controller, never a model-provided path.
                     self.runs.live_actor(self.runs.job(run.id))
+                    file_artifacts: tuple[Artifact, ...] = ()
+                    if result.artifact_paths:
+                        if lease is None or lease.definition.kind != "docker":
+                            raise WorkerCheckpointError("artifact_workspace_unavailable")
+                        self.platform.environments.release(
+                            lease.id, attempt_id=attempt, fencing_token=lease.fencing_token,
+                        )
+                        lease = lease.model_copy(update={"status": "released"})
+                        if cancelled():
+                            raise WorkerCheckpointError("cancelled")
+                        self.runs.live_actor(self.runs.job(run.id))
+                        file_artifacts = self.artifacts.publish_workspace_files(
+                            workspace=lease.plan.workspace_path, paths=result.artifact_paths,
+                            workspace_id=actor.household_id, actor_id=actor.actor_id,
+                            run_id=run.id, task_id=task.task_id,
+                        )
                     published = (self.artifacts.publish_text(
                         workspace_id=actor.household_id, actor_id=actor.actor_id,
                         run_id=run.id, task_id=task.task_id, text=result.output,
                         name="answer.json" if profile.output_format == "json" else "answer.txt",
                         media_type=("application/json" if profile.output_format == "json"
                                     else "text/plain"),
-                    ),)
+                    ), *file_artifacts)
         except ExecutionCapacityError:
             result = WorkerResult(status="failed", error_code="environment_capacity_unavailable")
         except ExecutionError:
@@ -282,7 +377,7 @@ class AgentDispatcher:
                     result = result.model_copy(update={
                         "status": "unknown", "error_code": "lease_reference_not_persisted",
                     })
-            if lease is not None:
+            if lease is not None and lease.status != "released":
                 try:
                     self.platform.environments.release(
                         lease.id, attempt_id=lease.plan.request.attempt_id,

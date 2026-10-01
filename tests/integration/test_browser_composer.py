@@ -77,9 +77,12 @@ def test_send_clears_immediately_and_preserves_followup_and_failed_drafts(
             expect(page.locator("#stop")).to_be_hidden()
             # The connection panel exposes the upgrade needed by an existing account.
             page.locator("#connections-open").click()
-            expect(page.locator("#google-setup")).to_contain_text("Reconnect Google")
-            expect(page.locator("#google-connection")).to_contain_text("Send email")
-            assert "Read Gmail" not in page.locator("#google-connection").inner_text()
+            expect(page.locator("#google-accounts")).to_contain_text(
+                "Reconnect this account to grant missing Google permissions."
+            )
+            expect(page.get_by_role("button", name="Reconnect", exact=True)).to_be_enabled()
+            expect(page.locator("#google-accounts")).to_contain_text("Send email")
+            assert "Read Gmail" not in page.locator("#google-accounts").inner_text()
             assert not errors
         finally:
             browser.close()

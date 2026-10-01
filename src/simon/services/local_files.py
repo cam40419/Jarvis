@@ -22,6 +22,7 @@ from simon.domain.project_files import ProjectFileCreate
 from simon.services.canonical import digest
 from simon.services.identity import ROLE_SCOPES
 from simon.services.local_tool_schema import MODELS, READS
+from simon.services.safe_files import open_regular_nofollow
 
 if TYPE_CHECKING:
     from simon.services.connected import ConnectedService
@@ -181,10 +182,20 @@ class LocalFileService:
 
     @staticmethod
     def blob(path: Path, limit: int = MAX_FILE) -> bytes:
-        if not path.is_file():
-            raise ValidationError("File not found. List the containing folder first.")
-        with path.open("rb") as stream:
-            content = stream.read(limit + 1)
+        reject_links(path)
+        try:
+            with open_regular_nofollow(path) as stream:
+                before = os.fstat(stream.fileno())
+                if before.st_size > limit:
+                    raise ValidationError(f"File exceeds the {limit // 1024 // 1024} MB limit.")
+                content = stream.read(limit + 1)
+                after = os.fstat(stream.fileno())
+                if (before.st_ino, before.st_size, before.st_mtime_ns) != (
+                    after.st_ino, after.st_size, after.st_mtime_ns,
+                ):
+                    raise ValidationError("File changed while reading. Read its latest revision.")
+        except OSError:
+            raise ValidationError("File unavailable. List the containing folder again.") from None
         if len(content) > limit:
             raise ValidationError(f"File exceeds the {limit // 1024 // 1024} MB limit.")
         return content

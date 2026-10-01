@@ -1,5 +1,6 @@
 import asyncio
 from collections.abc import Callable
+from pathlib import Path
 from typing import Annotated, Any
 from urllib.parse import quote
 
@@ -19,10 +20,42 @@ class LocalAction(StrictModel):
     idempotency_key: str = Field(min_length=8, max_length=200)
 
 
+def preview_media_type(raw: bytes) -> str:
+    """Recognize only browser-safe raster formats and PDF, regardless of filename."""
+    if raw.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if raw.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if raw.startswith((b"GIF87a", b"GIF89a")):
+        return "image/gif"
+    if len(raw) >= 12 and raw[:4] == b"RIFF" and raw[8:12] == b"WEBP":
+        return "image/webp"
+    if raw.startswith(b"%PDF-"):
+        return "application/pdf"
+    raise ValidationError(
+        "Preview supports PNG, JPEG, GIF, WebP and PDF files. Use Download or Read.",
+    )
+
+
 def local_file_router(
     service: LocalFileService, authenticate: Callable[[Request], ActorContext]
 ) -> APIRouter:
     router = APIRouter(prefix="/v1/local-files", tags=["local files"])
+
+    def read_authorized(
+        actor: ActorContext, request: Request, root: str, path: str,
+    ) -> tuple[Path, bytes]:
+        values = LocalPath(root=root, path=path)
+        target = service.path(actor, values.root, values.path)
+        raw = service.blob(target)
+        current = authenticate(request)
+        service.authorize(current)
+        if (current.actor_id, current.household_id) != (actor.actor_id, actor.household_id):
+            raise AuthorizationError("Local access changed.")
+        # Recheck project visibility and root configuration after reading the bytes.
+        if service.path(current, values.root, values.path) != target:
+            raise AuthorizationError("Local file location changed.")
+        return target, raw
 
     @router.get("/roots")
     def roots(actor: Annotated[ActorContext, Depends(authenticate)]) -> dict[str, Any]:
@@ -57,13 +90,7 @@ def local_file_router(
         root: Annotated[str, Query(min_length=1, max_length=100)],
         path: Annotated[str, Query(max_length=1000)],
     ) -> Response:
-        values = LocalPath(root=root, path=path)
-        target = service.path(actor, values.root, values.path)
-        raw = service.blob(target)
-        current = authenticate(request)
-        service.authorize(current)
-        if (current.actor_id, current.household_id) != (actor.actor_id, actor.household_id):
-            raise AuthorizationError("Local access changed.")
+        target, raw = read_authorized(actor, request, root, path)
         return Response(
             raw,
             media_type="application/octet-stream",
@@ -73,6 +100,24 @@ def local_file_router(
                 "Cache-Control": "no-store",
             },
         )
+
+    @router.get("/preview")
+    def preview(
+        actor: Annotated[ActorContext, Depends(authenticate)],
+        request: Request,
+        root: Annotated[str, Query(min_length=1, max_length=100)],
+        path: Annotated[str, Query(max_length=1000)],
+    ) -> Response:
+        target, raw = read_authorized(actor, request, root, path)
+        return Response(raw, media_type=preview_media_type(raw), headers={
+            "Content-Disposition": "inline; filename*=UTF-8''" + quote(target.name, safe=""),
+            "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
+            "Content-Security-Policy": (
+                "sandbox; default-src 'none'; base-uri 'none'; form-action 'none'; "
+                "frame-ancestors 'none'"
+            ),
+            "Referrer-Policy": "no-referrer", "Cross-Origin-Resource-Policy": "same-origin",
+        })
 
     @router.post("/action")
     def action(

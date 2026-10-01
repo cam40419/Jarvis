@@ -23,6 +23,7 @@ from simon.domain.agent_platform import (
     TeamTemplate,
 )
 from simon.domain.agent_runs import AgentRun, StartAgentRun
+from simon.domain.agent_worker import WorkerResult
 from simon.domain.errors import ValidationError
 from simon.domain.execution import (
     EnvironmentDefinition,
@@ -182,6 +183,26 @@ def make_harness(
 
 def task(name: str, *dependencies: str) -> AgentTaskSpec:
     return AgentTaskSpec(id=name, agent_id="worker", objective=name, depends_on=dependencies)
+
+
+def test_dispatcher_stops_environment_before_collecting_deliverable(tmp_path: Path) -> None:
+    harness = make_harness(tmp_path, environment=True)
+
+    class FileWorker:
+        def execute(self, **kwargs):
+            lease = harness.backend.created[-1]
+            (lease.plan.workspace_path / "result.csv").write_bytes(b"name,value\nresult,42\n")
+            return WorkerResult(status="succeeded", output="Created CSV.",
+                                artifact_paths=("result.csv",))
+
+    dispatcher = AgentDispatcher(harness.runs, worker_factory=lambda *_args: FileWorker())
+    queued = harness.queue((task("create"),))
+    completed = dispatcher.execute(queued.id)
+    assert completed.status == "succeeded"
+    assert len(harness.backend.released) == 1
+    artifacts = completed.tasks[0].artifacts
+    assert [item.name for item in artifacts] == ["answer.txt", "result.csv"]
+    assert dispatcher.artifacts.read(artifacts[1]) == b"name,value\nresult,42\n"
 
 
 def test_parallel_siblings_finish_before_dependent_receives_their_outputs(tmp_path: Path) -> None:

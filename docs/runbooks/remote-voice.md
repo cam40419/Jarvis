@@ -1,5 +1,9 @@
 # Simon local-first and remote access
 
+> For the current single-origin local-server deployment, use
+> [remote access](remote-access.md). The split-frontend proposal and portfolio/tunnel
+> history below describe the earlier deployment and are not prerequisites.
+
 Simon and PostgreSQL run on the home PC. Use **http://localhost:8000/login** on that PC for the
 main application. This direct route avoids the Vercel and tunnel hops. The previous website route
 forwarded both pages and API requests through those services; it is currently paused, and the

@@ -2,11 +2,33 @@ import pytest
 
 from simon.domain.agent_platform import AgentProfile, PlatformManifest, TeamTemplate
 from simon.domain.model_routing import ModelEndpoint
+from simon.domain.tool_catalog import ToolDefinition
 from simon.services.agent_platform import AgentPlatformService
 
 
 def test_catalog_requires_login(client):
     assert client.get("/v1/agent-platform/catalog").status_code == 401
+
+
+def test_catalog_reports_missing_setup_without_leaking_credentials(
+    client, container, auth_headers, tmp_path,
+):
+    manifest = PlatformManifest(tools=(
+        ToolDefinition(id="disabled", description="Disabled", transport="http", enabled=False),
+        ToolDefinition(id="missing", description="Missing credential", transport="http",
+                       configured=True, endpoint="https://private.example/tools",
+                       credential_env="PRIVATE_SECRET_NAME"),
+        ToolDefinition(id="unbound", description="Missing handler", transport="desktop",
+                       configured=True),
+    ))
+    platform = AgentPlatformService(container.store, manifest, state_dir=tmp_path, environ={})
+    container.agent_platform.__dict__.update(platform.__dict__)
+    response = client.get("/v1/agent-platform/catalog")
+    assert response.status_code == 200
+    states = {item["id"]: item["state"] for item in response.json()["tool_statuses"]}
+    assert states == {"disabled": "disabled", "missing": "unavailable", "unbound": "unavailable"}
+    assert "PRIVATE_SECRET_NAME" not in response.text
+    assert "private.example" not in response.text
 
 
 @pytest.mark.parametrize("override", ["", "x" * 97])

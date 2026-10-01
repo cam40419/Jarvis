@@ -20,12 +20,29 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
+from simon.adapters.external_action_binding import (
+    external_action_service,
+    external_tool_status,
+    external_transport_factory,
+)
 from simon.adapters.memory import InMemoryStore
+from simon.adapters.native_tools import (
+    native_tool_status,
+    native_transport_factory,
+    with_native_tools,
+)
+from simon.adapters.project_board_binding import project_board_service
+from simon.adapters.project_work_tools import project_transport_factory
+from simon.adapters.tool_preflight import INSTALLED_TRANSPORTS
 from simon.api.agent_platform import agent_platform_router
 from simon.api.auth import auth_router, require_csrf, session_cookie
+from simon.api.external_actions import external_actions_router
 from simon.api.local_files import local_file_router
 from simon.api.model_stream import model_stream
+from simon.api.project_boards import project_boards_router
+from simon.api.project_command import project_command_router
 from simon.api.project_files import project_router
+from simon.api.request_ingress import RequestIngressMiddleware
 from simon.api.tasks import task_router
 from simon.api.work_sessions import session_router
 from simon.config import Settings, get_settings
@@ -64,6 +81,9 @@ from simon.services.jobs import JobService
 from simon.services.memory import MemoryService
 from simon.services.model_conversations import ModelConversationService
 from simon.services.policy import PolicyEngine
+from simon.services.project_autonomy import ProjectAutonomyService
+from simon.services.project_coordinator import ProjectCoordinator
+from simon.services.project_work import ProjectWorkService
 from simon.services.tasks import AssistantTaskService
 from simon.services.voice import VoiceService
 from simon.services.work_sessions import WorkSessionService
@@ -111,6 +131,7 @@ class AppContainer:
         self.accounts = AccountService(self.identity)
         self.audit = AuditService(self.store)
         self.connected = ConnectedService(self.store, self.audit, self.settings, self.identity)
+        self.external_actions = external_action_service(self.settings, self.store)
         self.interaction = InteractionService(self.store, self.audit, self.connected.home)
         self.policy = PolicyEngine()
         self.capabilities = CapabilityBroker(self.store, self.store, self.policy, self.audit)
@@ -137,11 +158,39 @@ class AppContainer:
         self.connected.tasks = self.tasks
         self.work_sessions = WorkSessionService(self.tasks)
         self.agent_platform = AgentPlatformService(
-            self.store, load_manifest(self.settings.agent_manifest_file),
+            self.store, with_native_tools(
+                load_manifest(self.settings.agent_manifest_file), self.connected,
+            ),
             state_dir=self.settings.agent_state_dir,
+            available_transports=INSTALLED_TRANSPORTS,
+            tool_availability=lambda actor, tool_id: native_tool_status(
+                self.connected, actor, tool_id,
+            ) if tool_id.startswith("native.") else external_tool_status(
+                self.external_actions, actor, tool_id,
+            ),
         )
+        self.agent_transport_factory = native_transport_factory(self.connected)
         self.agent_runs = AgentRunService(
             self.agent_platform, enabled=self.settings.agent_execution_enabled,
+        )
+        self.project_work = ProjectWorkService(
+            self.store, project_resolver=self.tasks.project,
+        )
+        self.project_boards = project_board_service(self.settings, self.store, self.project_work)
+        self.project_coordinator = ProjectCoordinator(
+            self.project_work, self.agent_runs, external_actions=self.external_actions,
+            boards=self.project_boards,
+        )
+        self.project_work.team_validator = self.project_coordinator.validate_team
+        self.project_autonomy = ProjectAutonomyService(
+            self.project_work, self.project_coordinator,
+            enabled=self.settings.agent_execution_enabled,
+        )
+        self.agent_transport_factory = project_transport_factory(
+            self.agent_transport_factory, self.project_work, self.agent_runs,
+        )
+        self.agent_transport_factory = external_transport_factory(
+            self.agent_transport_factory, self.external_actions,
         )
         self.memories = MemoryService(self.store, self.audit)
         self.voice = VoiceService(
@@ -234,12 +283,32 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
     def chat_page() -> HTMLResponse:
         return page("chat.html")
 
-    @app.middleware("http")
     async def security_headers(request: Request, call_next: Any) -> Any:
-        path = request.url.path.removeprefix(services.settings.public_path)
+        # One configured public origin controls redirects. Client-supplied proxy
+        # headers never control origin, identity or auth throttling source keys.
+        public_origin = urlsplit(services.settings.public_origin)
+        request.scope["scheme"] = public_origin.scheme
+        supplied_host = request.headers.get("host", "")
+        valid_host = False
+        try:
+            incoming = urlsplit("//" + supplied_host)
+            if (incoming.hostname == public_origin.hostname and incoming.netloc == supplied_host
+                    and incoming.username is None and incoming.password is None
+                    and (incoming.port is None or 1 <= incoming.port <= 65535)):
+                valid_host = True
+                # TrustedHost checks the hostname but ignores a supplied port.
+                # Accepted hosts always use our configured port in generated URLs.
+                request.scope["headers"] = [
+                    (key, public_origin.netloc.encode("ascii") if key == b"host" else value)
+                    for key, value in request.scope["headers"]
+                ]
+        except ValueError:
+            pass
+        path = str(request.scope.get("path", "")).removeprefix(services.settings.public_path)
         callback = path == "/auth/google/callback"
         try:
-            response = await call_next(request)
+            response = (await call_next(request) if valid_host else
+                        JSONResponse({"detail": "Invalid host header"}, status_code=400))
         finally:
             if callback:
                 # OAuth codes must not appear in Uvicorn access logs, even on errors.
@@ -250,6 +319,8 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "no-referrer"
         response.headers["X-Frame-Options"] = "DENY"
+        if services.settings.secure_cookies:
+            response.headers["Strict-Transport-Security"] = "max-age=31536000"
         if path.startswith("/display/"):
             response.headers["Content-Security-Policy"] = (
                 "default-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'none'"
@@ -280,6 +351,9 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
         services.agent_platform, checked_actor, services.agent_runs,
     ))
     app.include_router(project_router(services.connected.projects, checked_actor))
+    app.include_router(project_command_router(services.project_coordinator, checked_actor))
+    app.include_router(external_actions_router(services.external_actions, checked_actor))
+    app.include_router(project_boards_router(services.project_boards, checked_actor))
     if services.tasks.conversations:
         app.include_router(session_router(services.work_sessions, checked_actor))
     app.include_router(local_file_router(services.connected.local_files, checked_actor))
@@ -765,8 +839,20 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
     if services.settings.public_path:
         root = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
         root.state.container = services
+        root.add_middleware(TrustedHostMiddleware, allowed_hosts=[hostname])
+        root.add_middleware(
+            RequestIngressMiddleware, public_path=services.settings.public_path,
+            auth_rate_limit=services.settings.auth_rate_limit,
+            auth_rate_window_seconds=services.settings.auth_rate_window_seconds,
+        )
+        root.middleware("http")(security_headers)
         root.mount(services.settings.public_path, app)
         return root
+    app.add_middleware(
+        RequestIngressMiddleware, auth_rate_limit=services.settings.auth_rate_limit,
+        auth_rate_window_seconds=services.settings.auth_rate_window_seconds,
+    )
+    app.middleware("http")(security_headers)
     return app
 
 

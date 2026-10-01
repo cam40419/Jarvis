@@ -1,0 +1,26 @@
+{
+  "id": "storage.search",
+  "description": "Search a configured storage service through an operator-managed MCP server.",
+  "categories": ["storage"],
+  "capabilities": ["storage.read"],
+  "transport": "mcp",
+  "enabled": false,
+  "configured": false,
+  "endpoint": "https://mcp.example.com/mcp",
+  "credential_env": "SIMON_STORAGE_MCP_TOKEN",
+  "required_scopes": ["jobs:read"],
+  "input_schema": {
+    "type": "object",
+    "properties": {"query": {"type": "string", "maxLength": 500}},
+    "required": ["query"],
+    "additionalProperties": false
+  },
+  "output_schema": {"type": "object"},
+  "side_effect": false,
+  "action_policy": "read",
+  "settings": {
+    "tool_name": "search_files",
+    "protocol_version": "2025-11-25",
+    "network": true
+  }
+}

@@ -1,0 +1,1626 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<export version="E">
+  <design>
+    <source>/workspace/pi5-camera-mux.kicad_sch</source>
+    <date>2026-10-01T01:19:14+0000</date>
+    <tool>Eeschema 9.0.2+dfsg-1</tool>
+    <sheet number="1" name="/" tstamps="/">
+      <title_block>
+        <title>Pi 5 / four-camera CSI selector - engineering prototype</title>
+        <company>Simon hardware example</company>
+        <rev>0.1</rev>
+        <date>2026-09-30</date>
+        <source>pi5-camera-mux.kicad_sch</source>
+        <comment number="1" value="Two CSI data lanes; ONE selected camera; separate 3.3V camera supply"/>
+        <comment number="2" value="Not fabrication released: validate routing, SI, power and software"/>
+        <comment number="3" value=""/>
+        <comment number="4" value=""/>
+        <comment number="5" value=""/>
+        <comment number="6" value=""/>
+        <comment number="7" value=""/>
+        <comment number="8" value=""/>
+        <comment number="9" value=""/>
+      </title_block>
+    </sheet>
+  </design>
+  <components>
+    <comp ref="C1">
+      <value>100nF</value>
+      <footprint>Capacitor_SMD:C_0603_1608Metric</footprint>
+      <fields>
+        <field name="Footprint">Capacitor_SMD:C_0603_1608Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="CameraMux" part="100nF" description=""/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="pi5-camera-mux.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>70178291-6b02-5872-99fc-ea21306be5c1</tstamps>
+    </comp>
+    <comp ref="C2">
+      <value>100nF</value>
+      <footprint>Capacitor_SMD:C_0603_1608Metric</footprint>
+      <fields>
+        <field name="Footprint">Capacitor_SMD:C_0603_1608Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="CameraMux" part="100nF" description=""/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="pi5-camera-mux.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>aadaa5b4-3a72-55cc-b27b-7caf12c5b3a3</tstamps>
+    </comp>
+    <comp ref="C3">
+      <value>100nF</value>
+      <footprint>Capacitor_SMD:C_0603_1608Metric</footprint>
+      <fields>
+        <field name="Footprint">Capacitor_SMD:C_0603_1608Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="CameraMux" part="100nF" description=""/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="pi5-camera-mux.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>928a6bbc-2295-579f-8435-ec52181aee3d</tstamps>
+    </comp>
+    <comp ref="C4">
+      <value>100nF</value>
+      <footprint>Capacitor_SMD:C_0603_1608Metric</footprint>
+      <fields>
+        <field name="Footprint">Capacitor_SMD:C_0603_1608Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="CameraMux" part="100nF" description=""/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="pi5-camera-mux.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>9da2dcdf-39de-5d2b-9aef-c6c448c79f13</tstamps>
+    </comp>
+    <comp ref="C5">
+      <value>10uF_10V_X5R</value>
+      <footprint>Capacitor_SMD:C_0805_2012Metric</footprint>
+      <fields>
+        <field name="Footprint">Capacitor_SMD:C_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="CameraMux" part="10uF_10V_X5R" description=""/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="pi5-camera-mux.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>97ec6e56-5dcf-5a88-8353-ed71f0bfbb59</tstamps>
+    </comp>
+    <comp ref="C6">
+      <value>10uF_10V_X5R</value>
+      <footprint>Capacitor_SMD:C_0805_2012Metric</footprint>
+      <fields>
+        <field name="Footprint">Capacitor_SMD:C_0805_2012Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="CameraMux" part="10uF_10V_X5R" description=""/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="pi5-camera-mux.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>62c27720-3f31-5071-91fa-b648994e0bac</tstamps>
+    </comp>
+    <comp ref="C7">
+      <value>1nF</value>
+      <footprint>Capacitor_SMD:C_0603_1608Metric</footprint>
+      <fields>
+        <field name="Footprint">Capacitor_SMD:C_0603_1608Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="CameraMux" part="1nF" description=""/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="pi5-camera-mux.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>829a71d1-61b1-5418-aa1f-08647c4c4974</tstamps>
+    </comp>
+    <comp ref="J1">
+      <value>F32Q-1A7H1-11022_HOST</value>
+      <footprint>Connector_FFC-FPC:Amphenol_F32Q-1A7x1-11022_1x22-1MP_P0.5mm_Horizontal</footprint>
+      <fields>
+        <field name="Footprint">Connector_FFC-FPC:Amphenol_F32Q-1A7x1-11022_1x22-1MP_P0.5mm_Horizontal</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="CameraMux" part="F32Q_1A7H1_11022_HOST" description=""/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="pi5-camera-mux.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>61ac5e7b-de9d-5f9b-a3fb-d0c6e93504c8</tstamps>
+    </comp>
+    <comp ref="J2">
+      <value>TE_1-84953-5_CAM_A</value>
+      <footprint>Connector_FFC-FPC:TE_1-84953-5_1x15-1MP_P1.0mm_Horizontal</footprint>
+      <fields>
+        <field name="Footprint">Connector_FFC-FPC:TE_1-84953-5_1x15-1MP_P1.0mm_Horizontal</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="CameraMux" part="TE_1_84953_5_CAM_A" description=""/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="pi5-camera-mux.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>5d1934a5-2507-5c3e-8580-bcc3817a9c2f</tstamps>
+    </comp>
+    <comp ref="J3">
+      <value>TE_1-84953-5_CAM_B</value>
+      <footprint>Connector_FFC-FPC:TE_1-84953-5_1x15-1MP_P1.0mm_Horizontal</footprint>
+      <fields>
+        <field name="Footprint">Connector_FFC-FPC:TE_1-84953-5_1x15-1MP_P1.0mm_Horizontal</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="CameraMux" part="TE_1_84953_5_CAM_B" description=""/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="pi5-camera-mux.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>a11395cb-fd73-5c2f-b630-1bc6d94301ef</tstamps>
+    </comp>
+    <comp ref="J4">
+      <value>TE_1-84953-5_CAM_C</value>
+      <footprint>Connector_FFC-FPC:TE_1-84953-5_1x15-1MP_P1.0mm_Horizontal</footprint>
+      <fields>
+        <field name="Footprint">Connector_FFC-FPC:TE_1-84953-5_1x15-1MP_P1.0mm_Horizontal</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="CameraMux" part="TE_1_84953_5_CAM_C" description=""/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="pi5-camera-mux.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>7c1101f6-7348-593e-a39b-99aedcd3910a</tstamps>
+    </comp>
+    <comp ref="J5">
+      <value>TE_1-84953-5_CAM_D</value>
+      <footprint>Connector_FFC-FPC:TE_1-84953-5_1x15-1MP_P1.0mm_Horizontal</footprint>
+      <fields>
+        <field name="Footprint">Connector_FFC-FPC:TE_1-84953-5_1x15-1MP_P1.0mm_Horizontal</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="CameraMux" part="TE_1_84953_5_CAM_D" description=""/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="pi5-camera-mux.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>59720dfc-a434-51a7-8139-b95b959392c5</tstamps>
+    </comp>
+    <comp ref="J6">
+      <value>GPIO_GND_4_17_18</value>
+      <footprint>Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical</footprint>
+      <fields>
+        <field name="Footprint">Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="CameraMux" part="GPIO_GND_4_17_18" description=""/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="pi5-camera-mux.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>4994a936-9e7e-5256-9353-96895d166e0d</tstamps>
+    </comp>
+    <comp ref="J7">
+      <value>REGULATED_3V3_INPUT</value>
+      <footprint>Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical</footprint>
+      <fields>
+        <field name="Footprint">Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="CameraMux" part="REGULATED_3V3_INPUT" description=""/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="pi5-camera-mux.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>3c0ca2b8-c928-52ec-b87d-4db5b3a3674a</tstamps>
+    </comp>
+    <comp ref="R1">
+      <value>10k</value>
+      <footprint>Resistor_SMD:R_0603_1608Metric</footprint>
+      <fields>
+        <field name="Footprint">Resistor_SMD:R_0603_1608Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="CameraMux" part="10k" description=""/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="pi5-camera-mux.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>3ab16545-cc81-51cc-82f0-1d5a82f8bbe3</tstamps>
+    </comp>
+    <comp ref="R2">
+      <value>10k</value>
+      <footprint>Resistor_SMD:R_0603_1608Metric</footprint>
+      <fields>
+        <field name="Footprint">Resistor_SMD:R_0603_1608Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="CameraMux" part="10k" description=""/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="pi5-camera-mux.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>1da71740-4f8e-5e98-940d-8e14658feb8f</tstamps>
+    </comp>
+    <comp ref="R3">
+      <value>10k</value>
+      <footprint>Resistor_SMD:R_0603_1608Metric</footprint>
+      <fields>
+        <field name="Footprint">Resistor_SMD:R_0603_1608Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="CameraMux" part="10k" description=""/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="pi5-camera-mux.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>855e43da-0e66-5c23-8c34-6c2e6ecb7631</tstamps>
+    </comp>
+    <comp ref="R4">
+      <value>100k</value>
+      <footprint>Resistor_SMD:R_0603_1608Metric</footprint>
+      <fields>
+        <field name="Footprint">Resistor_SMD:R_0603_1608Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="CameraMux" part="100k" description=""/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="pi5-camera-mux.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>c9f33283-91f2-5bbb-8843-db7ecfe6e4bf</tstamps>
+    </comp>
+    <comp ref="R5">
+      <value>100R</value>
+      <footprint>Resistor_SMD:R_0603_1608Metric</footprint>
+      <fields>
+        <field name="Footprint">Resistor_SMD:R_0603_1608Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="CameraMux" part="100R" description=""/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="pi5-camera-mux.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>315c09db-7acf-5b3f-be20-86bd1cfe808e</tstamps>
+    </comp>
+    <comp ref="R6">
+      <value>4.7k_DNP</value>
+      <footprint>Resistor_SMD:R_0603_1608Metric</footprint>
+      <fields>
+        <field name="Footprint">Resistor_SMD:R_0603_1608Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="CameraMux" part="4_7k_DNP" description=""/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="pi5-camera-mux.kicad_sch"/>
+      <property name="dnp"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>72e191e5-1cf3-5188-967a-8377cb3669c0</tstamps>
+    </comp>
+    <comp ref="R7">
+      <value>4.7k_DNP</value>
+      <footprint>Resistor_SMD:R_0603_1608Metric</footprint>
+      <fields>
+        <field name="Footprint">Resistor_SMD:R_0603_1608Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="CameraMux" part="4_7k_DNP" description=""/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="pi5-camera-mux.kicad_sch"/>
+      <property name="dnp"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>369a6cda-e95a-5f7b-a36e-eea7f402dcdd</tstamps>
+    </comp>
+    <comp ref="R8">
+      <value>4.7k</value>
+      <footprint>Resistor_SMD:R_0603_1608Metric</footprint>
+      <fields>
+        <field name="Footprint">Resistor_SMD:R_0603_1608Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="CameraMux" part="4_7k" description=""/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="pi5-camera-mux.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>2f55f4a1-a5fb-5d1e-81b8-cf8d4405cc97</tstamps>
+    </comp>
+    <comp ref="R9">
+      <value>4.7k</value>
+      <footprint>Resistor_SMD:R_0603_1608Metric</footprint>
+      <fields>
+        <field name="Footprint">Resistor_SMD:R_0603_1608Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="CameraMux" part="4_7k" description=""/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="pi5-camera-mux.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>5fd18918-ee52-5ac4-bdcb-3d597ccf6df8</tstamps>
+    </comp>
+    <comp ref="R10">
+      <value>4.7k</value>
+      <footprint>Resistor_SMD:R_0603_1608Metric</footprint>
+      <fields>
+        <field name="Footprint">Resistor_SMD:R_0603_1608Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="CameraMux" part="4_7k" description=""/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="pi5-camera-mux.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>ff83aa74-beca-52a5-a305-70e97f2860ac</tstamps>
+    </comp>
+    <comp ref="R11">
+      <value>4.7k</value>
+      <footprint>Resistor_SMD:R_0603_1608Metric</footprint>
+      <fields>
+        <field name="Footprint">Resistor_SMD:R_0603_1608Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="CameraMux" part="4_7k" description=""/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="pi5-camera-mux.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>e4af24b0-d299-53c3-a750-41ec8c445fdb</tstamps>
+    </comp>
+    <comp ref="R12">
+      <value>4.7k</value>
+      <footprint>Resistor_SMD:R_0603_1608Metric</footprint>
+      <fields>
+        <field name="Footprint">Resistor_SMD:R_0603_1608Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="CameraMux" part="4_7k" description=""/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="pi5-camera-mux.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>6657ec28-a07f-51fb-87b7-6490030f6429</tstamps>
+    </comp>
+    <comp ref="R13">
+      <value>4.7k</value>
+      <footprint>Resistor_SMD:R_0603_1608Metric</footprint>
+      <fields>
+        <field name="Footprint">Resistor_SMD:R_0603_1608Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="CameraMux" part="4_7k" description=""/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="pi5-camera-mux.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>d66290bd-6be6-5d60-adc1-745ef28aa918</tstamps>
+    </comp>
+    <comp ref="R14">
+      <value>4.7k</value>
+      <footprint>Resistor_SMD:R_0603_1608Metric</footprint>
+      <fields>
+        <field name="Footprint">Resistor_SMD:R_0603_1608Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="CameraMux" part="4_7k" description=""/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="pi5-camera-mux.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>2ff656cd-b2c7-593e-8fae-31a600926134</tstamps>
+    </comp>
+    <comp ref="R15">
+      <value>4.7k</value>
+      <footprint>Resistor_SMD:R_0603_1608Metric</footprint>
+      <fields>
+        <field name="Footprint">Resistor_SMD:R_0603_1608Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="CameraMux" part="4_7k" description=""/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="pi5-camera-mux.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>4a263cc3-fe16-52c1-a349-f73b039e104a</tstamps>
+    </comp>
+    <comp ref="R16">
+      <value>0R_DNP_IO1</value>
+      <footprint>Resistor_SMD:R_0603_1608Metric</footprint>
+      <fields>
+        <field name="Footprint">Resistor_SMD:R_0603_1608Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="CameraMux" part="0R_DNP_IO1" description=""/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="pi5-camera-mux.kicad_sch"/>
+      <property name="dnp"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>30c21f76-01b2-53b1-83bc-f07884ab7eff</tstamps>
+    </comp>
+    <comp ref="R17">
+      <value>0R_DNP_IO1</value>
+      <footprint>Resistor_SMD:R_0603_1608Metric</footprint>
+      <fields>
+        <field name="Footprint">Resistor_SMD:R_0603_1608Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="CameraMux" part="0R_DNP_IO1" description=""/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="pi5-camera-mux.kicad_sch"/>
+      <property name="dnp"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>570c6f5e-ed96-57ee-aa88-cfbca1394ad6</tstamps>
+    </comp>
+    <comp ref="R18">
+      <value>0R_DNP_IO1</value>
+      <footprint>Resistor_SMD:R_0603_1608Metric</footprint>
+      <fields>
+        <field name="Footprint">Resistor_SMD:R_0603_1608Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="CameraMux" part="0R_DNP_IO1" description=""/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="pi5-camera-mux.kicad_sch"/>
+      <property name="dnp"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>2f006422-9acd-560f-8923-5db0515cbd5e</tstamps>
+    </comp>
+    <comp ref="R19">
+      <value>0R_DNP_IO1</value>
+      <footprint>Resistor_SMD:R_0603_1608Metric</footprint>
+      <fields>
+        <field name="Footprint">Resistor_SMD:R_0603_1608Metric</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="CameraMux" part="0R_DNP_IO1" description=""/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="pi5-camera-mux.kicad_sch"/>
+      <property name="dnp"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>29c01cf8-9c82-5478-8c27-76ce6811225d</tstamps>
+    </comp>
+    <comp ref="U1">
+      <value>TS3DV642RUARQ1</value>
+      <footprint>Package_DFN_QFN:WQFN-42-1EP_3.5x9mm_P0.5mm_EP2.05x7.55mm</footprint>
+      <fields>
+        <field name="Footprint">Package_DFN_QFN:WQFN-42-1EP_3.5x9mm_P0.5mm_EP2.05x7.55mm</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="CameraMux" part="U1" description=""/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="pi5-camera-mux.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>d2d75da9-c315-5fbd-80ce-2422c037889f</tstamps>
+    </comp>
+    <comp ref="U2">
+      <value>TS3DV642RUARQ1</value>
+      <footprint>Package_DFN_QFN:WQFN-42-1EP_3.5x9mm_P0.5mm_EP2.05x7.55mm</footprint>
+      <fields>
+        <field name="Footprint">Package_DFN_QFN:WQFN-42-1EP_3.5x9mm_P0.5mm_EP2.05x7.55mm</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="CameraMux" part="U2" description=""/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="pi5-camera-mux.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>9b22f053-2939-5011-b9ff-49ac45a564ac</tstamps>
+    </comp>
+    <comp ref="U3">
+      <value>TS3DV642RUARQ1</value>
+      <footprint>Package_DFN_QFN:WQFN-42-1EP_3.5x9mm_P0.5mm_EP2.05x7.55mm</footprint>
+      <fields>
+        <field name="Footprint">Package_DFN_QFN:WQFN-42-1EP_3.5x9mm_P0.5mm_EP2.05x7.55mm</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="CameraMux" part="U3" description=""/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="pi5-camera-mux.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>e4a25da3-7bcf-5a8f-ae95-6ac279ff7e9b</tstamps>
+    </comp>
+    <comp ref="U4">
+      <value>PCA9544APWR_ADDR_0x70</value>
+      <footprint>Package_SO:Texas_PW0020A_TSSOP-20_4.4x6.5mm_P0.65mm</footprint>
+      <fields>
+        <field name="Footprint">Package_SO:Texas_PW0020A_TSSOP-20_4.4x6.5mm_P0.65mm</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="CameraMux" part="U4" description=""/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="pi5-camera-mux.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>34a5239b-3531-52f8-96b0-93a2114670ef</tstamps>
+    </comp>
+    <comp ref="U5">
+      <value>TPS22918DBVR</value>
+      <footprint>Package_TO_SOT_SMD:SOT-23-6</footprint>
+      <fields>
+        <field name="Footprint">Package_TO_SOT_SMD:SOT-23-6</field>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <libsource lib="CameraMux" part="U5" description=""/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="pi5-camera-mux.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>0fe2da48-8395-5881-922e-219ca4e43f08</tstamps>
+    </comp>
+  </components>
+  <libparts>
+    <libpart lib="CameraMux" part="0R_DNP_IO1">
+      <fields>
+        <field name="Reference">R</field>
+        <field name="Value">0R_DNP_IO1</field>
+        <field name="Footprint"/>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <pins>
+        <pin num="1" name="1" type="passive"/>
+        <pin num="2" name="2" type="passive"/>
+      </pins>
+    </libpart>
+    <libpart lib="CameraMux" part="100R">
+      <fields>
+        <field name="Reference">R</field>
+        <field name="Value">100R</field>
+        <field name="Footprint"/>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <pins>
+        <pin num="1" name="1" type="passive"/>
+        <pin num="2" name="2" type="passive"/>
+      </pins>
+    </libpart>
+    <libpart lib="CameraMux" part="100k">
+      <fields>
+        <field name="Reference">R</field>
+        <field name="Value">100k</field>
+        <field name="Footprint"/>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <pins>
+        <pin num="1" name="1" type="passive"/>
+        <pin num="2" name="2" type="passive"/>
+      </pins>
+    </libpart>
+    <libpart lib="CameraMux" part="100nF">
+      <fields>
+        <field name="Reference">C</field>
+        <field name="Value">100nF</field>
+        <field name="Footprint"/>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <pins>
+        <pin num="1" name="1" type="passive"/>
+        <pin num="2" name="2" type="passive"/>
+      </pins>
+    </libpart>
+    <libpart lib="CameraMux" part="10k">
+      <fields>
+        <field name="Reference">R</field>
+        <field name="Value">10k</field>
+        <field name="Footprint"/>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <pins>
+        <pin num="1" name="1" type="passive"/>
+        <pin num="2" name="2" type="passive"/>
+      </pins>
+    </libpart>
+    <libpart lib="CameraMux" part="10uF_10V_X5R">
+      <fields>
+        <field name="Reference">C</field>
+        <field name="Value">10uF_10V_X5R</field>
+        <field name="Footprint"/>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <pins>
+        <pin num="1" name="1" type="passive"/>
+        <pin num="2" name="2" type="passive"/>
+      </pins>
+    </libpart>
+    <libpart lib="CameraMux" part="1nF">
+      <fields>
+        <field name="Reference">C</field>
+        <field name="Value">1nF</field>
+        <field name="Footprint"/>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <pins>
+        <pin num="1" name="1" type="passive"/>
+        <pin num="2" name="2" type="passive"/>
+      </pins>
+    </libpart>
+    <libpart lib="CameraMux" part="4_7k">
+      <fields>
+        <field name="Reference">R</field>
+        <field name="Value">4.7k</field>
+        <field name="Footprint"/>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <pins>
+        <pin num="1" name="1" type="passive"/>
+        <pin num="2" name="2" type="passive"/>
+      </pins>
+    </libpart>
+    <libpart lib="CameraMux" part="4_7k_DNP">
+      <fields>
+        <field name="Reference">R</field>
+        <field name="Value">4.7k_DNP</field>
+        <field name="Footprint"/>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <pins>
+        <pin num="1" name="1" type="passive"/>
+        <pin num="2" name="2" type="passive"/>
+      </pins>
+    </libpart>
+    <libpart lib="CameraMux" part="F32Q_1A7H1_11022_HOST">
+      <fields>
+        <field name="Reference">J</field>
+        <field name="Value">F32Q-1A7H1-11022_HOST</field>
+        <field name="Footprint"/>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <pins>
+        <pin num="1" name="GND" type="passive"/>
+        <pin num="2" name="HOST_D0_N" type="passive"/>
+        <pin num="3" name="HOST_D0_P" type="passive"/>
+        <pin num="4" name="GND" type="passive"/>
+        <pin num="5" name="HOST_D1_N" type="passive"/>
+        <pin num="6" name="HOST_D1_P" type="passive"/>
+        <pin num="7" name="GND" type="passive"/>
+        <pin num="8" name="HOST_CLK_N" type="passive"/>
+        <pin num="9" name="HOST_CLK_P" type="passive"/>
+        <pin num="10" name="GND" type="passive"/>
+        <pin num="11" name="UNUSED_4LANE" type="passive"/>
+        <pin num="12" name="UNUSED_4LANE" type="passive"/>
+        <pin num="13" name="GND" type="passive"/>
+        <pin num="14" name="UNUSED_4LANE" type="passive"/>
+        <pin num="15" name="UNUSED_4LANE" type="passive"/>
+        <pin num="16" name="GND" type="passive"/>
+        <pin num="17" name="CAM_IO0" type="passive"/>
+        <pin num="18" name="HOST_IO1" type="passive"/>
+        <pin num="19" name="GND" type="passive"/>
+        <pin num="20" name="HOST_SCL" type="passive"/>
+        <pin num="21" name="HOST_SDA" type="passive"/>
+        <pin num="22" name="HOST_3V3" type="passive"/>
+      </pins>
+    </libpart>
+    <libpart lib="CameraMux" part="GPIO_GND_4_17_18">
+      <fields>
+        <field name="Reference">J</field>
+        <field name="Value">GPIO_GND_4_17_18</field>
+        <field name="Footprint"/>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <pins>
+        <pin num="1" name="GND" type="passive"/>
+        <pin num="2" name="GPIO4_PORT" type="passive"/>
+        <pin num="3" name="GPIO17_BANK" type="passive"/>
+        <pin num="4" name="GPIO18_EN_AB" type="passive"/>
+      </pins>
+    </libpart>
+    <libpart lib="CameraMux" part="REGULATED_3V3_INPUT">
+      <fields>
+        <field name="Reference">J</field>
+        <field name="Value">REGULATED_3V3_INPUT</field>
+        <field name="Footprint"/>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <pins>
+        <pin num="1" name="EXT_3V3" type="passive"/>
+        <pin num="2" name="GND" type="passive"/>
+      </pins>
+    </libpart>
+    <libpart lib="CameraMux" part="TE_1_84953_5_CAM_A">
+      <fields>
+        <field name="Reference">J</field>
+        <field name="Value">TE_1-84953-5_CAM_A</field>
+        <field name="Footprint"/>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <pins>
+        <pin num="1" name="GND" type="passive"/>
+        <pin num="2" name="CAM_A_D0_N" type="passive"/>
+        <pin num="3" name="CAM_A_D0_P" type="passive"/>
+        <pin num="4" name="GND" type="passive"/>
+        <pin num="5" name="CAM_A_D1_N" type="passive"/>
+        <pin num="6" name="CAM_A_D1_P" type="passive"/>
+        <pin num="7" name="GND" type="passive"/>
+        <pin num="8" name="CAM_A_CLK_N" type="passive"/>
+        <pin num="9" name="CAM_A_CLK_P" type="passive"/>
+        <pin num="10" name="GND" type="passive"/>
+        <pin num="11" name="CAM_IO0" type="passive"/>
+        <pin num="12" name="CAM_A_IO1" type="passive"/>
+        <pin num="13" name="CAM_A_SCL" type="passive"/>
+        <pin num="14" name="CAM_A_SDA" type="passive"/>
+        <pin num="15" name="CAM_3V3" type="passive"/>
+      </pins>
+    </libpart>
+    <libpart lib="CameraMux" part="TE_1_84953_5_CAM_B">
+      <fields>
+        <field name="Reference">J</field>
+        <field name="Value">TE_1-84953-5_CAM_B</field>
+        <field name="Footprint"/>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <pins>
+        <pin num="1" name="GND" type="passive"/>
+        <pin num="2" name="CAM_B_D0_N" type="passive"/>
+        <pin num="3" name="CAM_B_D0_P" type="passive"/>
+        <pin num="4" name="GND" type="passive"/>
+        <pin num="5" name="CAM_B_D1_N" type="passive"/>
+        <pin num="6" name="CAM_B_D1_P" type="passive"/>
+        <pin num="7" name="GND" type="passive"/>
+        <pin num="8" name="CAM_B_CLK_N" type="passive"/>
+        <pin num="9" name="CAM_B_CLK_P" type="passive"/>
+        <pin num="10" name="GND" type="passive"/>
+        <pin num="11" name="CAM_IO0" type="passive"/>
+        <pin num="12" name="CAM_B_IO1" type="passive"/>
+        <pin num="13" name="CAM_B_SCL" type="passive"/>
+        <pin num="14" name="CAM_B_SDA" type="passive"/>
+        <pin num="15" name="CAM_3V3" type="passive"/>
+      </pins>
+    </libpart>
+    <libpart lib="CameraMux" part="TE_1_84953_5_CAM_C">
+      <fields>
+        <field name="Reference">J</field>
+        <field name="Value">TE_1-84953-5_CAM_C</field>
+        <field name="Footprint"/>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <pins>
+        <pin num="1" name="GND" type="passive"/>
+        <pin num="2" name="CAM_C_D0_N" type="passive"/>
+        <pin num="3" name="CAM_C_D0_P" type="passive"/>
+        <pin num="4" name="GND" type="passive"/>
+        <pin num="5" name="CAM_C_D1_N" type="passive"/>
+        <pin num="6" name="CAM_C_D1_P" type="passive"/>
+        <pin num="7" name="GND" type="passive"/>
+        <pin num="8" name="CAM_C_CLK_N" type="passive"/>
+        <pin num="9" name="CAM_C_CLK_P" type="passive"/>
+        <pin num="10" name="GND" type="passive"/>
+        <pin num="11" name="CAM_IO0" type="passive"/>
+        <pin num="12" name="CAM_C_IO1" type="passive"/>
+        <pin num="13" name="CAM_C_SCL" type="passive"/>
+        <pin num="14" name="CAM_C_SDA" type="passive"/>
+        <pin num="15" name="CAM_3V3" type="passive"/>
+      </pins>
+    </libpart>
+    <libpart lib="CameraMux" part="TE_1_84953_5_CAM_D">
+      <fields>
+        <field name="Reference">J</field>
+        <field name="Value">TE_1-84953-5_CAM_D</field>
+        <field name="Footprint"/>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <pins>
+        <pin num="1" name="GND" type="passive"/>
+        <pin num="2" name="CAM_D_D0_N" type="passive"/>
+        <pin num="3" name="CAM_D_D0_P" type="passive"/>
+        <pin num="4" name="GND" type="passive"/>
+        <pin num="5" name="CAM_D_D1_N" type="passive"/>
+        <pin num="6" name="CAM_D_D1_P" type="passive"/>
+        <pin num="7" name="GND" type="passive"/>
+        <pin num="8" name="CAM_D_CLK_N" type="passive"/>
+        <pin num="9" name="CAM_D_CLK_P" type="passive"/>
+        <pin num="10" name="GND" type="passive"/>
+        <pin num="11" name="CAM_IO0" type="passive"/>
+        <pin num="12" name="CAM_D_IO1" type="passive"/>
+        <pin num="13" name="CAM_D_SCL" type="passive"/>
+        <pin num="14" name="CAM_D_SDA" type="passive"/>
+        <pin num="15" name="CAM_3V3" type="passive"/>
+      </pins>
+    </libpart>
+    <libpart lib="CameraMux" part="U1">
+      <fields>
+        <field name="Reference">U</field>
+        <field name="Value">TS3DV642RUARQ1</field>
+        <field name="Footprint"/>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <pins>
+        <pin num="1" name="VCC" type="power_in"/>
+        <pin num="2" name="EN" type="input"/>
+        <pin num="3" name="SCL" type="passive"/>
+        <pin num="4" name="SDA" type="passive"/>
+        <pin num="5" name="D0+" type="passive"/>
+        <pin num="6" name="D0-" type="passive"/>
+        <pin num="7" name="D1+" type="passive"/>
+        <pin num="8" name="D1-" type="passive"/>
+        <pin num="9" name="NC" type="passive"/>
+        <pin num="10" name="D2+" type="passive"/>
+        <pin num="11" name="D2-" type="passive"/>
+        <pin num="12" name="D3+" type="passive"/>
+        <pin num="13" name="D3-" type="passive"/>
+        <pin num="14" name="HPD" type="passive"/>
+        <pin num="15" name="CEC" type="passive"/>
+        <pin num="16" name="SEL1" type="input"/>
+        <pin num="17" name="SEL2" type="input"/>
+        <pin num="18" name="CEC_A" type="passive"/>
+        <pin num="19" name="HPD_A" type="passive"/>
+        <pin num="20" name="CEC_B" type="passive"/>
+        <pin num="21" name="HPD_B" type="passive"/>
+        <pin num="22" name="D3-B" type="passive"/>
+        <pin num="23" name="D3+B" type="passive"/>
+        <pin num="24" name="D2-B" type="passive"/>
+        <pin num="25" name="D2+B" type="passive"/>
+        <pin num="26" name="D1-B" type="passive"/>
+        <pin num="27" name="D1+B" type="passive"/>
+        <pin num="28" name="D0-B" type="passive"/>
+        <pin num="29" name="D0+B" type="passive"/>
+        <pin num="30" name="NC" type="passive"/>
+        <pin num="31" name="D3-A" type="passive"/>
+        <pin num="32" name="D3+A" type="passive"/>
+        <pin num="33" name="D2-A" type="passive"/>
+        <pin num="34" name="D2+A" type="passive"/>
+        <pin num="35" name="D1-A" type="passive"/>
+        <pin num="36" name="D1+A" type="passive"/>
+        <pin num="37" name="D0-A" type="passive"/>
+        <pin num="38" name="D0+A" type="passive"/>
+        <pin num="39" name="SDA_B" type="passive"/>
+        <pin num="40" name="SCL_B" type="passive"/>
+        <pin num="41" name="SDA_A" type="passive"/>
+        <pin num="42" name="SCL_A" type="passive"/>
+        <pin num="43" name="EP_GND" type="power_in"/>
+      </pins>
+    </libpart>
+    <libpart lib="CameraMux" part="U2">
+      <fields>
+        <field name="Reference">U</field>
+        <field name="Value">TS3DV642RUARQ1</field>
+        <field name="Footprint"/>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <pins>
+        <pin num="1" name="VCC" type="power_in"/>
+        <pin num="2" name="EN" type="input"/>
+        <pin num="3" name="SCL" type="passive"/>
+        <pin num="4" name="SDA" type="passive"/>
+        <pin num="5" name="D0+" type="passive"/>
+        <pin num="6" name="D0-" type="passive"/>
+        <pin num="7" name="D1+" type="passive"/>
+        <pin num="8" name="D1-" type="passive"/>
+        <pin num="9" name="NC" type="passive"/>
+        <pin num="10" name="D2+" type="passive"/>
+        <pin num="11" name="D2-" type="passive"/>
+        <pin num="12" name="D3+" type="passive"/>
+        <pin num="13" name="D3-" type="passive"/>
+        <pin num="14" name="HPD" type="passive"/>
+        <pin num="15" name="CEC" type="passive"/>
+        <pin num="16" name="SEL1" type="input"/>
+        <pin num="17" name="SEL2" type="input"/>
+        <pin num="18" name="CEC_A" type="passive"/>
+        <pin num="19" name="HPD_A" type="passive"/>
+        <pin num="20" name="CEC_B" type="passive"/>
+        <pin num="21" name="HPD_B" type="passive"/>
+        <pin num="22" name="D3-B" type="passive"/>
+        <pin num="23" name="D3+B" type="passive"/>
+        <pin num="24" name="D2-B" type="passive"/>
+        <pin num="25" name="D2+B" type="passive"/>
+        <pin num="26" name="D1-B" type="passive"/>
+        <pin num="27" name="D1+B" type="passive"/>
+        <pin num="28" name="D0-B" type="passive"/>
+        <pin num="29" name="D0+B" type="passive"/>
+        <pin num="30" name="NC" type="passive"/>
+        <pin num="31" name="D3-A" type="passive"/>
+        <pin num="32" name="D3+A" type="passive"/>
+        <pin num="33" name="D2-A" type="passive"/>
+        <pin num="34" name="D2+A" type="passive"/>
+        <pin num="35" name="D1-A" type="passive"/>
+        <pin num="36" name="D1+A" type="passive"/>
+        <pin num="37" name="D0-A" type="passive"/>
+        <pin num="38" name="D0+A" type="passive"/>
+        <pin num="39" name="SDA_B" type="passive"/>
+        <pin num="40" name="SCL_B" type="passive"/>
+        <pin num="41" name="SDA_A" type="passive"/>
+        <pin num="42" name="SCL_A" type="passive"/>
+        <pin num="43" name="EP_GND" type="power_in"/>
+      </pins>
+    </libpart>
+    <libpart lib="CameraMux" part="U3">
+      <fields>
+        <field name="Reference">U</field>
+        <field name="Value">TS3DV642RUARQ1</field>
+        <field name="Footprint"/>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <pins>
+        <pin num="1" name="VCC" type="power_in"/>
+        <pin num="2" name="EN" type="input"/>
+        <pin num="3" name="SCL" type="passive"/>
+        <pin num="4" name="SDA" type="passive"/>
+        <pin num="5" name="D0+" type="passive"/>
+        <pin num="6" name="D0-" type="passive"/>
+        <pin num="7" name="D1+" type="passive"/>
+        <pin num="8" name="D1-" type="passive"/>
+        <pin num="9" name="NC" type="passive"/>
+        <pin num="10" name="D2+" type="passive"/>
+        <pin num="11" name="D2-" type="passive"/>
+        <pin num="12" name="D3+" type="passive"/>
+        <pin num="13" name="D3-" type="passive"/>
+        <pin num="14" name="HPD" type="passive"/>
+        <pin num="15" name="CEC" type="passive"/>
+        <pin num="16" name="SEL1" type="input"/>
+        <pin num="17" name="SEL2" type="input"/>
+        <pin num="18" name="CEC_A" type="passive"/>
+        <pin num="19" name="HPD_A" type="passive"/>
+        <pin num="20" name="CEC_B" type="passive"/>
+        <pin num="21" name="HPD_B" type="passive"/>
+        <pin num="22" name="D3-B" type="passive"/>
+        <pin num="23" name="D3+B" type="passive"/>
+        <pin num="24" name="D2-B" type="passive"/>
+        <pin num="25" name="D2+B" type="passive"/>
+        <pin num="26" name="D1-B" type="passive"/>
+        <pin num="27" name="D1+B" type="passive"/>
+        <pin num="28" name="D0-B" type="passive"/>
+        <pin num="29" name="D0+B" type="passive"/>
+        <pin num="30" name="NC" type="passive"/>
+        <pin num="31" name="D3-A" type="passive"/>
+        <pin num="32" name="D3+A" type="passive"/>
+        <pin num="33" name="D2-A" type="passive"/>
+        <pin num="34" name="D2+A" type="passive"/>
+        <pin num="35" name="D1-A" type="passive"/>
+        <pin num="36" name="D1+A" type="passive"/>
+        <pin num="37" name="D0-A" type="passive"/>
+        <pin num="38" name="D0+A" type="passive"/>
+        <pin num="39" name="SDA_B" type="passive"/>
+        <pin num="40" name="SCL_B" type="passive"/>
+        <pin num="41" name="SDA_A" type="passive"/>
+        <pin num="42" name="SCL_A" type="passive"/>
+        <pin num="43" name="EP_GND" type="power_in"/>
+      </pins>
+    </libpart>
+    <libpart lib="CameraMux" part="U4">
+      <fields>
+        <field name="Reference">U</field>
+        <field name="Value">PCA9544APWR_ADDR_0x70</field>
+        <field name="Footprint"/>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <pins>
+        <pin num="1" name="A0" type="input"/>
+        <pin num="2" name="A1" type="input"/>
+        <pin num="3" name="A2" type="input"/>
+        <pin num="4" name="INT0" type="input"/>
+        <pin num="5" name="SD0" type="bidirectional"/>
+        <pin num="6" name="SC0" type="bidirectional"/>
+        <pin num="7" name="INT1" type="input"/>
+        <pin num="8" name="SD1" type="bidirectional"/>
+        <pin num="9" name="SC1" type="bidirectional"/>
+        <pin num="10" name="GND" type="power_in"/>
+        <pin num="11" name="INT2" type="input"/>
+        <pin num="12" name="SD2" type="bidirectional"/>
+        <pin num="13" name="SC2" type="bidirectional"/>
+        <pin num="14" name="INT3" type="input"/>
+        <pin num="15" name="SD3" type="bidirectional"/>
+        <pin num="16" name="SC3" type="bidirectional"/>
+        <pin num="17" name="INT" type="open_collector"/>
+        <pin num="18" name="SCL" type="input"/>
+        <pin num="19" name="SDA" type="bidirectional"/>
+        <pin num="20" name="VCC" type="power_in"/>
+      </pins>
+    </libpart>
+    <libpart lib="CameraMux" part="U5">
+      <fields>
+        <field name="Reference">U</field>
+        <field name="Value">TPS22918DBVR</field>
+        <field name="Footprint"/>
+        <field name="Datasheet"/>
+        <field name="Description"/>
+      </fields>
+      <pins>
+        <pin num="1" name="VIN" type="power_in"/>
+        <pin num="2" name="GND" type="power_in"/>
+        <pin num="3" name="ON" type="input"/>
+        <pin num="4" name="CT" type="passive"/>
+        <pin num="5" name="QOD" type="passive"/>
+        <pin num="6" name="VOUT" type="power_out"/>
+      </pins>
+    </libpart>
+  </libparts>
+  <libraries>
+    <library logical="CameraMux">
+      <uri>/workspace/CameraMux.kicad_sym</uri>
+    </library>
+  </libraries>
+  <nets>
+    <net code="1" name="/BANK_AB_CLK_N" class="Default">
+      <node ref="U1" pin="37" pinfunction="D0-A" pintype="passive"/>
+      <node ref="U2" pin="6" pinfunction="D0-" pintype="passive"/>
+    </net>
+    <net code="2" name="/BANK_AB_CLK_P" class="Default">
+      <node ref="U1" pin="38" pinfunction="D0+A" pintype="passive"/>
+      <node ref="U2" pin="5" pinfunction="D0+" pintype="passive"/>
+    </net>
+    <net code="3" name="/BANK_AB_D0_N" class="Default">
+      <node ref="U1" pin="33" pinfunction="D2-A" pintype="passive"/>
+      <node ref="U2" pin="11" pinfunction="D2-" pintype="passive"/>
+    </net>
+    <net code="4" name="/BANK_AB_D0_P" class="Default">
+      <node ref="U1" pin="34" pinfunction="D2+A" pintype="passive"/>
+      <node ref="U2" pin="10" pinfunction="D2+" pintype="passive"/>
+    </net>
+    <net code="5" name="/BANK_AB_D1_N" class="Default">
+      <node ref="U1" pin="35" pinfunction="D1-A" pintype="passive"/>
+      <node ref="U2" pin="8" pinfunction="D1-" pintype="passive"/>
+    </net>
+    <net code="6" name="/BANK_AB_D1_P" class="Default">
+      <node ref="U1" pin="36" pinfunction="D1+A" pintype="passive"/>
+      <node ref="U2" pin="7" pinfunction="D1+" pintype="passive"/>
+    </net>
+    <net code="7" name="/BANK_CD_CLK_N" class="Default">
+      <node ref="U1" pin="28" pinfunction="D0-B" pintype="passive"/>
+      <node ref="U3" pin="6" pinfunction="D0-" pintype="passive"/>
+    </net>
+    <net code="8" name="/BANK_CD_CLK_P" class="Default">
+      <node ref="U1" pin="29" pinfunction="D0+B" pintype="passive"/>
+      <node ref="U3" pin="5" pinfunction="D0+" pintype="passive"/>
+    </net>
+    <net code="9" name="/BANK_CD_D0_N" class="Default">
+      <node ref="U1" pin="24" pinfunction="D2-B" pintype="passive"/>
+      <node ref="U3" pin="11" pinfunction="D2-" pintype="passive"/>
+    </net>
+    <net code="10" name="/BANK_CD_D0_P" class="Default">
+      <node ref="U1" pin="25" pinfunction="D2+B" pintype="passive"/>
+      <node ref="U3" pin="10" pinfunction="D2+" pintype="passive"/>
+    </net>
+    <net code="11" name="/BANK_CD_D1_N" class="Default">
+      <node ref="U1" pin="26" pinfunction="D1-B" pintype="passive"/>
+      <node ref="U3" pin="8" pinfunction="D1-" pintype="passive"/>
+    </net>
+    <net code="12" name="/BANK_CD_D1_P" class="Default">
+      <node ref="U1" pin="27" pinfunction="D1+B" pintype="passive"/>
+      <node ref="U3" pin="7" pinfunction="D1+" pintype="passive"/>
+    </net>
+    <net code="13" name="/CAM_3V3" class="Default">
+      <node ref="C6" pin="1" pinfunction="1" pintype="passive"/>
+      <node ref="J2" pin="15" pinfunction="CAM_3V3" pintype="passive"/>
+      <node ref="J3" pin="15" pinfunction="CAM_3V3" pintype="passive"/>
+      <node ref="J4" pin="15" pinfunction="CAM_3V3" pintype="passive"/>
+      <node ref="J5" pin="15" pinfunction="CAM_3V3" pintype="passive"/>
+      <node ref="R10" pin="2" pinfunction="2" pintype="passive"/>
+      <node ref="R11" pin="2" pinfunction="2" pintype="passive"/>
+      <node ref="R12" pin="2" pinfunction="2" pintype="passive"/>
+      <node ref="R13" pin="2" pinfunction="2" pintype="passive"/>
+      <node ref="R14" pin="2" pinfunction="2" pintype="passive"/>
+      <node ref="R15" pin="2" pinfunction="2" pintype="passive"/>
+      <node ref="R5" pin="2" pinfunction="2" pintype="passive"/>
+      <node ref="R8" pin="2" pinfunction="2" pintype="passive"/>
+      <node ref="R9" pin="2" pinfunction="2" pintype="passive"/>
+      <node ref="U5" pin="6" pinfunction="VOUT" pintype="power_out"/>
+    </net>
+    <net code="14" name="/CAM_A_CLK_N" class="Default">
+      <node ref="J2" pin="8" pinfunction="CAM_A_CLK_N" pintype="passive"/>
+      <node ref="U2" pin="37" pinfunction="D0-A" pintype="passive"/>
+    </net>
+    <net code="15" name="/CAM_A_CLK_P" class="Default">
+      <node ref="J2" pin="9" pinfunction="CAM_A_CLK_P" pintype="passive"/>
+      <node ref="U2" pin="38" pinfunction="D0+A" pintype="passive"/>
+    </net>
+    <net code="16" name="/CAM_A_D0_N" class="Default">
+      <node ref="J2" pin="2" pinfunction="CAM_A_D0_N" pintype="passive"/>
+      <node ref="U2" pin="33" pinfunction="D2-A" pintype="passive"/>
+    </net>
+    <net code="17" name="/CAM_A_D0_P" class="Default">
+      <node ref="J2" pin="3" pinfunction="CAM_A_D0_P" pintype="passive"/>
+      <node ref="U2" pin="34" pinfunction="D2+A" pintype="passive"/>
+    </net>
+    <net code="18" name="/CAM_A_D1_N" class="Default">
+      <node ref="J2" pin="5" pinfunction="CAM_A_D1_N" pintype="passive"/>
+      <node ref="U2" pin="35" pinfunction="D1-A" pintype="passive"/>
+    </net>
+    <net code="19" name="/CAM_A_D1_P" class="Default">
+      <node ref="J2" pin="6" pinfunction="CAM_A_D1_P" pintype="passive"/>
+      <node ref="U2" pin="36" pinfunction="D1+A" pintype="passive"/>
+    </net>
+    <net code="20" name="/CAM_A_IO1" class="Default">
+      <node ref="J2" pin="12" pinfunction="CAM_A_IO1" pintype="passive"/>
+      <node ref="R16" pin="2" pinfunction="2" pintype="passive"/>
+    </net>
+    <net code="21" name="/CAM_A_SCL" class="Default">
+      <node ref="J2" pin="13" pinfunction="CAM_A_SCL" pintype="passive"/>
+      <node ref="R8" pin="1" pinfunction="1" pintype="passive"/>
+      <node ref="U4" pin="6" pinfunction="SC0" pintype="bidirectional"/>
+    </net>
+    <net code="22" name="/CAM_A_SDA" class="Default">
+      <node ref="J2" pin="14" pinfunction="CAM_A_SDA" pintype="passive"/>
+      <node ref="R9" pin="1" pinfunction="1" pintype="passive"/>
+      <node ref="U4" pin="5" pinfunction="SD0" pintype="bidirectional"/>
+    </net>
+    <net code="23" name="/CAM_B_CLK_N" class="Default">
+      <node ref="J3" pin="8" pinfunction="CAM_B_CLK_N" pintype="passive"/>
+      <node ref="U2" pin="28" pinfunction="D0-B" pintype="passive"/>
+    </net>
+    <net code="24" name="/CAM_B_CLK_P" class="Default">
+      <node ref="J3" pin="9" pinfunction="CAM_B_CLK_P" pintype="passive"/>
+      <node ref="U2" pin="29" pinfunction="D0+B" pintype="passive"/>
+    </net>
+    <net code="25" name="/CAM_B_D0_N" class="Default">
+      <node ref="J3" pin="2" pinfunction="CAM_B_D0_N" pintype="passive"/>
+      <node ref="U2" pin="24" pinfunction="D2-B" pintype="passive"/>
+    </net>
+    <net code="26" name="/CAM_B_D0_P" class="Default">
+      <node ref="J3" pin="3" pinfunction="CAM_B_D0_P" pintype="passive"/>
+      <node ref="U2" pin="25" pinfunction="D2+B" pintype="passive"/>
+    </net>
+    <net code="27" name="/CAM_B_D1_N" class="Default">
+      <node ref="J3" pin="5" pinfunction="CAM_B_D1_N" pintype="passive"/>
+      <node ref="U2" pin="26" pinfunction="D1-B" pintype="passive"/>
+    </net>
+    <net code="28" name="/CAM_B_D1_P" class="Default">
+      <node ref="J3" pin="6" pinfunction="CAM_B_D1_P" pintype="passive"/>
+      <node ref="U2" pin="27" pinfunction="D1+B" pintype="passive"/>
+    </net>
+    <net code="29" name="/CAM_B_IO1" class="Default">
+      <node ref="J3" pin="12" pinfunction="CAM_B_IO1" pintype="passive"/>
+      <node ref="R17" pin="2" pinfunction="2" pintype="passive"/>
+    </net>
+    <net code="30" name="/CAM_B_SCL" class="Default">
+      <node ref="J3" pin="13" pinfunction="CAM_B_SCL" pintype="passive"/>
+      <node ref="R10" pin="1" pinfunction="1" pintype="passive"/>
+      <node ref="U4" pin="9" pinfunction="SC1" pintype="bidirectional"/>
+    </net>
+    <net code="31" name="/CAM_B_SDA" class="Default">
+      <node ref="J3" pin="14" pinfunction="CAM_B_SDA" pintype="passive"/>
+      <node ref="R11" pin="1" pinfunction="1" pintype="passive"/>
+      <node ref="U4" pin="8" pinfunction="SD1" pintype="bidirectional"/>
+    </net>
+    <net code="32" name="/CAM_C_CLK_N" class="Default">
+      <node ref="J4" pin="8" pinfunction="CAM_C_CLK_N" pintype="passive"/>
+      <node ref="U3" pin="37" pinfunction="D0-A" pintype="passive"/>
+    </net>
+    <net code="33" name="/CAM_C_CLK_P" class="Default">
+      <node ref="J4" pin="9" pinfunction="CAM_C_CLK_P" pintype="passive"/>
+      <node ref="U3" pin="38" pinfunction="D0+A" pintype="passive"/>
+    </net>
+    <net code="34" name="/CAM_C_D0_N" class="Default">
+      <node ref="J4" pin="2" pinfunction="CAM_C_D0_N" pintype="passive"/>
+      <node ref="U3" pin="33" pinfunction="D2-A" pintype="passive"/>
+    </net>
+    <net code="35" name="/CAM_C_D0_P" class="Default">
+      <node ref="J4" pin="3" pinfunction="CAM_C_D0_P" pintype="passive"/>
+      <node ref="U3" pin="34" pinfunction="D2+A" pintype="passive"/>
+    </net>
+    <net code="36" name="/CAM_C_D1_N" class="Default">
+      <node ref="J4" pin="5" pinfunction="CAM_C_D1_N" pintype="passive"/>
+      <node ref="U3" pin="35" pinfunction="D1-A" pintype="passive"/>
+    </net>
+    <net code="37" name="/CAM_C_D1_P" class="Default">
+      <node ref="J4" pin="6" pinfunction="CAM_C_D1_P" pintype="passive"/>
+      <node ref="U3" pin="36" pinfunction="D1+A" pintype="passive"/>
+    </net>
+    <net code="38" name="/CAM_C_IO1" class="Default">
+      <node ref="J4" pin="12" pinfunction="CAM_C_IO1" pintype="passive"/>
+      <node ref="R18" pin="2" pinfunction="2" pintype="passive"/>
+    </net>
+    <net code="39" name="/CAM_C_SCL" class="Default">
+      <node ref="J4" pin="13" pinfunction="CAM_C_SCL" pintype="passive"/>
+      <node ref="R12" pin="1" pinfunction="1" pintype="passive"/>
+      <node ref="U4" pin="13" pinfunction="SC2" pintype="bidirectional"/>
+    </net>
+    <net code="40" name="/CAM_C_SDA" class="Default">
+      <node ref="J4" pin="14" pinfunction="CAM_C_SDA" pintype="passive"/>
+      <node ref="R13" pin="1" pinfunction="1" pintype="passive"/>
+      <node ref="U4" pin="12" pinfunction="SD2" pintype="bidirectional"/>
+    </net>
+    <net code="41" name="/CAM_D_CLK_N" class="Default">
+      <node ref="J5" pin="8" pinfunction="CAM_D_CLK_N" pintype="passive"/>
+      <node ref="U3" pin="28" pinfunction="D0-B" pintype="passive"/>
+    </net>
+    <net code="42" name="/CAM_D_CLK_P" class="Default">
+      <node ref="J5" pin="9" pinfunction="CAM_D_CLK_P" pintype="passive"/>
+      <node ref="U3" pin="29" pinfunction="D0+B" pintype="passive"/>
+    </net>
+    <net code="43" name="/CAM_D_D0_N" class="Default">
+      <node ref="J5" pin="2" pinfunction="CAM_D_D0_N" pintype="passive"/>
+      <node ref="U3" pin="24" pinfunction="D2-B" pintype="passive"/>
+    </net>
+    <net code="44" name="/CAM_D_D0_P" class="Default">
+      <node ref="J5" pin="3" pinfunction="CAM_D_D0_P" pintype="passive"/>
+      <node ref="U3" pin="25" pinfunction="D2+B" pintype="passive"/>
+    </net>
+    <net code="45" name="/CAM_D_D1_N" class="Default">
+      <node ref="J5" pin="5" pinfunction="CAM_D_D1_N" pintype="passive"/>
+      <node ref="U3" pin="26" pinfunction="D1-B" pintype="passive"/>
+    </net>
+    <net code="46" name="/CAM_D_D1_P" class="Default">
+      <node ref="J5" pin="6" pinfunction="CAM_D_D1_P" pintype="passive"/>
+      <node ref="U3" pin="27" pinfunction="D1+B" pintype="passive"/>
+    </net>
+    <net code="47" name="/CAM_D_IO1" class="Default">
+      <node ref="J5" pin="12" pinfunction="CAM_D_IO1" pintype="passive"/>
+      <node ref="R19" pin="2" pinfunction="2" pintype="passive"/>
+    </net>
+    <net code="48" name="/CAM_D_SCL" class="Default">
+      <node ref="J5" pin="13" pinfunction="CAM_D_SCL" pintype="passive"/>
+      <node ref="R14" pin="1" pinfunction="1" pintype="passive"/>
+      <node ref="U4" pin="16" pinfunction="SC3" pintype="bidirectional"/>
+    </net>
+    <net code="49" name="/CAM_D_SDA" class="Default">
+      <node ref="J5" pin="14" pinfunction="CAM_D_SDA" pintype="passive"/>
+      <node ref="R15" pin="1" pinfunction="1" pintype="passive"/>
+      <node ref="U4" pin="15" pinfunction="SD3" pintype="bidirectional"/>
+    </net>
+    <net code="50" name="/CAM_IO0" class="Default">
+      <node ref="J1" pin="17" pinfunction="CAM_IO0" pintype="passive"/>
+      <node ref="J2" pin="11" pinfunction="CAM_IO0" pintype="passive"/>
+      <node ref="J3" pin="11" pinfunction="CAM_IO0" pintype="passive"/>
+      <node ref="J4" pin="11" pinfunction="CAM_IO0" pintype="passive"/>
+      <node ref="J5" pin="11" pinfunction="CAM_IO0" pintype="passive"/>
+    </net>
+    <net code="51" name="/DISCHARGE" class="Default">
+      <node ref="R5" pin="1" pinfunction="1" pintype="passive"/>
+      <node ref="U5" pin="5" pinfunction="QOD" pintype="passive"/>
+    </net>
+    <net code="52" name="/EXT_3V3" class="Default">
+      <node ref="C5" pin="1" pinfunction="1" pintype="passive"/>
+      <node ref="J7" pin="1" pinfunction="EXT_3V3" pintype="passive"/>
+      <node ref="U5" pin="1" pinfunction="VIN" pintype="power_in"/>
+    </net>
+    <net code="53" name="/GND" class="Default">
+      <node ref="C1" pin="2" pinfunction="2" pintype="passive"/>
+      <node ref="C2" pin="2" pinfunction="2" pintype="passive"/>
+      <node ref="C3" pin="2" pinfunction="2" pintype="passive"/>
+      <node ref="C4" pin="2" pinfunction="2" pintype="passive"/>
+      <node ref="C5" pin="2" pinfunction="2" pintype="passive"/>
+      <node ref="C6" pin="2" pinfunction="2" pintype="passive"/>
+      <node ref="C7" pin="2" pinfunction="2" pintype="passive"/>
+      <node ref="J1" pin="1" pinfunction="GND" pintype="passive"/>
+      <node ref="J1" pin="10" pinfunction="GND" pintype="passive"/>
+      <node ref="J1" pin="13" pinfunction="GND" pintype="passive"/>
+      <node ref="J1" pin="16" pinfunction="GND" pintype="passive"/>
+      <node ref="J1" pin="19" pinfunction="GND" pintype="passive"/>
+      <node ref="J1" pin="4" pinfunction="GND" pintype="passive"/>
+      <node ref="J1" pin="7" pinfunction="GND" pintype="passive"/>
+      <node ref="J2" pin="1" pinfunction="GND" pintype="passive"/>
+      <node ref="J2" pin="10" pinfunction="GND" pintype="passive"/>
+      <node ref="J2" pin="4" pinfunction="GND" pintype="passive"/>
+      <node ref="J2" pin="7" pinfunction="GND" pintype="passive"/>
+      <node ref="J3" pin="1" pinfunction="GND" pintype="passive"/>
+      <node ref="J3" pin="10" pinfunction="GND" pintype="passive"/>
+      <node ref="J3" pin="4" pinfunction="GND" pintype="passive"/>
+      <node ref="J3" pin="7" pinfunction="GND" pintype="passive"/>
+      <node ref="J4" pin="1" pinfunction="GND" pintype="passive"/>
+      <node ref="J4" pin="10" pinfunction="GND" pintype="passive"/>
+      <node ref="J4" pin="4" pinfunction="GND" pintype="passive"/>
+      <node ref="J4" pin="7" pinfunction="GND" pintype="passive"/>
+      <node ref="J5" pin="1" pinfunction="GND" pintype="passive"/>
+      <node ref="J5" pin="10" pinfunction="GND" pintype="passive"/>
+      <node ref="J5" pin="4" pinfunction="GND" pintype="passive"/>
+      <node ref="J5" pin="7" pinfunction="GND" pintype="passive"/>
+      <node ref="J6" pin="1" pinfunction="GND" pintype="passive"/>
+      <node ref="J7" pin="2" pinfunction="GND" pintype="passive"/>
+      <node ref="R1" pin="2" pinfunction="2" pintype="passive"/>
+      <node ref="R2" pin="2" pinfunction="2" pintype="passive"/>
+      <node ref="R3" pin="2" pinfunction="2" pintype="passive"/>
+      <node ref="R4" pin="2" pinfunction="2" pintype="passive"/>
+      <node ref="U1" pin="43" pinfunction="EP_GND" pintype="power_in"/>
+      <node ref="U2" pin="43" pinfunction="EP_GND" pintype="power_in"/>
+      <node ref="U3" pin="43" pinfunction="EP_GND" pintype="power_in"/>
+      <node ref="U4" pin="1" pinfunction="A0" pintype="input"/>
+      <node ref="U4" pin="10" pinfunction="GND" pintype="power_in"/>
+      <node ref="U4" pin="2" pinfunction="A1" pintype="input"/>
+      <node ref="U4" pin="3" pinfunction="A2" pintype="input"/>
+      <node ref="U5" pin="2" pinfunction="GND" pintype="power_in"/>
+    </net>
+    <net code="54" name="/GPIO4_PORT" class="Default">
+      <node ref="J6" pin="2" pinfunction="GPIO4_PORT" pintype="passive"/>
+      <node ref="R1" pin="1" pinfunction="1" pintype="passive"/>
+      <node ref="U2" pin="17" pinfunction="SEL2" pintype="input"/>
+      <node ref="U3" pin="17" pinfunction="SEL2" pintype="input"/>
+    </net>
+    <net code="55" name="/GPIO17_BANK" class="Default">
+      <node ref="J6" pin="3" pinfunction="GPIO17_BANK" pintype="passive"/>
+      <node ref="R2" pin="1" pinfunction="1" pintype="passive"/>
+      <node ref="U1" pin="17" pinfunction="SEL2" pintype="input"/>
+      <node ref="U3" pin="2" pinfunction="EN" pintype="input"/>
+    </net>
+    <net code="56" name="/GPIO18_EN_AB" class="Default">
+      <node ref="J6" pin="4" pinfunction="GPIO18_EN_AB" pintype="passive"/>
+      <node ref="R3" pin="1" pinfunction="1" pintype="passive"/>
+      <node ref="U2" pin="2" pinfunction="EN" pintype="input"/>
+    </net>
+    <net code="57" name="/HOST_3V3" class="Default">
+      <node ref="C1" pin="1" pinfunction="1" pintype="passive"/>
+      <node ref="C2" pin="1" pinfunction="1" pintype="passive"/>
+      <node ref="C3" pin="1" pinfunction="1" pintype="passive"/>
+      <node ref="C4" pin="1" pinfunction="1" pintype="passive"/>
+      <node ref="J1" pin="22" pinfunction="HOST_3V3" pintype="passive"/>
+      <node ref="R4" pin="1" pinfunction="1" pintype="passive"/>
+      <node ref="R6" pin="2" pinfunction="2" pintype="passive"/>
+      <node ref="R7" pin="2" pinfunction="2" pintype="passive"/>
+      <node ref="U1" pin="1" pinfunction="VCC" pintype="power_in"/>
+      <node ref="U1" pin="16" pinfunction="SEL1" pintype="input"/>
+      <node ref="U1" pin="2" pinfunction="EN" pintype="input"/>
+      <node ref="U2" pin="1" pinfunction="VCC" pintype="power_in"/>
+      <node ref="U2" pin="16" pinfunction="SEL1" pintype="input"/>
+      <node ref="U3" pin="1" pinfunction="VCC" pintype="power_in"/>
+      <node ref="U3" pin="16" pinfunction="SEL1" pintype="input"/>
+      <node ref="U4" pin="11" pinfunction="INT2" pintype="input"/>
+      <node ref="U4" pin="14" pinfunction="INT3" pintype="input"/>
+      <node ref="U4" pin="20" pinfunction="VCC" pintype="power_in"/>
+      <node ref="U4" pin="4" pinfunction="INT0" pintype="input"/>
+      <node ref="U4" pin="7" pinfunction="INT1" pintype="input"/>
+      <node ref="U5" pin="3" pinfunction="ON" pintype="input"/>
+    </net>
+    <net code="58" name="/HOST_CLK_N" class="Default">
+      <node ref="J1" pin="8" pinfunction="HOST_CLK_N" pintype="passive"/>
+      <node ref="U1" pin="6" pinfunction="D0-" pintype="passive"/>
+    </net>
+    <net code="59" name="/HOST_CLK_P" class="Default">
+      <node ref="J1" pin="9" pinfunction="HOST_CLK_P" pintype="passive"/>
+      <node ref="U1" pin="5" pinfunction="D0+" pintype="passive"/>
+    </net>
+    <net code="60" name="/HOST_D0_N" class="Default">
+      <node ref="J1" pin="2" pinfunction="HOST_D0_N" pintype="passive"/>
+      <node ref="U1" pin="11" pinfunction="D2-" pintype="passive"/>
+    </net>
+    <net code="61" name="/HOST_D0_P" class="Default">
+      <node ref="J1" pin="3" pinfunction="HOST_D0_P" pintype="passive"/>
+      <node ref="U1" pin="10" pinfunction="D2+" pintype="passive"/>
+    </net>
+    <net code="62" name="/HOST_D1_N" class="Default">
+      <node ref="J1" pin="5" pinfunction="HOST_D1_N" pintype="passive"/>
+      <node ref="U1" pin="8" pinfunction="D1-" pintype="passive"/>
+    </net>
+    <net code="63" name="/HOST_D1_P" class="Default">
+      <node ref="J1" pin="6" pinfunction="HOST_D1_P" pintype="passive"/>
+      <node ref="U1" pin="7" pinfunction="D1+" pintype="passive"/>
+    </net>
+    <net code="64" name="/HOST_IO1" class="Default">
+      <node ref="J1" pin="18" pinfunction="HOST_IO1" pintype="passive"/>
+      <node ref="R16" pin="1" pinfunction="1" pintype="passive"/>
+      <node ref="R17" pin="1" pinfunction="1" pintype="passive"/>
+      <node ref="R18" pin="1" pinfunction="1" pintype="passive"/>
+      <node ref="R19" pin="1" pinfunction="1" pintype="passive"/>
+    </net>
+    <net code="65" name="/HOST_SCL" class="Default">
+      <node ref="J1" pin="20" pinfunction="HOST_SCL" pintype="passive"/>
+      <node ref="R6" pin="1" pinfunction="1" pintype="passive"/>
+      <node ref="U4" pin="18" pinfunction="SCL" pintype="input"/>
+    </net>
+    <net code="66" name="/HOST_SDA" class="Default">
+      <node ref="J1" pin="21" pinfunction="HOST_SDA" pintype="passive"/>
+      <node ref="R7" pin="1" pinfunction="1" pintype="passive"/>
+      <node ref="U4" pin="19" pinfunction="SDA" pintype="bidirectional"/>
+    </net>
+    <net code="67" name="/SLEW_CT" class="Default">
+      <node ref="C7" pin="1" pinfunction="1" pintype="passive"/>
+      <node ref="U5" pin="4" pinfunction="CT" pintype="passive"/>
+    </net>
+    <net code="68" name="unconnected-(J1-UNUSED_4LANE-Pad11)" class="Default">
+      <node ref="J1" pin="11" pinfunction="UNUSED_4LANE" pintype="passive+no_connect"/>
+    </net>
+    <net code="69" name="unconnected-(J1-UNUSED_4LANE-Pad12)" class="Default">
+      <node ref="J1" pin="12" pinfunction="UNUSED_4LANE" pintype="passive+no_connect"/>
+    </net>
+    <net code="70" name="unconnected-(J1-UNUSED_4LANE-Pad14)" class="Default">
+      <node ref="J1" pin="14" pinfunction="UNUSED_4LANE" pintype="passive+no_connect"/>
+    </net>
+    <net code="71" name="unconnected-(J1-UNUSED_4LANE-Pad15)" class="Default">
+      <node ref="J1" pin="15" pinfunction="UNUSED_4LANE" pintype="passive+no_connect"/>
+    </net>
+    <net code="72" name="unconnected-(U1-CEC-Pad15)" class="Default">
+      <node ref="U1" pin="15" pinfunction="CEC" pintype="passive+no_connect"/>
+    </net>
+    <net code="73" name="unconnected-(U1-CEC_A-Pad18)" class="Default">
+      <node ref="U1" pin="18" pinfunction="CEC_A" pintype="passive+no_connect"/>
+    </net>
+    <net code="74" name="unconnected-(U1-CEC_B-Pad20)" class="Default">
+      <node ref="U1" pin="20" pinfunction="CEC_B" pintype="passive+no_connect"/>
+    </net>
+    <net code="75" name="unconnected-(U1-D3+-Pad12)" class="Default">
+      <node ref="U1" pin="12" pinfunction="D3+" pintype="passive+no_connect"/>
+    </net>
+    <net code="76" name="unconnected-(U1-D3+A-Pad32)" class="Default">
+      <node ref="U1" pin="32" pinfunction="D3+A" pintype="passive+no_connect"/>
+    </net>
+    <net code="77" name="unconnected-(U1-D3+B-Pad23)" class="Default">
+      <node ref="U1" pin="23" pinfunction="D3+B" pintype="passive+no_connect"/>
+    </net>
+    <net code="78" name="unconnected-(U1-D3--Pad13)" class="Default">
+      <node ref="U1" pin="13" pinfunction="D3-" pintype="passive+no_connect"/>
+    </net>
+    <net code="79" name="unconnected-(U1-D3-A-Pad31)" class="Default">
+      <node ref="U1" pin="31" pinfunction="D3-A" pintype="passive+no_connect"/>
+    </net>
+    <net code="80" name="unconnected-(U1-D3-B-Pad22)" class="Default">
+      <node ref="U1" pin="22" pinfunction="D3-B" pintype="passive+no_connect"/>
+    </net>
+    <net code="81" name="unconnected-(U1-HPD-Pad14)" class="Default">
+      <node ref="U1" pin="14" pinfunction="HPD" pintype="passive+no_connect"/>
+    </net>
+    <net code="82" name="unconnected-(U1-HPD_A-Pad19)" class="Default">
+      <node ref="U1" pin="19" pinfunction="HPD_A" pintype="passive+no_connect"/>
+    </net>
+    <net code="83" name="unconnected-(U1-HPD_B-Pad21)" class="Default">
+      <node ref="U1" pin="21" pinfunction="HPD_B" pintype="passive+no_connect"/>
+    </net>
+    <net code="84" name="unconnected-(U1-NC-Pad9)" class="Default">
+      <node ref="U1" pin="9" pinfunction="NC" pintype="passive+no_connect"/>
+    </net>
+    <net code="85" name="unconnected-(U1-NC-Pad30)" class="Default">
+      <node ref="U1" pin="30" pinfunction="NC" pintype="passive+no_connect"/>
+    </net>
+    <net code="86" name="unconnected-(U1-SCL-Pad3)" class="Default">
+      <node ref="U1" pin="3" pinfunction="SCL" pintype="passive+no_connect"/>
+    </net>
+    <net code="87" name="unconnected-(U1-SCL_A-Pad42)" class="Default">
+      <node ref="U1" pin="42" pinfunction="SCL_A" pintype="passive+no_connect"/>
+    </net>
+    <net code="88" name="unconnected-(U1-SCL_B-Pad40)" class="Default">
+      <node ref="U1" pin="40" pinfunction="SCL_B" pintype="passive+no_connect"/>
+    </net>
+    <net code="89" name="unconnected-(U1-SDA-Pad4)" class="Default">
+      <node ref="U1" pin="4" pinfunction="SDA" pintype="passive+no_connect"/>
+    </net>
+    <net code="90" name="unconnected-(U1-SDA_A-Pad41)" class="Default">
+      <node ref="U1" pin="41" pinfunction="SDA_A" pintype="passive+no_connect"/>
+    </net>
+    <net code="91" name="unconnected-(U1-SDA_B-Pad39)" class="Default">
+      <node ref="U1" pin="39" pinfunction="SDA_B" pintype="passive+no_connect"/>
+    </net>
+    <net code="92" name="unconnected-(U2-CEC-Pad15)" class="Default">
+      <node ref="U2" pin="15" pinfunction="CEC" pintype="passive+no_connect"/>
+    </net>
+    <net code="93" name="unconnected-(U2-CEC_A-Pad18)" class="Default">
+      <node ref="U2" pin="18" pinfunction="CEC_A" pintype="passive+no_connect"/>
+    </net>
+    <net code="94" name="unconnected-(U2-CEC_B-Pad20)" class="Default">
+      <node ref="U2" pin="20" pinfunction="CEC_B" pintype="passive+no_connect"/>
+    </net>
+    <net code="95" name="unconnected-(U2-D3+-Pad12)" class="Default">
+      <node ref="U2" pin="12" pinfunction="D3+" pintype="passive+no_connect"/>
+    </net>
+    <net code="96" name="unconnected-(U2-D3+A-Pad32)" class="Default">
+      <node ref="U2" pin="32" pinfunction="D3+A" pintype="passive+no_connect"/>
+    </net>
+    <net code="97" name="unconnected-(U2-D3+B-Pad23)" class="Default">
+      <node ref="U2" pin="23" pinfunction="D3+B" pintype="passive+no_connect"/>
+    </net>
+    <net code="98" name="unconnected-(U2-D3--Pad13)" class="Default">
+      <node ref="U2" pin="13" pinfunction="D3-" pintype="passive+no_connect"/>
+    </net>
+    <net code="99" name="unconnected-(U2-D3-A-Pad31)" class="Default">
+      <node ref="U2" pin="31" pinfunction="D3-A" pintype="passive+no_connect"/>
+    </net>
+    <net code="100" name="unconnected-(U2-D3-B-Pad22)" class="Default">
+      <node ref="U2" pin="22" pinfunction="D3-B" pintype="passive+no_connect"/>
+    </net>
+    <net code="101" name="unconnected-(U2-HPD-Pad14)" class="Default">
+      <node ref="U2" pin="14" pinfunction="HPD" pintype="passive+no_connect"/>
+    </net>
+    <net code="102" name="unconnected-(U2-HPD_A-Pad19)" class="Default">
+      <node ref="U2" pin="19" pinfunction="HPD_A" pintype="passive+no_connect"/>
+    </net>
+    <net code="103" name="unconnected-(U2-HPD_B-Pad21)" class="Default">
+      <node ref="U2" pin="21" pinfunction="HPD_B" pintype="passive+no_connect"/>
+    </net>
+    <net code="104" name="unconnected-(U2-NC-Pad9)" class="Default">
+      <node ref="U2" pin="9" pinfunction="NC" pintype="passive+no_connect"/>
+    </net>
+    <net code="105" name="unconnected-(U2-NC-Pad30)" class="Default">
+      <node ref="U2" pin="30" pinfunction="NC" pintype="passive+no_connect"/>
+    </net>
+    <net code="106" name="unconnected-(U2-SCL-Pad3)" class="Default">
+      <node ref="U2" pin="3" pinfunction="SCL" pintype="passive+no_connect"/>
+    </net>
+    <net code="107" name="unconnected-(U2-SCL_A-Pad42)" class="Default">
+      <node ref="U2" pin="42" pinfunction="SCL_A" pintype="passive+no_connect"/>
+    </net>
+    <net code="108" name="unconnected-(U2-SCL_B-Pad40)" class="Default">
+      <node ref="U2" pin="40" pinfunction="SCL_B" pintype="passive+no_connect"/>
+    </net>
+    <net code="109" name="unconnected-(U2-SDA-Pad4)" class="Default">
+      <node ref="U2" pin="4" pinfunction="SDA" pintype="passive+no_connect"/>
+    </net>
+    <net code="110" name="unconnected-(U2-SDA_A-Pad41)" class="Default">
+      <node ref="U2" pin="41" pinfunction="SDA_A" pintype="passive+no_connect"/>
+    </net>
+    <net code="111" name="unconnected-(U2-SDA_B-Pad39)" class="Default">
+      <node ref="U2" pin="39" pinfunction="SDA_B" pintype="passive+no_connect"/>
+    </net>
+    <net code="112" name="unconnected-(U3-CEC-Pad15)" class="Default">
+      <node ref="U3" pin="15" pinfunction="CEC" pintype="passive+no_connect"/>
+    </net>
+    <net code="113" name="unconnected-(U3-CEC_A-Pad18)" class="Default">
+      <node ref="U3" pin="18" pinfunction="CEC_A" pintype="passive+no_connect"/>
+    </net>
+    <net code="114" name="unconnected-(U3-CEC_B-Pad20)" class="Default">
+      <node ref="U3" pin="20" pinfunction="CEC_B" pintype="passive+no_connect"/>
+    </net>
+    <net code="115" name="unconnected-(U3-D3+-Pad12)" class="Default">
+      <node ref="U3" pin="12" pinfunction="D3+" pintype="passive+no_connect"/>
+    </net>
+    <net code="116" name="unconnected-(U3-D3+A-Pad32)" class="Default">
+      <node ref="U3" pin="32" pinfunction="D3+A" pintype="passive+no_connect"/>
+    </net>
+    <net code="117" name="unconnected-(U3-D3+B-Pad23)" class="Default">
+      <node ref="U3" pin="23" pinfunction="D3+B" pintype="passive+no_connect"/>
+    </net>
+    <net code="118" name="unconnected-(U3-D3--Pad13)" class="Default">
+      <node ref="U3" pin="13" pinfunction="D3-" pintype="passive+no_connect"/>
+    </net>
+    <net code="119" name="unconnected-(U3-D3-A-Pad31)" class="Default">
+      <node ref="U3" pin="31" pinfunction="D3-A" pintype="passive+no_connect"/>
+    </net>
+    <net code="120" name="unconnected-(U3-D3-B-Pad22)" class="Default">
+      <node ref="U3" pin="22" pinfunction="D3-B" pintype="passive+no_connect"/>
+    </net>
+    <net code="121" name="unconnected-(U3-HPD-Pad14)" class="Default">
+      <node ref="U3" pin="14" pinfunction="HPD" pintype="passive+no_connect"/>
+    </net>
+    <net code="122" name="unconnected-(U3-HPD_A-Pad19)" class="Default">
+      <node ref="U3" pin="19" pinfunction="HPD_A" pintype="passive+no_connect"/>
+    </net>
+    <net code="123" name="unconnected-(U3-HPD_B-Pad21)" class="Default">
+      <node ref="U3" pin="21" pinfunction="HPD_B" pintype="passive+no_connect"/>
+    </net>
+    <net code="124" name="unconnected-(U3-NC-Pad9)" class="Default">
+      <node ref="U3" pin="9" pinfunction="NC" pintype="passive+no_connect"/>
+    </net>
+    <net code="125" name="unconnected-(U3-NC-Pad30)" class="Default">
+      <node ref="U3" pin="30" pinfunction="NC" pintype="passive+no_connect"/>
+    </net>
+    <net code="126" name="unconnected-(U3-SCL-Pad3)" class="Default">
+      <node ref="U3" pin="3" pinfunction="SCL" pintype="passive+no_connect"/>
+    </net>
+    <net code="127" name="unconnected-(U3-SCL_A-Pad42)" class="Default">
+      <node ref="U3" pin="42" pinfunction="SCL_A" pintype="passive+no_connect"/>
+    </net>
+    <net code="128" name="unconnected-(U3-SCL_B-Pad40)" class="Default">
+      <node ref="U3" pin="40" pinfunction="SCL_B" pintype="passive+no_connect"/>
+    </net>
+    <net code="129" name="unconnected-(U3-SDA-Pad4)" class="Default">
+      <node ref="U3" pin="4" pinfunction="SDA" pintype="passive+no_connect"/>
+    </net>
+    <net code="130" name="unconnected-(U3-SDA_A-Pad41)" class="Default">
+      <node ref="U3" pin="41" pinfunction="SDA_A" pintype="passive+no_connect"/>
+    </net>
+    <net code="131" name="unconnected-(U3-SDA_B-Pad39)" class="Default">
+      <node ref="U3" pin="39" pinfunction="SDA_B" pintype="passive+no_connect"/>
+    </net>
+    <net code="132" name="unconnected-(U4-INT-Pad17)" class="Default">
+      <node ref="U4" pin="17" pinfunction="INT" pintype="open_collector+no_connect"/>
+    </net>
+  </nets>
+</export>

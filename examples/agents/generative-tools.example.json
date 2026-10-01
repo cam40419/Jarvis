@@ -1,0 +1,131 @@
+{
+  "tools": [
+    {
+      "action_policy": "write",
+      "capabilities": [
+        "image.generate"
+      ],
+      "categories": [
+        "image"
+      ],
+      "configured": false,
+      "credential_env": "SIMON_OPENAI_API_KEY",
+      "description": "Generate one PNG in this task's workspace using a configured GPT Image model. This calls a paid external service. Tool charges are outside the model budget.",
+      "enabled": false,
+      "endpoint": "https://api.openai.com/v1/images/generations",
+      "environment_capabilities": [
+        "workspace.write"
+      ],
+      "id": "generative.image_generate",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "prompt": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Prompt",
+            "type": "string"
+          },
+          "quality": {
+            "default": "low",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ],
+            "title": "Quality",
+            "type": "string"
+          },
+          "size": {
+            "default": "1024x1024",
+            "enum": [
+              "1024x1024",
+              "1536x1024",
+              "1024x1536"
+            ],
+            "title": "Size",
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt"
+        ],
+        "title": "GenerateImage",
+        "type": "object"
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "required_scopes": [
+        "jobs:write",
+        "jobs:read"
+      ],
+      "settings": {
+        "model": "",
+        "network": true
+      },
+      "side_effect": true,
+      "transport": "generative"
+    },
+    {
+      "action_policy": "write",
+      "capabilities": [
+        "audio.transcribe"
+      ],
+      "categories": [
+        "audio"
+      ],
+      "configured": false,
+      "credential_env": "SIMON_OPENAI_API_KEY",
+      "description": "Transcribe a root-level PCM WAV in this task's workspace, up to ten minutes and 24 MB. This calls a paid external service. Tool charges are outside the model budget.",
+      "enabled": false,
+      "endpoint": "https://api.openai.com/v1/audio/transcriptions",
+      "environment_capabilities": [
+        "workspace.write"
+      ],
+      "id": "generative.audio_transcribe",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_sha256": {
+            "anyOf": [
+              {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Sha256"
+          },
+          "input": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Input",
+            "type": "string"
+          }
+        },
+        "required": [
+          "input"
+        ],
+        "title": "TranscribeAudio",
+        "type": "object"
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "required_scopes": [
+        "jobs:write",
+        "jobs:read"
+      ],
+      "settings": {
+        "model": "",
+        "network": true
+      },
+      "side_effect": true,
+      "transport": "generative"
+    }
+  ]
+}

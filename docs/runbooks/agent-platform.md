@@ -2,6 +2,10 @@
 
 Simon now includes a configurable foundation for teams, tool discovery, isolated execution and semi-automatic model selection. It works independently of RobbinsHome. A company/project context is optional; standalone work requires neither one nor a home connection.
 
+The [project workspace](project-teams.md) adds a visual team/lead editor, natural-language
+decomposition, durable backlog and findings, and bounded ongoing work. The explicit planner
+described here remains available for constructing an exact task graph.
+
 The authenticated API compiles and stores plans. Explicit run requests can now be processed by a separate dispatcher with concurrent tasks, dependency handoffs, bounded model/tool loops, cancellation and final-answer artifacts. See [agent execution](agent-execution.md) and [agent profiles](agent-profiles.md). Plan creation itself remains side-effect free and returns `execution_started: false`; the API catalog reports whether execution is enabled. Existing chat behavior is unchanged.
 
 ## Configure and inspect

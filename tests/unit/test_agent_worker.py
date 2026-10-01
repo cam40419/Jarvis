@@ -93,6 +93,47 @@ def final(output="Verified answer."):
     return json.dumps({"type": "final", "output": output})
 
 
+def test_worker_returns_explicit_deliverable_paths(actor, endpoint):
+    model = Responses(json.dumps({"type": "final", "output": "Created files.",
+                                  "artifacts": ["src/main.py", "README.md"]}))
+    transports = TransportRegistry()
+    transports.register("test", lambda *_args: {})
+    worker = AgentWorker(model, ToolCatalog((tool(),)), transports)
+    result = execute(worker, actor, endpoint, tools=True)
+    assert result.status == "succeeded"
+    assert result.artifact_paths == ("src/main.py", "README.md")
+
+
+def test_local_only_blocks_network_tool_before_model_call(actor, endpoint):
+    model = Responses()
+    transports = TransportRegistry()
+    transports.register("test", lambda *_args: {})
+    worker = AgentWorker(model, ToolCatalog((tool(settings={"network": True}),)), transports)
+    result = execute(worker, actor, endpoint, tools=True,
+                     agent=profile(tools=True, privacy="local_only"))
+    assert result.error_code == "local_only_network_tool"
+    assert not model.calls
+
+
+@pytest.mark.parametrize("transport", [
+    "mcp", "github", "webdav", "dropbox", "box", "onedrive", "generative", "browser",
+])
+def test_local_only_blocks_intrinsic_network_transport_even_without_network_setting(
+    actor, endpoint, transport,
+):
+    model = Responses()
+    transports = TransportRegistry()
+    transports.register(transport, lambda *_args: {})
+    definition = tool(transport=transport, settings={"network": False})
+    worker = AgentWorker(
+        model, ToolCatalog((definition,), available_transports=(transport,)), transports,
+    )
+    result = execute(worker, actor, endpoint, tools=True,
+                     agent=profile(tools=True, privacy="local_only"))
+    assert result.error_code == "local_only_network_tool"
+    assert not model.calls
+
+
 def execute(worker, actor, endpoint, *, tools=False, agent=None, **changes):
     task, spec = assignment(endpoint, tools=tools)
     args = dict(

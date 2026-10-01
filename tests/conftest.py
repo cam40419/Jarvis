@@ -15,6 +15,8 @@ def isolate_runtime_settings(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
         "SIMON_ENVIRONMENT": "test",
         "SIMON_AGENT_MANIFEST_FILE": "",
         "SIMON_AGENT_EXECUTION_ENABLED": "false",
+        "SIMON_EXTERNAL_PROVIDERS_FILE": "",
+        "SIMON_PROJECT_BOARDS_FILE": "",
         "SIMON_HOME_API_URL": "",
         "SIMON_HOME_API_TOKEN": "",
         "SIMON_STORAGE_BACKEND": "memory",

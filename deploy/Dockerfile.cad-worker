@@ -1,0 +1,15 @@
+FROM python:3.11-slim
+
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends blender openscad \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install --no-cache-dir 'trimesh>=4.9,<6' 'numpy>=2,<3' 'scipy>=1.15,<2' 'rtree>=1.4,<2' 'lxml>=5,<7' \
+    && groupadd --gid 1000 worker \
+    && useradd --uid 1000 --gid 1000 --no-create-home worker
+
+RUN pip install --no-cache-dir 'networkx>=3,<4'
+
+WORKDIR /workspace
+USER 1000:1000
+ENTRYPOINT ["/bin/sleep"]
+CMD ["infinity"]

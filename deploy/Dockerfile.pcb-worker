@@ -1,0 +1,15 @@
+FROM python:3.11-slim-trixie
+
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends kicad kicad-symbols kicad-footprints \
+    && kicad-cli --version \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --gid 1000 worker \
+    && useradd --uid 1000 --gid 1000 --no-create-home worker
+
+ENV QT_QPA_PLATFORM=offscreen
+ENV HOME=/tmp
+WORKDIR /workspace
+USER 1000:1000
+ENTRYPOINT ["/bin/sleep"]
+CMD ["infinity"]

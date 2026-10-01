@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from copy import deepcopy
+from datetime import datetime
 from threading import RLock
 from typing import Any
 from uuid import UUID
@@ -579,6 +580,27 @@ class InMemoryStore:
                 )
             )
             return tuple(job.model_copy(deep=True) for job in rows[offset : offset + limit])
+
+    def project_run_jobs(
+        self, household_id: UUID, actor_id: UUID, project_id: UUID,
+        before: tuple[datetime, UUID] | None, limit: int,
+    ) -> tuple[Job, ...]:
+        with self._lock:
+            plan_ids = {
+                str(job.id) for job in self._jobs.values()
+                if job.kind == "platform.plan"
+                and (job.household_id, job.created_by) == (household_id, actor_id)
+                and job.input.get("plan", {}).get("project_id") == str(project_id)
+            }
+            rows = [
+                job for job in self._jobs.values()
+                if job.kind == "platform.run"
+                and (job.household_id, job.created_by) == (household_id, actor_id)
+                and job.input.get("plan_id") in plan_ids
+                and (before is None or (job.created_at, job.id) < before)
+            ]
+            rows.sort(key=lambda job: (job.created_at, job.id), reverse=True)
+            return tuple(job.model_copy(deep=True) for job in rows[:limit])
 
     def jobs_all(self, kind: str, limit: int, status: str = "queued") -> tuple[Job, ...]:
         with self._lock:

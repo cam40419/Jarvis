@@ -1,7 +1,13 @@
 from __future__ import annotations
 
 import hashlib
+import io
+import json
+import os
 import stat
+import subprocess
+import sys
+import zipfile
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from types import SimpleNamespace
@@ -11,6 +17,7 @@ from uuid import uuid4
 import pytest
 
 from simon.domain.artifacts import Artifact, ArtifactError
+from simon.domain.errors import DomainError
 from simon.services.artifacts import ArtifactStore
 
 
@@ -31,6 +38,39 @@ def test_constructor_does_not_create_storage(tmp_path: Path) -> None:
     root = tmp_path / "artifacts"
     ArtifactStore(root)
     assert not root.exists()
+
+
+def test_publish_source_bundle_preserves_paths_and_hashes(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    (workspace / "src").mkdir(parents=True)
+    (workspace / "src/main.py").write_bytes(b"print('hello')\n")
+    (workspace / "image.png").write_bytes(b"synthetic image bytes")
+    store = ArtifactStore(tmp_path / "artifacts")
+    artifact, = store.publish_workspace_files(
+        workspace=workspace, paths=("src/main.py", "image.png"), workspace_id=uuid4(),
+        actor_id=uuid4(), run_id=uuid4(), task_id=uuid4(),
+    )
+    assert artifact.name == "deliverables.zip"
+    with zipfile.ZipFile(io.BytesIO(store.read(artifact))) as archive:
+        assert archive.read("src/main.py") == b"print('hello')\n"
+        manifest = json.loads(archive.read("simon-deliverables.json"))
+        assert len(manifest["files"]) == 2
+        assert manifest["files"][0]["sha256"] == hashlib.sha256(
+            archive.read("src/main.py")
+        ).hexdigest()
+
+
+@pytest.mark.parametrize("path", ["../secret", "/secret", ".env", ".git/config", "missing"])
+def test_workspace_publication_rejects_private_or_invalid_paths(tmp_path: Path, path: str) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    store = ArtifactStore(tmp_path / "artifacts")
+    with pytest.raises(DomainError):
+        store.publish_workspace_files(
+            workspace=workspace, paths=(path,), workspace_id=uuid4(), actor_id=uuid4(),
+            run_id=uuid4(), task_id=uuid4(),
+        )
+    assert not store.root.exists()
 
 
 def test_publish_roundtrip_utf8_and_descriptor_has_no_local_path(tmp_path: Path) -> None:
@@ -153,7 +193,7 @@ def test_symlink_root_is_rejected_before_publication(tmp_path: Path) -> None:
 
 
 def test_invalid_storage_limits_rejected(tmp_path: Path) -> None:
-    for invalid in (0, -1, True, 10 * 1024 * 1024 + 1):
+    for invalid in (0, -1, True, 50 * 1024 * 1024 + 1):
         with pytest.raises(ValueError):
             ArtifactStore(tmp_path, max_bytes=invalid)
 
@@ -191,3 +231,23 @@ def test_partial_publication_is_not_visible(
     assert not list(tmp_path.rglob("content"))
     assert not list(tmp_path.rglob("metadata.json"))
     assert not list(tmp_path.rglob(".publishing-*"))
+
+
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="POSIX FIFO")
+def test_fifo_deliverable_fails_without_blocking(tmp_path: Path) -> None:
+    fifo = tmp_path / "output.txt"
+    os.mkfifo(fifo)
+    code = """
+import sys
+from pathlib import Path
+from simon.services.artifacts import ArtifactStore
+from simon.domain.artifacts import ArtifactError
+root = Path(sys.argv[1])
+try:
+    ArtifactStore(root)._read_file(root / "output.txt", 1024)
+except ArtifactError:
+    pass
+else:
+    raise AssertionError("FIFO was accepted")
+"""
+    subprocess.run([sys.executable, "-c", code, str(tmp_path)], check=True, timeout=5)

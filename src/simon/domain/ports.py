@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from contextlib import AbstractContextManager
+from datetime import datetime
 from typing import Any, Protocol
 from uuid import UUID
 
@@ -74,6 +75,11 @@ class JobStore(TransactionStore, Protocol):
     ) -> Sequence[Job]: ...
 
     def jobs_all(self, kind: str, limit: int, status: str = "queued") -> Sequence[Job]: ...
+
+    def project_run_jobs(
+        self, household_id: UUID, actor_id: UUID, project_id: UUID,
+        before: tuple[datetime, UUID] | None, limit: int,
+    ) -> Sequence[Job]: ...
 
     def save_job(self, job: Job, expected_version: int) -> Job: ...
 

@@ -9,8 +9,12 @@ together. Storage permissions must prevent untrusted processes modifying the roo
 from __future__ import annotations
 
 import hashlib
+import io
+import json
+import mimetypes
 import os
 import stat
+import zipfile
 from pathlib import Path
 from uuid import UUID, uuid4, uuid5
 
@@ -18,15 +22,16 @@ from pydantic import ValidationError
 
 from simon.domain.artifacts import Artifact, ArtifactError
 from simon.domain.models import utc_now
+from simon.services.safe_files import open_regular_nofollow
 
-DEFAULT_MAX_ARTIFACT_BYTES = 2 * 1024 * 1024
+DEFAULT_MAX_ARTIFACT_BYTES = 50 * 1024 * 1024
 _MAX_METADATA_BYTES = 16384
 
 
 class ArtifactStore:
     def __init__(self, root: Path, *, max_bytes: int = DEFAULT_MAX_ARTIFACT_BYTES) -> None:
-        if type(max_bytes) is not int or not 0 < max_bytes <= 10 * 1024 * 1024:
-            raise ValueError("Artifact size limit must be between one byte and ten MiB")
+        if type(max_bytes) is not int or not 0 < max_bytes <= DEFAULT_MAX_ARTIFACT_BYTES:
+            raise ValueError("Artifact size limit must be between one byte and fifty MiB")
         self.root = root.expanduser().absolute()
         self.max_bytes = max_bytes
         self._check_path(self.root)
@@ -65,10 +70,8 @@ class ArtifactStore:
 
     def _read_file(self, path: Path, limit: int) -> bytes:
         self._check_path(path)
-        flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
         try:
-            descriptor = os.open(path, flags)
-            with os.fdopen(descriptor, "rb") as source:
+            with open_regular_nofollow(path) as source:
                 info = os.fstat(source.fileno())
                 if not stat.S_ISREG(info.st_mode) or info.st_size > limit:
                     raise ArtifactError("Artifact storage contains an invalid or oversized file")
@@ -133,6 +136,76 @@ class ArtifactStore:
             content = text.encode("utf-8")
         except (AttributeError, UnicodeError):
             raise ArtifactError("Artifact text must be valid UTF-8") from None
+        return self.publish_bytes(
+            workspace_id=workspace_id, actor_id=actor_id, run_id=run_id, task_id=task_id,
+            content=content, name=name, media_type=media_type,
+        )
+
+    def publish_workspace_files(
+        self, *, workspace: Path, paths: tuple[str, ...], workspace_id: UUID,
+        actor_id: UUID, run_id: UUID, task_id: UUID,
+    ) -> tuple[Artifact, ...]:
+        """Collect explicit deliverables after the owned container has been stopped.
+
+        Multi-file outputs are one ZIP preserving relative paths and a checksum
+        manifest. Only regular non-redirected files under the leased workspace are
+        read. Remote machine leases require a future runner collection protocol.
+        """
+        from simon.services.local_files import parts, reject_links
+
+        if not paths:
+            return ()
+        if len(paths) > 16 or len(set(paths)) != len(paths):
+            raise ArtifactError("Deliverables must contain up to sixteen distinct files")
+        workspace = workspace.absolute()
+        reject_links(workspace)
+        contents: dict[str, bytes] = {}
+        total = 0
+        for relative in paths:
+            components = parts(relative)
+            if not components:
+                raise ArtifactError("Deliverables must name a file")
+            name = "/".join(components)
+            if name.casefold() in {value.casefold() for value in contents}:
+                raise ArtifactError("Deliverable paths collide")
+            path = workspace.joinpath(*components)
+            reject_links(path)
+            # Reuse the bounded, no-follow reader with this workspace as its root.
+            source = ArtifactStore(workspace, max_bytes=self.max_bytes)
+            data = source._read_file(path, self.max_bytes - total)
+            total += len(data)
+            if total > self.max_bytes:
+                raise ArtifactError("Deliverables exceed the total size limit")
+            contents[name] = data
+        if len(contents) == 1:
+            name, data = next(iter(contents.items()))
+            filename = name.rsplit("/", 1)[-1]
+            media_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+        else:
+            if "simon-deliverables.json" in {name.casefold() for name in contents}:
+                raise ArtifactError("Deliverable name is reserved for the bundle manifest")
+            buffer = io.BytesIO()
+            with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_STORED) as archive:
+                for name, content in contents.items():
+                    archive.writestr(name, content)
+                archive.writestr("simon-deliverables.json", json.dumps({
+                    "version": 1, "run_id": str(run_id), "task_id": str(task_id),
+                    "files": [{"path": name, "size": len(content),
+                               "sha256": hashlib.sha256(content).hexdigest()}
+                              for name, content in contents.items()],
+                }, indent=2))
+            data, filename, media_type = buffer.getvalue(), "deliverables.zip", "application/zip"
+        return (self.publish_bytes(
+            workspace_id=workspace_id, actor_id=actor_id, run_id=run_id, task_id=task_id,
+            content=data, name=filename, media_type=media_type,
+        ),)
+
+    def publish_bytes(
+        self, *, workspace_id: UUID, actor_id: UUID, run_id: UUID, task_id: UUID,
+        content: bytes, name: str, media_type: str = "application/octet-stream",
+    ) -> Artifact:
+        if not isinstance(content, bytes):
+            raise ArtifactError("Artifact content must be bytes")
         if len(content) > self.max_bytes:
             raise ArtifactError("Artifact exceeds the configured size limit")
         digest = hashlib.sha256(content).hexdigest()

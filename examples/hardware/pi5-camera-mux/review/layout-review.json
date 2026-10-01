@@ -1,0 +1,1345 @@
+{
+  "source": "pi5-camera-mux.kicad_pcb",
+  "source_sha256": "dcc29d94eef476e0034d6c41a2a14266b6fae18dcd7bfd40f2587fa7990fcb64",
+  "scope": "Geometry only; excludes package/cable/via-barrel lengths; no SI approval",
+  "copper_layers": 4,
+  "serialized_stackup_present": false,
+  "track_and_via_count": 921,
+  "trace_segment_layers": {
+    "F.Cu": 702,
+    "B.Cu": 136
+  },
+  "schematic_pad_net_mismatches": [],
+  "all_csi_nets_have_tracks": true,
+  "all_csi_nets_are_simple_pad_to_pad_chains": true,
+  "csi_chain_topology": {
+    "HOST_D0_N": {
+      "single_pad_to_pad_chain": true,
+      "expected_pad_endpoints": [
+        "J1.2",
+        "U1.11"
+      ],
+      "track_ends_match_pad_centres": true,
+      "connected_components": 1,
+      "branch_nodes": 0,
+      "duplicate_segments": 0,
+      "interior_crossings_or_overlaps": 0,
+      "unsupported_arcs_or_vias": 0,
+      "all_segments_on_front": true,
+      "coordinate_tolerance_um": 1
+    },
+    "HOST_D0_P": {
+      "single_pad_to_pad_chain": true,
+      "expected_pad_endpoints": [
+        "J1.3",
+        "U1.10"
+      ],
+      "track_ends_match_pad_centres": true,
+      "connected_components": 1,
+      "branch_nodes": 0,
+      "duplicate_segments": 0,
+      "interior_crossings_or_overlaps": 0,
+      "unsupported_arcs_or_vias": 0,
+      "all_segments_on_front": true,
+      "coordinate_tolerance_um": 1
+    },
+    "HOST_D1_N": {
+      "single_pad_to_pad_chain": true,
+      "expected_pad_endpoints": [
+        "J1.5",
+        "U1.8"
+      ],
+      "track_ends_match_pad_centres": true,
+      "connected_components": 1,
+      "branch_nodes": 0,
+      "duplicate_segments": 0,
+      "interior_crossings_or_overlaps": 0,
+      "unsupported_arcs_or_vias": 0,
+      "all_segments_on_front": true,
+      "coordinate_tolerance_um": 1
+    },
+    "HOST_D1_P": {
+      "single_pad_to_pad_chain": true,
+      "expected_pad_endpoints": [
+        "J1.6",
+        "U1.7"
+      ],
+      "track_ends_match_pad_centres": true,
+      "connected_components": 1,
+      "branch_nodes": 0,
+      "duplicate_segments": 0,
+      "interior_crossings_or_overlaps": 0,
+      "unsupported_arcs_or_vias": 0,
+      "all_segments_on_front": true,
+      "coordinate_tolerance_um": 1
+    },
+    "HOST_CLK_N": {
+      "single_pad_to_pad_chain": true,
+      "expected_pad_endpoints": [
+        "J1.8",
+        "U1.6"
+      ],
+      "track_ends_match_pad_centres": true,
+      "connected_components": 1,
+      "branch_nodes": 0,
+      "duplicate_segments": 0,
+      "interior_crossings_or_overlaps": 0,
+      "unsupported_arcs_or_vias": 0,
+      "all_segments_on_front": true,
+      "coordinate_tolerance_um": 1
+    },
+    "HOST_CLK_P": {
+      "single_pad_to_pad_chain": true,
+      "expected_pad_endpoints": [
+        "J1.9",
+        "U1.5"
+      ],
+      "track_ends_match_pad_centres": true,
+      "connected_components": 1,
+      "branch_nodes": 0,
+      "duplicate_segments": 0,
+      "interior_crossings_or_overlaps": 0,
+      "unsupported_arcs_or_vias": 0,
+      "all_segments_on_front": true,
+      "coordinate_tolerance_um": 1
+    },
+    "BANK_AB_D0_N": {
+      "single_pad_to_pad_chain": true,
+      "expected_pad_endpoints": [
+        "U1.33",
+        "U2.11"
+      ],
+      "track_ends_match_pad_centres": true,
+      "connected_components": 1,
+      "branch_nodes": 0,
+      "duplicate_segments": 0,
+      "interior_crossings_or_overlaps": 0,
+      "unsupported_arcs_or_vias": 0,
+      "all_segments_on_front": true,
+      "coordinate_tolerance_um": 1
+    },
+    "BANK_AB_D0_P": {
+      "single_pad_to_pad_chain": true,
+      "expected_pad_endpoints": [
+        "U1.34",
+        "U2.10"
+      ],
+      "track_ends_match_pad_centres": true,
+      "connected_components": 1,
+      "branch_nodes": 0,
+      "duplicate_segments": 0,
+      "interior_crossings_or_overlaps": 0,
+      "unsupported_arcs_or_vias": 0,
+      "all_segments_on_front": true,
+      "coordinate_tolerance_um": 1
+    },
+    "BANK_AB_D1_N": {
+      "single_pad_to_pad_chain": true,
+      "expected_pad_endpoints": [
+        "U1.35",
+        "U2.8"
+      ],
+      "track_ends_match_pad_centres": true,
+      "connected_components": 1,
+      "branch_nodes": 0,
+      "duplicate_segments": 0,
+      "interior_crossings_or_overlaps": 0,
+      "unsupported_arcs_or_vias": 0,
+      "all_segments_on_front": true,
+      "coordinate_tolerance_um": 1
+    },
+    "BANK_AB_D1_P": {
+      "single_pad_to_pad_chain": true,
+      "expected_pad_endpoints": [
+        "U1.36",
+        "U2.7"
+      ],
+      "track_ends_match_pad_centres": true,
+      "connected_components": 1,
+      "branch_nodes": 0,
+      "duplicate_segments": 0,
+      "interior_crossings_or_overlaps": 0,
+      "unsupported_arcs_or_vias": 0,
+      "all_segments_on_front": true,
+      "coordinate_tolerance_um": 1
+    },
+    "BANK_AB_CLK_N": {
+      "single_pad_to_pad_chain": true,
+      "expected_pad_endpoints": [
+        "U1.37",
+        "U2.6"
+      ],
+      "track_ends_match_pad_centres": true,
+      "connected_components": 1,
+      "branch_nodes": 0,
+      "duplicate_segments": 0,
+      "interior_crossings_or_overlaps": 0,
+      "unsupported_arcs_or_vias": 0,
+      "all_segments_on_front": true,
+      "coordinate_tolerance_um": 1
+    },
+    "BANK_AB_CLK_P": {
+      "single_pad_to_pad_chain": true,
+      "expected_pad_endpoints": [
+        "U1.38",
+        "U2.5"
+      ],
+      "track_ends_match_pad_centres": true,
+      "connected_components": 1,
+      "branch_nodes": 0,
+      "duplicate_segments": 0,
+      "interior_crossings_or_overlaps": 0,
+      "unsupported_arcs_or_vias": 0,
+      "all_segments_on_front": true,
+      "coordinate_tolerance_um": 1
+    },
+    "BANK_CD_D0_N": {
+      "single_pad_to_pad_chain": true,
+      "expected_pad_endpoints": [
+        "U1.24",
+        "U3.11"
+      ],
+      "track_ends_match_pad_centres": true,
+      "connected_components": 1,
+      "branch_nodes": 0,
+      "duplicate_segments": 0,
+      "interior_crossings_or_overlaps": 0,
+      "unsupported_arcs_or_vias": 0,
+      "all_segments_on_front": true,
+      "coordinate_tolerance_um": 1
+    },
+    "BANK_CD_D0_P": {
+      "single_pad_to_pad_chain": true,
+      "expected_pad_endpoints": [
+        "U1.25",
+        "U3.10"
+      ],
+      "track_ends_match_pad_centres": true,
+      "connected_components": 1,
+      "branch_nodes": 0,
+      "duplicate_segments": 0,
+      "interior_crossings_or_overlaps": 0,
+      "unsupported_arcs_or_vias": 0,
+      "all_segments_on_front": true,
+      "coordinate_tolerance_um": 1
+    },
+    "BANK_CD_D1_N": {
+      "single_pad_to_pad_chain": true,
+      "expected_pad_endpoints": [
+        "U1.26",
+        "U3.8"
+      ],
+      "track_ends_match_pad_centres": true,
+      "connected_components": 1,
+      "branch_nodes": 0,
+      "duplicate_segments": 0,
+      "interior_crossings_or_overlaps": 0,
+      "unsupported_arcs_or_vias": 0,
+      "all_segments_on_front": true,
+      "coordinate_tolerance_um": 1
+    },
+    "BANK_CD_D1_P": {
+      "single_pad_to_pad_chain": true,
+      "expected_pad_endpoints": [
+        "U1.27",
+        "U3.7"
+      ],
+      "track_ends_match_pad_centres": true,
+      "connected_components": 1,
+      "branch_nodes": 0,
+      "duplicate_segments": 0,
+      "interior_crossings_or_overlaps": 0,
+      "unsupported_arcs_or_vias": 0,
+      "all_segments_on_front": true,
+      "coordinate_tolerance_um": 1
+    },
+    "BANK_CD_CLK_N": {
+      "single_pad_to_pad_chain": true,
+      "expected_pad_endpoints": [
+        "U1.28",
+        "U3.6"
+      ],
+      "track_ends_match_pad_centres": true,
+      "connected_components": 1,
+      "branch_nodes": 0,
+      "duplicate_segments": 0,
+      "interior_crossings_or_overlaps": 0,
+      "unsupported_arcs_or_vias": 0,
+      "all_segments_on_front": true,
+      "coordinate_tolerance_um": 1
+    },
+    "BANK_CD_CLK_P": {
+      "single_pad_to_pad_chain": true,
+      "expected_pad_endpoints": [
+        "U1.29",
+        "U3.5"
+      ],
+      "track_ends_match_pad_centres": true,
+      "connected_components": 1,
+      "branch_nodes": 0,
+      "duplicate_segments": 0,
+      "interior_crossings_or_overlaps": 0,
+      "unsupported_arcs_or_vias": 0,
+      "all_segments_on_front": true,
+      "coordinate_tolerance_um": 1
+    },
+    "CAM_A_D0_N": {
+      "single_pad_to_pad_chain": true,
+      "expected_pad_endpoints": [
+        "J2.2",
+        "U2.33"
+      ],
+      "track_ends_match_pad_centres": true,
+      "connected_components": 1,
+      "branch_nodes": 0,
+      "duplicate_segments": 0,
+      "interior_crossings_or_overlaps": 0,
+      "unsupported_arcs_or_vias": 0,
+      "all_segments_on_front": true,
+      "coordinate_tolerance_um": 1
+    },
+    "CAM_A_D0_P": {
+      "single_pad_to_pad_chain": true,
+      "expected_pad_endpoints": [
+        "J2.3",
+        "U2.34"
+      ],
+      "track_ends_match_pad_centres": true,
+      "connected_components": 1,
+      "branch_nodes": 0,
+      "duplicate_segments": 0,
+      "interior_crossings_or_overlaps": 0,
+      "unsupported_arcs_or_vias": 0,
+      "all_segments_on_front": true,
+      "coordinate_tolerance_um": 1
+    },
+    "CAM_A_D1_N": {
+      "single_pad_to_pad_chain": true,
+      "expected_pad_endpoints": [
+        "J2.5",
+        "U2.35"
+      ],
+      "track_ends_match_pad_centres": true,
+      "connected_components": 1,
+      "branch_nodes": 0,
+      "duplicate_segments": 0,
+      "interior_crossings_or_overlaps": 0,
+      "unsupported_arcs_or_vias": 0,
+      "all_segments_on_front": true,
+      "coordinate_tolerance_um": 1
+    },
+    "CAM_A_D1_P": {
+      "single_pad_to_pad_chain": true,
+      "expected_pad_endpoints": [
+        "J2.6",
+        "U2.36"
+      ],
+      "track_ends_match_pad_centres": true,
+      "connected_components": 1,
+      "branch_nodes": 0,
+      "duplicate_segments": 0,
+      "interior_crossings_or_overlaps": 0,
+      "unsupported_arcs_or_vias": 0,
+      "all_segments_on_front": true,
+      "coordinate_tolerance_um": 1
+    },
+    "CAM_A_CLK_N": {
+      "single_pad_to_pad_chain": true,
+      "expected_pad_endpoints": [
+        "J2.8",
+        "U2.37"
+      ],
+      "track_ends_match_pad_centres": true,
+      "connected_components": 1,
+      "branch_nodes": 0,
+      "duplicate_segments": 0,
+      "interior_crossings_or_overlaps": 0,
+      "unsupported_arcs_or_vias": 0,
+      "all_segments_on_front": true,
+      "coordinate_tolerance_um": 1
+    },
+    "CAM_A_CLK_P": {
+      "single_pad_to_pad_chain": true,
+      "expected_pad_endpoints": [
+        "J2.9",
+        "U2.38"
+      ],
+      "track_ends_match_pad_centres": true,
+      "connected_components": 1,
+      "branch_nodes": 0,
+      "duplicate_segments": 0,
+      "interior_crossings_or_overlaps": 0,
+      "unsupported_arcs_or_vias": 0,
+      "all_segments_on_front": true,
+      "coordinate_tolerance_um": 1
+    },
+    "CAM_B_D0_N": {
+      "single_pad_to_pad_chain": true,
+      "expected_pad_endpoints": [
+        "J3.2",
+        "U2.24"
+      ],
+      "track_ends_match_pad_centres": true,
+      "connected_components": 1,
+      "branch_nodes": 0,
+      "duplicate_segments": 0,
+      "interior_crossings_or_overlaps": 0,
+      "unsupported_arcs_or_vias": 0,
+      "all_segments_on_front": true,
+      "coordinate_tolerance_um": 1
+    },
+    "CAM_B_D0_P": {
+      "single_pad_to_pad_chain": true,
+      "expected_pad_endpoints": [
+        "J3.3",
+        "U2.25"
+      ],
+      "track_ends_match_pad_centres": true,
+      "connected_components": 1,
+      "branch_nodes": 0,
+      "duplicate_segments": 0,
+      "interior_crossings_or_overlaps": 0,
+      "unsupported_arcs_or_vias": 0,
+      "all_segments_on_front": true,
+      "coordinate_tolerance_um": 1
+    },
+    "CAM_B_D1_N": {
+      "single_pad_to_pad_chain": true,
+      "expected_pad_endpoints": [
+        "J3.5",
+        "U2.26"
+      ],
+      "track_ends_match_pad_centres": true,
+      "connected_components": 1,
+      "branch_nodes": 0,
+      "duplicate_segments": 0,
+      "interior_crossings_or_overlaps": 0,
+      "unsupported_arcs_or_vias": 0,
+      "all_segments_on_front": true,
+      "coordinate_tolerance_um": 1
+    },
+    "CAM_B_D1_P": {
+      "single_pad_to_pad_chain": true,
+      "expected_pad_endpoints": [
+        "J3.6",
+        "U2.27"
+      ],
+      "track_ends_match_pad_centres": true,
+      "connected_components": 1,
+      "branch_nodes": 0,
+      "duplicate_segments": 0,
+      "interior_crossings_or_overlaps": 0,
+      "unsupported_arcs_or_vias": 0,
+      "all_segments_on_front": true,
+      "coordinate_tolerance_um": 1
+    },
+    "CAM_B_CLK_N": {
+      "single_pad_to_pad_chain": true,
+      "expected_pad_endpoints": [
+        "J3.8",
+        "U2.28"
+      ],
+      "track_ends_match_pad_centres": true,
+      "connected_components": 1,
+      "branch_nodes": 0,
+      "duplicate_segments": 0,
+      "interior_crossings_or_overlaps": 0,
+      "unsupported_arcs_or_vias": 0,
+      "all_segments_on_front": true,
+      "coordinate_tolerance_um": 1
+    },
+    "CAM_B_CLK_P": {
+      "single_pad_to_pad_chain": true,
+      "expected_pad_endpoints": [
+        "J3.9",
+        "U2.29"
+      ],
+      "track_ends_match_pad_centres": true,
+      "connected_components": 1,
+      "branch_nodes": 0,
+      "duplicate_segments": 0,
+      "interior_crossings_or_overlaps": 0,
+      "unsupported_arcs_or_vias": 0,
+      "all_segments_on_front": true,
+      "coordinate_tolerance_um": 1
+    },
+    "CAM_C_D0_N": {
+      "single_pad_to_pad_chain": true,
+      "expected_pad_endpoints": [
+        "J4.2",
+        "U3.33"
+      ],
+      "track_ends_match_pad_centres": true,
+      "connected_components": 1,
+      "branch_nodes": 0,
+      "duplicate_segments": 0,
+      "interior_crossings_or_overlaps": 0,
+      "unsupported_arcs_or_vias": 0,
+      "all_segments_on_front": true,
+      "coordinate_tolerance_um": 1
+    },
+    "CAM_C_D0_P": {
+      "single_pad_to_pad_chain": true,
+      "expected_pad_endpoints": [
+        "J4.3",
+        "U3.34"
+      ],
+      "track_ends_match_pad_centres": true,
+      "connected_components": 1,
+      "branch_nodes": 0,
+      "duplicate_segments": 0,
+      "interior_crossings_or_overlaps": 0,
+      "unsupported_arcs_or_vias": 0,
+      "all_segments_on_front": true,
+      "coordinate_tolerance_um": 1
+    },
+    "CAM_C_D1_N": {
+      "single_pad_to_pad_chain": true,
+      "expected_pad_endpoints": [
+        "J4.5",
+        "U3.35"
+      ],
+      "track_ends_match_pad_centres": true,
+      "connected_components": 1,
+      "branch_nodes": 0,
+      "duplicate_segments": 0,
+      "interior_crossings_or_overlaps": 0,
+      "unsupported_arcs_or_vias": 0,
+      "all_segments_on_front": true,
+      "coordinate_tolerance_um": 1
+    },
+    "CAM_C_D1_P": {
+      "single_pad_to_pad_chain": true,
+      "expected_pad_endpoints": [
+        "J4.6",
+        "U3.36"
+      ],
+      "track_ends_match_pad_centres": true,
+      "connected_components": 1,
+      "branch_nodes": 0,
+      "duplicate_segments": 0,
+      "interior_crossings_or_overlaps": 0,
+      "unsupported_arcs_or_vias": 0,
+      "all_segments_on_front": true,
+      "coordinate_tolerance_um": 1
+    },
+    "CAM_C_CLK_N": {
+      "single_pad_to_pad_chain": true,
+      "expected_pad_endpoints": [
+        "J4.8",
+        "U3.37"
+      ],
+      "track_ends_match_pad_centres": true,
+      "connected_components": 1,
+      "branch_nodes": 0,
+      "duplicate_segments": 0,
+      "interior_crossings_or_overlaps": 0,
+      "unsupported_arcs_or_vias": 0,
+      "all_segments_on_front": true,
+      "coordinate_tolerance_um": 1
+    },
+    "CAM_C_CLK_P": {
+      "single_pad_to_pad_chain": true,
+      "expected_pad_endpoints": [
+        "J4.9",
+        "U3.38"
+      ],
+      "track_ends_match_pad_centres": true,
+      "connected_components": 1,
+      "branch_nodes": 0,
+      "duplicate_segments": 0,
+      "interior_crossings_or_overlaps": 0,
+      "unsupported_arcs_or_vias": 0,
+      "all_segments_on_front": true,
+      "coordinate_tolerance_um": 1
+    },
+    "CAM_D_D0_N": {
+      "single_pad_to_pad_chain": true,
+      "expected_pad_endpoints": [
+        "J5.2",
+        "U3.24"
+      ],
+      "track_ends_match_pad_centres": true,
+      "connected_components": 1,
+      "branch_nodes": 0,
+      "duplicate_segments": 0,
+      "interior_crossings_or_overlaps": 0,
+      "unsupported_arcs_or_vias": 0,
+      "all_segments_on_front": true,
+      "coordinate_tolerance_um": 1
+    },
+    "CAM_D_D0_P": {
+      "single_pad_to_pad_chain": true,
+      "expected_pad_endpoints": [
+        "J5.3",
+        "U3.25"
+      ],
+      "track_ends_match_pad_centres": true,
+      "connected_components": 1,
+      "branch_nodes": 0,
+      "duplicate_segments": 0,
+      "interior_crossings_or_overlaps": 0,
+      "unsupported_arcs_or_vias": 0,
+      "all_segments_on_front": true,
+      "coordinate_tolerance_um": 1
+    },
+    "CAM_D_D1_N": {
+      "single_pad_to_pad_chain": true,
+      "expected_pad_endpoints": [
+        "J5.5",
+        "U3.26"
+      ],
+      "track_ends_match_pad_centres": true,
+      "connected_components": 1,
+      "branch_nodes": 0,
+      "duplicate_segments": 0,
+      "interior_crossings_or_overlaps": 0,
+      "unsupported_arcs_or_vias": 0,
+      "all_segments_on_front": true,
+      "coordinate_tolerance_um": 1
+    },
+    "CAM_D_D1_P": {
+      "single_pad_to_pad_chain": true,
+      "expected_pad_endpoints": [
+        "J5.6",
+        "U3.27"
+      ],
+      "track_ends_match_pad_centres": true,
+      "connected_components": 1,
+      "branch_nodes": 0,
+      "duplicate_segments": 0,
+      "interior_crossings_or_overlaps": 0,
+      "unsupported_arcs_or_vias": 0,
+      "all_segments_on_front": true,
+      "coordinate_tolerance_um": 1
+    },
+    "CAM_D_CLK_N": {
+      "single_pad_to_pad_chain": true,
+      "expected_pad_endpoints": [
+        "J5.8",
+        "U3.28"
+      ],
+      "track_ends_match_pad_centres": true,
+      "connected_components": 1,
+      "branch_nodes": 0,
+      "duplicate_segments": 0,
+      "interior_crossings_or_overlaps": 0,
+      "unsupported_arcs_or_vias": 0,
+      "all_segments_on_front": true,
+      "coordinate_tolerance_um": 1
+    },
+    "CAM_D_CLK_P": {
+      "single_pad_to_pad_chain": true,
+      "expected_pad_endpoints": [
+        "J5.9",
+        "U3.29"
+      ],
+      "track_ends_match_pad_centres": true,
+      "connected_components": 1,
+      "branch_nodes": 0,
+      "duplicate_segments": 0,
+      "interior_crossings_or_overlaps": 0,
+      "unsupported_arcs_or_vias": 0,
+      "all_segments_on_front": true,
+      "coordinate_tolerance_um": 1
+    }
+  },
+  "ground_reference_screen": {
+    "method": "In1 GND fill sampled every <=0.2mm at centre and both trace edges",
+    "samples": 24438,
+    "samples_without_ground": 0,
+    "first_missing_samples": [],
+    "passed_sample_screen": true,
+    "filled_ground_outline_counts": [
+      1
+    ],
+    "ground_regions_under_samples": [
+      [
+        0,
+        0
+      ]
+    ],
+    "single_ground_region_under_all_samples": true,
+    "limit": "Sampling cannot prove all clearances, return-current paths or impedance"
+  },
+  "zones": [
+    {
+      "net": "/GND",
+      "layers": [
+        "In1.Cu"
+      ],
+      "filled": true
+    },
+    {
+      "net": "/CAM_3V3",
+      "layers": [
+        "In2.Cu"
+      ],
+      "filled": true
+    }
+  ],
+  "csi_segments": {
+    "HOST_D0": {
+      "negative": {
+        "trace_length_mm": 31.4847,
+        "trace_segments": 7,
+        "via_count": 0,
+        "layers": [
+          "F.Cu"
+        ],
+        "widths_mm": [
+          0.15
+        ]
+      },
+      "positive": {
+        "trace_length_mm": 31.4847,
+        "trace_segments": 7,
+        "via_count": 0,
+        "layers": [
+          "F.Cu"
+        ],
+        "widths_mm": [
+          0.15
+        ]
+      },
+      "absolute_trace_length_difference_mm": 0.0
+    },
+    "HOST_D1": {
+      "negative": {
+        "trace_length_mm": 31.4847,
+        "trace_segments": 7,
+        "via_count": 0,
+        "layers": [
+          "F.Cu"
+        ],
+        "widths_mm": [
+          0.15
+        ]
+      },
+      "positive": {
+        "trace_length_mm": 31.4847,
+        "trace_segments": 7,
+        "via_count": 0,
+        "layers": [
+          "F.Cu"
+        ],
+        "widths_mm": [
+          0.15
+        ]
+      },
+      "absolute_trace_length_difference_mm": 0.0
+    },
+    "HOST_CLK": {
+      "negative": {
+        "trace_length_mm": 31.4185,
+        "trace_segments": 7,
+        "via_count": 0,
+        "layers": [
+          "F.Cu"
+        ],
+        "widths_mm": [
+          0.15
+        ]
+      },
+      "positive": {
+        "trace_length_mm": 31.4185,
+        "trace_segments": 7,
+        "via_count": 0,
+        "layers": [
+          "F.Cu"
+        ],
+        "widths_mm": [
+          0.15
+        ]
+      },
+      "absolute_trace_length_difference_mm": 0.0
+    },
+    "BANK_AB_D0": {
+      "negative": {
+        "trace_length_mm": 46.8519,
+        "trace_segments": 7,
+        "via_count": 0,
+        "layers": [
+          "F.Cu"
+        ],
+        "widths_mm": [
+          0.15
+        ]
+      },
+      "positive": {
+        "trace_length_mm": 46.8519,
+        "trace_segments": 7,
+        "via_count": 0,
+        "layers": [
+          "F.Cu"
+        ],
+        "widths_mm": [
+          0.15
+        ]
+      },
+      "absolute_trace_length_difference_mm": 0.0
+    },
+    "BANK_AB_D1": {
+      "negative": {
+        "trace_length_mm": 47.1347,
+        "trace_segments": 7,
+        "via_count": 0,
+        "layers": [
+          "F.Cu"
+        ],
+        "widths_mm": [
+          0.15
+        ]
+      },
+      "positive": {
+        "trace_length_mm": 47.1347,
+        "trace_segments": 7,
+        "via_count": 0,
+        "layers": [
+          "F.Cu"
+        ],
+        "widths_mm": [
+          0.15
+        ]
+      },
+      "absolute_trace_length_difference_mm": 0.0
+    },
+    "BANK_AB_CLK": {
+      "negative": {
+        "trace_length_mm": 47.1347,
+        "trace_segments": 7,
+        "via_count": 0,
+        "layers": [
+          "F.Cu"
+        ],
+        "widths_mm": [
+          0.15
+        ]
+      },
+      "positive": {
+        "trace_length_mm": 47.1347,
+        "trace_segments": 7,
+        "via_count": 0,
+        "layers": [
+          "F.Cu"
+        ],
+        "widths_mm": [
+          0.15
+        ]
+      },
+      "absolute_trace_length_difference_mm": 0.0
+    },
+    "BANK_CD_D0": {
+      "negative": {
+        "trace_length_mm": 47.1347,
+        "trace_segments": 7,
+        "via_count": 0,
+        "layers": [
+          "F.Cu"
+        ],
+        "widths_mm": [
+          0.15
+        ]
+      },
+      "positive": {
+        "trace_length_mm": 47.1347,
+        "trace_segments": 7,
+        "via_count": 0,
+        "layers": [
+          "F.Cu"
+        ],
+        "widths_mm": [
+          0.15
+        ]
+      },
+      "absolute_trace_length_difference_mm": 0.0
+    },
+    "BANK_CD_D1": {
+      "negative": {
+        "trace_length_mm": 46.8519,
+        "trace_segments": 7,
+        "via_count": 0,
+        "layers": [
+          "F.Cu"
+        ],
+        "widths_mm": [
+          0.15
+        ]
+      },
+      "positive": {
+        "trace_length_mm": 46.8519,
+        "trace_segments": 7,
+        "via_count": 0,
+        "layers": [
+          "F.Cu"
+        ],
+        "widths_mm": [
+          0.15
+        ]
+      },
+      "absolute_trace_length_difference_mm": 0.0
+    },
+    "BANK_CD_CLK": {
+      "negative": {
+        "trace_length_mm": 46.8519,
+        "trace_segments": 7,
+        "via_count": 0,
+        "layers": [
+          "F.Cu"
+        ],
+        "widths_mm": [
+          0.15
+        ]
+      },
+      "positive": {
+        "trace_length_mm": 46.8519,
+        "trace_segments": 7,
+        "via_count": 0,
+        "layers": [
+          "F.Cu"
+        ],
+        "widths_mm": [
+          0.15
+        ]
+      },
+      "absolute_trace_length_difference_mm": 0.0
+    },
+    "CAM_A_D0": {
+      "negative": {
+        "trace_length_mm": 31.2149,
+        "trace_segments": 7,
+        "via_count": 0,
+        "layers": [
+          "F.Cu"
+        ],
+        "widths_mm": [
+          0.15
+        ]
+      },
+      "positive": {
+        "trace_length_mm": 31.2149,
+        "trace_segments": 7,
+        "via_count": 0,
+        "layers": [
+          "F.Cu"
+        ],
+        "widths_mm": [
+          0.15
+        ]
+      },
+      "absolute_trace_length_difference_mm": 0.0
+    },
+    "CAM_A_D1": {
+      "negative": {
+        "trace_length_mm": 31.7261,
+        "trace_segments": 7,
+        "via_count": 0,
+        "layers": [
+          "F.Cu"
+        ],
+        "widths_mm": [
+          0.15
+        ]
+      },
+      "positive": {
+        "trace_length_mm": 31.7261,
+        "trace_segments": 7,
+        "via_count": 0,
+        "layers": [
+          "F.Cu"
+        ],
+        "widths_mm": [
+          0.15
+        ]
+      },
+      "absolute_trace_length_difference_mm": 0.0
+    },
+    "CAM_A_CLK": {
+      "negative": {
+        "trace_length_mm": 32.3745,
+        "trace_segments": 7,
+        "via_count": 0,
+        "layers": [
+          "F.Cu"
+        ],
+        "widths_mm": [
+          0.15
+        ]
+      },
+      "positive": {
+        "trace_length_mm": 32.3745,
+        "trace_segments": 7,
+        "via_count": 0,
+        "layers": [
+          "F.Cu"
+        ],
+        "widths_mm": [
+          0.15
+        ]
+      },
+      "absolute_trace_length_difference_mm": 0.0
+    },
+    "CAM_B_D0": {
+      "negative": {
+        "trace_length_mm": 35.0449,
+        "trace_segments": 7,
+        "via_count": 0,
+        "layers": [
+          "F.Cu"
+        ],
+        "widths_mm": [
+          0.15
+        ]
+      },
+      "positive": {
+        "trace_length_mm": 35.0449,
+        "trace_segments": 7,
+        "via_count": 0,
+        "layers": [
+          "F.Cu"
+        ],
+        "widths_mm": [
+          0.15
+        ]
+      },
+      "absolute_trace_length_difference_mm": 0.0
+    },
+    "CAM_B_D1": {
+      "negative": {
+        "trace_length_mm": 34.0443,
+        "trace_segments": 7,
+        "via_count": 0,
+        "layers": [
+          "F.Cu"
+        ],
+        "widths_mm": [
+          0.15
+        ]
+      },
+      "positive": {
+        "trace_length_mm": 34.0443,
+        "trace_segments": 7,
+        "via_count": 0,
+        "layers": [
+          "F.Cu"
+        ],
+        "widths_mm": [
+          0.15
+        ]
+      },
+      "absolute_trace_length_difference_mm": 0.0
+    },
+    "CAM_B_CLK": {
+      "negative": {
+        "trace_length_mm": 33.1507,
+        "trace_segments": 7,
+        "via_count": 0,
+        "layers": [
+          "F.Cu"
+        ],
+        "widths_mm": [
+          0.15
+        ]
+      },
+      "positive": {
+        "trace_length_mm": 33.1507,
+        "trace_segments": 7,
+        "via_count": 0,
+        "layers": [
+          "F.Cu"
+        ],
+        "widths_mm": [
+          0.15
+        ]
+      },
+      "absolute_trace_length_difference_mm": 0.0
+    },
+    "CAM_C_D0": {
+      "negative": {
+        "trace_length_mm": 31.2149,
+        "trace_segments": 7,
+        "via_count": 0,
+        "layers": [
+          "F.Cu"
+        ],
+        "widths_mm": [
+          0.15
+        ]
+      },
+      "positive": {
+        "trace_length_mm": 31.2149,
+        "trace_segments": 7,
+        "via_count": 0,
+        "layers": [
+          "F.Cu"
+        ],
+        "widths_mm": [
+          0.15
+        ]
+      },
+      "absolute_trace_length_difference_mm": 0.0
+    },
+    "CAM_C_D1": {
+      "negative": {
+        "trace_length_mm": 31.7261,
+        "trace_segments": 7,
+        "via_count": 0,
+        "layers": [
+          "F.Cu"
+        ],
+        "widths_mm": [
+          0.15
+        ]
+      },
+      "positive": {
+        "trace_length_mm": 31.7261,
+        "trace_segments": 7,
+        "via_count": 0,
+        "layers": [
+          "F.Cu"
+        ],
+        "widths_mm": [
+          0.15
+        ]
+      },
+      "absolute_trace_length_difference_mm": 0.0
+    },
+    "CAM_C_CLK": {
+      "negative": {
+        "trace_length_mm": 32.3745,
+        "trace_segments": 7,
+        "via_count": 0,
+        "layers": [
+          "F.Cu"
+        ],
+        "widths_mm": [
+          0.15
+        ]
+      },
+      "positive": {
+        "trace_length_mm": 32.3745,
+        "trace_segments": 7,
+        "via_count": 0,
+        "layers": [
+          "F.Cu"
+        ],
+        "widths_mm": [
+          0.15
+        ]
+      },
+      "absolute_trace_length_difference_mm": 0.0
+    },
+    "CAM_D_D0": {
+      "negative": {
+        "trace_length_mm": 35.0449,
+        "trace_segments": 7,
+        "via_count": 0,
+        "layers": [
+          "F.Cu"
+        ],
+        "widths_mm": [
+          0.15
+        ]
+      },
+      "positive": {
+        "trace_length_mm": 35.0449,
+        "trace_segments": 7,
+        "via_count": 0,
+        "layers": [
+          "F.Cu"
+        ],
+        "widths_mm": [
+          0.15
+        ]
+      },
+      "absolute_trace_length_difference_mm": 0.0
+    },
+    "CAM_D_D1": {
+      "negative": {
+        "trace_length_mm": 34.0443,
+        "trace_segments": 7,
+        "via_count": 0,
+        "layers": [
+          "F.Cu"
+        ],
+        "widths_mm": [
+          0.15
+        ]
+      },
+      "positive": {
+        "trace_length_mm": 34.0443,
+        "trace_segments": 7,
+        "via_count": 0,
+        "layers": [
+          "F.Cu"
+        ],
+        "widths_mm": [
+          0.15
+        ]
+      },
+      "absolute_trace_length_difference_mm": 0.0
+    },
+    "CAM_D_CLK": {
+      "negative": {
+        "trace_length_mm": 33.1507,
+        "trace_segments": 7,
+        "via_count": 0,
+        "layers": [
+          "F.Cu"
+        ],
+        "widths_mm": [
+          0.15
+        ]
+      },
+      "positive": {
+        "trace_length_mm": 33.1507,
+        "trace_segments": 7,
+        "via_count": 0,
+        "layers": [
+          "F.Cu"
+        ],
+        "widths_mm": [
+          0.15
+        ]
+      },
+      "absolute_trace_length_difference_mm": 0.0
+    }
+  },
+  "active_csi_paths": {
+    "CAM_A_D0": {
+      "all_three_segments_are_simple_chains": true,
+      "negative_trace_length_mm": 109.5515,
+      "positive_trace_length_mm": 109.5515,
+      "absolute_trace_length_difference_mm": 0.0,
+      "negative_vias": 0,
+      "positive_vias": 0
+    },
+    "CAM_A_D1": {
+      "all_three_segments_are_simple_chains": true,
+      "negative_trace_length_mm": 110.3455,
+      "positive_trace_length_mm": 110.3455,
+      "absolute_trace_length_difference_mm": 0.0,
+      "negative_vias": 0,
+      "positive_vias": 0
+    },
+    "CAM_A_CLK": {
+      "all_three_segments_are_simple_chains": true,
+      "negative_trace_length_mm": 110.9277,
+      "positive_trace_length_mm": 110.9277,
+      "absolute_trace_length_difference_mm": 0.0,
+      "negative_vias": 0,
+      "positive_vias": 0
+    },
+    "CAM_B_D0": {
+      "all_three_segments_are_simple_chains": true,
+      "negative_trace_length_mm": 113.3815,
+      "positive_trace_length_mm": 113.3815,
+      "absolute_trace_length_difference_mm": 0.0,
+      "negative_vias": 0,
+      "positive_vias": 0
+    },
+    "CAM_B_D1": {
+      "all_three_segments_are_simple_chains": true,
+      "negative_trace_length_mm": 112.6637,
+      "positive_trace_length_mm": 112.6637,
+      "absolute_trace_length_difference_mm": 0.0,
+      "negative_vias": 0,
+      "positive_vias": 0
+    },
+    "CAM_B_CLK": {
+      "all_three_segments_are_simple_chains": true,
+      "negative_trace_length_mm": 111.7039,
+      "positive_trace_length_mm": 111.7039,
+      "absolute_trace_length_difference_mm": 0.0,
+      "negative_vias": 0,
+      "positive_vias": 0
+    },
+    "CAM_C_D0": {
+      "all_three_segments_are_simple_chains": true,
+      "negative_trace_length_mm": 109.8343,
+      "positive_trace_length_mm": 109.8343,
+      "absolute_trace_length_difference_mm": 0.0,
+      "negative_vias": 0,
+      "positive_vias": 0
+    },
+    "CAM_C_D1": {
+      "all_three_segments_are_simple_chains": true,
+      "negative_trace_length_mm": 110.0627,
+      "positive_trace_length_mm": 110.0627,
+      "absolute_trace_length_difference_mm": 0.0,
+      "negative_vias": 0,
+      "positive_vias": 0
+    },
+    "CAM_C_CLK": {
+      "all_three_segments_are_simple_chains": true,
+      "negative_trace_length_mm": 110.6449,
+      "positive_trace_length_mm": 110.6449,
+      "absolute_trace_length_difference_mm": 0.0,
+      "negative_vias": 0,
+      "positive_vias": 0
+    },
+    "CAM_D_D0": {
+      "all_three_segments_are_simple_chains": true,
+      "negative_trace_length_mm": 113.6643,
+      "positive_trace_length_mm": 113.6643,
+      "absolute_trace_length_difference_mm": 0.0,
+      "negative_vias": 0,
+      "positive_vias": 0
+    },
+    "CAM_D_D1": {
+      "all_three_segments_are_simple_chains": true,
+      "negative_trace_length_mm": 112.3809,
+      "positive_trace_length_mm": 112.3809,
+      "absolute_trace_length_difference_mm": 0.0,
+      "negative_vias": 0,
+      "positive_vias": 0
+    },
+    "CAM_D_CLK": {
+      "all_three_segments_are_simple_chains": true,
+      "negative_trace_length_mm": 111.4211,
+      "positive_trace_length_mm": 111.4211,
+      "absolute_trace_length_difference_mm": 0.0,
+      "negative_vias": 0,
+      "positive_vias": 0
+    }
+  },
+  "power_tracks": {
+    "HOST_3V3": {
+      "trace_length_mm": 276.2288,
+      "trace_segments": 75,
+      "via_count": 11,
+      "layers": [
+        "B.Cu",
+        "F.Cu"
+      ],
+      "widths_mm": [
+        0.15,
+        0.2
+      ]
+    },
+    "EXT_3V3": {
+      "trace_length_mm": 11.0844,
+      "trace_segments": 5,
+      "via_count": 0,
+      "layers": [
+        "F.Cu"
+      ],
+      "widths_mm": [
+        0.6
+      ]
+    },
+    "CAM_3V3": {
+      "trace_length_mm": 196.9638,
+      "trace_segments": 34,
+      "via_count": 9,
+      "layers": [
+        "B.Cu",
+        "F.Cu"
+      ],
+      "widths_mm": [
+        0.2,
+        0.5
+      ]
+    }
+  }
+}

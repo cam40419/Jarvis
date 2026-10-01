@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable, Iterator
 from contextlib import AbstractContextManager, contextmanager
 from contextvars import ContextVar
+from datetime import datetime
 from threading import Lock
 from typing import Any
 from uuid import UUID
@@ -668,6 +669,27 @@ class PostgresStore(InMemoryStore):
                 "ORDER BY COALESCE((input->>'priority')::int,3) DESC, "
                 "COALESCE((input->>'rank')::bigint,0), created_at, id OFFSET %s LIMIT %s",
                 (household_id, actor_id, kind, offset, limit),
+            ).fetchall()
+            return tuple(self._job(row) for row in rows)
+
+    def project_run_jobs(
+        self, household_id: UUID, actor_id: UUID, project_id: UUID,
+        before: tuple[datetime, UUID] | None, limit: int,
+    ) -> tuple[Job, ...]:
+        cursor_clause = " AND (r.created_at,r.id) < (%s,%s)" if before else ""
+        parameters: tuple[Any, ...] = (household_id, actor_id, str(project_id))
+        if before:
+            parameters += before
+        with self.transaction():
+            rows = self.connection.execute(
+                "SELECT r.* FROM jobs p JOIN jobs r ON "
+                "r.household_id=p.household_id AND r.created_by=p.created_by "
+                "AND r.input->>'plan_id'=p.id::text "
+                "WHERE p.household_id=%s AND p.created_by=%s "
+                "AND p.kind='platform.plan' AND r.kind='platform.run' "
+                "AND p.input->'plan'->>'project_id'=%s" + cursor_clause
+                + " ORDER BY r.created_at DESC,r.id DESC LIMIT %s",
+                (*parameters, limit),
             ).fetchall()
             return tuple(self._job(row) for row in rows)
 

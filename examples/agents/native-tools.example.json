@@ -1,0 +1,1602 @@
+{
+  "tools": [
+    {
+      "action_policy": "read",
+      "capabilities": [
+        "local_files_roots",
+        "file.read"
+      ],
+      "categories": [
+        "files"
+      ],
+      "configured": false,
+      "credential_env": null,
+      "description": "List this account's accessible folders on Simon's server. Resolve roots first. Agent access is limited to workspace and authorized project roots.",
+      "enabled": false,
+      "endpoint": null,
+      "environment_capabilities": [],
+      "id": "native.local_files_roots",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "required_scopes": [
+        "jobs:read"
+      ],
+      "settings": {
+        "network": false
+      },
+      "side_effect": false,
+      "transport": "native"
+    },
+    {
+      "action_policy": "read",
+      "capabilities": [
+        "local_files_list",
+        "file.read"
+      ],
+      "categories": [
+        "files"
+      ],
+      "configured": false,
+      "credential_env": null,
+      "description": "List files in a local folder, 100 at a time; use next_offset for more. Agent access is limited to workspace and authorized project roots.",
+      "enabled": false,
+      "endpoint": null,
+      "environment_capabilities": [],
+      "id": "native.local_files_list",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "offset": {
+            "default": 0,
+            "maximum": 20000,
+            "minimum": 0,
+            "title": "Offset",
+            "type": "integer"
+          },
+          "path": {
+            "default": "",
+            "maxLength": 1000,
+            "title": "Path",
+            "type": "string"
+          },
+          "root": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^(workspace|project:[0-9a-fA-F-]{36})$",
+            "title": "Root",
+            "type": "string"
+          }
+        },
+        "required": [
+          "root"
+        ],
+        "title": "LocalList",
+        "type": "object"
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "required_scopes": [
+        "jobs:read"
+      ],
+      "settings": {
+        "network": false
+      },
+      "side_effect": false,
+      "transport": "native"
+    },
+    {
+      "action_policy": "read",
+      "capabilities": [
+        "local_files_search",
+        "file.read"
+      ],
+      "categories": [
+        "files"
+      ],
+      "configured": false,
+      "credential_env": null,
+      "description": "Find files/folders by name recursively under a local root/path; bounded search. Agent access is limited to workspace and authorized project roots.",
+      "enabled": false,
+      "endpoint": null,
+      "environment_capabilities": [],
+      "id": "native.local_files_search",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "default": "",
+            "maxLength": 1000,
+            "title": "Path",
+            "type": "string"
+          },
+          "query": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Query",
+            "type": "string"
+          },
+          "root": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^(workspace|project:[0-9a-fA-F-]{36})$",
+            "title": "Root",
+            "type": "string"
+          }
+        },
+        "required": [
+          "root",
+          "query"
+        ],
+        "title": "LocalSearch",
+        "type": "object"
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "required_scopes": [
+        "jobs:read"
+      ],
+      "settings": {
+        "network": false
+      },
+      "side_effect": false,
+      "transport": "native"
+    },
+    {
+      "action_policy": "read",
+      "capabilities": [
+        "file.read",
+        "local_file_read"
+      ],
+      "categories": [
+        "files"
+      ],
+      "configured": false,
+      "credential_env": null,
+      "description": "Read a page of UTF-8 text/code from a local file, with revision for editing. Agent access is limited to workspace and authorized project roots.",
+      "enabled": false,
+      "endpoint": null,
+      "environment_capabilities": [],
+      "id": "native.local_file_read",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "limit": {
+            "default": 12000,
+            "maximum": 24000,
+            "minimum": 1,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "default": 0,
+            "maximum": 2000000,
+            "minimum": 0,
+            "title": "Offset",
+            "type": "integer"
+          },
+          "path": {
+            "default": "",
+            "maxLength": 1000,
+            "title": "Path",
+            "type": "string"
+          },
+          "root": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^(workspace|project:[0-9a-fA-F-]{36})$",
+            "title": "Root",
+            "type": "string"
+          }
+        },
+        "required": [
+          "root"
+        ],
+        "title": "LocalRead",
+        "type": "object"
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "required_scopes": [
+        "jobs:read"
+      ],
+      "settings": {
+        "network": false
+      },
+      "side_effect": false,
+      "transport": "native"
+    },
+    {
+      "action_policy": "write",
+      "capabilities": [
+        "local_file_write",
+        "file.write"
+      ],
+      "categories": [
+        "files"
+      ],
+      "configured": false,
+      "credential_env": null,
+      "description": "Create UTF-8 text/code, or replace after reading its revision. Empty revision means create only. Agent access is limited to workspace and authorized project roots.",
+      "enabled": false,
+      "endpoint": null,
+      "environment_capabilities": [],
+      "id": "native.local_file_write",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "maxLength": 2000000,
+            "title": "Content",
+            "type": "string"
+          },
+          "path": {
+            "default": "",
+            "maxLength": 1000,
+            "title": "Path",
+            "type": "string"
+          },
+          "revision": {
+            "default": "",
+            "maxLength": 64,
+            "title": "Revision",
+            "type": "string"
+          },
+          "root": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^(workspace|project:[0-9a-fA-F-]{36})$",
+            "title": "Root",
+            "type": "string"
+          }
+        },
+        "required": [
+          "root",
+          "content"
+        ],
+        "title": "LocalWrite",
+        "type": "object"
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "required_scopes": [
+        "jobs:write",
+        "jobs:read"
+      ],
+      "settings": {
+        "network": false
+      },
+      "side_effect": true,
+      "transport": "native"
+    },
+    {
+      "action_policy": "write",
+      "capabilities": [
+        "local_file_edit",
+        "file.write"
+      ],
+      "categories": [
+        "files"
+      ],
+      "configured": false,
+      "credential_env": null,
+      "description": "Replace one exact old_text occurrence using a freshly read revision; preserves other content. Agent access is limited to workspace and authorized project roots.",
+      "enabled": false,
+      "endpoint": null,
+      "environment_capabilities": [],
+      "id": "native.local_file_edit",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "new_text": {
+            "maxLength": 100000,
+            "title": "New Text",
+            "type": "string"
+          },
+          "old_text": {
+            "maxLength": 100000,
+            "minLength": 1,
+            "title": "Old Text",
+            "type": "string"
+          },
+          "path": {
+            "default": "",
+            "maxLength": 1000,
+            "title": "Path",
+            "type": "string"
+          },
+          "revision": {
+            "maxLength": 64,
+            "minLength": 64,
+            "title": "Revision",
+            "type": "string"
+          },
+          "root": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^(workspace|project:[0-9a-fA-F-]{36})$",
+            "title": "Root",
+            "type": "string"
+          }
+        },
+        "required": [
+          "root",
+          "revision",
+          "old_text",
+          "new_text"
+        ],
+        "title": "LocalEdit",
+        "type": "object"
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "required_scopes": [
+        "jobs:write",
+        "jobs:read"
+      ],
+      "settings": {
+        "network": false
+      },
+      "side_effect": true,
+      "transport": "native"
+    },
+    {
+      "action_policy": "write",
+      "capabilities": [
+        "local_file_move",
+        "file.write"
+      ],
+      "categories": [
+        "files"
+      ],
+      "configured": false,
+      "credential_env": null,
+      "description": "Move or rename a local file with its current revision. Never overwrites the destination. Agent access is limited to workspace and authorized project roots.",
+      "enabled": false,
+      "endpoint": null,
+      "environment_capabilities": [],
+      "id": "native.local_file_move",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "destination_path": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Destination Path",
+            "type": "string"
+          },
+          "destination_root": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^(workspace|project:[0-9a-fA-F-]{36})$",
+            "title": "Destination Root",
+            "type": "string"
+          },
+          "path": {
+            "default": "",
+            "maxLength": 1000,
+            "title": "Path",
+            "type": "string"
+          },
+          "revision": {
+            "maxLength": 64,
+            "minLength": 64,
+            "title": "Revision",
+            "type": "string"
+          },
+          "root": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^(workspace|project:[0-9a-fA-F-]{36})$",
+            "title": "Root",
+            "type": "string"
+          }
+        },
+        "required": [
+          "root",
+          "destination_root",
+          "destination_path",
+          "revision"
+        ],
+        "title": "LocalMove",
+        "type": "object"
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "required_scopes": [
+        "jobs:write",
+        "jobs:read"
+      ],
+      "settings": {
+        "network": false
+      },
+      "side_effect": true,
+      "transport": "native"
+    },
+    {
+      "action_policy": "write",
+      "capabilities": [
+        "file.write",
+        "local_folder_create"
+      ],
+      "categories": [
+        "files"
+      ],
+      "configured": false,
+      "credential_env": null,
+      "description": "Create a local folder, including parent folders. Agent access is limited to workspace and authorized project roots.",
+      "enabled": false,
+      "endpoint": null,
+      "environment_capabilities": [],
+      "id": "native.local_folder_create",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "default": "",
+            "maxLength": 1000,
+            "title": "Path",
+            "type": "string"
+          },
+          "root": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^(workspace|project:[0-9a-fA-F-]{36})$",
+            "title": "Root",
+            "type": "string"
+          }
+        },
+        "required": [
+          "root"
+        ],
+        "title": "LocalPath",
+        "type": "object"
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "required_scopes": [
+        "jobs:write",
+        "jobs:read"
+      ],
+      "settings": {
+        "network": false
+      },
+      "side_effect": true,
+      "transport": "native"
+    },
+    {
+      "action_policy": "read",
+      "capabilities": [
+        "local_zip_inspect",
+        "file.read"
+      ],
+      "categories": [
+        "files"
+      ],
+      "configured": false,
+      "credential_env": null,
+      "description": "Inspect ZIP member names and sizes without extraction, paginated 100 members. Agent access is limited to workspace and authorized project roots.",
+      "enabled": false,
+      "endpoint": null,
+      "environment_capabilities": [],
+      "id": "native.local_zip_inspect",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "offset": {
+            "default": 0,
+            "maximum": 20000,
+            "minimum": 0,
+            "title": "Offset",
+            "type": "integer"
+          },
+          "path": {
+            "default": "",
+            "maxLength": 1000,
+            "title": "Path",
+            "type": "string"
+          },
+          "root": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^(workspace|project:[0-9a-fA-F-]{36})$",
+            "title": "Root",
+            "type": "string"
+          }
+        },
+        "required": [
+          "root"
+        ],
+        "title": "LocalList",
+        "type": "object"
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "required_scopes": [
+        "jobs:read"
+      ],
+      "settings": {
+        "network": false
+      },
+      "side_effect": false,
+      "transport": "native"
+    },
+    {
+      "action_policy": "write",
+      "capabilities": [
+        "file.write",
+        "local_zip_extract"
+      ],
+      "categories": [
+        "files"
+      ],
+      "configured": false,
+      "credential_env": null,
+      "description": "Extract a ZIP into a NEW local folder. Preserves nested paths; rejects unsafe/oversized archives. No confirmation card. Agent access is limited to workspace and authorized project roots.",
+      "enabled": false,
+      "endpoint": null,
+      "environment_capabilities": [],
+      "id": "native.local_zip_extract",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "destination_path": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Destination Path",
+            "type": "string"
+          },
+          "destination_root": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^(workspace|project:[0-9a-fA-F-]{36})$",
+            "title": "Destination Root",
+            "type": "string"
+          },
+          "path": {
+            "default": "",
+            "maxLength": 1000,
+            "title": "Path",
+            "type": "string"
+          },
+          "root": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^(workspace|project:[0-9a-fA-F-]{36})$",
+            "title": "Root",
+            "type": "string"
+          }
+        },
+        "required": [
+          "root",
+          "destination_root",
+          "destination_path"
+        ],
+        "title": "LocalExtract",
+        "type": "object"
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "required_scopes": [
+        "jobs:write",
+        "jobs:read"
+      ],
+      "settings": {
+        "network": false
+      },
+      "side_effect": true,
+      "transport": "native"
+    },
+    {
+      "action_policy": "write",
+      "capabilities": [
+        "file.write",
+        "local_zip_create"
+      ],
+      "categories": [
+        "files"
+      ],
+      "configured": false,
+      "credential_env": null,
+      "description": "Package a local file/folder into a NEW ZIP at destination_root/destination_path. Agent access is limited to workspace and authorized project roots.",
+      "enabled": false,
+      "endpoint": null,
+      "environment_capabilities": [],
+      "id": "native.local_zip_create",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "destination_path": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Destination Path",
+            "type": "string"
+          },
+          "destination_root": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^(workspace|project:[0-9a-fA-F-]{36})$",
+            "title": "Destination Root",
+            "type": "string"
+          },
+          "path": {
+            "default": "",
+            "maxLength": 1000,
+            "title": "Path",
+            "type": "string"
+          },
+          "root": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^(workspace|project:[0-9a-fA-F-]{36})$",
+            "title": "Root",
+            "type": "string"
+          }
+        },
+        "required": [
+          "root",
+          "destination_root",
+          "destination_path"
+        ],
+        "title": "LocalZip",
+        "type": "object"
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "required_scopes": [
+        "jobs:write",
+        "jobs:read"
+      ],
+      "settings": {
+        "network": false
+      },
+      "side_effect": true,
+      "transport": "native"
+    },
+    {
+      "action_policy": "read",
+      "capabilities": [
+        "project_list",
+        "file.read"
+      ],
+      "categories": [
+        "projects"
+      ],
+      "configured": false,
+      "credential_env": null,
+      "description": "List Work projects and Drive state/version. Local folders use root project:<id>.",
+      "enabled": false,
+      "endpoint": null,
+      "environment_capabilities": [],
+      "id": "native.project_list",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "required_scopes": [
+        "jobs:read",
+        "memories:read"
+      ],
+      "settings": {
+        "network": false
+      },
+      "side_effect": false,
+      "transport": "native"
+    },
+    {
+      "action_policy": "read",
+      "capabilities": [
+        "file.read",
+        "project_files_list"
+      ],
+      "categories": [
+        "projects"
+      ],
+      "configured": false,
+      "credential_env": null,
+      "description": "List live project folder files; null folder_id means project root. Page with next_page_token.",
+      "enabled": false,
+      "endpoint": null,
+      "environment_capabilities": [],
+      "id": "native.project_files_list",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "folder_id": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "pattern": "^[A-Za-z0-9_-]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Folder Id"
+          },
+          "page_token": {
+            "default": "",
+            "maxLength": 2048,
+            "title": "Page Token",
+            "type": "string"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "query": {
+            "default": "",
+            "maxLength": 200,
+            "title": "Query",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id"
+        ],
+        "title": "ProjectFiles",
+        "type": "object"
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "required_scopes": [
+        "jobs:read",
+        "memories:read"
+      ],
+      "settings": {
+        "network": true
+      },
+      "side_effect": false,
+      "transport": "native"
+    },
+    {
+      "action_policy": "read",
+      "capabilities": [
+        "project_file_read",
+        "file.read"
+      ],
+      "categories": [
+        "projects"
+      ],
+      "configured": false,
+      "credential_env": null,
+      "description": "Read live text/code or Google Docs with revision and tab IDs; inspect other file metadata.",
+      "enabled": false,
+      "endpoint": null,
+      "environment_capabilities": [],
+      "id": "native.project_file_read",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "file_id": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "File Id",
+            "type": "string"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id",
+          "file_id"
+        ],
+        "title": "ProjectFile",
+        "type": "object"
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "required_scopes": [
+        "jobs:read",
+        "memories:read"
+      ],
+      "settings": {
+        "network": true
+      },
+      "side_effect": false,
+      "transport": "native"
+    },
+    {
+      "action_policy": "read",
+      "capabilities": [
+        "file.read",
+        "project_sheet_read"
+      ],
+      "categories": [
+        "projects"
+      ],
+      "configured": false,
+      "credential_env": null,
+      "description": "Read a bounded A1 cell range and its revision, at most 100 rows / 2000 cells.",
+      "enabled": false,
+      "endpoint": null,
+      "environment_capabilities": [],
+      "id": "native.project_sheet_read",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "file_id": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "File Id",
+            "type": "string"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "range": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Range",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id",
+          "file_id",
+          "range"
+        ],
+        "title": "ProjectSheetRead",
+        "type": "object"
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "required_scopes": [
+        "jobs:read",
+        "memories:read"
+      ],
+      "settings": {
+        "network": true
+      },
+      "side_effect": false,
+      "transport": "native"
+    },
+    {
+      "action_policy": "write",
+      "capabilities": [
+        "file.write",
+        "project_file_create"
+      ],
+      "categories": [
+        "projects"
+      ],
+      "configured": false,
+      "credential_env": null,
+      "description": "Create text/code, Google Doc, Google Sheet (CSV content), or folder in the project. No confirmation needed.",
+      "enabled": false,
+      "endpoint": null,
+      "environment_capabilities": [],
+      "id": "native.project_file_create",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "default": "",
+            "maxLength": 200000,
+            "title": "Content",
+            "type": "string"
+          },
+          "folder_id": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "pattern": "^[A-Za-z0-9_-]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Folder Id"
+          },
+          "format": {
+            "default": "text",
+            "enum": [
+              "text",
+              "google_doc",
+              "google_sheet",
+              "folder"
+            ],
+            "title": "Format",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "\\S",
+            "title": "Name",
+            "type": "string"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id",
+          "name"
+        ],
+        "title": "ProjectFileCreate",
+        "type": "object"
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "required_scopes": [
+        "jobs:write",
+        "jobs:read",
+        "memories:read"
+      ],
+      "settings": {
+        "network": true
+      },
+      "side_effect": true,
+      "transport": "native"
+    },
+    {
+      "action_policy": "write",
+      "capabilities": [
+        "project_file_edit",
+        "file.write"
+      ],
+      "categories": [
+        "projects"
+      ],
+      "configured": false,
+      "credential_env": null,
+      "description": "Edit a file using its freshly read revision. Replace exactly one old_text occurrence, or append with empty old_text. Use tab_id for Docs. No confirmation needed.",
+      "enabled": false,
+      "endpoint": null,
+      "environment_capabilities": [],
+      "id": "native.project_file_edit",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "file_id": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "File Id",
+            "type": "string"
+          },
+          "new_text": {
+            "maxLength": 200000,
+            "title": "New Text",
+            "type": "string"
+          },
+          "old_text": {
+            "default": "",
+            "maxLength": 200000,
+            "title": "Old Text",
+            "type": "string"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "revision": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Revision",
+            "type": "string"
+          },
+          "tab_id": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "pattern": "^[A-Za-z0-9_-]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Tab Id"
+          }
+        },
+        "required": [
+          "project_id",
+          "file_id",
+          "revision",
+          "new_text"
+        ],
+        "title": "ProjectFileEdit",
+        "type": "object"
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "required_scopes": [
+        "jobs:write",
+        "jobs:read",
+        "memories:read"
+      ],
+      "settings": {
+        "network": true
+      },
+      "side_effect": true,
+      "transport": "native"
+    },
+    {
+      "action_policy": "write",
+      "capabilities": [
+        "project_sheet_write",
+        "file.write"
+      ],
+      "categories": [
+        "projects"
+      ],
+      "configured": false,
+      "credential_env": null,
+      "description": "Write literal values in an explicit bounded A1 range using its last read revision. Concurrent changes are checked before writing. No confirmation needed.",
+      "enabled": false,
+      "endpoint": null,
+      "environment_capabilities": [],
+      "id": "native.project_sheet_write",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "file_id": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "File Id",
+            "type": "string"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "range": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Range",
+            "type": "string"
+          },
+          "revision": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Revision",
+            "type": "string"
+          },
+          "values": {
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Values",
+            "type": "array"
+          }
+        },
+        "required": [
+          "project_id",
+          "file_id",
+          "range",
+          "revision",
+          "values"
+        ],
+        "title": "ProjectSheetWrite",
+        "type": "object"
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "required_scopes": [
+        "jobs:write",
+        "jobs:read",
+        "memories:read"
+      ],
+      "settings": {
+        "network": true
+      },
+      "side_effect": true,
+      "transport": "native"
+    },
+    {
+      "action_policy": "write",
+      "capabilities": [
+        "file.write",
+        "project_file_rename"
+      ],
+      "categories": [
+        "projects"
+      ],
+      "configured": false,
+      "credential_env": null,
+      "description": "Rename using the current Drive version from file listing as revision.",
+      "enabled": false,
+      "endpoint": null,
+      "environment_capabilities": [],
+      "id": "native.project_file_rename",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "file_id": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "File Id",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "\\S",
+            "title": "Name",
+            "type": "string"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "revision": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Revision",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id",
+          "file_id",
+          "name",
+          "revision"
+        ],
+        "title": "ProjectFileRename",
+        "type": "object"
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "required_scopes": [
+        "jobs:write",
+        "jobs:read",
+        "memories:read"
+      ],
+      "settings": {
+        "network": true
+      },
+      "side_effect": true,
+      "transport": "native"
+    },
+    {
+      "action_policy": "read",
+      "capabilities": [
+        "google_accounts_list"
+      ],
+      "categories": [
+        "google"
+      ],
+      "configured": false,
+      "credential_env": null,
+      "description": "List this account's connected Google accounts and permissions.",
+      "enabled": false,
+      "endpoint": null,
+      "environment_capabilities": [],
+      "id": "native.google_accounts_list",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "required_scopes": [
+        "jobs:read",
+        "threads:read"
+      ],
+      "settings": {
+        "network": true
+      },
+      "side_effect": false,
+      "transport": "native"
+    },
+    {
+      "action_policy": "read",
+      "capabilities": [
+        "drive_search_files"
+      ],
+      "categories": [
+        "google"
+      ],
+      "configured": false,
+      "credential_env": null,
+      "description": "Search Drive files in a connected account, with bounded pagination.",
+      "enabled": false,
+      "endpoint": null,
+      "environment_capabilities": [],
+      "id": "native.drive_search_files",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "account": {
+            "default": "",
+            "maxLength": 254,
+            "title": "Account",
+            "type": "string"
+          },
+          "limit": {
+            "default": 10,
+            "maximum": 20,
+            "minimum": 1,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "page_token": {
+            "default": "",
+            "maxLength": 2048,
+            "title": "Page Token",
+            "type": "string"
+          },
+          "query": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Query",
+            "type": "string"
+          }
+        },
+        "title": "GoogleSearch",
+        "type": "object"
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "required_scopes": [
+        "jobs:read",
+        "threads:read"
+      ],
+      "settings": {
+        "network": true
+      },
+      "side_effect": false,
+      "transport": "native"
+    },
+    {
+      "action_policy": "read",
+      "capabilities": [
+        "drive_read_file"
+      ],
+      "categories": [
+        "google"
+      ],
+      "configured": false,
+      "credential_env": null,
+      "description": "Read Drive text or export a Google document, with explicit size limits.",
+      "enabled": false,
+      "endpoint": null,
+      "environment_capabilities": [],
+      "id": "native.drive_read_file",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "account": {
+            "default": "",
+            "maxLength": 254,
+            "title": "Account",
+            "type": "string"
+          },
+          "id": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "GoogleItem",
+        "type": "object"
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "required_scopes": [
+        "jobs:read",
+        "threads:read"
+      ],
+      "settings": {
+        "network": true
+      },
+      "side_effect": false,
+      "transport": "native"
+    },
+    {
+      "action_policy": "read",
+      "capabilities": [
+        "drive_list_folder"
+      ],
+      "categories": [
+        "google"
+      ],
+      "configured": false,
+      "credential_env": null,
+      "description": "Browse a connected account's Drive folder, with pagination.",
+      "enabled": false,
+      "endpoint": null,
+      "environment_capabilities": [],
+      "id": "native.drive_list_folder",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "account": {
+            "default": "",
+            "maxLength": 254,
+            "title": "Account",
+            "type": "string"
+          },
+          "folder_id": {
+            "default": "root",
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Folder Id",
+            "type": "string"
+          },
+          "folders_only": {
+            "default": true,
+            "title": "Folders Only",
+            "type": "boolean"
+          },
+          "page_token": {
+            "default": "",
+            "maxLength": 2048,
+            "title": "Page Token",
+            "type": "string"
+          },
+          "query": {
+            "default": "",
+            "maxLength": 200,
+            "title": "Query",
+            "type": "string"
+          },
+          "search_all": {
+            "default": false,
+            "title": "Search All",
+            "type": "boolean"
+          }
+        },
+        "title": "DriveBrowse",
+        "type": "object"
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "required_scopes": [
+        "jobs:read",
+        "threads:read"
+      ],
+      "settings": {
+        "network": true
+      },
+      "side_effect": false,
+      "transport": "native"
+    },
+    {
+      "action_policy": "read",
+      "capabilities": [
+        "gmail_search_messages"
+      ],
+      "categories": [
+        "google"
+      ],
+      "configured": false,
+      "credential_env": null,
+      "description": "Search messages in a connected Gmail account; read only.",
+      "enabled": false,
+      "endpoint": null,
+      "environment_capabilities": [],
+      "id": "native.gmail_search_messages",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "account": {
+            "default": "",
+            "maxLength": 254,
+            "title": "Account",
+            "type": "string"
+          },
+          "limit": {
+            "default": 10,
+            "maximum": 20,
+            "minimum": 1,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "page_token": {
+            "default": "",
+            "maxLength": 2048,
+            "title": "Page Token",
+            "type": "string"
+          },
+          "query": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Query",
+            "type": "string"
+          }
+        },
+        "title": "GoogleSearch",
+        "type": "object"
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "required_scopes": [
+        "jobs:read",
+        "threads:read"
+      ],
+      "settings": {
+        "network": true
+      },
+      "side_effect": false,
+      "transport": "native"
+    },
+    {
+      "action_policy": "read",
+      "capabilities": [
+        "gmail_read_message"
+      ],
+      "categories": [
+        "google"
+      ],
+      "configured": false,
+      "credential_env": null,
+      "description": "Read a connected Gmail message without downloading attachments.",
+      "enabled": false,
+      "endpoint": null,
+      "environment_capabilities": [],
+      "id": "native.gmail_read_message",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "account": {
+            "default": "",
+            "maxLength": 254,
+            "title": "Account",
+            "type": "string"
+          },
+          "id": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "GoogleItem",
+        "type": "object"
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "required_scopes": [
+        "jobs:read",
+        "threads:read"
+      ],
+      "settings": {
+        "network": true
+      },
+      "side_effect": false,
+      "transport": "native"
+    },
+    {
+      "action_policy": "read",
+      "capabilities": [
+        "calendar_list_events"
+      ],
+      "categories": [
+        "google"
+      ],
+      "configured": false,
+      "credential_env": null,
+      "description": "Read calendar events in a bounded window of at most 31 days.",
+      "enabled": false,
+      "endpoint": null,
+      "environment_capabilities": [],
+      "id": "native.calendar_list_events",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "account": {
+            "default": "",
+            "maxLength": 254,
+            "title": "Account",
+            "type": "string"
+          },
+          "end": {
+            "format": "date-time",
+            "title": "End",
+            "type": "string"
+          },
+          "start": {
+            "format": "date-time",
+            "title": "Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "start",
+          "end"
+        ],
+        "title": "CalendarQuery",
+        "type": "object"
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "required_scopes": [
+        "jobs:read",
+        "threads:read"
+      ],
+      "settings": {
+        "network": true
+      },
+      "side_effect": false,
+      "transport": "native"
+    }
+  ]
+}

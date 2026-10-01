@@ -42,6 +42,8 @@ class Settings(BaseSettings):
     # Zero keeps sessions active until explicit logout/revocation. A finite
     # value remains available for deployments that require timed sessions.
     session_hours: int = Field(default=0, ge=0, le=8760)
+    auth_rate_limit: int = Field(default=60, ge=0, le=10000)
+    auth_rate_window_seconds: float = Field(default=60, gt=0, le=86400)
     # Site administration is separate from ownership of an invited user's workspace.
     account_admin_actor_id: UUID = UUID("11111111-1111-4111-8111-111111111111")
     account_household_id: UUID | None = None
@@ -67,6 +69,8 @@ class Settings(BaseSettings):
     agent_manifest_file: Path | None = None
     agent_state_dir: Path = Path(".local/agents")
     agent_execution_enabled: bool = False
+    external_providers_file: Path | None = None
+    project_boards_file: Path | None = None
     home_api_url: str = ""
     home_api_token: SecretStr | None = None
 
@@ -75,7 +79,9 @@ class Settings(BaseSettings):
     voice_name: Literal["marin", "cedar", "meridian", "vesper"] = "cedar"
     voice_max_seconds: int = Field(default=900, ge=60, le=1800)
 
-    @field_validator("agent_manifest_file", mode="before")
+    @field_validator(
+        "agent_manifest_file", "external_providers_file", "project_boards_file", mode="before"
+    )
     @classmethod
     def empty_manifest(cls, value: object) -> object:
         return None if value == "" else value

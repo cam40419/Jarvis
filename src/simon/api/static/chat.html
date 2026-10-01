@@ -1,18 +1,18 @@
 <!doctype html>
 <html lang="en" data-theme="dark">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#070c16"><title>Simon — Your personal assistant</title>
+<meta name="theme-color" content="#171717"><title>Simon — Your workspace</title>
 <link rel="icon" href="/assets/simon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/assets/chat.css">
 <script src="/assets/app-path.js" defer></script><script src="/assets/markdown.js" defer></script><script src="/assets/chat.js" defer></script><script src="/assets/connections.js" defer></script><link rel="stylesheet" href="/assets/voice.css"><script src="/assets/voice.js" defer></script><script src="/assets/personality.js" defer></script><link rel="stylesheet" href="/assets/work.css"><script src="/assets/background-chat.js" defer></script>
-<script src="/assets/work.js" defer></script><script src="/assets/local-files.js" defer></script><link rel="stylesheet" href="/assets/theme.css"></head>
+<script src="/assets/work.js" defer></script><script src="/assets/local-files.js" defer></script><script src="/assets/agent-work.js" defer></script><script src="/assets/agent-library.js" defer></script><script src="/assets/project-command.js" defer></script><script src="/assets/project-board.js" defer></script><script src="/assets/external-actions.js" defer></script><link rel="stylesheet" href="/assets/theme.css"><link rel="stylesheet" href="/assets/agent-work.css"><link rel="stylesheet" href="/assets/agent-library.css"><link rel="stylesheet" href="/assets/project-command.css"><link rel="stylesheet" href="/assets/project-board.css"><link rel="stylesheet" href="/assets/external-actions.css"><link rel="stylesheet" href="/assets/local-files.css"></head>
 <body class="chat-page">
 <button id="sidebar-scrim" class="scrim" aria-label="Close navigation" hidden></button>
 <aside id="sidebar" aria-label="Conversations">
-  <a class="brand" href="/chat" aria-label="Simon"><img src="/assets/simon.svg" alt="" width="34" height="34"><span>SIMON<span class="brand-sub">A little more possible.</span></span></a>
+  <a class="brand" href="/chat" aria-label="Simon"><img src="/assets/simon.svg" alt="" width="34" height="34"><span>SIMON<span class="brand-sub">Your workspace</span></span></a>
   <button id="new-chat" class="new-chat"><span aria-hidden="true">＋</span> New conversation <kbd>Alt N</kbd></button>
   <label class="search"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="Search conversations" aria-label="Search conversations"></label>
-  <div class="sidebar-heading">YOUR CONVERSATIONS <span id="thread-count"></span></div>
+  <div class="sidebar-heading">CONVERSATIONS <span id="thread-count"></span></div>
   <nav id="threads" aria-label="Conversation history"><p class="muted">Loading conversations…</p></nav>
   <div class="sidebar-bottom"><button id="personality-open" class="nav-button">Personality &amp; voice</button><button id="connections-open" class="nav-button" disabled>Connections</button><button id="memory-open" class="nav-button"><span aria-hidden="true">◇</span> Memory <span id="memory-count" class="count">0</span></button>
     <a href="/login" class="account-link"><span id="user-avatar" class="avatar">U</span><span><strong id="user-name">Your account</strong><small id="household"></small></span><span class="account-arrow" aria-hidden="true">↗</span></a>
@@ -20,31 +20,30 @@
 </aside>
 <main id="workspace" class="workspace">
   <header class="topbar">
-    <nav class="simon-main-nav" aria-label="Main navigation"><a href="/chat" aria-current="page">Simon</a></nav>
     <div class="simon-subnav" role="group" aria-label="Simon views"><button id="chat-open" type="button" aria-current="page">Chat</button><button id="work-open" type="button">Work</button></div>
     <button id="menu-toggle" class="icon-button mobile-only" aria-label="Open navigation" aria-expanded="false">☰</button>
-    <div class="topbar-title"><span id="chat-title">New conversation</span><span class="topbar-sub">Your personal thinking space</span></div>
+    <div class="topbar-title"><span id="chat-title">New conversation</span><span class="topbar-sub">Conversations, projects &amp; files</span></div>
     <div class="topbar-actions"><button id="voice-open" disabled class="text-button">Voice chat</button><span id="connection" class="connection"><i></i> Connecting</span><button id="about-open" class="icon-button" aria-label="About Simon" title="About Simon">ⓘ</button></div>
   </header>
   <section id="conversation" class="conversation" aria-label="Chat">
     <div id="welcome" class="welcome">
       <div class="welcome-mark"><img src="/assets/simon.svg" alt="" width="54" height="54"></div>
-      <p id="greeting" class="eyebrow">A SPACE TO THINK CLEARLY</p>
-      <h1>What can I take care of?</h1>
-      <p class="welcome-text">Plan a project, check your home, or talk through an idea.<br>Simon is ready when you are.</p>
+      <p id="greeting" class="eyebrow">SIMON</p>
+      <h1>How can I help?</h1>
+      <p class="welcome-text">Start a conversation, work through an idea, or move a project forward.</p>
       <div class="suggestions">
         <button data-prompt="Help me plan a project. Start by asking about the goal, deadline, and what has already been done."><span class="suggestion-icon">☷</span><strong>Plan a project</strong><span>Turn a goal into clear next steps</span><b aria-hidden="true">↗</b></button>
         <button data-prompt="What is happening in my home right now? Summarize the connected devices and anything that needs attention."><span class="suggestion-icon">✎</span><strong>Check my home</strong><span>See what is on and connected</span><b aria-hidden="true">↗</b></button>
         <button data-prompt="Help me prioritize my current projects and decide what to work on next."><span class="suggestion-icon">⌘</span><strong>Find the next step</strong><span>Choose what matters most</span><b aria-hidden="true">↗</b></button>
       </div>
-      <p class="welcome-note"><span aria-hidden="true">✦</span> The right amount of thinking, chosen for you.</p>
+      <p class="welcome-note"><span aria-hidden="true">✦</span> Your conversations and project context, in one workspace.</p>
     </div>
     <div id="messages" class="messages" aria-label="Messages"></div>
   </section>
   <section id="work-view" class="work-view" aria-label="Work and projects" hidden>
-    <div class="work-hero"><p class="eyebrow">SIMON / OPERATIONS</p><h1>Everything in motion.</h1><p>Start background work, steer the queue, and watch research, schedules, automations, and prints from one lightweight view.</p><div class="work-hero-actions"><button id="work-plan" class="primary" type="button">Plan with Simon</button><button id="work-review" type="button">Review priorities</button><button id="work-refresh" type="button">Refresh now</button></div></div>
+    <div class="work-hero"><p class="eyebrow">WORKSPACE</p><h1>Work</h1><p>Projects, agent teams, and the work they deliver.</p><div class="work-hero-actions"><button id="work-plan" class="primary" type="button">Discuss a new project</button><button id="work-review" type="button">Review priorities</button><button id="work-refresh" type="button">Refresh workspace</button></div></div>
     <p id="work-status" role="status" aria-live="polite"></p>
-    <section class="work-card work-tasks"><div class="work-card-heading"><div><p class="eyebrow">ASYNCHRONOUS WORK</p><h2>Task queue</h2></div><span id="task-count" class="work-worker">0 active</span></div><p class="muted">Research and work continue outside chat. Running work can be steered, paused, reordered, or cancelled.</p><div id="work-tasks" class="work-list task-list"></div><form id="work-task-form"><h3 id="work-task-form-title">Start background work</h3><div class="task-form-grid"><label for="work-task-name">Title<input id="work-task-name" required maxlength="120" placeholder="Compare options forâ€¦"></label><label for="work-task-kind">Type<select id="work-task-kind"><option value="research">Research</option><option value="work">General work</option></select></label><label for="work-task-project">Project<select id="work-task-project"><option value="">No linked project</option></select></label><label for="work-task-priority">Priority<select id="work-task-priority"><option value="5">Urgent</option><option value="4">High</option><option value="3" selected>Normal</option><option value="2">Low</option><option value="1">Someday</option></select></label></div><label for="work-task-detail">Instructions</label><textarea id="work-task-detail" required maxlength="4000" rows="4" placeholder="What should Simon produce, verify, compare, or decide?"></textarea><div class="work-item-actions"><button id="work-task-submit" class="primary" type="submit">Queue task</button><button id="work-task-cancel-edit" type="button" hidden>Cancel edit</button></div></form></section>
+    <section class="work-card work-tasks"><div class="work-card-heading"><div><p class="eyebrow">ASYNCHRONOUS WORK</p><h2>Task queue</h2></div><span id="task-count" class="work-worker">0 active</span></div><p class="muted">Research and work continue outside chat. Running work can be steered, paused, reordered, or cancelled.</p><div id="work-tasks" class="work-list task-list"></div><form id="work-task-form"><h3 id="work-task-form-title">Start background work</h3><div class="task-form-grid"><label for="work-task-name">Title<input id="work-task-name" required maxlength="120" placeholder="Compare options for a project"></label><label for="work-task-kind">Type<select id="work-task-kind"><option value="research">Research</option><option value="work">General work</option></select></label><label for="work-task-project">Project<select id="work-task-project"><option value="">No linked project</option></select></label><label for="work-task-priority">Priority<select id="work-task-priority"><option value="5">Urgent</option><option value="4">High</option><option value="3" selected>Normal</option><option value="2">Low</option><option value="1">Someday</option></select></label></div><label for="work-task-detail">Instructions</label><textarea id="work-task-detail" required maxlength="4000" rows="4" placeholder="What should Simon produce, verify, compare, or decide?"></textarea><div class="work-item-actions"><button id="work-task-submit" class="primary" type="submit">Queue task</button><button id="work-task-cancel-edit" type="button" hidden>Cancel edit</button></div></form></section>
     <div class="work-columns"><section class="work-card"><div class="work-card-heading"><div><p class="eyebrow">PROJECT CONTEXT</p><h2>Your projects</h2></div></div><p class="muted">Project context is available to text chat, voice chat, and linked background tasks.</p><div id="work-projects" class="work-list"></div><form id="work-project-form"><h3>Add project context</h3><label for="work-project-name">Project name</label><input id="work-project-name" required maxlength="200" placeholder="e.g. Kitchen renovation"><label for="work-project-detail">What should Simon remember?</label><textarea id="work-project-detail" required maxlength="1000" rows="3" placeholder="Goals, deadlines, decisions, and what to do next"></textarea><button class="primary" type="submit">Save project</button></form></section>
       </div>
 
@@ -67,7 +66,7 @@
             <p id="preferences-status" role="status" aria-live="polite">Saved defaults apply to your chats in this household.</p>
           </div>
         </details>
-        <span id="composer-hint">You ask. Simon handles the details.</span>
+        <span id="composer-hint">Enter to send</span>
         <button id="stop" class="send-button stop-button" type="button" aria-label="Stop" title="Stop generating" hidden>■</button>
         <button id="send-button" class="send-button" aria-label="Send" title="Send message" disabled>↑</button>
       </div>
@@ -76,7 +75,7 @@
   </div>
 </main>
 <dialog id="memory-panel" class="side-panel" aria-labelledby="memory-heading">
-  <div class="panel-header"><div><p class="eyebrow">A LITTLE CONTEXT GOES A LONG WAY</p><h2 id="memory-heading">Memory</h2></div><button class="icon-button" data-close="memory-panel" aria-label="Close memories">×</button></div>
+  <div class="panel-header"><div><p class="eyebrow">WORKSPACE CONTEXT</p><h2 id="memory-heading">Memory</h2></div><button class="icon-button" data-close="memory-panel" aria-label="Close memories">×</button></div>
   <p class="muted">Personal facts, projects, and preferences shared across your text and voice conversations. Simon can save useful context as you talk. You can also add or remove it here.</p>
   <div id="memories" class="memory-list"></div>
   <form id="memory-form"><h3>Remember something</h3><label for="memory-subject">Title</label><input id="memory-subject" required maxlength="200" placeholder="e.g. Dinner preferences"><label for="memory-content">What should Simon know?</label><textarea id="memory-content" required maxlength="1000" rows="3" placeholder="We prefer vegetarian dinners on weekdays."></textarea><label for="memory-category">Category</label><select id="memory-category"><option value="fact">Personal fact</option><option value="preference">Preference</option><option value="project">Project</option></select><label for="memory-scope">Who can use this?</label><select id="memory-scope"><option value="personal">Only me</option><option value="household">Shared workspace</option></select><button class="primary">Save memory</button><p class="muted fine">Personal memories are used in your private conversations. Shared memories are visible to workspace members. Removing a memory does not erase the conversations where you discussed it.</p></form>

@@ -28,3 +28,5 @@ class WorkerResult(StrictModel):
     input_tokens: int | None = Field(default=None, ge=0)
     output_tokens: int | None = Field(default=None, ge=0)
     provenance: tuple[WorkerToolRecord, ...] = ()
+    # Relative paths in the assigned Docker workspace, validated before publication.
+    artifact_paths: tuple[str, ...] = Field(default=(), max_length=16)

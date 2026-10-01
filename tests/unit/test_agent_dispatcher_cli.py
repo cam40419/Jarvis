@@ -45,8 +45,9 @@ def runtime(monkeypatch, tmp_path):
 
     monkeypatch.setattr(cli, "_store", store)
 
-    def platform(store, configured, *, state_dir):
+    def platform(store, configured, *, state_dir, available_transports):
         records.state_dir = state_dir
+        records.available_transports = available_transports
         return SimpleNamespace(store=store, manifest=configured)
 
     monkeypatch.setattr(cli, "AgentPlatformService", platform)
@@ -61,10 +62,17 @@ def runtime(monkeypatch, tmp_path):
             return records.result
 
     monkeypatch.setattr(cli, "AgentRunService", Runs)
+    monkeypatch.setattr(cli, "ProjectAutonomyService", lambda *args, **kwargs: SimpleNamespace(
+        tick=lambda: 0,
+    ))
+    monkeypatch.setattr(cli, "project_board_service", lambda *args, **kwargs: SimpleNamespace(
+        tick=lambda: 0,
+    ))
 
     class Dispatcher:
-        def __init__(self, runs):
+        def __init__(self, runs, *, transport_factory):
             records.dispatchers += 1
+            records.transport_factory = transport_factory
 
         def tick(self):
             records.ticks += 1
@@ -81,6 +89,10 @@ def test_once_executes_one_run_prints_only_summary_and_closes_store(runtime, cap
     cli.main(["--once"])
     assert runtime.ticks == 1 and runtime.closed and runtime.enabled
     assert runtime.state_dir == runtime.settings.agent_state_dir
+    assert {
+        "http", "environment", "native", "git", "mcp", "workspace_files",
+    } <= set(runtime.available_transports)
+    assert callable(runtime.transport_factory)
     assert runtime.stores == [(runtime.settings, 3)]
     assert signal.getsignal(signal.SIGINT) == previous
     assert json.loads(capsys.readouterr().out) == {
@@ -113,6 +125,7 @@ def test_operator_recovery_is_explicit_and_never_constructs_a_dispatcher(runtime
     ["--worker-stopped"], ["--expected-version", "1"],
     ["--once", "--recover-run", str(uuid4())],
     ["--poll-seconds", "0.1"], ["--poll-seconds", "11"], ["--poll-seconds", "nan"],
+    ["--once", "--stop-file", "unused.request"],
 ])
 def test_invalid_or_unacknowledged_options_never_open_store(runtime, arguments):
     with pytest.raises(SystemExit) as error:
@@ -147,6 +160,36 @@ def test_worker_exception_is_redacted_and_store_closes(runtime, capsys):
         cli.main(["--once"])
     assert error.value.code == 1 and runtime.closed
     assert "private-secret" not in capsys.readouterr().err
+
+
+def test_continuous_start_preserves_stop_requested_during_setup(runtime, monkeypatch, tmp_path):
+    stop_file = tmp_path / "stale.request"
+    stop_file.touch()
+
+    def serve(dispatcher, **options):
+        assert options["stop_file"] == stop_file
+        assert stop_file.exists()
+        options["stop"].set()
+
+    monkeypatch.setattr(cli, "_serve", serve)
+    cli.main(["--stop-file", str(stop_file)])
+    assert runtime.closed
+
+
+def test_console_signals_request_drain_and_restore_handlers():
+    stop = Event()
+    numbers = [signal.SIGINT, signal.SIGTERM]
+    if hasattr(signal, "SIGBREAK"):
+        numbers.append(signal.SIGBREAK)
+    previous = {number: signal.getsignal(number) for number in numbers}
+    with cli._shutdown_signals(stop):
+        for number in numbers:
+            handler = signal.getsignal(number)
+            assert callable(handler)
+            handler(number, None)
+            assert stop.is_set()
+            stop.clear()
+    assert {number: signal.getsignal(number) for number in numbers} == previous
 
 
 def test_idle_service_probes_once_per_interval_without_busy_spinning(monkeypatch):
@@ -222,3 +265,75 @@ def test_service_caps_parallel_ticks_and_drains_running_work_on_shutdown():
         thread.join(5)
     assert not thread.is_alive() and not errors
     assert records.peak == 3 and records.ticks == 3 and records.active == 0
+
+
+def test_stop_request_drains_active_tick_without_claiming_more_work(tmp_path):
+    stop_file = tmp_path / "stop.request"
+    stop, release, started = Event(), Event(), Event()
+    calls = []
+
+    class Dispatcher:
+        def tick(self):
+            calls.append(True)
+            started.set()
+            assert release.wait(5)
+            return None
+
+    thread = Thread(target=cli._serve, args=(Dispatcher(),), kwargs={
+        "concurrency": 1, "poll_seconds": 0.05, "stop": stop, "stop_file": stop_file,
+    })
+    thread.start()
+    try:
+        assert started.wait(5)
+        stop_file.touch()
+        assert stop.wait(5)
+        assert thread.is_alive() and stop_file.exists()
+    finally:
+        stop.set()
+        release.set()
+        thread.join(5)
+    assert not thread.is_alive() and len(calls) == 1
+
+
+def test_preexisting_stop_request_never_claims_a_run(tmp_path):
+    stop_file = tmp_path / "existing.request"
+    stop_file.touch()
+    stop = Event()
+
+    class Dispatcher:
+        def tick(self):
+            pytest.fail("Existing stop requests must be honored before dispatch")
+
+    cli._serve(Dispatcher(), concurrency=1, poll_seconds=0.2, stop=stop, stop_file=stop_file)
+    assert stop.is_set() and stop_file.exists()
+
+
+def test_slow_board_poll_does_not_block_other_runs_and_is_drained():
+    stop, release, coordinating, dispatched = Event(), Event(), Event(), Event()
+    coordination_calls = []
+
+    def project_tick():
+        coordination_calls.append(True)
+        coordinating.set()
+        assert release.wait(5)
+        return 0
+
+    class Dispatcher:
+        def tick(self):
+            dispatched.set()
+            return None
+
+    thread = Thread(target=cli._serve, args=(Dispatcher(),), kwargs={
+        "concurrency": 1, "poll_seconds": 0.05, "stop": stop,
+        "project_tick": project_tick,
+    })
+    thread.start()
+    try:
+        assert coordinating.wait(5) and dispatched.wait(5)
+        stop.set()
+        assert thread.is_alive()
+    finally:
+        stop.set()
+        release.set()
+        thread.join(5)
+    assert not thread.is_alive() and len(coordination_calls) == 1

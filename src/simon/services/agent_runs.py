@@ -73,10 +73,18 @@ class AgentRunService:
                 continue
         return tuple(result)
 
-    def assert_configuration(self, plan: AgentTeamPlan) -> None:
+    def assert_configuration(self, actor: ActorContext, plan: AgentTeamPlan) -> None:
         current = digest(stable_configuration(self.platform.manifest.model_dump(mode="python")))
         if current != plan.manifest_digest:
             raise InvalidTransitionError("Agent configuration changed; create a new plan")
+        self.platform.plan_profiles(actor, plan)
+
+    def assert_team(self, actor: ActorContext, plan: AgentTeamPlan) -> None:
+        team = self.platform.resolve_team(actor, plan.team_id, plan.project_id)
+        if team.version != plan.team_version or not {
+            task.agent_id for task in plan.tasks
+        } <= set(team.agent_ids):
+            raise InvalidTransitionError("Project team changed; create a new plan")
 
     def live_actor(self, job: Job) -> ActorContext:
         if not self.enabled:
@@ -89,19 +97,14 @@ class AgentRunService:
         })
         self.platform.authorize(actor, write=True)
         plan = self.platform.get(actor, UUID(job.input["plan_id"]))
-        self.assert_configuration(plan)
-        team = next((item for item in self.platform.manifest.teams
-                     if item.id == plan.team_id), None)
-        if team is None or (
-            team.allowed_workspace_ids and actor.household_id not in team.allowed_workspace_ids
-        ):
-            raise AuthorizationError("Team access changed")
+        self.assert_configuration(actor, plan)
+        self.assert_team(actor, plan)
         return actor
 
     def _reservations(
-        self, plan: AgentTeamPlan, request: PlanTeamRequest,
+        self, actor: ActorContext, plan: AgentTeamPlan, request: PlanTeamRequest,
     ) -> tuple[TaskExecution, ...]:
-        profiles = {item.id: item for item in self.platform.manifest.agents}
+        profiles = self.platform.plan_profiles(actor, plan)
         endpoints = {item.id: item for item in self.platform.manifest.models}
         specs = {item.id: item for item in request.tasks}
         tasks = []
@@ -144,13 +147,14 @@ class AgentRunService:
                 if old.input_digest != fingerprint:
                     raise IdempotencyConflictError("Run key was used for different settings")
                 return self.get(actor, identifier)
-            self.assert_configuration(plan)
+            self.assert_configuration(actor, plan)
+            self.assert_team(actor, plan)
             if plan.state != "planned":
                 raise InvalidTransitionError("Resolve blocked tasks before starting a run")
             plan_job = self.store.get_job(plan.id)
             assert plan_job is not None
             specifications = PlanTeamRequest.model_validate(plan_job.input["request"])
-            tasks = self._reservations(plan, specifications)
+            tasks = self._reservations(actor, plan, specifications)
             total = (
                 sum(task.model_reserved_usd or 0 for task in tasks)
                 if all(task.model_reserved_usd is not None for task in tasks) else None
@@ -310,5 +314,8 @@ class AgentRunService:
             )
             return state
 
-    def profile(self, identifier: str) -> AgentProfile:
-        return next(item for item in self.platform.manifest.agents if item.id == identifier)
+    def profile(self, actor: ActorContext, identifier: str, plan_id: UUID) -> AgentProfile:
+        profiles = self.platform.plan_profiles(actor, self.platform.get(actor, plan_id))
+        if identifier not in profiles:
+            raise NotFoundError("Agent profile is not assigned to this plan")
+        return profiles[identifier]

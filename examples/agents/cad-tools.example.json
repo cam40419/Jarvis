@@ -1,0 +1,239 @@
+{
+  "tools": [
+    {
+      "id": "cad.openscad_export",
+      "description": "Export local parametric OpenSCAD source to a new STL or 3MF file.",
+      "categories": [
+        "cad",
+        "3d"
+      ],
+      "capabilities": [
+        "cad.openscad_export"
+      ],
+      "transport": "cad",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "input": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "output": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          }
+        },
+        "required": [
+          "input",
+          "output"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "exit_code": {
+            "type": "integer"
+          },
+          "stdout": {
+            "type": "string"
+          },
+          "stderr": {
+            "type": "string"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "exit_code",
+          "stdout",
+          "stderr",
+          "truncated"
+        ]
+      },
+      "enabled": false,
+      "configured": false,
+      "required_scopes": [
+        "jobs:write"
+      ],
+      "environment_capabilities": [
+        "python",
+        "cad"
+      ],
+      "side_effect": true,
+      "action_policy": "write",
+      "endpoint": null,
+      "credential_env": null,
+      "settings": {
+        "network": false
+      }
+    },
+    {
+      "id": "cad.mesh_inspect",
+      "description": "Inspect STL/3MF topology, dimensions and optional vase wall samples.",
+      "categories": [
+        "cad",
+        "3d"
+      ],
+      "capabilities": [
+        "cad.mesh_inspect"
+      ],
+      "transport": "cad",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "input": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "vase_checks": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "input"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "exit_code": {
+            "type": "integer"
+          },
+          "stdout": {
+            "type": "string"
+          },
+          "stderr": {
+            "type": "string"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "exit_code",
+          "stdout",
+          "stderr",
+          "truncated"
+        ]
+      },
+      "enabled": false,
+      "configured": false,
+      "required_scopes": [
+        "jobs:read"
+      ],
+      "environment_capabilities": [
+        "python",
+        "cad"
+      ],
+      "side_effect": false,
+      "action_policy": "read",
+      "endpoint": null,
+      "credential_env": null,
+      "settings": {
+        "network": false
+      }
+    },
+    {
+      "id": "cad.render_mesh",
+      "description": "Render STL/3MF as a studio PNG and optional editable Blender scene.",
+      "categories": [
+        "cad",
+        "3d"
+      ],
+      "capabilities": [
+        "cad.render_mesh"
+      ],
+      "transport": "cad",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "input": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "output": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "material": {
+            "type": "string",
+            "enum": [
+              "celadon",
+              "ivory",
+              "terracotta",
+              "charcoal"
+            ]
+          },
+          "resolution": {
+            "type": "integer",
+            "minimum": 256,
+            "maximum": 1600
+          },
+          "samples": {
+            "type": "integer",
+            "minimum": 8,
+            "maximum": 128
+          },
+          "save_scene": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "input",
+          "output"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "exit_code": {
+            "type": "integer"
+          },
+          "stdout": {
+            "type": "string"
+          },
+          "stderr": {
+            "type": "string"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "exit_code",
+          "stdout",
+          "stderr",
+          "truncated"
+        ]
+      },
+      "enabled": false,
+      "configured": false,
+      "required_scopes": [
+        "jobs:write"
+      ],
+      "environment_capabilities": [
+        "python",
+        "cad"
+      ],
+      "side_effect": true,
+      "action_policy": "write",
+      "endpoint": null,
+      "credential_env": null,
+      "settings": {
+        "network": false
+      }
+    }
+  ]
+}

@@ -14,10 +14,10 @@ STOP_REQUEST = ROOT / ".local" / "simon-stop.request"
 
 
 async def main() -> int:
-    STOP_REQUEST.unlink(missing_ok=True)  # Ignore a stale request from a previous run.
     server = uvicorn.Server(
         uvicorn.Config(
-            "simon.api.app:app", host="127.0.0.1", port=8000, access_log=False
+            "simon.api.app:app", host="127.0.0.1", port=8000, access_log=False,
+            proxy_headers=False,
         )
     )
     requested = False
@@ -26,7 +26,8 @@ async def main() -> int:
         nonlocal requested
         while not server.should_exit:
             if STOP_REQUEST.exists():
-                STOP_REQUEST.unlink(missing_ok=True)
+                # Keep the request as an intentional-stop marker for recovery.
+                # An explicit launcher clears it before migrations and setup.
                 requested = True
                 server.should_exit = True
                 return

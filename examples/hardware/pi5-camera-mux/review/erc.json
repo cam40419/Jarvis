@@ -1,0 +1,14 @@
+{
+    "$schema": "https://schemas.kicad.org/erc.v1.json",
+    "coordinate_units": "mm",
+    "date": "2026-10-01T01:19:12+0000",
+    "kicad_version": "9.0.2",
+    "sheets": [
+        {
+            "path": "/",
+            "uuid_path": "/3fac297d-de38-5ecf-a8d7-1cb3ae5bf0a6",
+            "violations": []
+        }
+    ],
+    "source": "pi5-camera-mux.kicad_sch"
+}
