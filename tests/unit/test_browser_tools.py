@@ -39,7 +39,12 @@ class RecordingManager:
         self.fail = False
 
     def execute(
-        self, lease_id: UUID, command: ExecutionCommand, *, attempt_id: UUID, fencing_token: int,
+        self,
+        lease_id: UUID,
+        command: ExecutionCommand,
+        *,
+        attempt_id: UUID,
+        fencing_token: int,
     ) -> ExecutionResult:
         self.calls.append((lease_id, command, attempt_id, fencing_token))
         if self.fail:
@@ -47,36 +52,67 @@ class RecordingManager:
         return ExecutionResult(exit_code=0, stdout='{"title":"Example"}')
 
 
-def setup(operation: str = "browser.read") -> tuple[
-    RecordingManager, EnvironmentLease, ToolDefinition, ToolExecutionContext, BrowserToolTransport,
+def setup(
+    operation: str = "browser.read",
+) -> tuple[
+    RecordingManager,
+    EnvironmentLease,
+    ToolDefinition,
+    ToolExecutionContext,
+    BrowserToolTransport,
 ]:
     tool = next(item for item in browser_tool_definitions(enabled=True) if item.id == operation)
     tool.settings["allowed_origins"] = ["https://example.com"]
     definition = EnvironmentDefinition(
-        id="browser", kind="docker", container_image="simon-browser:local", enabled=True,
+        id="browser",
+        kind="docker",
+        container_image="simon-browser:local",
+        enabled=True,
         capabilities=BROWSER_CAPABILITIES,
         network="none" if operation == "browser.render_html" else "bridge",
     )
     request = EnvironmentRequest(
-        workspace_id=uuid4(), agent_id="browser", task_id=uuid4(), attempt_id=uuid4(),
+        workspace_id=uuid4(),
+        agent_id="browser",
+        task_id=uuid4(),
+        attempt_id=uuid4(),
         capabilities=BROWSER_CAPABILITIES,
     )
     lease = EnvironmentLease(
-        id=uuid4(), plan=EnvironmentPlan(
-            environment_id=definition.id, kind="docker", request=request,
-            workspace_path=Path("unused"), network=definition.network, cpu_limit=2, memory_mb=2048,
+        id=uuid4(),
+        plan=EnvironmentPlan(
+            environment_id=definition.id,
+            kind="docker",
+            request=request,
+            workspace_path=Path("unused"),
+            network=definition.network,
+            cpu_limit=2,
+            memory_mb=2048,
             gpu_devices=(),
-        ), definition=definition, fencing_token=8, status="active", resource_handle="owned",
-        created_at=utc_now(), heartbeat_at=utc_now(),
+        ),
+        definition=definition,
+        fencing_token=8,
+        status="active",
+        resource_handle="owned",
+        created_at=utc_now(),
+        heartbeat_at=utc_now(),
     )
     context = ToolExecutionContext(
-        actor_id=uuid4(), household_id=request.workspace_id, run_id=uuid4(), agent_id="browser",
-        allowed_tool_ids=frozenset({tool.id}), scopes=tool.required_scopes,
-        environment_capabilities=BROWSER_CAPABILITIES, authorized_action=tool.action_policy,
+        actor_id=uuid4(),
+        household_id=request.workspace_id,
+        run_id=uuid4(),
+        agent_id="browser",
+        allowed_tool_ids=frozenset({tool.id}),
+        scopes=tool.required_scopes,
+        environment_capabilities=BROWSER_CAPABILITIES,
+        authorized_action=tool.action_policy,
     )
     manager = RecordingManager()
     transport = BrowserToolTransport(
-        manager, lease, actor_id=context.actor_id, run_id=context.run_id,
+        manager,
+        lease,
+        actor_id=context.actor_id,
+        run_id=context.run_id,
     )
     return manager, lease, tool, context, transport
 
@@ -102,9 +138,18 @@ def test_transport_uses_owned_lease_and_only_configured_origins() -> None:
     assert payload["arguments"]["max_text_chars"] == 8000
 
 
-@pytest.mark.parametrize("url", ["https://other.example", "https://example.com.evil.test",
-                                 "http://example.com", "https://user@example.com", "file:///etc/passwd",
-                                 "https://example.com:8443", "https://example.com\\@evil.test"])
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://other.example",
+        "https://example.com.evil.test",
+        "http://example.com",
+        "https://user@example.com",
+        "file:///etc/passwd",
+        "https://example.com:8443",
+        "https://example.com\\@evil.test",
+    ],
+)
 def test_ungranted_or_invalid_url_never_reaches_runner(url: str) -> None:
     manager, _, tool, context, transport = setup()
     with pytest.raises(ToolCatalogError):
@@ -121,14 +166,22 @@ def test_cannot_cross_worker_assignment(field: str) -> None:
     assert manager.calls == []
 
 
-@pytest.mark.parametrize("change", [
-    {"scopes": frozenset()}, {"allowed_tool_ids": frozenset()}, {"authorized_action": "read"},
-])
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"scopes": frozenset()},
+        {"allowed_tool_ids": frozenset()},
+        {"authorized_action": "read"},
+    ],
+)
 def test_screenshots_need_write_authorization(change: dict[str, Any]) -> None:
     manager, _, tool, context, transport = setup("browser.screenshot")
     with pytest.raises(AuthorizationError):
-        transport(tool, {"url": "https://example.com", "output": "shot.png"},
-                  context.model_copy(update=change))
+        transport(
+            tool,
+            {"url": "https://example.com", "output": "shot.png"},
+            context.model_copy(update=change),
+        )
     assert manager.calls == []
 
 
@@ -136,35 +189,51 @@ def test_html_renderer_requires_offline_lease() -> None:
     manager, lease, tool, context, _ = setup("browser.render_html")
     lease = lease.model_copy(update={"plan": lease.plan.model_copy(update={"network": "bridge"})})
     transport = BrowserToolTransport(
-        manager, lease, actor_id=context.actor_id, run_id=context.run_id,
+        manager,
+        lease,
+        actor_id=context.actor_id,
+        run_id=context.run_id,
     )
     with pytest.raises(ToolCatalogError, match="network capability"):
         transport(tool, {"input": "report.html", "output": "preview.png"}, context)
     assert manager.calls == []
 
 
-@pytest.mark.parametrize("value", [["https://example.com/private"], ["https://*.example.com"],
-                                  ["https://example.com?key=value"], "https://example.com"])
+@pytest.mark.parametrize(
+    "value",
+    [
+        ["https://example.com/private"],
+        ["https://*.example.com"],
+        ["https://example.com?key=value"],
+        "https://example.com",
+    ],
+)
 def test_origin_grants_are_exact_bounded_origins(value: Any) -> None:
     with pytest.raises(ValueError):
         runner.allowed_origins(value)
 
 
-@pytest.mark.parametrize("addresses", [["127.0.0.1"], ["10.0.0.1"], ["169.254.169.254"],
-                                      ["::1"], ["93.184.216.34", "192.168.1.1"]])
+@pytest.mark.parametrize(
+    "addresses",
+    [["127.0.0.1"], ["10.0.0.1"], ["169.254.169.254"], ["::1"], ["93.184.216.34", "192.168.1.1"]],
+)
 def test_private_and_mixed_dns_are_rejected(
-    monkeypatch: pytest.MonkeyPatch, addresses: list[str],
+    monkeypatch: pytest.MonkeyPatch,
+    addresses: list[str],
 ) -> None:
-    monkeypatch.setattr(runner.socket, "getaddrinfo", lambda *args, **kwargs: [
-        (2, 1, 6, "", (address, 443)) for address in addresses
-    ])
+    monkeypatch.setattr(
+        runner.socket,
+        "getaddrinfo",
+        lambda *args, **kwargs: [(2, 1, 6, "", (address, 443)) for address in addresses],
+    )
     with pytest.raises(ValueError, match="public Internet"):
         runner.public_address("example.com")
 
 
 class FakeResponse:
-    def __init__(self, status: int = 200, headers: dict[str, str] | None = None,
-                 body: bytes = b"Example") -> None:
+    def __init__(
+        self, status: int = 200, headers: dict[str, str] | None = None, body: bytes = b"Example"
+    ) -> None:
         self.status, self.headers, self.body = status, headers or {}, body
 
     def getheader(self, name: str, default: str | None = None) -> str | None:
@@ -174,8 +243,9 @@ class FakeResponse:
         return self.body[:limit]
 
 
-def fake_connections(monkeypatch: pytest.MonkeyPatch,
-                     responses: list[FakeResponse]) -> list[dict[str, Any]]:
+def fake_connections(
+    monkeypatch: pytest.MonkeyPatch, responses: list[FakeResponse]
+) -> list[dict[str, Any]]:
     calls: list[dict[str, Any]] = []
     monkeypatch.setattr(runner, "public_address", lambda hostname: "93.184.216.34")
 
@@ -209,24 +279,32 @@ def test_each_redirect_is_checked_before_next_connection(monkeypatch: pytest.Mon
 def test_allowed_redirects_preserve_final_url_and_no_credentials(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    calls = fake_connections(monkeypatch, [
-        FakeResponse(302, {"Location": "/final", "Set-Cookie": "sensitive=value"}),
-        FakeResponse(200, {"Content-Type": "text/html"}, b"<h1>Example</h1>"),
-    ])
+    calls = fake_connections(
+        monkeypatch,
+        [
+            FakeResponse(302, {"Location": "/final", "Set-Cookie": "sensitive=value"}),
+            FakeResponse(200, {"Content-Type": "text/html"}, b"<h1>Example</h1>"),
+        ],
+    )
     fetcher = runner.Fetcher(frozenset({"https://example.com"}), timeout_seconds=30)
     url, status, media_type, content = fetcher.get("https://example.com/start")
     assert (url, status, media_type, content) == (
-        "https://example.com/final", 200, "text/html", b"<h1>Example</h1>",
+        "https://example.com/final",
+        200,
+        "text/html",
+        b"<h1>Example</h1>",
     )
     assert [item["path"] for item in calls] == ["/start", "/final"]
     assert all(item["address"] == "93.184.216.34" for item in calls)
-    assert all("Cookie" not in item["headers"] and "Authorization" not in item["headers"]
-               for item in calls)
+    assert all(
+        "Cookie" not in item["headers"] and "Authorization" not in item["headers"] for item in calls
+    )
 
 
 @pytest.mark.parametrize("headers", [{"Content-Length": "3000000"}, {"Content-Encoding": "gzip"}])
 def test_large_or_compressed_responses_are_rejected(
-    monkeypatch: pytest.MonkeyPatch, headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+    headers: dict[str, str],
 ) -> None:
     calls = fake_connections(monkeypatch, [FakeResponse(headers=headers)])
     fetcher = runner.Fetcher(frozenset({"https://example.com"}), timeout_seconds=30)
@@ -236,24 +314,28 @@ def test_large_or_compressed_responses_are_rejected(
 
 
 def test_redirect_chain_has_a_hard_limit(monkeypatch: pytest.MonkeyPatch) -> None:
-    calls = fake_connections(monkeypatch, [
-        FakeResponse(302, {"Location": "/loop"}) for _ in range(6)
-    ])
+    calls = fake_connections(
+        monkeypatch, [FakeResponse(302, {"Location": "/loop"}) for _ in range(6)]
+    )
     fetcher = runner.Fetcher(frozenset({"https://example.com"}), timeout_seconds=30)
     with pytest.raises(ValueError, match="redirect limit"):
         fetcher.get("https://example.com/start")
     assert len(calls) == 6
 
 
-@pytest.mark.parametrize(("operation", "arguments"), [
-    ("browser.read", {"url": "https://example.com", "cookies": []}),
-    ("browser.read", {"url": "https://example.com", "max_text_chars": 16001}),
-    ("browser.screenshot", {"url": "https://example.com", "output": "../shot.png"}),
-    ("browser.render_html", {"input": "source.txt", "output": "shot.png"}),
-    ("browser.render_html", {"input": "source.html", "output": "shot.jpg"}),
-])
+@pytest.mark.parametrize(
+    ("operation", "arguments"),
+    [
+        ("browser.read", {"url": "https://example.com", "cookies": []}),
+        ("browser.read", {"url": "https://example.com", "max_text_chars": 16001}),
+        ("browser.screenshot", {"url": "https://example.com", "output": "../shot.png"}),
+        ("browser.render_html", {"input": "source.txt", "output": "shot.png"}),
+        ("browser.render_html", {"input": "source.html", "output": "shot.jpg"}),
+    ],
+)
 def test_no_model_scripts_credentials_or_unbounded_options(
-    operation: str, arguments: dict[str, Any],
+    operation: str,
+    arguments: dict[str, Any],
 ) -> None:
     with pytest.raises(ValueError):
         runner.validate_arguments(operation, arguments)

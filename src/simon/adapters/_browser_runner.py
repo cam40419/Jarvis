@@ -26,14 +26,23 @@ _CSP = (
 
 
 def origin(url: Any) -> str:
-    if (not isinstance(url, str) or len(url) > 4000 or "\\" in url
-            or any(ord(char) < 33 or ord(char) == 127 for char in url)):
+    if (
+        not isinstance(url, str)
+        or len(url) > 4000
+        or "\\" in url
+        or any(ord(char) < 33 or ord(char) == 127 for char in url)
+    ):
         raise ValueError("Expected a bounded HTTPS URL")
     parsed = urlsplit(url)
     hostname = parsed.hostname
-    if (parsed.scheme != "https" or not hostname or parsed.username is not None
-            or parsed.password is not None or parsed.port not in {None, 443}
-            or re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?", hostname) is None):
+    if (
+        parsed.scheme != "https"
+        or not hostname
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.port not in {None, 443}
+        or re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?", hostname) is None
+    ):
         raise ValueError("Only HTTPS hostnames on port 443 without credentials are supported")
     return "https://" + hostname.lower()
 
@@ -52,12 +61,17 @@ def allowed_origins(value: Any) -> frozenset[str]:
 
 
 def relative_file(value: Any, extensions: set[str]) -> str:
-    if (not isinstance(value, str) or not value or len(value) > 500
-            or value.startswith(("/", "-")) or "\\" in value or ":" in value
-            or any(ord(char) < 32 or ord(char) == 127 for char in value)
-            or any(part in {"", ".", ".."} or part.casefold() == ".git"
-                   for part in value.split("/"))
-            or Path(value).suffix.lower() not in extensions):
+    if (
+        not isinstance(value, str)
+        or not value
+        or len(value) > 500
+        or value.startswith(("/", "-"))
+        or "\\" in value
+        or ":" in value
+        or any(ord(char) < 32 or ord(char) == 127 for char in value)
+        or any(part in {"", ".", ".."} or part.casefold() == ".git" for part in value.split("/"))
+        or Path(value).suffix.lower() not in extensions
+    ):
         raise ValueError("Expected a relative workspace file with a supported extension")
     return value
 
@@ -143,16 +157,23 @@ class Fetcher:
             parsed = urlsplit(url)
             assert parsed.hostname is not None
             connection = PinnedHTTPSConnection(
-                parsed.hostname, public_address(parsed.hostname), timeout=min(10, remaining),
+                parsed.hostname,
+                public_address(parsed.hostname),
+                timeout=min(10, remaining),
             )
             try:
                 path = parsed.path or "/"
                 if parsed.query:
                     path += "?" + parsed.query
-                connection.request("GET", path, headers={
-                    "User-Agent": "SimonStaticBrowser/1.0", "Accept-Encoding": "identity",
-                    "Accept": "text/html,text/css,image/*,font/*;q=0.8,*/*;q=0.5",
-                })
+                connection.request(
+                    "GET",
+                    path,
+                    headers={
+                        "User-Agent": "SimonStaticBrowser/1.0",
+                        "Accept-Encoding": "identity",
+                        "Accept": "text/html,text/css,image/*,font/*;q=0.8,*/*;q=0.5",
+                    },
+                )
                 response = connection.getresponse()
                 if response.status in {301, 302, 303, 307, 308}:
                     location = response.getheader("Location")
@@ -169,8 +190,12 @@ class Fetcher:
                 self.total_bytes += len(content)
                 if len(content) > _MAX_BODY or self.total_bytes > _MAX_TOTAL:
                     raise ValueError("Browser response budget exceeded")
-                return (url, response.status,
-                        response.getheader("Content-Type", "text/plain"), content)
+                return (
+                    url,
+                    response.status,
+                    response.getheader("Content-Type", "text/plain"),
+                    content,
+                )
             finally:
                 connection.close()
         raise ValueError("Browser redirect limit exceeded")
@@ -181,8 +206,11 @@ def run(request: dict[str, Any], workspace: Path) -> dict[str, Any]:
     arguments = validate_arguments(operation, request["arguments"])
     origins = allowed_origins(request["allowed_origins"])
     local = operation == "browser.render_html"
-    target = (workspace_file(workspace, arguments["output"], output=True)
-              if operation != "browser.read" else None)
+    target = (
+        workspace_file(workspace, arguments["output"], output=True)
+        if operation != "browser.read"
+        else None
+    )
     fetcher = Fetcher(origins, timeout_seconds=request["timeout_seconds"])
     if local:
         source = workspace_file(workspace, arguments["input"])
@@ -191,21 +219,31 @@ def run(request: dict[str, Any], workspace: Path) -> dict[str, Any]:
     else:
         initial_url, status, content_type, content = fetcher.get(arguments["url"])
         if content_type.split(";", 1)[0].lower() not in {
-            "text/html", "text/plain", "application/xhtml+xml",
+            "text/html",
+            "text/plain",
+            "application/xhtml+xml",
         }:
             raise ValueError("Browser reading requires an HTML or text document")
     playwright = importlib.import_module("playwright.sync_api")
     blocked = 0
     with playwright.sync_playwright() as provider:
         browser = provider.chromium.launch(
-            headless=True, args=["--host-resolver-rules=MAP * ~NOTFOUND"],
-            env={"PATH": "/usr/local/bin:/usr/bin:/bin", "HOME": "/tmp", "TMPDIR": "/tmp",
-                 "LANG": "C.UTF-8"},
+            headless=True,
+            args=["--host-resolver-rules=MAP * ~NOTFOUND"],
+            env={
+                "PATH": "/usr/local/bin:/usr/bin:/bin",
+                "HOME": "/tmp",
+                "TMPDIR": "/tmp",
+                "LANG": "C.UTF-8",
+            },
         )
         try:
             context = browser.new_context(
-                viewport={"width": 1365, "height": 900}, java_script_enabled=False,
-                service_workers="block", accept_downloads=False, permissions=[],
+                viewport={"width": 1365, "height": 900},
+                java_script_enabled=False,
+                service_workers="block",
+                accept_downloads=False,
+                permissions=[],
             )
             context.set_default_timeout(min(15000, request["timeout_seconds"] * 1000))
             delivered = False
@@ -222,7 +260,10 @@ def run(request: dict[str, Any], workspace: Path) -> dict[str, Any]:
                     delivered = True
                     result = (initial_url, status, content_type, content)
                 elif local or resource.resource_type not in {
-                    "document", "stylesheet", "image", "font",
+                    "document",
+                    "stylesheet",
+                    "image",
+                    "font",
                 }:
                     blocked += 1
                     route.abort()
@@ -236,10 +277,15 @@ def run(request: dict[str, Any], workspace: Path) -> dict[str, Any]:
                         return
                 if resource.is_navigation_request() and resource.frame.parent_frame is None:
                     final_document_url, final_status = result[0], result[1]
-                route.fulfill(status=result[1], body=result[3], headers={
-                    "Content-Type": result[2], "Content-Security-Policy": _CSP,
-                    "Cache-Control": "no-store",
-                })
+                route.fulfill(
+                    status=result[1],
+                    body=result[3],
+                    headers={
+                        "Content-Type": result[2],
+                        "Content-Security-Policy": _CSP,
+                        "Cache-Control": "no-store",
+                    },
+                )
 
             context.route("**/*", route_resource)
             page = context.new_page()
@@ -248,9 +294,11 @@ def run(request: dict[str, Any], workspace: Path) -> dict[str, Any]:
             result = {
                 "title": page.title()[:1000],
                 "url": "local:" + arguments["input"] if local else final_document_url,
-                "status": final_status, "text": text[:arguments["max_text_chars"]],
+                "status": final_status,
+                "text": text[: arguments["max_text_chars"]],
                 "text_truncated": len(text) > arguments["max_text_chars"],
-                "blocked_requests": blocked, "screenshot_path": None,
+                "blocked_requests": blocked,
+                "screenshot_path": None,
             }
             if target is not None:
                 screenshot = page.screenshot(type="png", full_page=False, animations="disabled")
@@ -269,6 +317,8 @@ if __name__ == "__main__":
     try:
         print(json.dumps(run(json.loads(sys.argv[1]), Path("/workspace")), ensure_ascii=False))
     except Exception:
-        print("Browser operation failed or was blocked by its destination/resource policy",
-              file=sys.stderr)
+        print(
+            "Browser operation failed or was blocked by its destination/resource policy",
+            file=sys.stderr,
+        )
         sys.exit(2)

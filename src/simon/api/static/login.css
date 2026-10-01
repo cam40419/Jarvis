@@ -1,42 +1,212 @@
-* { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.65 system-ui, sans-serif; }
-main { max-width: 570px; margin: 7vh auto; padding: 40px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
-header { display: flex; align-items: center; gap: 12px; font-size: 12px; letter-spacing: .12em; font-weight: 650; }
-header img { width: 36px; height: 36px; }
-.mark { display: grid; place-items: center; width: 34px; height: 34px; background: var(--hover); color: var(--ink); border-radius: 8px; font-size: 20px; }
-.badge { margin-left: auto; font-size: 11px; color: var(--muted); font-weight: 400; letter-spacing: 0; }
-.eyebrow { color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .12em; margin-top: 38px; }
-h1 { font-size: 36px; font-weight: 600; line-height: 1.2; letter-spacing: -.035em; margin: 12px 0; }
-.lede { color: var(--muted); margin: 16px 0 28px; }
-button { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 11px 16px; color: var(--ink); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; min-height: 42px; }
-.primary { background: var(--accent); color: var(--on-accent); border-color: transparent; }
-button:hover { background: var(--hover); }
-.primary:hover { background: var(--accent-hover); }
-button:disabled { opacity: .55; cursor: default; }
-details { border-top: 1px solid var(--line); margin-top: 26px; padding-top: 20px; }
-summary { cursor: pointer; font-size: 14px; font-weight: 600; }
-details p { font-size: 13px; color: var(--muted); }
-label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
-input, select { width: 100%; border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 8px; padding: 11px 12px; font: inherit; margin-bottom: 18px; min-height: 44px; }
-input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 3px; }
-.actions { display: flex; gap: 12px; flex-wrap: wrap; }
-#status { font-size: 13px; min-height: 24px; overflow-wrap: anywhere; }
-#status.error { color: var(--danger); }
-#permissions { color: var(--muted); font-size: 13px; }
-a { color: var(--accent-text); }
-footer { border-top: 1px solid var(--line); margin-top: 28px; padding-top: 20px; color: var(--muted); font-size: 12px; }
-.backronym { font-size: 11px; color: var(--muted); letter-spacing: .025em; }
-.primary-link { display: inline-block; background: var(--accent); color: var(--on-accent); padding: 11px 18px; border-radius: 8px; text-decoration: none; }
-.managed-account { border-top: 1px solid var(--line); padding: 16px 0; }
-.managed-account button { margin: 4px 8px 4px 0; }
-#account-management { margin-top: 24px; }
-#invitation-token { font-family: monospace; width: 100%; }
-.separator { color: var(--muted); font-size: 13px; margin: 24px 0 12px; }
-#password-login-form button { width: 100%; }
-[hidden] { display: none !important; }
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font:
+    15px/1.65 system-ui,
+    sans-serif;
+}
+main {
+  max-width: 570px;
+  margin: 7vh auto;
+  padding: 40px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  font-weight: 650;
+}
+header img {
+  width: 36px;
+  height: 36px;
+}
+.mark {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  background: var(--hover);
+  color: var(--ink);
+  border-radius: 8px;
+  font-size: 20px;
+}
+.badge {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 400;
+  letter-spacing: 0;
+}
+.eyebrow {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  margin-top: 38px;
+}
+h1 {
+  font-size: 36px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.035em;
+  margin: 12px 0;
+}
+.lede {
+  color: var(--muted);
+  margin: 16px 0 28px;
+}
+button {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 8px;
+  padding: 11px 16px;
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  min-height: 42px;
+}
+.primary {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: transparent;
+}
+button:hover {
+  background: var(--hover);
+}
+.primary:hover {
+  background: var(--accent-hover);
+}
+button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+details {
+  border-top: 1px solid var(--line);
+  margin-top: 26px;
+  padding-top: 20px;
+}
+summary {
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+}
+details p {
+  font-size: 13px;
+  color: var(--muted);
+}
+label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+input,
+select {
+  width: 100%;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--ink);
+  border-radius: 8px;
+  padding: 11px 12px;
+  font: inherit;
+  margin-bottom: 18px;
+  min-height: 44px;
+}
+input:focus-visible,
+select:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 3px;
+}
+.actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+#status {
+  font-size: 13px;
+  min-height: 24px;
+  overflow-wrap: anywhere;
+}
+#status.error {
+  color: var(--danger);
+}
+#permissions {
+  color: var(--muted);
+  font-size: 13px;
+}
+a {
+  color: var(--accent-text);
+}
+footer {
+  border-top: 1px solid var(--line);
+  margin-top: 28px;
+  padding-top: 20px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.backronym {
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 0.025em;
+}
+.primary-link {
+  display: inline-block;
+  background: var(--accent);
+  color: var(--on-accent);
+  padding: 11px 18px;
+  border-radius: 8px;
+  text-decoration: none;
+}
+.managed-account {
+  border-top: 1px solid var(--line);
+  padding: 16px 0;
+}
+.managed-account button {
+  margin: 4px 8px 4px 0;
+}
+#account-management {
+  margin-top: 24px;
+}
+#invitation-token {
+  font-family: monospace;
+  width: 100%;
+}
+.separator {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 24px 0 12px;
+}
+#password-login-form button {
+  width: 100%;
+}
+[hidden] {
+  display: none !important;
+}
 @media (max-width: 660px) {
-  main { margin: 20px 14px; padding: 26px; }
-  .badge { display: none; }
-  h1 { font-size: 32px; }
-  input, select { font-size: 16px; }
+  main {
+    margin: 20px 14px;
+    padding: 26px;
+  }
+  .badge {
+    display: none;
+  }
+  h1 {
+    font-size: 32px;
+  }
+  input,
+  select {
+    font-size: 16px;
+  }
 }

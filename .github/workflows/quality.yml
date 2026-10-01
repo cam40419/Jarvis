@@ -28,11 +28,24 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: '3.11'
           cache: pip
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e '.[dev,postgres,browser]'
       - run: python -m playwright install --with-deps chromium
-      - run: python -m ruff check src tests scripts
+      - run: python -m ruff check src tests scripts examples
+      - run: python -m ruff format --check src tests scripts examples
       - run: python -m mypy src
       - run: python -m pytest --cov=simon --cov-report=term-missing
+  formatting:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run format:check
+      - run: npm run lint
+      - run: npm run test:connectors

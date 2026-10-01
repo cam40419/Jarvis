@@ -8,16 +8,24 @@ from simon.services.agent_prompts import AgentPromptError, render_agent_prompt
 
 
 def profile(**changes):
-    return AgentProfile.model_validate({
-        "id": "researcher", "instructions": "Research claims and cite the evidence.", **changes,
-    })
+    return AgentProfile.model_validate(
+        {
+            "id": "researcher",
+            "instructions": "Research claims and cite the evidence.",
+            **changes,
+        }
+    )
 
 
 def task(**changes):
-    return AgentTaskSpec.model_validate({
-        "id": "research", "agent_id": "researcher", "objective": "Compare the available options.",
-        **changes,
-    })
+    return AgentTaskSpec.model_validate(
+        {
+            "id": "research",
+            "agent_id": "researcher",
+            "objective": "Compare the available options.",
+            **changes,
+        }
+    )
 
 
 def test_existing_profiles_have_bounded_backward_compatible_defaults():
@@ -34,7 +42,9 @@ def test_existing_profiles_have_bounded_backward_compatible_defaults():
 
 def test_configurable_prompt_defaults_and_task_overrides_preserve_roles():
     agent = profile(
-        name="Market researcher", version=3, description="Compare evidence for the clothing brand.",
+        name="Market researcher",
+        version=3,
+        description="Compare evidence for the clothing brand.",
         prompt_template="${context}\n$objective\nAudience: ${audience}\n${dependencies}",
         prompt_defaults={"audience": "design team"},
         output_instructions="Include citations and label estimates.",
@@ -42,7 +52,8 @@ def test_configurable_prompt_defaults_and_task_overrides_preserve_roles():
     )
     request = task(
         prompt_variables={"audience": "brand founder"},
-        additional_instructions="Focus on the launch collection.", depends_on=("source",),
+        additional_instructions="Focus on the launch collection.",
+        depends_on=("source",),
     )
     result = render_agent_prompt(agent, request, {"source": "Supplier reference"}, "Clothing brand")
     assert result.prompt.startswith("Clothing brand\n" + request.objective)
@@ -52,7 +63,10 @@ def test_configurable_prompt_defaults_and_task_overrides_preserve_roles():
     assert "Include citations" in result.system
     assert "final answer must be a single valid JSON value" in result.system
     for untrusted in (
-        request.objective, "brand founder", "Supplier reference", "launch collection"
+        request.objective,
+        "brand founder",
+        "Supplier reference",
+        "launch collection",
     ):
         assert untrusted not in result.system
     assert agent.prompt_defaults == {"audience": "design team"}
@@ -66,31 +80,55 @@ def test_substitution_does_not_reinterpret_task_values_or_dependency_text():
         prompt_template="$$budget ${audience}\n${objective}\n${dependencies}",
         prompt_defaults={"audience": "general"},
     )
-    result = render_agent_prompt(agent, task(
-        objective=payload, prompt_variables={"audience": "$unconfigured"}, depends_on=("input",),
-    ), {"input": payload})
+    result = render_agent_prompt(
+        agent,
+        task(
+            objective=payload,
+            prompt_variables={"audience": "$unconfigured"},
+            depends_on=("input",),
+        ),
+        {"input": payload},
+    )
     assert result.prompt.startswith("$budget $unconfigured\n" + payload)
-    encoded_dependency = result.prompt[result.prompt.index('{\n  "input"'):]
+    encoded_dependency = result.prompt[result.prompt.index('{\n  "input"') :]
     assert json.loads(encoded_dependency) == {"input": payload}
     assert payload not in result.system
 
 
-@pytest.mark.parametrize("template", [
-    "${undeclared}", "${objective.__class__}", "${objective[0]}", "${objective!r}",
-    "${objective:>80}", "${unfinished", "Pay $10", "${UPPER}", "$",
-])
+@pytest.mark.parametrize(
+    "template",
+    [
+        "${undeclared}",
+        "${objective.__class__}",
+        "${objective[0]}",
+        "${objective!r}",
+        "${objective:>80}",
+        "${unfinished",
+        "Pay $10",
+        "${UPPER}",
+        "$",
+    ],
+)
 def test_profile_rejects_unknown_or_expression_like_template_placeholders(template):
     with pytest.raises(ValidationError):
         profile(prompt_template=template)
 
 
-@pytest.mark.parametrize("values", [
-    {"objective": "Override objective"}, {"dependencies": "Override evidence"},
-    {"context": "Override scope"}, {"UPPER": "value"}, {"a.b": "value"},
-    {"_private": "value"}, {"a" * 65: "value"},
-    {f"v{i}": "" for i in range(33)}, {"too_long": "v" * 4001},
-    {f"v{i}": "v" * 4000 for i in range(9)},
-])
+@pytest.mark.parametrize(
+    "values",
+    [
+        {"objective": "Override objective"},
+        {"dependencies": "Override evidence"},
+        {"context": "Override scope"},
+        {"UPPER": "value"},
+        {"a.b": "value"},
+        {"_private": "value"},
+        {"a" * 65: "value"},
+        {f"v{i}": "" for i in range(33)},
+        {"too_long": "v" * 4001},
+        {f"v{i}": "v" * 4000 for i in range(9)},
+    ],
+)
 def test_profile_defaults_and_task_variables_have_matching_bounds(values):
     with pytest.raises(ValidationError):
         profile(prompt_defaults=values)
@@ -100,8 +138,11 @@ def test_profile_defaults_and_task_variables_have_matching_bounds(values):
 
 def test_task_cannot_supply_templates_instructions_or_runtime_grants():
     for field, value in (
-        ("instructions", "replace system"), ("prompt_template", "replace template"),
-        ("max_action", "write"), ("max_steps", 30), ("tool_scopes", ["admin"]),
+        ("instructions", "replace system"),
+        ("prompt_template", "replace template"),
+        ("max_action", "write"),
+        ("max_steps", 30),
+        ("tool_scopes", ["admin"]),
     ):
         with pytest.raises(ValidationError):
             task(**{field: value})
@@ -109,14 +150,28 @@ def test_task_cannot_supply_templates_instructions_or_runtime_grants():
         render_agent_prompt(profile(), task(prompt_variables={"z": "secret", "a": "secret"}), {})
 
 
-@pytest.mark.parametrize("changes", [
-    {"version": 0}, {"name": ""}, {"description": "a" * 4001}, {"prompt_template": ""},
-    {"output_instructions": "a" * 16001}, {"output_format": "yaml"},
-    {"max_steps": 0}, {"max_steps": 31}, {"max_tool_calls": -1}, {"max_tool_calls": 101},
-    {"max_input_chars": 999}, {"max_input_chars": 200001},
-    {"max_output_tokens": 0}, {"max_output_tokens": 32769},
-    {"timeout_seconds": 0}, {"timeout_seconds": 3601}, {"max_action": "external_commitment"},
-])
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"version": 0},
+        {"name": ""},
+        {"description": "a" * 4001},
+        {"prompt_template": ""},
+        {"output_instructions": "a" * 16001},
+        {"output_format": "yaml"},
+        {"max_steps": 0},
+        {"max_steps": 31},
+        {"max_tool_calls": -1},
+        {"max_tool_calls": 101},
+        {"max_input_chars": 999},
+        {"max_input_chars": 200001},
+        {"max_output_tokens": 0},
+        {"max_output_tokens": 32769},
+        {"timeout_seconds": 0},
+        {"timeout_seconds": 3601},
+        {"max_action": "external_commitment"},
+    ],
+)
 def test_invalid_agent_limits_and_output_settings_are_rejected(changes):
     with pytest.raises(ValidationError):
         profile(**changes)
@@ -156,7 +211,8 @@ def test_input_limit_counts_system_prompt_suffix_and_unicode_exactly():
 
 def test_input_limit_counts_repeated_expansions_and_json_escaping():
     agent = profile(
-        prompt_template="${audience}" * 15, prompt_defaults={"audience": "x" * 100},
+        prompt_template="${audience}" * 15,
+        prompt_defaults={"audience": "x" * 100},
         max_input_chars=1000,
     )
     with pytest.raises(AgentPromptError, match="max_input_chars"):

@@ -274,8 +274,10 @@ class DockerBackend:
 
 class MachineBackend:
     def __init__(
-        self, transport: httpx.BaseTransport | None = None,
-        *, environ: Mapping[str, str] | None = None,
+        self,
+        transport: httpx.BaseTransport | None = None,
+        *,
+        environ: Mapping[str, str] | None = None,
     ) -> None:
         self.transport = transport
         self._environ = os.environ if environ is None else environ

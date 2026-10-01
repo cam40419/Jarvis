@@ -30,8 +30,12 @@ class _Rejected(Exception):
 
 class MCPHttpTransport:
     def __init__(
-        self, *, timeout_seconds: float = 30, max_response_bytes: int = 2_000_000,
-        transport: httpx.BaseTransport | None = None, environ: Mapping[str, str] | None = None,
+        self,
+        *,
+        timeout_seconds: float = 30,
+        max_response_bytes: int = 2_000_000,
+        transport: httpx.BaseTransport | None = None,
+        environ: Mapping[str, str] | None = None,
         before_call: Callable[[], Any] | None = None,
     ) -> None:
         if not 0 < timeout_seconds <= 300 or not 0 < max_response_bytes <= 10_000_000:
@@ -42,14 +46,18 @@ class MCPHttpTransport:
         self.before_call = before_call
 
     def __call__(
-        self, definition: ToolDefinition, arguments: dict[str, Any],
+        self,
+        definition: ToolDefinition,
+        arguments: dict[str, Any],
         context: ToolExecutionContext,
     ) -> dict[str, Any]:
         if not definition.endpoint:
             raise ToolCatalogError("MCP tool requires a configured Streamable HTTP endpoint")
         name = definition.settings.get("tool_name")
-        if not isinstance(name, str) or not 1 <= len(name) <= 200 or any(
-            ord(char) < 33 or ord(char) > 126 for char in name
+        if (
+            not isinstance(name, str)
+            or not 1 <= len(name) <= 200
+            or any(ord(char) < 33 or ord(char) > 126 for char in name)
         ):
             raise ToolCatalogError("MCP tool requires a fixed tool_name")
         if definition.settings.get("protocol_version", PROTOCOL_VERSION) != PROTOCOL_VERSION:
@@ -57,8 +65,10 @@ class MCPHttpTransport:
         headers = {
             "Accept": "application/json, text/event-stream",
             "Accept-Encoding": "identity",
-            "X-Actor-ID": str(context.actor_id), "X-Household-ID": str(context.household_id),
-            "X-Run-ID": str(context.run_id), "X-Agent-ID": context.agent_id,
+            "X-Actor-ID": str(context.actor_id),
+            "X-Household-ID": str(context.household_id),
+            "X-Run-ID": str(context.run_id),
+            "X-Agent-ID": context.agent_id,
             "X-Invocation-ID": str(context.invocation_id),
         }
         if definition.credential_env:
@@ -70,18 +80,27 @@ class MCPHttpTransport:
         dispatched = False
         session_id: str | None = None
         with httpx.Client(
-            transport=self._transport, timeout=self.timeout_seconds,
-            trust_env=False, follow_redirects=False,
+            transport=self._transport,
+            timeout=self.timeout_seconds,
+            trust_env=False,
+            follow_redirects=False,
         ) as client:
             try:
                 initialized, session_id = self._request(
-                    client, definition.endpoint, headers, {
-                        "jsonrpc": "2.0", "id": f"{context.invocation_id}:initialize",
-                        "method": "initialize", "params": {
-                            "protocolVersion": PROTOCOL_VERSION, "capabilities": {},
+                    client,
+                    definition.endpoint,
+                    headers,
+                    {
+                        "jsonrpc": "2.0",
+                        "id": f"{context.invocation_id}:initialize",
+                        "method": "initialize",
+                        "params": {
+                            "protocolVersion": PROTOCOL_VERSION,
+                            "capabilities": {},
                             "clientInfo": {"name": "simon-agent", "version": "1.0.0"},
                         },
-                    }, deadline,
+                    },
+                    deadline,
                 )
                 headers["MCP-Protocol-Version"] = PROTOCOL_VERSION
                 if session_id is not None:
@@ -95,26 +114,44 @@ class MCPHttpTransport:
                     raise _ProtocolError("Server negotiated an unsupported protocol version")
                 capabilities = initialized.get("capabilities")
                 if not isinstance(capabilities, dict) or not isinstance(
-                    capabilities.get("tools"), dict,
+                    capabilities.get("tools"),
+                    dict,
                 ):
                     raise _ProtocolError("Server did not advertise tools")
-                self._notify(client, definition.endpoint, headers, {
-                    "jsonrpc": "2.0", "method": "notifications/initialized",
-                }, deadline)
+                self._notify(
+                    client,
+                    definition.endpoint,
+                    headers,
+                    {
+                        "jsonrpc": "2.0",
+                        "method": "notifications/initialized",
+                    },
+                    deadline,
+                )
                 if self.before_call is not None:
                     self.before_call()
                 self._remaining(deadline)
                 dispatched = True
-                result, _ = self._request(client, definition.endpoint, headers, {
-                    "jsonrpc": "2.0", "id": str(context.invocation_id), "method": "tools/call",
-                    "params": {"name": name, "arguments": arguments},
-                }, deadline)
+                result, _ = self._request(
+                    client,
+                    definition.endpoint,
+                    headers,
+                    {
+                        "jsonrpc": "2.0",
+                        "id": str(context.invocation_id),
+                        "method": "tools/call",
+                        "params": {"name": name, "arguments": arguments},
+                    },
+                    deadline,
+                )
                 if result.get("isError", False) is not False:
                     raise ExecutionError(
-                        "MCP tool reported an error", unknown=definition.side_effect,
+                        "MCP tool reported an error",
+                        unknown=definition.side_effect,
                     )
                 if not isinstance(result.get("content"), list) and not isinstance(
-                    result.get("structuredContent"), dict,
+                    result.get("structuredContent"),
+                    dict,
                 ):
                     raise _ProtocolError("MCP tool response has no supported result content")
                 return result
@@ -131,7 +168,9 @@ class MCPHttpTransport:
                     # cannot erase a successful operation receipt. 405 is permitted.
                     try:
                         with client.stream(
-                            "DELETE", definition.endpoint, headers=headers,
+                            "DELETE",
+                            definition.endpoint,
+                            headers=headers,
                             timeout=min(2.0, max(0.1, deadline - monotonic())),
                         ):
                             pass
@@ -153,22 +192,38 @@ class MCPHttpTransport:
             raise _ProtocolError("MCP endpoint rejected request")
 
     def _notify(
-        self, client: httpx.Client, endpoint: str, headers: dict[str, str],
-        message: dict[str, Any], deadline: float,
+        self,
+        client: httpx.Client,
+        endpoint: str,
+        headers: dict[str, str],
+        message: dict[str, Any],
+        deadline: float,
     ) -> None:
         with client.stream(
-            "POST", endpoint, headers=headers, json=message, timeout=self._remaining(deadline),
+            "POST",
+            endpoint,
+            headers=headers,
+            json=message,
+            timeout=self._remaining(deadline),
         ) as response:
             self._http_status(response)
             if response.status_code != 202:
                 raise _ProtocolError("MCP notification was not accepted")
 
     def _request(
-        self, client: httpx.Client, endpoint: str, headers: dict[str, str],
-        message: dict[str, Any], deadline: float,
+        self,
+        client: httpx.Client,
+        endpoint: str,
+        headers: dict[str, str],
+        message: dict[str, Any],
+        deadline: float,
     ) -> tuple[dict[str, Any], str | None]:
         with client.stream(
-            "POST", endpoint, headers=headers, json=message, timeout=self._remaining(deadline),
+            "POST",
+            endpoint,
+            headers=headers,
+            json=message,
+            timeout=self._remaining(deadline),
         ) as response:
             self._http_status(response)
             content_type = response.headers.get("Content-Type", "").partition(";")[0].lower()
@@ -213,7 +268,10 @@ class MCPHttpTransport:
         return message["result"]
 
     def _sse(
-        self, response: httpx.Response, request_id: str, deadline: float,
+        self,
+        response: httpx.Response,
+        request_id: str,
+        deadline: float,
     ) -> dict[str, Any]:
         pending = bytearray()
         lines: list[bytes] = []

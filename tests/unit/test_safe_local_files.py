@@ -43,7 +43,9 @@ def test_blob_rejects_preexisting_leaf_and_ancestor_links(tmp_path):
 
 @pytest.mark.parametrize("swap_parent", [False, True], ids=["leaf", "ancestor"])
 def test_blob_rejects_link_swap_after_validation_before_any_read(
-    tmp_path, monkeypatch, swap_parent,
+    tmp_path,
+    monkeypatch,
+    swap_parent,
 ):
     workspace = tmp_path / "workspace"
     workspace.mkdir()
@@ -84,6 +86,7 @@ def test_blob_rejects_mutation_during_read(tmp_path, monkeypatch):
     @contextmanager
     def changing(path):
         with original(path) as stream:
+
             def read(limit):
                 content = stream.read(limit)
                 with source.open("ab") as output:

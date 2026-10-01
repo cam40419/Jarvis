@@ -53,11 +53,11 @@ and create them. Creators may retract their own entries; owners may retract any 
 Guests cannot read or write memory. No personal-only memory is injected into shared conversations.
 The API rejects client-supplied scope, acceptance, sensitivity, actor, or household fields.
 
-| Endpoint | Behavior |
-| --- | --- |
-| POST `/v1/memories` | Accept `{ "subject": "Dinner", "content": "Vegetarian", "idempotency_key": "memory-test-001" }` |
-| GET `/v1/memories?offset=0&limit=100` | List active memories for the session household |
-| POST `/v1/memories/{id}/retract` | Exclude the entry from future runs; repeat safely |
+| Endpoint                              | Behavior                                                                                        |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| POST `/v1/memories`                   | Accept `{ "subject": "Dinner", "content": "Vegetarian", "idempotency_key": "memory-test-001" }` |
+| GET `/v1/memories?offset=0&limit=100` | List active memories for the session household                                                  |
+| POST `/v1/memories/{id}/retract`      | Exclude the entry from future runs; repeat safely                                               |
 
 POSTs require the session cookie, exact Origin, and CSRF token. Creating memory is idempotent within
 actor/household; a changed body under the same key returns 409. Replaying creation after retraction

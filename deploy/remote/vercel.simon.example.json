@@ -1,7 +1,0 @@
-{
-  "$schema": "https://openapi.vercel.sh/vercel.json",
-  "rewrites": [
-    { "source": "/simon", "destination": "https://simon-origin.camrobbins.com/simon/" },
-    { "source": "/simon/:path*", "destination": "https://simon-origin.camrobbins.com/simon/:path*" }
-  ]
-}

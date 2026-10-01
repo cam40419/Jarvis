@@ -59,7 +59,9 @@ class ProjectHistoryService:
 
     @staticmethod
     def _cursor(
-        actor: ActorContext, project_id: UUID, cursor: str | None,
+        actor: ActorContext,
+        project_id: UUID,
+        cursor: str | None,
     ) -> tuple[datetime, UUID] | None:
         if cursor is None:
             return None
@@ -70,7 +72,9 @@ class ProjectHistoryService:
                 base64.urlsafe_b64decode(cursor + "=" * (-len(cursor) % 4)),
             )
             if (value.project_id, value.actor_id, value.workspace_id) != (
-                project_id, actor.actor_id, actor.household_id,
+                project_id,
+                actor.actor_id,
+                actor.household_id,
             ):
                 raise ValueError("Cursor belongs to another project or account")
         except (ValueError, PydanticError) as error:
@@ -78,7 +82,11 @@ class ProjectHistoryService:
         return value.created_at, value.id
 
     def list(
-        self, actor: ActorContext, project_id: UUID, *, limit: int = 20,
+        self,
+        actor: ActorContext,
+        project_id: UUID,
+        *,
+        limit: int = 20,
         cursor: str | None = None,
     ) -> ProjectRunPage:
         self.work.get(actor, project_id)
@@ -86,7 +94,11 @@ class ProjectHistoryService:
             raise ValidationError("Project history page size must be between 1 and 50")
         before = self._cursor(actor, project_id, cursor)
         rows = self.store.project_run_jobs(
-            actor.household_id, actor.actor_id, project_id, before, limit + 1,
+            actor.household_id,
+            actor.actor_id,
+            project_id,
+            before,
+            limit + 1,
         )
         items = []
         for job in rows[:limit]:
@@ -109,24 +121,41 @@ class ProjectHistoryService:
                     pass
                 else:
                     phase = "planning" if match[2] == "planning" else "execution"
-            tasks = tuple(ProjectRunTaskSummary(
-                id=task.id, agent_id=task.agent_id, status=task.status,
-                artifact_count=len(task.artifacts),
-            ) for task in run.tasks)
-            items.append(ProjectRunSummary(
-                id=run.id, plan_id=run.plan_id, phase=phase, cycle_id=cycle_id,
-                status=run.status, created_at=job.created_at, started_at=run.started_at,
-                finished_at=run.finished_at, task_count=len(tasks),
-                artifact_count=sum(task.artifact_count for task in tasks), tasks=tasks,
-                run_url=f"/v1/agent-platform/runs/{run.id}",
-                plan_url=f"/v1/agent-platform/plans/{run.plan_id}",
-            ))
+            tasks = tuple(
+                ProjectRunTaskSummary(
+                    id=task.id,
+                    agent_id=task.agent_id,
+                    status=task.status,
+                    artifact_count=len(task.artifacts),
+                )
+                for task in run.tasks
+            )
+            items.append(
+                ProjectRunSummary(
+                    id=run.id,
+                    plan_id=run.plan_id,
+                    phase=phase,
+                    cycle_id=cycle_id,
+                    status=run.status,
+                    created_at=job.created_at,
+                    started_at=run.started_at,
+                    finished_at=run.finished_at,
+                    task_count=len(tasks),
+                    artifact_count=sum(task.artifact_count for task in tasks),
+                    tasks=tasks,
+                    run_url=f"/v1/agent-platform/runs/{run.id}",
+                    plan_url=f"/v1/agent-platform/plans/{run.plan_id}",
+                )
+            )
         next_cursor = None
         if len(rows) > limit:
             last = rows[limit - 1]
             value = _Cursor(
-                project_id=project_id, actor_id=actor.actor_id, workspace_id=actor.household_id,
-                created_at=last.created_at, id=last.id,
+                project_id=project_id,
+                actor_id=actor.actor_id,
+                workspace_id=actor.household_id,
+                created_at=last.created_at,
+                id=last.id,
             )
             next_cursor = base64.urlsafe_b64encode(value.model_dump_json().encode()).decode()
             next_cursor = next_cursor.rstrip("=")

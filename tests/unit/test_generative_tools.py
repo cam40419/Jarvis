@@ -28,14 +28,27 @@ from tests.unit.test_git_tools import setup
 
 def image_bytes(width=1024, height=1024):
     def chunk(kind, data):
-        return struct.pack(">I", len(data)) + kind + data + struct.pack(
-            ">I", zlib.crc32(kind + data),
+        return (
+            struct.pack(">I", len(data))
+            + kind
+            + data
+            + struct.pack(
+                ">I",
+                zlib.crc32(kind + data),
+            )
         )
 
-    return b"\x89PNG\r\n\x1a\n" + chunk(
-        b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0),
-    ) + chunk(b"IDAT", zlib.compress((b"\x00" + b"\x00\x80\xff\xff" * width) * height)) + chunk(
-        b"IEND", b"",
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + chunk(
+            b"IHDR",
+            struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0),
+        )
+        + chunk(b"IDAT", zlib.compress((b"\x00" + b"\x00\x80\xff\xff" * width) * height))
+        + chunk(
+            b"IEND",
+            b"",
+        )
     )
 
 
@@ -52,24 +65,33 @@ def wav_bytes(seconds=1):
 @pytest.fixture
 def runtime(tmp_path):
     _, lease, _, context, _ = setup()
-    lease = lease.model_copy(update={
-        "plan": lease.plan.model_copy(update={"workspace_path": tmp_path}),
-        "definition": lease.definition.model_copy(update={
-            "capabilities": frozenset({"workspace.write"}),
-        }),
-    })
+    lease = lease.model_copy(
+        update={
+            "plan": lease.plan.model_copy(update={"workspace_path": tmp_path}),
+            "definition": lease.definition.model_copy(
+                update={
+                    "capabilities": frozenset({"workspace.write"}),
+                }
+            ),
+        }
+    )
     definitions = generative_tool_definitions(
-        image_model="operator-image-model", transcription_model="operator-transcription-model",
+        image_model="operator-image-model",
+        transcription_model="operator-transcription-model",
         enabled=True,
     )
-    context = context.model_copy(update={
-        "allowed_tool_ids": frozenset(item.id for item in definitions),
-        "scopes": frozenset({"jobs:read", "jobs:write"}),
-        "environment_capabilities": frozenset({"workspace.write"}),
-        "authorized_action": "write",
-    })
+    context = context.model_copy(
+        update={
+            "allowed_tool_ids": frozenset(item.id for item in definitions),
+            "scopes": frozenset({"jobs:read", "jobs:write"}),
+            "environment_capabilities": frozenset({"workspace.write"}),
+            "authorized_action": "write",
+        }
+    )
     actor = ActorContext(
-        actor_id=context.actor_id, household_id=context.household_id, scopes=context.scopes,
+        actor_id=context.actor_id,
+        household_id=context.household_id,
+        scopes=context.scopes,
         channel=Channel.API,
     )
     requests = []
@@ -77,15 +99,22 @@ def runtime(tmp_path):
     def respond(request):
         requests.append(request)
         if str(request.url) == IMAGE_ENDPOINT:
-            return httpx.Response(200, json={
-                "data": [{"b64_json": base64.b64encode(image_bytes()).decode()}],
-            })
+            return httpx.Response(
+                200,
+                json={
+                    "data": [{"b64_json": base64.b64encode(image_bytes()).decode()}],
+                },
+            )
         assert str(request.url) == AUDIO_ENDPOINT
         return httpx.Response(200, json={"text": "A useful transcript."})
 
     handler = GenerativeToolTransport(
-        lease, actor=actor, run_id=context.run_id, revalidate=lambda: actor,
-        environ={"SIMON_OPENAI_API_KEY": "synthetic-key"}, transport=httpx.MockTransport(respond),
+        lease,
+        actor=actor,
+        run_id=context.run_id,
+        revalidate=lambda: actor,
+        environ={"SIMON_OPENAI_API_KEY": "synthetic-key"},
+        transport=httpx.MockTransport(respond),
     )
     return handler, definitions, context, requests
 
@@ -96,8 +125,12 @@ def test_generate_single_image_exact_contract_and_new_workspace_file(runtime, tm
     assert len(requests) == 1 and requests[0].method == "POST"
     assert str(requests[0].url) == IMAGE_ENDPOINT
     assert json.loads(requests[0].content) == {
-        "model": "operator-image-model", "prompt": "An original blue square",
-        "size": "1024x1024", "quality": "low", "n": 1, "output_format": "png",
+        "model": "operator-image-model",
+        "prompt": "An original blue square",
+        "size": "1024x1024",
+        "quality": "low",
+        "n": 1,
+        "output_format": "png",
     }
     assert requests[0].headers["Authorization"] == "Bearer synthetic-key"
     assert requests[0].headers["X-Client-Request-Id"] == str(context.invocation_id)
@@ -114,9 +147,14 @@ def test_audio_transcription_uses_validated_bytes_and_writes_artifact(runtime, t
     handler, definitions, context, requests = runtime
     raw = wav_bytes()
     (tmp_path / "input-recording.wav").write_bytes(raw)
-    result = handler(definitions[1], {
-        "input": "input-recording.wav", "expected_sha256": hashlib.sha256(raw).hexdigest(),
-    }, context)
+    result = handler(
+        definitions[1],
+        {
+            "input": "input-recording.wav",
+            "expected_sha256": hashlib.sha256(raw).hexdigest(),
+        },
+        context,
+    )
     assert len(requests) == 1 and str(requests[0].url) == AUDIO_ENDPOINT
     assert requests[0].headers["Content-Type"].startswith("multipart/form-data; boundary=")
     content = requests[0].content
@@ -127,9 +165,17 @@ def test_audio_transcription_uses_validated_bytes_and_writes_artifact(runtime, t
     assert not result["truncated"]
 
 
-@pytest.mark.parametrize("input_name", [
-    "../outside.wav", "folder/audio.wav", "C:/audio.wav", ".env", "audio.mp3", "folder\\audio.wav",
-])
+@pytest.mark.parametrize(
+    "input_name",
+    [
+        "../outside.wav",
+        "folder/audio.wav",
+        "C:/audio.wav",
+        ".env",
+        "audio.mp3",
+        "folder\\audio.wav",
+    ],
+)
 def test_audio_rejects_host_or_nested_paths_before_network(runtime, input_name):
     handler, definitions, context, requests = runtime
     with pytest.raises((AuthorizationError, ValidationError)):
@@ -137,9 +183,15 @@ def test_audio_rejects_host_or_nested_paths_before_network(runtime, input_name):
     assert not requests
 
 
-@pytest.mark.parametrize("raw", [
-    b"not audio", b"RIFF\x00\x00\x00\x00WAVE", wav_bytes()[:-10],
-], ids=["invalid", "header_only", "truncated"])
+@pytest.mark.parametrize(
+    "raw",
+    [
+        b"not audio",
+        b"RIFF\x00\x00\x00\x00WAVE",
+        wav_bytes()[:-10],
+    ],
+    ids=["invalid", "header_only", "truncated"],
+)
 def test_audio_rejects_invalid_or_truncated_input_without_cost(runtime, tmp_path, raw):
     handler, definitions, context, requests = runtime
     (tmp_path / "input.wav").write_bytes(raw)
@@ -177,11 +229,18 @@ def test_audio_reparse_race_cannot_follow_host_link(tmp_path, monkeypatch):
         _read_audio(workspace, TranscribeAudio(input="input.wav"))
 
 
-@pytest.mark.parametrize("changes", [
-    {"actor_id": uuid4()}, {"household_id": uuid4()}, {"run_id": uuid4()},
-    {"agent_id": "other"}, {"authorized_action": "read"}, {"scopes": frozenset({"jobs:read"})},
-    {"allowed_tool_ids": frozenset()},
-])
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"actor_id": uuid4()},
+        {"household_id": uuid4()},
+        {"run_id": uuid4()},
+        {"agent_id": "other"},
+        {"authorized_action": "read"},
+        {"scopes": frozenset({"jobs:read"})},
+        {"allowed_tool_ids": frozenset()},
+    ],
+)
 def test_no_call_outside_bound_assignment(runtime, changes):
     handler, definitions, context, requests = runtime
     with pytest.raises(AuthorizationError):
@@ -224,9 +283,12 @@ def test_revocation_after_paid_result_is_unknown_and_not_published(runtime, tmp_
 
     def respond(request):
         handler.revalidate = lambda: handler.actor.model_copy(update={"scopes": frozenset()})
-        return httpx.Response(200, json={
-            "data": [{"b64_json": base64.b64encode(image_bytes()).decode()}],
-        })
+        return httpx.Response(
+            200,
+            json={
+                "data": [{"b64_json": base64.b64encode(image_bytes()).decode()}],
+            },
+        )
 
     handler._transport = httpx.MockTransport(respond)
     with pytest.raises(ToolExecutionError) as raised:
@@ -234,15 +296,19 @@ def test_revocation_after_paid_result_is_unknown_and_not_published(runtime, tmp_
     assert raised.value.unknown and not list(tmp_path.iterdir())
 
 
-@pytest.mark.parametrize("status,unknown", [(400, False), (401, False), (429, False), (500, True),
-                                          (307, True)])
+@pytest.mark.parametrize(
+    "status,unknown", [(400, False), (401, False), (429, False), (500, True), (307, True)]
+)
 def test_provider_rejection_is_not_retried_or_redirected(runtime, status, unknown):
     handler, definitions, context, requests = runtime
 
     def respond(request):
         requests.append(request)
-        return httpx.Response(status, headers={"Location": "https://other.example.test/"},
-                              json={"error": {"message": "do not expose sensitive details"}})
+        return httpx.Response(
+            status,
+            headers={"Location": "https://other.example.test/"},
+            json={"error": {"message": "do not expose sensitive details"}},
+        )
 
     handler._transport = httpx.MockTransport(respond)
     with pytest.raises(ToolExecutionError) as raised:
@@ -251,12 +317,16 @@ def test_provider_rejection_is_not_retried_or_redirected(runtime, status, unknow
     assert "sensitive" not in str(raised.value)
 
 
-@pytest.mark.parametrize("data", [
-    {"data": [{"url": "https://other.example.test/image.png"}]},
-    {"data": [{"b64_json": "not valid base64"}]},
-    {"data": []}, {"data": [{"b64_json": base64.b64encode(b"not PNG").decode()}]},
-    {"data": [{"b64_json": base64.b64encode(image_bytes(1, 1)).decode()}]},
-])
+@pytest.mark.parametrize(
+    "data",
+    [
+        {"data": [{"url": "https://other.example.test/image.png"}]},
+        {"data": [{"b64_json": "not valid base64"}]},
+        {"data": []},
+        {"data": [{"b64_json": base64.b64encode(b"not PNG").decode()}]},
+        {"data": [{"b64_json": base64.b64encode(image_bytes(1, 1)).decode()}]},
+    ],
+)
 def test_bad_image_response_is_unknown_and_no_provider_urls_are_followed(runtime, tmp_path, data):
     handler, definitions, context, requests = runtime
 
@@ -289,9 +359,12 @@ def test_output_collision_after_provider_does_not_overwrite(runtime, tmp_path):
 
     def respond(request):
         destination.write_bytes(b"Earlier output")
-        return httpx.Response(200, json={
-            "data": [{"b64_json": base64.b64encode(image_bytes()).decode()}],
-        })
+        return httpx.Response(
+            200,
+            json={
+                "data": [{"b64_json": base64.b64encode(image_bytes()).decode()}],
+            },
+        )
 
     handler._transport = httpx.MockTransport(respond)
     with pytest.raises(ToolExecutionError) as raised:
@@ -309,7 +382,10 @@ def test_templates_have_no_implicit_model_or_enabled_paid_tools():
 
 @pytest.mark.parametrize("operation", ["image", "audio"])
 def test_decoded_output_limits_report_unknown_paid_outcome(
-    runtime, tmp_path, monkeypatch, operation,
+    runtime,
+    tmp_path,
+    monkeypatch,
+    operation,
 ):
     handler, definitions, context, requests = runtime
     if operation == "image":

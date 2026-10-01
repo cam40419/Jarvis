@@ -40,35 +40,64 @@ Generated and validated locally inside the isolated, offline CAD worker.
 def main() -> None:
     state = (Path(".local/agents") / ("vase-smoke-" + uuid4().hex)).resolve()
     manager = EnvironmentManager(
-        [EnvironmentDefinition(
-            id="cad-smoke", kind="docker", enabled=True, container_image="simon-cad:local",
-            capabilities=CAPABILITIES, network="none", cpu_limit=2, memory_mb=4096,
-        )], state_path=state / "leases.sqlite3", workspace_root=state / "workspaces",
+        [
+            EnvironmentDefinition(
+                id="cad-smoke",
+                kind="docker",
+                enabled=True,
+                container_image="simon-cad:local",
+                capabilities=CAPABILITIES,
+                network="none",
+                cpu_limit=2,
+                memory_mb=4096,
+            )
+        ],
+        state_path=state / "leases.sqlite3",
+        workspace_root=state / "workspaces",
     )
     request = EnvironmentRequest(
-        workspace_id=uuid4(), agent_id="cad-smoke", task_id=uuid4(), attempt_id=uuid4(),
-        capabilities=CAPABILITIES, os="linux",
+        workspace_id=uuid4(),
+        agent_id="cad-smoke",
+        task_id=uuid4(),
+        attempt_id=uuid4(),
+        capabilities=CAPABILITIES,
+        os="linux",
     )
     lease = manager.allocate(request, environment_id="cad-smoke")
     ownership = {"attempt_id": request.attempt_id, "fencing_token": lease.fencing_token}
     context = ToolExecutionContext(
-        actor_id=uuid4(), household_id=request.workspace_id, run_id=uuid4(), agent_id="cad-smoke",
-        scopes=frozenset({"jobs:read", "jobs:write"}), authorized_action="write",
+        actor_id=uuid4(),
+        household_id=request.workspace_id,
+        run_id=uuid4(),
+        agent_id="cad-smoke",
+        scopes=frozenset({"jobs:read", "jobs:write"}),
+        authorized_action="write",
         allowed_tool_ids=frozenset(item.id for item in cad_tool_definitions()),
         environment_capabilities=CAPABILITIES,
     )
     registry = TransportRegistry()
-    registry.register("cad", CadToolTransport(
-        manager, lease, actor_id=context.actor_id, run_id=context.run_id, max_timeout_seconds=300,
-    ))
+    registry.register(
+        "cad",
+        CadToolTransport(
+            manager,
+            lease,
+            actor_id=context.actor_id,
+            run_id=context.run_id,
+            max_timeout_seconds=300,
+        ),
+    )
     definitions = {tool.id: tool for tool in cad_tool_definitions(enabled=True)}
     reports = {}
     try:
         source = Path(__file__).with_name("spiral_vase.scad").read_text(encoding="utf-8")
         code = "from pathlib import Path; Path('lilt-vase.scad').write_text(" + repr(source) + ")"
-        result = manager.execute(lease.id, ExecutionCommand(
-            argv=("/usr/local/bin/python3", "-I", "-c", code),
-        ), **ownership)
+        result = manager.execute(
+            lease.id,
+            ExecutionCommand(
+                argv=("/usr/local/bin/python3", "-I", "-c", code),
+            ),
+            **ownership,
+        )
         if result.exit_code:
             raise RuntimeError("Source staging failed")
         operations = (
@@ -77,9 +106,17 @@ def main() -> None:
             ("cad.mesh_inspect", {"input": "lilt-vase.stl"}),
             ("cad.mesh_inspect", {"input": "lilt-vase.stl", "vase_checks": True}),
             ("cad.mesh_inspect", {"input": "lilt-vase.3mf"}),
-            ("cad.render_mesh", {"input": "lilt-vase.stl", "output": "lilt-vase.png",
-                                 "material": "celadon", "resolution": 1200, "samples": 64,
-                                 "save_scene": True}),
+            (
+                "cad.render_mesh",
+                {
+                    "input": "lilt-vase.stl",
+                    "output": "lilt-vase.png",
+                    "material": "celadon",
+                    "resolution": 1200,
+                    "samples": 64,
+                    "save_scene": True,
+                },
+            ),
         )
         for operation, arguments in operations:
             output = registry.execute(definitions[operation], arguments, context).output
@@ -103,16 +140,23 @@ def main() -> None:
         assert collision.output["exit_code"] != 0, "Existing mesh must never be overwritten"
     finally:
         manager.release(lease.id, **ownership)
-        summary = {"state": str(state), "workspace": str(lease.plan.workspace_path),
-                   "lease_id": str(lease.id), "released": True, "geometry": reports}
+        summary = {
+            "state": str(state),
+            "workspace": str(lease.plan.workspace_path),
+            "lease_id": str(lease.id),
+            "released": True,
+            "geometry": reports,
+        }
         (state / "smoke-summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
         print("Deliverables:", lease.plan.workspace_path, flush=True)
     (lease.plan.workspace_path / "geometry-validation.json").write_text(
-        json.dumps(reports, indent=2), encoding="utf-8",
+        json.dumps(reports, indent=2),
+        encoding="utf-8",
     )
     assert "vase" in reports["lilt-vase.stl"]
     (lease.plan.workspace_path / "lilt-vase-readme.txt").write_text(
-        DELIVERY_README, encoding="utf-8",
+        DELIVERY_README,
+        encoding="utf-8",
     )
 
 

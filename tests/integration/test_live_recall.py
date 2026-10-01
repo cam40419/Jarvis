@@ -82,7 +82,8 @@ def test_live_model_saves_personal_context_and_recalls_voice(postgres_url, tmp_p
         assert "memory_remember" in run["tool_calls"]
         memories = api.get("/v1/memories").json()
         assert memories and all(m["scope"] == "personal" for m in memories), (
-            saved_answer, run["tool_calls"]
+            saved_answer,
+            run["tool_calls"],
         )
         assert "Cedar Atlas" in str(memories)
         _, answer = ask("What is my ongoing project called, and which printer does it use?")

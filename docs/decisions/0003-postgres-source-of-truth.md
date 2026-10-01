@@ -18,4 +18,3 @@ contract suite as the in-memory reference adapter.
 
 The first deployment has one primary persistence technology and one backup/restore path. High-rate
 telemetry and artifact storage can split later without changing the core contracts.
-

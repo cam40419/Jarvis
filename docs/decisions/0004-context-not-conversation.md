@@ -17,4 +17,3 @@ or provider state is fetched from its owner and is not converted into durable me
 
 Runs are reproducible and auditable. Channel handoff binds to a thread explicitly. Context can be
 scoped and redacted without creating channel-specific memory silos.
-

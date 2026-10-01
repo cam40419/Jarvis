@@ -1,3 +1,5 @@
+"""Transactional reference store for isolated tests and nonpersistent development."""
+
 from __future__ import annotations
 
 from collections.abc import Callable, Iterator
@@ -150,32 +152,6 @@ class InMemoryStore:
                 ) = snapshot
                 raise
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     def save_project_artifact(self, artifact: ProjectArtifact, content: bytes) -> None:
         with self._lock:
             existing = self._project_artifacts.get(artifact.id)
@@ -245,16 +221,6 @@ class InMemoryStore:
         with self._lock:
             self._voice_sessions[session.id] = session
 
-
-
-
-
-
-
-
-
-
-
     def response_preferences(
         self, household_id: UUID, actor_id: UUID
     ) -> ResponsePreferences | None:
@@ -284,8 +250,10 @@ class InMemoryStore:
                 key=lambda r: (
                     message.sequence
                     if (message := self._messages.get(r.output_message_id)) is not None
-                    and message.thread_id == thread_id else 0,
-                    r.created_at, r.id,
+                    and message.thread_id == thread_id
+                    else 0,
+                    r.created_at,
+                    r.id,
                 ),
             )
             return tuple(rows[offset : offset + limit])
@@ -297,8 +265,10 @@ class InMemoryStore:
                 key=lambda r: (
                     message.sequence
                     if (message := self._messages.get(r.output_message_id)) is not None
-                    and message.thread_id == thread_id else 0,
-                    r.created_at, r.id,
+                    and message.thread_id == thread_id
+                    else 0,
+                    r.created_at,
+                    r.id,
                 ),
                 default=None,
             )
@@ -582,18 +552,24 @@ class InMemoryStore:
             return tuple(job.model_copy(deep=True) for job in rows[offset : offset + limit])
 
     def project_run_jobs(
-        self, household_id: UUID, actor_id: UUID, project_id: UUID,
-        before: tuple[datetime, UUID] | None, limit: int,
+        self,
+        household_id: UUID,
+        actor_id: UUID,
+        project_id: UUID,
+        before: tuple[datetime, UUID] | None,
+        limit: int,
     ) -> tuple[Job, ...]:
         with self._lock:
             plan_ids = {
-                str(job.id) for job in self._jobs.values()
+                str(job.id)
+                for job in self._jobs.values()
                 if job.kind == "platform.plan"
                 and (job.household_id, job.created_by) == (household_id, actor_id)
                 and job.input.get("plan", {}).get("project_id") == str(project_id)
             }
             rows = [
-                job for job in self._jobs.values()
+                job
+                for job in self._jobs.values()
                 if job.kind == "platform.run"
                 and (job.household_id, job.created_by) == (household_id, actor_id)
                 and job.input.get("plan_id") in plan_ids

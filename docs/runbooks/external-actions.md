@@ -91,6 +91,7 @@ honors its contract.
    ASCII letters, digits, underscore or hyphen. `succeeded` must mean that the
    provider confirms the reviewed commitment. The action ID and review digest
    must match the request exactly.
+
 4. `GET {endpoint}/commitments/{receipt_id}` returns the same envelope with the
    latest status. This read is available only after a known accepted receipt.
    There is no implicit cancellation/refund operation.

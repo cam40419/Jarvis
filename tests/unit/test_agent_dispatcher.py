@@ -71,22 +71,29 @@ class FakeBackend:
 
 class ControlledModel:
     def __init__(
-        self, respond: Callable[[TextGenerationRequest], str | tuple[str, bool]] | None = None,
+        self,
+        respond: Callable[[TextGenerationRequest], str | tuple[str, bool]] | None = None,
     ) -> None:
         self.respond = respond or (lambda _request: "A complete answer.")
         self.calls: list[TextGenerationRequest] = []
         self.lock = Lock()
 
     def generate(
-        self, decision: RoutingDecision, request: TextGenerationRequest,
+        self,
+        decision: RoutingDecision,
+        request: TextGenerationRequest,
     ) -> TextGenerationResult:
         with self.lock:
             self.calls.append(request)
         reply = self.respond(request)
         text, truncated = reply if isinstance(reply, tuple) else (reply, False)
         return TextGenerationResult(
-            endpoint_id=decision.endpoint_id, model=decision.model, text=text,
-            input_tokens=20, output_tokens=10, truncated=truncated,
+            endpoint_id=decision.endpoint_id,
+            model=decision.model,
+            text=text,
+            input_tokens=20,
+            output_tokens=10,
+            truncated=truncated,
         )
 
 
@@ -99,9 +106,14 @@ class Harness:
     tool_calls: list[dict[str, Any]] = field(default_factory=list)
 
     def plan(self, tasks: tuple[AgentTaskSpec, ...], key: str = "test-plan") -> AgentTeamPlan:
-        plan = self.platform.plan(self.actor, PlanTeamRequest(
-            team_id="team", idempotency_key=key, tasks=tasks,
-        ))
+        plan = self.platform.plan(
+            self.actor,
+            PlanTeamRequest(
+                team_id="team",
+                idempotency_key=key,
+                tasks=tasks,
+            ),
+        )
         assert plan.state == "planned", [task.blocked_reasons for task in plan.tasks]
         return plan
 
@@ -113,24 +125,32 @@ class Harness:
         runs = self.runs
         if reconstruct:
             platform = AgentPlatformService(
-                self.platform.store, self.platform.manifest,
-                state_dir=self.platform.state_dir, environ={"TEST_AGENT_KEY": "fake-key"},
+                self.platform.store,
+                self.platform.manifest,
+                state_dir=self.platform.state_dir,
+                environ={"TEST_AGENT_KEY": "fake-key"},
                 available_transports=("test", "environment"),
             )
             platform.environments.backends["docker"] = self.backend
             runs = AgentRunService(
-                platform, enabled=True, actor_resolver=lambda _actor, _workspace: self.actor,
+                platform,
+                enabled=True,
+                actor_resolver=lambda _actor, _workspace: self.actor,
             )
 
         def tool_handler(
-            definition: ToolDefinition, arguments: dict[str, Any], context: ToolExecutionContext,
+            definition: ToolDefinition,
+            arguments: dict[str, Any],
+            context: ToolExecutionContext,
         ) -> dict[str, Any]:
             self.tool_calls.append(arguments)
             return {"value": "A tool result."}
 
         def worker_factory(
-            profile: AgentProfile, lease: EnvironmentLease | None,
-            actor: ActorContext, run_id: UUID,
+            profile: AgentProfile,
+            lease: EnvironmentLease | None,
+            actor: ActorContext,
+            run_id: UUID,
         ) -> AgentWorker:
             transports = TransportRegistry()
             transports.register("test", tool_handler)
@@ -140,43 +160,81 @@ class Harness:
 
 
 def make_harness(
-    tmp_path: Path, *, max_parallel: int = 3, environment: bool = False,
-    tools: bool = False, endpoint: ModelEndpoint | None = None,
+    tmp_path: Path,
+    *,
+    max_parallel: int = 3,
+    environment: bool = False,
+    tools: bool = False,
+    endpoint: ModelEndpoint | None = None,
 ) -> Harness:
     actor = ActorContext(
-        actor_id=uuid4(), household_id=uuid4(), channel=Channel.API,
+        actor_id=uuid4(),
+        household_id=uuid4(),
+        channel=Channel.API,
         scopes=frozenset({"jobs:read", "jobs:write"}),
     )
     manifest = PlatformManifest(
         max_parallel=max_parallel,
-        agents=(AgentProfile(
-            id="worker", instructions="Create a complete answer using the supplied task.",
-            environment_ids=("shared",) if environment else (),
-            tool_ids=("lookup",) if tools else (),
-        ),),
-        teams=(TeamTemplate(id="team", name="Worker team", agent_ids=("worker",),
-                            max_parallel=max_parallel),),
-        environments=(EnvironmentDefinition(
-            id="shared", kind="docker", container_image="unused-test-image", enabled=True,
-            max_concurrency=1,
-        ),) if environment else (),
-        tools=(ToolDefinition(
-            id="lookup", description="Look up a record", transport="test", configured=True,
-        ),) if tools else (),
-        models=(endpoint or ModelEndpoint(
-            id="local", provider="openai_compatible", model="fake-model",
-            base_url="http://localhost:11434/v1", local=True, tier="economy",
-            capabilities=frozenset({"text", "tools"}),
-        ),),
+        agents=(
+            AgentProfile(
+                id="worker",
+                instructions="Create a complete answer using the supplied task.",
+                environment_ids=("shared",) if environment else (),
+                tool_ids=("lookup",) if tools else (),
+            ),
+        ),
+        teams=(
+            TeamTemplate(
+                id="team", name="Worker team", agent_ids=("worker",), max_parallel=max_parallel
+            ),
+        ),
+        environments=(
+            EnvironmentDefinition(
+                id="shared",
+                kind="docker",
+                container_image="unused-test-image",
+                enabled=True,
+                max_concurrency=1,
+            ),
+        )
+        if environment
+        else (),
+        tools=(
+            ToolDefinition(
+                id="lookup",
+                description="Look up a record",
+                transport="test",
+                configured=True,
+            ),
+        )
+        if tools
+        else (),
+        models=(
+            endpoint
+            or ModelEndpoint(
+                id="local",
+                provider="openai_compatible",
+                model="fake-model",
+                base_url="http://localhost:11434/v1",
+                local=True,
+                tier="economy",
+                capabilities=frozenset({"text", "tools"}),
+            ),
+        ),
     )
     platform = AgentPlatformService(
-        InMemoryStore(), manifest, state_dir=tmp_path,
-        environ={"TEST_AGENT_KEY": "fake-key"}, available_transports=("test", "environment"),
+        InMemoryStore(),
+        manifest,
+        state_dir=tmp_path,
+        environ={"TEST_AGENT_KEY": "fake-key"},
+        available_transports=("test", "environment"),
     )
     backend = FakeBackend()
     platform.environments.backends["docker"] = backend
     runs = AgentRunService(
-        platform, enabled=True, actor_resolver=lambda _actor, _workspace: actor,
+        platform,
+        enabled=True,
+        actor_resolver=lambda _actor, _workspace: actor,
     )
     return Harness(platform, runs, actor, backend)
 
@@ -192,8 +250,9 @@ def test_dispatcher_stops_environment_before_collecting_deliverable(tmp_path: Pa
         def execute(self, **kwargs):
             lease = harness.backend.created[-1]
             (lease.plan.workspace_path / "result.csv").write_bytes(b"name,value\nresult,42\n")
-            return WorkerResult(status="succeeded", output="Created CSV.",
-                                artifact_paths=("result.csv",))
+            return WorkerResult(
+                status="succeeded", output="Created CSV.", artifact_paths=("result.csv",)
+            )
 
     dispatcher = AgentDispatcher(harness.runs, worker_factory=lambda *_args: FileWorker())
     queued = harness.queue((task("create"),))
@@ -219,14 +278,51 @@ def test_parallel_siblings_finish_before_dependent_receives_their_outputs(tmp_pa
         return "Both sources combined."
 
     model = ControlledModel(respond)
-    queued = harness.queue((
-        task("source-a"), task("source-b"), task("combine", "source-a", "source-b"),
-    ))
+    queued = harness.queue(
+        (
+            task("source-a"),
+            task("source-b"),
+            task("combine", "source-a", "source-b"),
+        )
+    )
     completed = harness.dispatcher(model).execute(queued.id)
     assert completed is not None and completed.status == JobStatus.SUCCEEDED
     assert len(model.calls) == 3
     assert model.calls[-1].prompt.splitlines()[1] == "combine"
     assert completed.tasks[-1].output == "Both sources combined."
+
+
+def test_dependent_opens_exact_saved_file_revision(tmp_path: Path) -> None:
+    harness = make_harness(tmp_path, environment=True)
+
+    class FileWorker:
+        def execute(self, **kwargs):
+            workspace = harness.backend.created[-1].plan.workspace_path
+            if kwargs["task"].id == "maker":
+                (workspace / "dimensions.csv").write_bytes(b"part,dimension\nplate,-12\n")
+                return WorkerResult(
+                    status="succeeded",
+                    output="Dimensions written.",
+                    artifact_paths=("dimensions.csv",),
+                )
+            inputs = kwargs["dependency_artifacts"]
+            assert len(inputs) == 1
+            assert (workspace / inputs[0].workspace_path).read_bytes().endswith(b"plate,-12\n")
+            manifest = json.loads((workspace / "dependency-inputs.json").read_text())
+            assert manifest["inputs"][0]["artifact"]["sha256"] == inputs[0].artifact.sha256
+            # The run stores the exact input before review begins.
+            saved = harness.runs.view(harness.runs.job(kwargs["run_id"]))
+            assert saved.tasks[1].input_artifacts == inputs
+            return WorkerResult(status="succeeded", output="Rejected: plate dimension is negative.")
+
+    dispatcher = AgentDispatcher(harness.runs, worker_factory=lambda *_args: FileWorker())
+    queued = harness.queue((task("maker"), task("reviewer", "maker")))
+    completed = dispatcher.execute(queued.id)
+    assert completed.status == "succeeded"
+    maker, reviewer = completed.tasks
+    assert reviewer.input_artifacts[0].artifact == maker.artifacts[1]
+    assert reviewer.output == "Rejected: plate dimension is negative."
+    assert dispatcher.artifacts.read(maker.artifacts[1]).endswith(b"plate,-12\n")
 
 
 def test_global_slots_apply_across_runs_and_service_instances(tmp_path: Path) -> None:
@@ -259,7 +355,8 @@ def test_global_slots_apply_across_runs_and_service_instances(tmp_path: Path) ->
 
 
 def test_shared_environment_capacity_waits_across_runs_without_unknown_outcome(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     harness = make_harness(tmp_path, max_parallel=2, environment=True)
     entered, release, waiting = Event(), Event(), Event()
@@ -365,9 +462,11 @@ def test_failed_dependency_blocks_its_dependent_but_independent_task_succeeds(
 def test_changed_manifest_before_dispatch_prevents_any_model_call(tmp_path: Path) -> None:
     harness = make_harness(tmp_path)
     queued = harness.queue((task("first"),))
-    profile = harness.platform.manifest.agents[0].model_copy(update={
-        "instructions": "Changed role",
-    })
+    profile = harness.platform.manifest.agents[0].model_copy(
+        update={
+            "instructions": "Changed role",
+        }
+    )
     harness.platform.manifest = harness.platform.manifest.model_copy(update={"agents": (profile,)})
     model = ControlledModel()
     completed = harness.dispatcher(model).execute(queued.id)
@@ -378,21 +477,32 @@ def test_changed_manifest_before_dispatch_prevents_any_model_call(tmp_path: Path
 
 @pytest.mark.parametrize("known_prices", [True, False])
 def test_aggregate_run_budget_rejects_excess_or_unknown_cloud_cost(
-    tmp_path: Path, known_prices: bool,
+    tmp_path: Path,
+    known_prices: bool,
 ) -> None:
     endpoint = ModelEndpoint(
-        id="cloud", provider="openai_compatible", model="fake-cloud",
-        base_url="https://model.example/v1", local=False, tier="economy",
-        api_key_env="TEST_AGENT_KEY", input_cost_per_million_usd=1 if known_prices else None,
+        id="cloud",
+        provider="openai_compatible",
+        model="fake-cloud",
+        base_url="https://model.example/v1",
+        local=False,
+        tier="economy",
+        api_key_env="TEST_AGENT_KEY",
+        input_cost_per_million_usd=1 if known_prices else None,
         output_cost_per_million_usd=1 if known_prices else None,
     )
     harness = make_harness(tmp_path, endpoint=endpoint)
     plan = harness.plan((task("first"), task("second")))
     # One task reserves $0.034768; two exceed the aggregate $0.05 admission cap.
     with pytest.raises(ValidationError, match="all task reservations"):
-        harness.runs.start(harness.actor, plan.id, StartAgentRun(
-            idempotency_key="budgeted-run", model_budget_usd=0.05,
-        ))
+        harness.runs.start(
+            harness.actor,
+            plan.id,
+            StartAgentRun(
+                idempotency_key="budgeted-run",
+                model_budget_usd=0.05,
+            ),
+        )
     assert harness.runs.list(harness.actor) == ()
 
 
@@ -418,10 +528,15 @@ def test_preexisting_external_lease_blocks_without_claiming_unknown_execution(
     tmp_path: Path,
 ) -> None:
     harness = make_harness(tmp_path, environment=True)
-    existing = harness.platform.environments.allocate(EnvironmentRequest(
-        workspace_id=harness.actor.household_id, agent_id="worker",
-        task_id=uuid4(), attempt_id=uuid4(),
-    ), environment_id="shared")
+    existing = harness.platform.environments.allocate(
+        EnvironmentRequest(
+            workspace_id=harness.actor.household_id,
+            agent_id="worker",
+            task_id=uuid4(),
+            attempt_id=uuid4(),
+        ),
+        environment_id="shared",
+    )
     queued = harness.queue((task("first"),))
     model = ControlledModel()
     try:
@@ -435,6 +550,7 @@ def test_preexisting_external_lease_blocks_without_claiming_unknown_execution(
         assert harness.backend.released == []
     finally:
         harness.platform.environments.release(
-            existing.id, attempt_id=existing.plan.request.attempt_id,
+            existing.id,
+            attempt_id=existing.plan.request.attempt_id,
             fencing_token=existing.fencing_token,
         )

@@ -42,15 +42,15 @@ class FakeDrive(ProjectDriveAPI):
     def create(self, token, name, parent, content, mime, identifier, operation):
         identifier = identifier or uuid4().hex
         self.creates += 1
-        self.items[identifier] = dict(
-            id=identifier,
-            name=name,
-            mimeType=mime,
-            parents=[parent] if parent else [],
-            version="1",
-            capabilities={"canEdit": True},
-            url=f"https://drive.google.com/file/d/{identifier}/view",
-        )
+        self.items[identifier] = {
+            "id": identifier,
+            "name": name,
+            "mimeType": mime,
+            "parents": [parent] if parent else [],
+            "version": "1",
+            "capabilities": {"canEdit": True},
+            "url": f"https://drive.google.com/file/d/{identifier}/view",
+        }
         self.contents[identifier] = content or b""
         if self.timeout_after_create:
             raise DriveError("Connection lost after create", unknown=True)

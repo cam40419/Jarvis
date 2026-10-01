@@ -157,10 +157,10 @@ values need no escaping because inserted text is never parsed as a template.
 
 The built-in values are:
 
-| Placeholder | Source |
-| --- | --- |
-| `${objective}` | This task's objective. |
-| `${context}` | The selected project/company name, or an empty string. |
+| Placeholder       | Source                                                            |
+| ----------------- | ----------------------------------------------------------------- |
+| `${objective}`    | This task's objective.                                            |
+| `${context}`      | The selected project/company name, or an empty string.            |
 | `${dependencies}` | JSON mapping each declared dependency ID to its completed output. |
 
 Additional variables must be declared in `prompt_defaults`. Task
@@ -185,18 +185,18 @@ tool access and action policy occurs outside the model.
 
 ## Output and execution controls
 
-| Profile setting | Default | Accepted values and meaning |
-| --- | --- | --- |
-| `instructions` | Required | System instructions, 1–16,000 characters. |
-| `prompt_template` | Objective, context and dependencies | User prompt template, 1–16,000 characters. |
-| `output_instructions` | Empty | Additional system guidance, up to 16,000 characters. |
-| `output_format` | `text` | `text` or `json`; applies to the final answer, independently of the tool protocol. |
-| `max_steps` | 8 | 1–30 model/worker steps. |
-| `max_tool_calls` | 20 | 0–100 tool calls; zero disables them. |
-| `max_input_chars` | 60,000 | 1,000–200,000 Unicode characters. |
-| `max_output_tokens` | 2,000 | 1–32,768 tokens per model response, subject to the routed model/task limit. |
-| `timeout_seconds` | 300 | 1–3,600 seconds for the worker attempt. |
-| `max_action` | `read` | `read` or `write`; external commitments are unsupported in this phase. |
+| Profile setting       | Default                             | Accepted values and meaning                                                        |
+| --------------------- | ----------------------------------- | ---------------------------------------------------------------------------------- |
+| `instructions`        | Required                            | System instructions, 1–16,000 characters.                                          |
+| `prompt_template`     | Objective, context and dependencies | User prompt template, 1–16,000 characters.                                         |
+| `output_instructions` | Empty                               | Additional system guidance, up to 16,000 characters.                               |
+| `output_format`       | `text`                              | `text` or `json`; applies to the final answer, independently of the tool protocol. |
+| `max_steps`           | 8                                   | 1–30 model/worker steps.                                                           |
+| `max_tool_calls`      | 20                                  | 0–100 tool calls; zero disables them.                                              |
+| `max_input_chars`     | 60,000                              | 1,000–200,000 Unicode characters.                                                  |
+| `max_output_tokens`   | 2,000                               | 1–32,768 tokens per model response, subject to the routed model/task limit.        |
+| `timeout_seconds`     | 300                                 | 1–3,600 seconds for the worker attempt.                                            |
+| `max_action`          | `read`                              | `read` or `write`; external commitments are unsupported in this phase.             |
 
 The renderer counts the combined system and user prompt, including expanded
 variables, repeated placeholders, JSON escaping and additional instructions.

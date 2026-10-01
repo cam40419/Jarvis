@@ -1,0 +1,636 @@
+{
+  "environments": [
+    {
+      "id": "creative-native",
+      "kind": "machine",
+      "os": "windows",
+      "capabilities": [
+        "application.control",
+        "application.fusion",
+        "application.houdini",
+        "application.rhino",
+        "application.cinema4d",
+        "application.solidworks",
+        "application.photoshop",
+        "application.premiere"
+      ],
+      "enabled": false,
+      "container_image": null,
+      "runner_url": "https://desktop-runner.example.com",
+      "credential_env": "SIMON_DESKTOP_RUNNER_TOKEN",
+      "cpu_limit": 2.0,
+      "memory_mb": 2048,
+      "gpu_devices": [],
+      "network": "bridge",
+      "max_concurrency": 1,
+      "container_uid": 1000,
+      "container_gid": 1000
+    }
+  ],
+  "tools": [
+    {
+      "id": "fusion.inspect",
+      "description": "Inspect in the owned fusion session.",
+      "categories": ["applications", "creative"],
+      "capabilities": [],
+      "transport": "application",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {},
+        "required": []
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "enabled": false,
+      "configured": false,
+      "required_scopes": ["jobs:write"],
+      "environment_capabilities": ["application.control", "application.fusion"],
+      "side_effect": true,
+      "action_policy": "write",
+      "endpoint": null,
+      "credential_env": null,
+      "settings": {
+        "application": "fusion",
+        "operation": "inspect",
+        "network": true,
+        "argv_prefix": ["C:/Simon/venv/Scripts/python.exe", "-m", "simon.creative_bridge", "fusion"]
+      }
+    },
+    {
+      "id": "fusion.save",
+      "description": "Save in the owned fusion session.",
+      "categories": ["applications", "creative"],
+      "capabilities": [],
+      "transport": "application",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "output": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "pattern": "^[A-Za-z0-9_-]+\\.(f3d|step)$"
+          }
+        },
+        "required": ["output"]
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "enabled": false,
+      "configured": false,
+      "required_scopes": ["jobs:write"],
+      "environment_capabilities": ["application.control", "application.fusion"],
+      "side_effect": true,
+      "action_policy": "write",
+      "endpoint": null,
+      "credential_env": null,
+      "settings": {
+        "application": "fusion",
+        "operation": "save",
+        "network": true,
+        "argv_prefix": ["C:/Simon/venv/Scripts/python.exe", "-m", "simon.creative_bridge", "fusion"]
+      }
+    },
+    {
+      "id": "fusion.set_parameter",
+      "description": "Set parameter in the owned fusion session.",
+      "categories": ["applications", "creative"],
+      "capabilities": [],
+      "transport": "application",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          },
+          "expression": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          }
+        },
+        "required": ["name", "expression"]
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "enabled": false,
+      "configured": false,
+      "required_scopes": ["jobs:write"],
+      "environment_capabilities": ["application.control", "application.fusion"],
+      "side_effect": true,
+      "action_policy": "write",
+      "endpoint": null,
+      "credential_env": null,
+      "settings": {
+        "application": "fusion",
+        "operation": "set_parameter",
+        "network": true,
+        "argv_prefix": ["C:/Simon/venv/Scripts/python.exe", "-m", "simon.creative_bridge", "fusion"]
+      }
+    },
+    {
+      "id": "houdini.inspect",
+      "description": "Inspect in the owned houdini session.",
+      "categories": ["applications", "creative"],
+      "capabilities": [],
+      "transport": "application",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {},
+        "required": []
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "enabled": false,
+      "configured": false,
+      "required_scopes": ["jobs:write"],
+      "environment_capabilities": ["application.control", "application.houdini"],
+      "side_effect": true,
+      "action_policy": "write",
+      "endpoint": null,
+      "credential_env": null,
+      "settings": {
+        "application": "houdini",
+        "operation": "inspect",
+        "network": true,
+        "argv_prefix": [
+          "C:/Simon/venv/Scripts/python.exe",
+          "-m",
+          "simon.creative_bridge",
+          "houdini"
+        ]
+      }
+    },
+    {
+      "id": "houdini.save",
+      "description": "Save in the owned houdini session.",
+      "categories": ["applications", "creative"],
+      "capabilities": [],
+      "transport": "application",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "output": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "pattern": "^[A-Za-z0-9_-]+\\.(hip)$"
+          }
+        },
+        "required": ["output"]
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "enabled": false,
+      "configured": false,
+      "required_scopes": ["jobs:write"],
+      "environment_capabilities": ["application.control", "application.houdini"],
+      "side_effect": true,
+      "action_policy": "write",
+      "endpoint": null,
+      "credential_env": null,
+      "settings": {
+        "application": "houdini",
+        "operation": "save",
+        "network": true,
+        "argv_prefix": [
+          "C:/Simon/venv/Scripts/python.exe",
+          "-m",
+          "simon.creative_bridge",
+          "houdini"
+        ]
+      }
+    },
+    {
+      "id": "houdini.set_parameter",
+      "description": "Set parameter in the owned houdini session.",
+      "categories": ["applications", "creative"],
+      "capabilities": [],
+      "transport": "application",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^/obj/",
+            "maxLength": 1000
+          },
+          "value": {
+            "type": "number"
+          }
+        },
+        "required": ["name", "value"]
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "enabled": false,
+      "configured": false,
+      "required_scopes": ["jobs:write"],
+      "environment_capabilities": ["application.control", "application.houdini"],
+      "side_effect": true,
+      "action_policy": "write",
+      "endpoint": null,
+      "credential_env": null,
+      "settings": {
+        "application": "houdini",
+        "operation": "set_parameter",
+        "network": true,
+        "argv_prefix": [
+          "C:/Simon/venv/Scripts/python.exe",
+          "-m",
+          "simon.creative_bridge",
+          "houdini"
+        ]
+      }
+    },
+    {
+      "id": "rhino.inspect",
+      "description": "Inspect in the owned rhino session.",
+      "categories": ["applications", "creative"],
+      "capabilities": [],
+      "transport": "application",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {},
+        "required": []
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "enabled": false,
+      "configured": false,
+      "required_scopes": ["jobs:write"],
+      "environment_capabilities": ["application.control", "application.rhino"],
+      "side_effect": true,
+      "action_policy": "write",
+      "endpoint": null,
+      "credential_env": null,
+      "settings": {
+        "application": "rhino",
+        "operation": "inspect",
+        "network": true,
+        "argv_prefix": ["C:/Simon/venv/Scripts/python.exe", "-m", "simon.creative_bridge", "rhino"]
+      }
+    },
+    {
+      "id": "rhino.save",
+      "description": "Save in the owned rhino session.",
+      "categories": ["applications", "creative"],
+      "capabilities": [],
+      "transport": "application",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "output": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "pattern": "^[A-Za-z0-9_-]+\\.(3dm)$"
+          }
+        },
+        "required": ["output"]
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "enabled": false,
+      "configured": false,
+      "required_scopes": ["jobs:write"],
+      "environment_capabilities": ["application.control", "application.rhino"],
+      "side_effect": true,
+      "action_policy": "write",
+      "endpoint": null,
+      "credential_env": null,
+      "settings": {
+        "application": "rhino",
+        "operation": "save",
+        "network": true,
+        "argv_prefix": ["C:/Simon/venv/Scripts/python.exe", "-m", "simon.creative_bridge", "rhino"]
+      }
+    },
+    {
+      "id": "cinema4d.inspect",
+      "description": "Inspect in the owned cinema4d session.",
+      "categories": ["applications", "creative"],
+      "capabilities": [],
+      "transport": "application",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {},
+        "required": []
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "enabled": false,
+      "configured": false,
+      "required_scopes": ["jobs:write"],
+      "environment_capabilities": ["application.cinema4d", "application.control"],
+      "side_effect": true,
+      "action_policy": "write",
+      "endpoint": null,
+      "credential_env": null,
+      "settings": {
+        "application": "cinema4d",
+        "operation": "inspect",
+        "network": true,
+        "argv_prefix": [
+          "C:/Simon/venv/Scripts/python.exe",
+          "-m",
+          "simon.creative_bridge",
+          "cinema4d"
+        ]
+      }
+    },
+    {
+      "id": "cinema4d.save",
+      "description": "Save in the owned cinema4d session.",
+      "categories": ["applications", "creative"],
+      "capabilities": [],
+      "transport": "application",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "output": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "pattern": "^[A-Za-z0-9_-]+\\.(c4d)$"
+          }
+        },
+        "required": ["output"]
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "enabled": false,
+      "configured": false,
+      "required_scopes": ["jobs:write"],
+      "environment_capabilities": ["application.cinema4d", "application.control"],
+      "side_effect": true,
+      "action_policy": "write",
+      "endpoint": null,
+      "credential_env": null,
+      "settings": {
+        "application": "cinema4d",
+        "operation": "save",
+        "network": true,
+        "argv_prefix": [
+          "C:/Simon/venv/Scripts/python.exe",
+          "-m",
+          "simon.creative_bridge",
+          "cinema4d"
+        ]
+      }
+    },
+    {
+      "id": "solidworks.inspect",
+      "description": "Inspect in the owned solidworks session.",
+      "categories": ["applications", "creative"],
+      "capabilities": [],
+      "transport": "application",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {},
+        "required": []
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "enabled": false,
+      "configured": false,
+      "required_scopes": ["jobs:write"],
+      "environment_capabilities": ["application.control", "application.solidworks"],
+      "side_effect": true,
+      "action_policy": "write",
+      "endpoint": null,
+      "credential_env": null,
+      "settings": {
+        "application": "solidworks",
+        "operation": "inspect",
+        "network": true,
+        "argv_prefix": [
+          "C:/Simon/venv/Scripts/python.exe",
+          "-m",
+          "simon.creative_bridge",
+          "solidworks"
+        ]
+      }
+    },
+    {
+      "id": "solidworks.save",
+      "description": "Save in the owned solidworks session.",
+      "categories": ["applications", "creative"],
+      "capabilities": [],
+      "transport": "application",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "output": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "pattern": "^[A-Za-z0-9_-]+\\.(sldprt|sldasm|slddrw|step)$"
+          }
+        },
+        "required": ["output"]
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "enabled": false,
+      "configured": false,
+      "required_scopes": ["jobs:write"],
+      "environment_capabilities": ["application.control", "application.solidworks"],
+      "side_effect": true,
+      "action_policy": "write",
+      "endpoint": null,
+      "credential_env": null,
+      "settings": {
+        "application": "solidworks",
+        "operation": "save",
+        "network": true,
+        "argv_prefix": [
+          "C:/Simon/venv/Scripts/python.exe",
+          "-m",
+          "simon.creative_bridge",
+          "solidworks"
+        ]
+      }
+    },
+    {
+      "id": "photoshop.inspect",
+      "description": "Inspect in the owned photoshop session.",
+      "categories": ["applications", "creative"],
+      "capabilities": [],
+      "transport": "application",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {},
+        "required": []
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "enabled": false,
+      "configured": false,
+      "required_scopes": ["jobs:write"],
+      "environment_capabilities": ["application.control", "application.photoshop"],
+      "side_effect": true,
+      "action_policy": "write",
+      "endpoint": null,
+      "credential_env": null,
+      "settings": {
+        "application": "photoshop",
+        "operation": "inspect",
+        "network": true,
+        "argv_prefix": [
+          "C:/Simon/venv/Scripts/python.exe",
+          "-m",
+          "simon.creative_bridge",
+          "photoshop"
+        ]
+      }
+    },
+    {
+      "id": "photoshop.save",
+      "description": "Save in the owned photoshop session.",
+      "categories": ["applications", "creative"],
+      "capabilities": [],
+      "transport": "application",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "output": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "pattern": "^[A-Za-z0-9_-]+\\.(psd)$"
+          }
+        },
+        "required": ["output"]
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "enabled": false,
+      "configured": false,
+      "required_scopes": ["jobs:write"],
+      "environment_capabilities": ["application.control", "application.photoshop"],
+      "side_effect": true,
+      "action_policy": "write",
+      "endpoint": null,
+      "credential_env": null,
+      "settings": {
+        "application": "photoshop",
+        "operation": "save",
+        "network": true,
+        "argv_prefix": [
+          "C:/Simon/venv/Scripts/python.exe",
+          "-m",
+          "simon.creative_bridge",
+          "photoshop"
+        ]
+      }
+    },
+    {
+      "id": "premiere.inspect",
+      "description": "Inspect in the owned premiere session.",
+      "categories": ["applications", "creative"],
+      "capabilities": [],
+      "transport": "application",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {},
+        "required": []
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "enabled": false,
+      "configured": false,
+      "required_scopes": ["jobs:write"],
+      "environment_capabilities": ["application.control", "application.premiere"],
+      "side_effect": true,
+      "action_policy": "write",
+      "endpoint": null,
+      "credential_env": null,
+      "settings": {
+        "application": "premiere",
+        "operation": "inspect",
+        "network": true,
+        "argv_prefix": [
+          "C:/Simon/venv/Scripts/python.exe",
+          "-m",
+          "simon.creative_bridge",
+          "premiere"
+        ]
+      }
+    },
+    {
+      "id": "premiere.save",
+      "description": "Save in the owned premiere session.",
+      "categories": ["applications", "creative"],
+      "capabilities": [],
+      "transport": "application",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "output": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "pattern": "^[A-Za-z0-9_-]+\\.(prproj)$"
+          }
+        },
+        "required": ["output"]
+      },
+      "output_schema": {
+        "type": "object"
+      },
+      "enabled": false,
+      "configured": false,
+      "required_scopes": ["jobs:write"],
+      "environment_capabilities": ["application.control", "application.premiere"],
+      "side_effect": true,
+      "action_policy": "write",
+      "endpoint": null,
+      "credential_env": null,
+      "settings": {
+        "application": "premiere",
+        "operation": "save",
+        "network": true,
+        "argv_prefix": [
+          "C:/Simon/venv/Scripts/python.exe",
+          "-m",
+          "simon.creative_bridge",
+          "premiere"
+        ]
+      }
+    }
+  ]
+}

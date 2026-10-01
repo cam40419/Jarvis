@@ -84,8 +84,10 @@ class JobService:
                 current is None
                 or current.household_id != actor.household_id
                 or (
-                    (current.kind in {"workflow.action", "assistant.task", "assistant.session"}
-                     or current.kind.startswith("platform."))
+                    (
+                        current.kind in {"workflow.action", "assistant.task", "assistant.session"}
+                        or current.kind.startswith("platform.")
+                    )
                     and current.created_by != actor.actor_id
                 )
             ):
@@ -115,8 +117,10 @@ class JobService:
             or job.kind.startswith("platform.")
             or job.household_id != actor.household_id
             or (
-                (job.kind in {"workflow.action", "assistant.task", "assistant.session"}
-                 or job.kind.startswith("platform."))
+                (
+                    job.kind in {"workflow.action", "assistant.task", "assistant.session"}
+                    or job.kind.startswith("platform.")
+                )
                 and job.created_by != actor.actor_id
             )
         ):

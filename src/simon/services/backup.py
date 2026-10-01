@@ -122,9 +122,14 @@ def create_bundle(
     configuration = {name: checked_path(path) for name, path in (configuration or {}).items()}
     if set(roots) != {"files", "agents"}:
         raise ValueError("Both files and agents roots are required")
-    if not set(configuration).issubset({
-        "agent-platform.json", "external-providers.json", "project-boards.json", "server.env",
-    }):
+    if not set(configuration).issubset(
+        {
+            "agent-platform.json",
+            "external-providers.json",
+            "project-boards.json",
+            "server.env",
+        }
+    ):
         raise ValueError("Unsupported configuration entry")
     if ("server.env" in configuration) != includes_secrets:
         raise ValueError("Secret inclusion must be explicit")
@@ -166,12 +171,16 @@ def create_bundle(
         raise ValueError("Source changed during backup")
     files, directories = inventory(staging)
     manifest = BundleManifest(
-        created_at=datetime.now(UTC).isoformat(), files=files, directories=directories,
+        created_at=datetime.now(UTC).isoformat(),
+        files=files,
+        directories=directories,
         source_roots={name: str(path) for name, path in roots.items()},
-        database_tables=tables, includes_secrets=includes_secrets,
+        database_tables=tables,
+        includes_secrets=includes_secrets,
     )
     (staging / "manifest.json").write_text(
-        json.dumps(manifest.model_dump(), indent=2) + "\n", encoding="utf-8",
+        json.dumps(manifest.model_dump(), indent=2) + "\n",
+        encoding="utf-8",
     )
     verify_bundle(staging)
     if destination.exists():
@@ -190,7 +199,8 @@ def restore_files(bundle: Path, destination: Path) -> None:
     bundle = checked_path(bundle)
     destination = checked_path(destination)
     if (
-        destination.exists() or destination.is_relative_to(bundle)
+        destination.exists()
+        or destination.is_relative_to(bundle)
         or bundle.is_relative_to(destination)
     ):
         raise ValueError("Restore requires a new directory outside the backup")

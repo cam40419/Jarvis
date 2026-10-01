@@ -16,7 +16,10 @@ STOP_REQUEST = ROOT / ".local" / "simon-stop.request"
 async def main() -> int:
     server = uvicorn.Server(
         uvicorn.Config(
-            "simon.api.app:app", host="127.0.0.1", port=8000, access_log=False,
+            "simon.api.app:app",
+            host="127.0.0.1",
+            port=8000,
+            access_log=False,
             proxy_headers=False,
         )
     )

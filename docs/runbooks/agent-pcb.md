@@ -19,15 +19,15 @@ enable the factory only after provisioning the worker.
 
 All tools accept exactly `input` and `output` workspace-relative paths:
 
-| Tool | Input | Output |
-| --- | --- | --- |
-| `pcb.erc` | `.kicad_sch` | `.json` electrical-rule report |
-| `pcb.schematic_pdf` | `.kicad_sch` | `.pdf` schematic |
-| `pcb.netlist` | `.kicad_sch` | `.net` XML connectivity |
-| `pcb.bom` | `.kicad_sch` | `.csv` references, values, footprints, quantities |
-| `pcb.drc` | `.kicad_pcb` | `.json` design-rule and schematic-parity report |
-| `pcb.board_svg` | `.kicad_pcb` | `.svg` front copper, silkscreen, outline |
-| `pcb.gerbers` | `.kicad_pcb` | `.zip` Gerbers and Excellon drills |
+| Tool                | Input        | Output                                            |
+| ------------------- | ------------ | ------------------------------------------------- |
+| `pcb.erc`           | `.kicad_sch` | `.json` electrical-rule report                    |
+| `pcb.schematic_pdf` | `.kicad_sch` | `.pdf` schematic                                  |
+| `pcb.netlist`       | `.kicad_sch` | `.net` XML connectivity                           |
+| `pcb.bom`           | `.kicad_sch` | `.csv` references, values, footprints, quantities |
+| `pcb.drc`           | `.kicad_pcb` | `.json` design-rule and schematic-parity report   |
+| `pcb.board_svg`     | `.kicad_pcb` | `.svg` front copper, silkscreen, outline          |
+| `pcb.gerbers`       | `.kicad_pcb` | `.zip` Gerbers and Excellon drills                |
 
 DRC also requires the matching `.kicad_sch` beside the board. Import all project
 files and library tables needed for a self-contained review. KiCad 9 standard

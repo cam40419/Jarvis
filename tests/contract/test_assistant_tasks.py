@@ -87,15 +87,13 @@ def test_linked_task_publishes_result_and_generated_files_to_project(store):
             update={
                 "text": "# Recommendation\nUse option A.\n\n"
                 "```file:comparison.csv\noption,cost\nA,100\nB,120\n```\n\n"
-                "```file:notes.json\n{\"winner\": \"A\"}\n```\n\n"
+                '```file:notes.json\n{"winner": "A"}\n```\n\n'
                 "```file:../unsafe.txt\nnope\n```"
             }
         )
 
     model.generate = generate
-    conversations = ModelConversationService(
-        store, audit, model, Settings(_env_file=None)
-    )
+    conversations = ModelConversationService(store, audit, model, Settings(_env_file=None))
     tasks = AssistantTaskService(store, IdentityService(store, Settings()), conversations)
     created = tasks.create(
         actor,

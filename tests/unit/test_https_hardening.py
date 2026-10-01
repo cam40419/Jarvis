@@ -29,20 +29,27 @@ def configured_https(tmp_path, monkeypatch):
         "SIMON_ENVIRONMENT=development\nSIMON_MODEL_PROVIDER=local\n"
         "SIMON_STORAGE_BACKEND=postgres\nSIMON_PUBLIC_ORIGIN=http://localhost:8000\n"
         "SIMON_DATABASE_URL=postgresql://test:synthetic@localhost/test\n"
-        "SIMON_RP_ID=localhost\nSIMON_PUBLIC_PATH=\n", encoding="utf-8",
+        "SIMON_RP_ID=localhost\nSIMON_PUBLIC_PATH=\n",
+        encoding="utf-8",
     )
     credentials = tmp_path / "tunnel.json"
     tunnel_id = str(uuid4())
     credentials.write_text(json.dumps({"TunnelID": tunnel_id, "TunnelSecret": "synthetic"}))
-    plan = https_plan("https://simon.example.com", provider="cloudflare", public_path="/simon",
-                      tunnel_id=tunnel_id, credentials_file=credentials)
+    plan = https_plan(
+        "https://simon.example.com",
+        provider="cloudflare",
+        public_path="/simon",
+        tunnel_id=tunnel_id,
+        credentials_file=credentials,
+    )
     apply_https_plan(tmp_path, plan)
     return tmp_path, credentials
 
 
 @pytest.mark.parametrize("problem", ["missing", "replaced", "large", "type", "directory", "binary"])
 def test_proxy_launch_preflight_rechecks_credentials_without_reflecting_content(
-    configured_https, problem,
+    configured_https,
+    problem,
 ):
     root, credentials = configured_https
     assert validate_applied_https(root)["provider"] == "cloudflare"
@@ -79,11 +86,18 @@ def test_proxy_launch_preflight_rejects_linked_credentials(configured_https):
 
 @pytest.mark.parametrize("prefix", ["", "/simon"])
 def test_outer_ingress_failures_receive_security_headers_and_preserve_auth_caps(prefix):
-    settings = Settings(environment="test", storage_backend="memory", model_provider="local",
-                        public_origin="https://simon.example.com", rp_id="simon.example.com",
-                        public_path=prefix, auth_rate_limit=1)
-    with TestClient(create_app(AppContainer(settings=settings)),
-                    base_url="http://simon.example.com") as client:
+    settings = Settings(
+        environment="test",
+        storage_backend="memory",
+        model_provider="local",
+        public_origin="https://simon.example.com",
+        rp_id="simon.example.com",
+        public_path=prefix,
+        auth_rate_limit=1,
+    )
+    with TestClient(
+        create_app(AppContainer(settings=settings)), base_url="http://simon.example.com"
+    ) as client:
         oversized = client.post(prefix + "/auth/password/login", content=b"x" * 65537)
         assert oversized.status_code == 413
         throttled = client.post(prefix + "/auth/passkeys/login/options", json={})
@@ -111,9 +125,14 @@ def test_tunnel_preflight_never_discards_new_stop_or_maintenance_request(tmp_pat
     python.parent.mkdir(parents=True)
     python.touch()
     (local / "tunnel-stop.request").touch()
-    (local / "https-plan.json").write_text(json.dumps({
-        "provider": "cloudflare", "cloudflared_config": {"tunnel": str(uuid4())},
-    }))
+    (local / "https-plan.json").write_text(
+        json.dumps(
+            {
+                "provider": "cloudflare",
+                "cloudflared_config": {"tunnel": str(uuid4())},
+            }
+        )
+    )
     wrapper = tmp_path / "verify.ps1"
     wrapper.write_text(
         "param([string]$Root, [string]$Mode)\n$ErrorActionPreference = 'Stop'\n"
@@ -137,11 +156,25 @@ def test_tunnel_preflight_never_discards_new_stop_or_maintenance_request(tmp_pat
         "$observations['stopStillPresent'] = Test-Path -LiteralPath $stopRequest\n"
         "$observations['maintenance'] = Test-Path -LiteralPath "
         "(Join-Path $local 'maintenance.request')\n"
-        "$observations | ConvertTo-Json -Compress\n", encoding="utf-8",
+        "$observations | ConvertTo-Json -Compress\n",
+        encoding="utf-8",
     )
     result = subprocess.run(
-        [powershell, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File",
-         str(wrapper), str(tmp_path), mode], capture_output=True, text=True, timeout=20, check=True,
+        [
+            powershell,
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            str(wrapper),
+            str(tmp_path),
+            mode,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=True,
     )
     observed = json.loads(result.stdout.splitlines()[-1])
     assert observed["oldMarkerPresentAtCheck"] == (mode == "check")

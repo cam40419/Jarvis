@@ -13,8 +13,16 @@ def test_starter_manifest_has_working_contracts_without_secret_values():
     manifest = starter_manifest(Settings(model_provider="local"))
     parsed = PlatformManifest.model_validate_json(manifest.model_dump_json())
     assert {team.id for team in parsed.teams} == {
-        "documents", "google", "development", "production", "web", "integrations", "creation",
-        "engineering", "project-studio", "read-only-research",
+        "documents",
+        "google",
+        "development",
+        "production",
+        "web",
+        "integrations",
+        "creation",
+        "engineering",
+        "project-studio",
+        "read-only-research",
     }
     assert not parsed.models[0].enabled
     assert parsed.models[0].input_cost_per_million_usd is None
@@ -35,25 +43,41 @@ def test_starter_manifest_has_working_contracts_without_secret_values():
         (
             "file-writer",
             {
-                "local_files_roots", "local_files_list", "local_files_search", "local_file_read",
-                "local_file_write", "local_file_edit", "local_folder_create", "project_list",
+                "local_files_roots",
+                "local_files_list",
+                "local_files_search",
+                "local_file_read",
+                "local_file_write",
+                "local_file_edit",
+                "local_folder_create",
+                "project_list",
             },
             {"jobs:read", "jobs:write", "memories:read"},
         ),
         (
             "drive-writer",
             {
-                "google_accounts_list", "drive_search_files", "drive_read_file",
-                "drive_list_folder", "project_list", "project_files_list", "project_file_read",
-                "project_sheet_read", "project_file_create", "project_file_edit",
-                "project_sheet_write", "project_file_rename",
+                "google_accounts_list",
+                "drive_search_files",
+                "drive_read_file",
+                "drive_list_folder",
+                "project_list",
+                "project_files_list",
+                "project_file_read",
+                "project_sheet_read",
+                "project_file_create",
+                "project_file_edit",
+                "project_sheet_write",
+                "project_file_rename",
             },
             {"jobs:read", "jobs:write", "threads:read", "memories:read"},
         ),
     ],
 )
 def test_combined_document_profiles_can_research_and_save_without_unrelated_grants(
-    profile_id, required_tools, required_scopes,
+    profile_id,
+    required_tools,
+    required_scopes,
 ):
     manifest = starter_manifest(Settings(model_provider="local"))
     tools = {tool.id: tool for tool in manifest.tools}
@@ -81,12 +105,20 @@ def test_read_only_researchers_remain_available_with_original_grants():
     profiles = {agent.id: agent for agent in manifest.agents}
     expected = {
         "file-reader": {
-            "local_files_roots", "local_files_list", "local_files_search", "local_file_read",
+            "local_files_roots",
+            "local_files_list",
+            "local_files_search",
+            "local_file_read",
             "project_list",
         },
         "google-reader": {
-            "google_accounts_list", "drive_search_files", "drive_read_file", "drive_list_folder",
-            "gmail_search_messages", "gmail_read_message", "calendar_list_events",
+            "google_accounts_list",
+            "drive_search_files",
+            "drive_read_file",
+            "drive_list_folder",
+            "gmail_search_messages",
+            "gmail_read_message",
+            "calendar_list_events",
         },
     }
     for profile_id, names in expected.items():
@@ -107,7 +139,11 @@ def test_default_document_teams_use_complete_deliverable_owners():
         "documents": ("file-writer", "reviewer"),
         "google": ("drive-writer", "reviewer"),
         "project-studio": (
-            "project-lead", "business-operator", "file-writer", "drive-writer", "reviewer",
+            "project-lead",
+            "business-operator",
+            "file-writer",
+            "drive-writer",
+            "reviewer",
         ),
     }
     for team_id, agent_ids in expected.items():
@@ -117,23 +153,28 @@ def test_default_document_teams_use_complete_deliverable_owners():
     lead = next(agent for agent in manifest.agents if agent.id == "project-lead")
     assert lead.version == 2
     assert set(lead.tool_ids) == {
-        "project.snapshot", "project.record_finding", "project.add_todo",
+        "project.snapshot",
+        "project.record_finding",
+        "project.add_todo",
     }
 
 
 def test_optional_research_team_keeps_preserved_profiles_visible_in_catalog(tmp_path):
     manifest = starter_manifest(Settings(model_provider="local"))
     platform = AgentPlatformService(
-        InMemoryStore(), manifest, state_dir=tmp_path / "agents", environ={},
+        InMemoryStore(),
+        manifest,
+        state_dir=tmp_path / "agents",
+        environ={},
     )
     actor = ActorContext(
-        actor_id=DEV_ACTOR_ID, household_id=DEV_HOUSEHOLD_ID, channel=Channel.API,
+        actor_id=DEV_ACTOR_ID,
+        household_id=DEV_HOUSEHOLD_ID,
+        channel=Channel.API,
         scopes=frozenset({"jobs:read", "jobs:write", "memories:read", "threads:read"}),
     )
     catalog = platform.catalog(actor)
-    assert {agent["id"] for agent in catalog["agents"]} == {
-        agent.id for agent in manifest.agents
-    }
+    assert {agent["id"] for agent in catalog["agents"]} == {agent.id for agent in manifest.agents}
     research = next(team for team in manifest.teams if team.id == "read-only-research")
     assert research.agent_ids == ("file-reader", "google-reader")
     assert research.version == 1

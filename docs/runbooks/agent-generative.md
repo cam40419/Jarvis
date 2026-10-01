@@ -6,10 +6,10 @@ Copy only the required entries from [generative-tools.example.json](../../exampl
 
 Suggested explicit configuration, checked against official documentation on September 30, 2026:
 
-| Tool | Model ID | Compatibility |
-| --- | --- | --- |
-| Image generation | `gpt-image-2.5-flare-2026-09-08` | The [Flare model documentation](https://developers.openai.com/api/docs/models/gpt-image-2.5-flare) lists this fixed snapshot for everyday generation. The [Image API guide](https://developers.openai.com/api/docs/guides/image-generation) documents the adapter's PNG/base64, standard sizes and low/medium/high settings. |
-| File transcription | `gpt-transcribe` | The [file transcription guide](https://developers.openai.com/api/docs/guides/speech-to-text) recommends this model for completed recordings with multipart upload and JSON text output. The [model page](https://developers.openai.com/api/docs/models/gpt-transcribe) lists the undated ID; no dated snapshot is assumed. |
+| Tool               | Model ID                         | Compatibility                                                                                                                                                                                                                                                                                                                |
+| ------------------ | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Image generation   | `gpt-image-2.5-flare-2026-09-08` | The [Flare model documentation](https://developers.openai.com/api/docs/models/gpt-image-2.5-flare) lists this fixed snapshot for everyday generation. The [Image API guide](https://developers.openai.com/api/docs/guides/image-generation) documents the adapter's PNG/base64, standard sizes and low/medium/high settings. |
+| File transcription | `gpt-transcribe`                 | The [file transcription guide](https://developers.openai.com/api/docs/guides/speech-to-text) recommends this model for completed recordings with multipart upload and JSON text output. The [model page](https://developers.openai.com/api/docs/models/gpt-transcribe) lists the undated ID; no dated snapshot is assumed.   |
 
 This compatibility assessment uses the documented contracts; it does not verify a particular API project's model access. The existing server key can be referenced without copying its value. For new configuration, prefer these current models over the older GPT Image 1/1.5 and GPT-4o transcription families listed in the [deprecation schedule](https://developers.openai.com/api/docs/deprecations). Provider calls occur only when a queued task invokes its granted tool; they incur separate tool charges described below.
 
@@ -20,11 +20,15 @@ The audio tool uses the [file transcription endpoint](https://developers.openai.
 Example tool arguments:
 
 ```json
-{"prompt":"An original editorial illustration for a project report","size":"1024x1024","quality":"low"}
+{
+  "prompt": "An original editorial illustration for a project report",
+  "size": "1024x1024",
+  "quality": "low"
+}
 ```
 
 ```json
-{"input":"input-INVOCATION_UUID.wav","expected_sha256":"SHA256_FROM_IMPORT"}
+{ "input": "input-INVOCATION_UUID.wav", "expected_sha256": "SHA256_FROM_IMPORT" }
 ```
 
 Each tool returns the generated relative filename, byte count, hash, model and media type. Transcription also returns up to 24,000 characters to the worker and stores the complete bounded transcript as `generated-<invocation>.txt`. Include the returned filename in the worker's final `artifacts` list to publish it through the normal authenticated run download endpoint.

@@ -107,11 +107,13 @@ not recreate Docker containers or machine runners. Account permissions and
 artifact checksums still apply after recovery. Test login, project file download
 and artifact retrieval before reopening writes.
 
-## Following implementation wave
+## Deployment acceptance and next work
 
-Local/Google agent tools, source-file and binary artifact publication, and the
-Work agent dashboard are implemented; see [Work platform](work-platform.md).
-Next add private HTTPS access and exercise remote authentication, uploads,
-downloads, streaming, voice and Google callbacks against that origin. Resumable
-cloud transfers, selective synchronization and off-server encrypted backup
-automation remain subsequent work.
+Local/Google agent tools, source-file and binary artifact publication, and the Work
+agent dashboard are implemented; see [Work platform](work-platform.md). Private HTTPS
+configuration tooling is also implemented; choose the actual origin and complete the
+[remote acceptance checks](remote-access.md#acceptance-checks).
+
+The [current roadmap](../next-phases.md) separates these deployment tasks from application
+work. Scheduled encrypted off-server backup delivery remains next work. Resumable cloud
+transfers and selective synchronization should follow an actual workflow requirement.

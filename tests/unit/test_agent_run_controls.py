@@ -9,7 +9,8 @@ from tests.unit.test_agent_dispatcher import ControlledModel, make_harness, task
 
 
 def test_claim_does_not_revive_cancellation_between_initial_read_and_locked_update(
-    tmp_path, monkeypatch,
+    tmp_path,
+    monkeypatch,
 ):
     harness = make_harness(tmp_path)
     queued = harness.queue((task("first"),))
@@ -20,9 +21,15 @@ def test_claim_does_not_revive_cancellation_between_initial_read_and_locked_upda
         nonlocal intercepted
         if not intercepted:
             intercepted = True
-            original(identifier, lambda state: state.model_copy(update={
-                "status": JobStatus.CANCELLED, "cancel_requested": True,
-            }))
+            original(
+                identifier,
+                lambda state: state.model_copy(
+                    update={
+                        "status": JobStatus.CANCELLED,
+                        "cancel_requested": True,
+                    }
+                ),
+            )
         return original(identifier, change, **kwargs)
 
     monkeypatch.setattr(harness.runs, "update", race)
@@ -59,13 +66,25 @@ def test_operator_can_recover_revoked_owner_and_missing_lease_association(tmp_pa
     harness = make_harness(tmp_path, environment=True)
     queued = harness.queue((task("first"),))
     claimed = harness.runs.claim(queued.id)
-    harness.runs.task_update(queued.id, "first", lambda record: record.model_copy(update={
-        "status": "running",
-    }), executor_id=claimed.executor_id)
-    lease = harness.platform.environments.allocate(EnvironmentRequest(
-        workspace_id=harness.actor.household_id, agent_id="worker",
-        task_id=uuid4(), attempt_id=uuid5(queued.id, "first"),
-    ), environment_id="shared")
+    harness.runs.task_update(
+        queued.id,
+        "first",
+        lambda record: record.model_copy(
+            update={
+                "status": "running",
+            }
+        ),
+        executor_id=claimed.executor_id,
+    )
+    lease = harness.platform.environments.allocate(
+        EnvironmentRequest(
+            workspace_id=harness.actor.household_id,
+            agent_id="worker",
+            task_id=uuid4(),
+            attempt_id=uuid5(queued.id, "first"),
+        ),
+        environment_id="shared",
+    )
 
     def denied(*_args):
         raise AuthorizationError("Owner access revoked")
@@ -73,7 +92,9 @@ def test_operator_can_recover_revoked_owner_and_missing_lease_association(tmp_pa
     harness.runs.actor_resolver = denied
     before = harness.runs.view(harness.runs.job(queued.id))
     recovered = harness.runs.recover_interrupted(
-        queued.id, before.version, operator_actor_id=uuid4(),
+        queued.id,
+        before.version,
+        operator_actor_id=uuid4(),
     )
     assert recovered.status == JobStatus.NEEDS_HUMAN and recovered.reserved_slots == 0
     assert recovered.executor_id is None
@@ -81,7 +102,9 @@ def test_operator_can_recover_revoked_owner_and_missing_lease_association(tmp_pa
     # Reconciliation does not claim the physical resource was safely stopped/released.
     assert harness.platform.environments.get(lease.id).status == "active"
     with pytest.raises(InvalidTransitionError):
-        harness.runs.task_update(queued.id, "first", lambda record: record,
-                                executor_id=claimed.executor_id)
-    harness.platform.environments.release(lease.id, attempt_id=lease.plan.request.attempt_id,
-                                          fencing_token=lease.fencing_token)
+        harness.runs.task_update(
+            queued.id, "first", lambda record: record, executor_id=claimed.executor_id
+        )
+    harness.platform.environments.release(
+        lease.id, attempt_id=lease.plan.request.attempt_id, fencing_token=lease.fencing_token
+    )

@@ -38,35 +38,60 @@ def pcb_tool_definitions(*, enabled: bool = False) -> tuple[ToolDefinition, ...]
         "pcb.gerbers": "Export Gerber layers and Excellon drills into a ZIP for review.",
     }
     path = {"type": "string", "minLength": 1, "maxLength": 500}
-    return tuple(ToolDefinition(
-        id=operation, description=description, transport="pcb", enabled=enabled, configured=enabled,
-        categories=frozenset({"hardware", "pcb"}), capabilities=frozenset({operation}),
-        required_scopes=frozenset({"jobs:write"}), environment_capabilities=PCB_CAPABILITIES,
-        side_effect=True, action_policy="write",
-        input_schema={"type": "object", "additionalProperties": False,
-                      "properties": {"input": path, "output": path},
-                      "required": ["input", "output"]},
-    ) for operation, description in descriptions.items())
+    return tuple(
+        ToolDefinition(
+            id=operation,
+            description=description,
+            transport="pcb",
+            enabled=enabled,
+            configured=enabled,
+            categories=frozenset({"hardware", "pcb"}),
+            capabilities=frozenset({operation}),
+            required_scopes=frozenset({"jobs:write"}),
+            environment_capabilities=PCB_CAPABILITIES,
+            side_effect=True,
+            action_policy="write",
+            input_schema={
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {"input": path, "output": path},
+                "required": ["input", "output"],
+            },
+        )
+        for operation, description in descriptions.items()
+    )
 
 
 def pcb_configuration_reason(definition: ToolDefinition) -> str | None:
     if definition.transport != "pcb" or definition.id not in OPERATIONS:
         return "Unknown PCB operation"
-    if (not definition.side_effect or definition.action_policy != "write"
-            or not {"jobs:write"} <= definition.required_scopes
-            or not definition.environment_capabilities >= PCB_CAPABILITIES):
+    if (
+        not definition.side_effect
+        or definition.action_policy != "write"
+        or not {"jobs:write"} <= definition.required_scopes
+        or not definition.environment_capabilities >= PCB_CAPABILITIES
+    ):
         return "PCB declaration requires its canonical action, scopes and capabilities"
     return None
 
 
 class PCBToolTransport:
     def __init__(
-        self, manager: LeasedCommandExecutor, lease: EnvironmentLease, *,
-        actor_id: UUID, run_id: UUID, max_timeout_seconds: int = 60,
+        self,
+        manager: LeasedCommandExecutor,
+        lease: EnvironmentLease,
+        *,
+        actor_id: UUID,
+        run_id: UUID,
+        max_timeout_seconds: int = 60,
         max_output_bytes: int = 65536,
     ) -> None:
-        if (type(max_timeout_seconds) is not int or not 1 <= max_timeout_seconds <= 600
-                or type(max_output_bytes) is not int or not 1024 <= max_output_bytes <= 1048576):
+        if (
+            type(max_timeout_seconds) is not int
+            or not 1 <= max_timeout_seconds <= 600
+            or type(max_output_bytes) is not int
+            or not 1024 <= max_output_bytes <= 1048576
+        ):
             raise ValueError("PCB transport limits are outside their supported range")
         if lease.status != "active":
             raise ToolCatalogError("PCB tools require an active lease")
@@ -75,41 +100,70 @@ class PCBToolTransport:
         self.max_timeout_seconds, self.max_output_bytes = max_timeout_seconds, max_output_bytes
 
     def __call__(
-        self, definition: ToolDefinition, arguments: dict[str, Any], context: ToolExecutionContext,
+        self,
+        definition: ToolDefinition,
+        arguments: dict[str, Any],
+        context: ToolExecutionContext,
     ) -> dict[str, Any]:
         assignment = self.lease.plan.request
-        if (context.actor_id != self.actor_id or context.household_id != assignment.workspace_id
-                or context.run_id != self.run_id or context.agent_id != assignment.agent_id):
+        if (
+            context.actor_id != self.actor_id
+            or context.household_id != assignment.workspace_id
+            or context.run_id != self.run_id
+            or context.agent_id != assignment.agent_id
+        ):
             raise AuthorizationError("PCB operation does not belong to this worker lease")
-        if (definition.id not in context.allowed_tool_ids or "jobs:write" not in context.scopes
-                or not definition.required_scopes <= context.scopes
-                or context.authorized_action not in {"write", "external_commitment"}):
+        if (
+            definition.id not in context.allowed_tool_ids
+            or "jobs:write" not in context.scopes
+            or not definition.required_scopes <= context.scopes
+            or context.authorized_action not in {"write", "external_commitment"}
+        ):
             raise AuthorizationError("PCB operation was not authorized")
         reason = pcb_configuration_reason(definition)
         if reason:
             raise ToolCatalogError(reason)
         if not definition.enabled or not definition.configured:
             raise ToolCatalogError("PCB declarations do not match the operation")
-        if (self.lease.definition.kind != "docker" or self.lease.definition.os != "linux"
-                or self.lease.plan.network != "none" or self.lease.definition.network != "none"
-                or not self.lease.definition.capabilities >= PCB_CAPABILITIES
-                or not context.environment_capabilities >= PCB_CAPABILITIES
-                or not definition.environment_capabilities <= self.lease.definition.capabilities
-                or not definition.environment_capabilities <= context.environment_capabilities):
+        if (
+            self.lease.definition.kind != "docker"
+            or self.lease.definition.os != "linux"
+            or self.lease.plan.network != "none"
+            or self.lease.definition.network != "none"
+            or not self.lease.definition.capabilities >= PCB_CAPABILITIES
+            or not context.environment_capabilities >= PCB_CAPABILITIES
+            or not definition.environment_capabilities <= self.lease.definition.capabilities
+            or not definition.environment_capabilities <= context.environment_capabilities
+        ):
             raise ToolCatalogError("PCB operations require an offline KiCad Docker worker")
         try:
             checked = validate_arguments(definition.id, arguments)
         except ValueError as error:
             raise ToolCatalogError(str(error)) from None
         command = ExecutionCommand(
-            argv=("/usr/local/bin/python3", "-I", "-c", _runner_source(), json.dumps({
-                "operation": definition.id, "arguments": checked,
-                "timeout_seconds": max(1, self.max_timeout_seconds - 2),
-            })), timeout_seconds=self.max_timeout_seconds, max_output_bytes=self.max_output_bytes,
+            argv=(
+                "/usr/local/bin/python3",
+                "-I",
+                "-c",
+                _runner_source(),
+                json.dumps(
+                    {
+                        "operation": definition.id,
+                        "arguments": checked,
+                        "timeout_seconds": max(1, self.max_timeout_seconds - 2),
+                    }
+                ),
+            ),
+            timeout_seconds=self.max_timeout_seconds,
+            max_output_bytes=self.max_output_bytes,
         )
         try:
-            result = self.manager.execute(self.lease.id, command, attempt_id=assignment.attempt_id,
-                                          fencing_token=self.lease.fencing_token)
+            result = self.manager.execute(
+                self.lease.id,
+                command,
+                attempt_id=assignment.attempt_id,
+                fencing_token=self.lease.fencing_token,
+            )
         except Exception:
             raise ToolExecutionError("Leased PCB command failed", unknown=True) from None
         if result.exit_code == 124:

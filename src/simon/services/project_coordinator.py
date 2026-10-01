@@ -33,8 +33,11 @@ ACTIVE = {JobStatus.QUEUED, JobStatus.RUNNING}
 
 class ProjectCoordinator:
     def __init__(
-        self, work: ProjectWorkService, runs: AgentRunService,
-        *, external_actions: "ExternalActionService | None" = None,
+        self,
+        work: ProjectWorkService,
+        runs: AgentRunService,
+        *,
+        external_actions: "ExternalActionService | None" = None,
         boards: "ProjectBoardService | None" = None,
     ) -> None:
         self.work, self.runs, self.platform = work, runs, runs.platform
@@ -75,8 +78,7 @@ class ProjectCoordinator:
         # Configured IDs are project-local identities. Their permissions come
         # from server-captured skills, independently of any global ID they reuse.
         if not set(team.agent_ids) - configured <= allowed or any(
-            re.fullmatch(r"[a-z][a-z0-9_-]{0,62}", identifier) is None
-            for identifier in configured
+            re.fullmatch(r"[a-z][a-z0-9_-]{0,62}", identifier) is None for identifier in configured
         ):
             raise ValidationError("Choose agents available to your workspace")
         if team.max_parallel > self.platform.manifest.max_parallel:
@@ -86,23 +88,31 @@ class ProjectCoordinator:
         state = self.work.get(actor, project_id)
         if state.team is None:
             return []
-        overrides = {row["agent_id"]: row
-                     for row in self.work.member_profile_statuses(actor, project_id)}
-        visible = {identifier for team in self.platform.teams(actor)
-                   for identifier in team.agent_ids}
-        base = {profile.id: profile for profile in self.platform.profiles(actor)
-                if profile.id in visible}
+        overrides = {
+            row["agent_id"]: row for row in self.work.member_profile_statuses(actor, project_id)
+        }
+        visible = {
+            identifier for team in self.platform.teams(actor) for identifier in team.agent_ids
+        }
+        base = {
+            profile.id: profile
+            for profile in self.platform.profiles(actor)
+            if profile.id in visible
+        }
         records = []
         for identifier in state.team.agent_ids:
             if identifier in overrides:
                 records.append(overrides[identifier])
                 continue
             profile = base.get(identifier)
-            records.append({
-                "agent_id": identifier, "state": "configured" if profile else "blocked",
-                "profile": profile.model_dump(mode="json") if profile else None,
-                "blocked_reasons": [] if profile else ["The selected agent is unavailable"],
-            })
+            records.append(
+                {
+                    "agent_id": identifier,
+                    "state": "configured" if profile else "blocked",
+                    "profile": profile.model_dump(mode="json") if profile else None,
+                    "blocked_reasons": [] if profile else ["The selected agent is unavailable"],
+                }
+            )
         return records
 
     def resolve_team(self, actor: ActorContext, project_id: UUID) -> TeamTemplate:
@@ -122,8 +132,9 @@ class ProjectCoordinator:
     def _context(self, actor: ActorContext, state: ProjectWorkState) -> dict[str, Any]:
         project = self.work.project_resolver(actor, state.project_id)
         activity = self.work.list_activity(actor, state.project_id, limit=15)
-        pending = [todo for todo in state.todos
-                   if todo.status not in {"done", "cancelled", "archived"}]
+        pending = [
+            todo for todo in state.todos if todo.status not in {"done", "cancelled", "archived"}
+        ]
         completed = [todo for todo in state.todos if todo.status in {"done", "cancelled"}]
         selected = pending[:20] + completed[-10:]
         return {
@@ -161,16 +172,23 @@ class ProjectCoordinator:
                 "max_action": profile.max_action,
                 "privacy": profile.privacy,
                 "environments": [
-                    {"id": environment.id, "capabilities": sorted(environment.capabilities),
-                     "network": environment.network}
+                    {
+                        "id": environment.id,
+                        "capabilities": sorted(environment.capabilities),
+                        "network": environment.network,
+                    }
                     for environment in self.platform.manifest.environments
                     if environment.id in profile.environment_ids and environment.enabled
                 ],
                 "ready_tools": [
-                    {"id": tool.id, "description": tool.description[:200],
-                     "environment_capabilities": sorted(tool.environment_capabilities)}
+                    {
+                        "id": tool.id,
+                        "description": tool.description[:200],
+                        "environment_capabilities": sorted(tool.environment_capabilities),
+                    }
                     for tool in self.platform.manifest.tools
-                    if tool.id in profile.tool_ids and statuses.get(tool.id) == "configured"
+                    if tool.id in profile.tool_ids
+                    and statuses.get(tool.id) == "configured"
                     and tool.required_scopes <= (actor.scopes & profile.tool_scopes)
                     and tool.action_policy != "external_commitment"
                     and (not tool.side_effect or profile.max_action == "write")
@@ -219,7 +237,9 @@ class ProjectCoordinator:
             except DomainError as error:
                 message = str(error)
                 self.work.update_cycle_atomic(
-                    actor, project_id, cycle.id,
+                    actor,
+                    project_id,
+                    cycle.id,
                     lambda current: self._blocked(current.active_cycle or cycle, message),
                 )
                 return
@@ -273,8 +293,9 @@ class ProjectCoordinator:
                             id="lead-plan",
                             agent_id=state.team.lead_agent_id,
                             objective=current.instruction,
-                            additional_instructions=(instructions + "\n"
-                                                     + self._planning_prompt(actor, state)),
+                            additional_instructions=(
+                                instructions + "\n" + self._planning_prompt(actor, state)
+                            ),
                             tool_ids=(),
                             output_tokens=4000,
                         ),
@@ -408,12 +429,14 @@ class ProjectCoordinator:
                     "identify sources, saved paths, checks performed and remaining uncertainty. "
                     "Require a provider result before reporting a successful booking, "
                     "purchase or call. "
-                    "Project responsibility: " + (
+                    "Project responsibility: "
+                    + (
                         state.team.members[task.agent_id].description
                         if task.agent_id in state.team.members
                         else state.team.roles.get(task.agent_id, "")
                     )
-                    + "\nProject context (reference data): " + context_text
+                    + "\nProject context (reference data): "
+                    + context_text
                 ),
             )
             for task in decision.tasks
@@ -487,7 +510,9 @@ class ProjectCoordinator:
             except DomainError as error:
                 message = str(error)
                 self.work.update_cycle_atomic(
-                    actor, project_id, cycle.id,
+                    actor,
+                    project_id,
+                    cycle.id,
                     lambda current: self._blocked(current.active_cycle or cycle, message),
                 )
                 return
@@ -667,20 +692,27 @@ class ProjectCoordinator:
             )
         if self.external_actions is not None:
             pending_actions = [
-                action for action in self.external_actions.list_for_run(actor, run.id)
+                action
+                for action in self.external_actions.list_for_run(actor, run.id)
                 if action.status in {"pending", "executing", "accepted", "unknown"}
             ]
             if pending_actions:
                 message = (
                     "An external action needs review or a confirmed outcome before work continues."
                 )
-                activity.extend(ProjectActivityDraft(
-                    kind="blocked", text=message + " " + action.draft.summary,
-                    action_id=action.id, run_id=run.id,
-                ) for action in pending_actions[:10])
+                activity.extend(
+                    ProjectActivityDraft(
+                        kind="blocked",
+                        text=message + " " + action.draft.summary,
+                        action_id=action.id,
+                        run_id=run.id,
+                    )
+                    for action in pending_actions[:10]
+                )
                 return ProjectCycleUpdate(
                     cycle=cycle.model_copy(update={"phase": "blocked", "error": message}),
-                    todos=tuple(todos), activity=tuple(activity),
+                    todos=tuple(todos),
+                    activity=tuple(activity),
                 )
         return ProjectCycleUpdate(
             cycle=cycle.model_copy(update={"phase": "completed", "finished_at": utc_now()}),

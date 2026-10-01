@@ -39,20 +39,34 @@ from simon.services.project_tool_schema import MODELS as PROJECT_MODELS
 from simon.services.project_tool_schema import READS as PROJECT_READS
 
 LOCAL_NAMES = (
-    "local_files_roots", "local_files_list", "local_files_search", "local_file_read",
-    "local_file_write", "local_file_edit", "local_file_move", "local_folder_create",
-    "local_zip_inspect", "local_zip_extract", "local_zip_create",
+    "local_files_roots",
+    "local_files_list",
+    "local_files_search",
+    "local_file_read",
+    "local_file_write",
+    "local_file_edit",
+    "local_file_move",
+    "local_folder_create",
+    "local_zip_inspect",
+    "local_zip_extract",
+    "local_zip_create",
 )
 PROJECT_METHODS = {
-    "project_files_list": "files", "project_file_read": "read",
-    "project_sheet_read": "sheet_read", "project_file_create": "create_file",
-    "project_file_edit": "edit", "project_sheet_write": "sheet_write",
+    "project_files_list": "files",
+    "project_file_read": "read",
+    "project_sheet_read": "sheet_read",
+    "project_file_create": "create_file",
+    "project_file_edit": "edit",
+    "project_sheet_write": "sheet_write",
     "project_file_rename": "rename",
 }
 GOOGLE_MODELS: dict[str, type[BaseModel]] = {
-    "drive_search_files": GoogleSearch, "drive_read_file": GoogleItem,
-    "drive_list_folder": DriveBrowse, "gmail_search_messages": GoogleSearch,
-    "gmail_read_message": GoogleItem, "calendar_list_events": CalendarQuery,
+    "drive_search_files": GoogleSearch,
+    "drive_read_file": GoogleItem,
+    "drive_list_folder": DriveBrowse,
+    "gmail_search_messages": GoogleSearch,
+    "gmail_read_message": GoogleItem,
+    "calendar_list_events": CalendarQuery,
 }
 GOOGLE_DESCRIPTIONS = {
     "google_accounts_list": "List this account's connected Google accounts and permissions.",
@@ -73,14 +87,18 @@ def _native_templates() -> tuple[ToolDefinition, ...]:
         local = name in LOCAL_NAMES
         project = name == "project_list" or name in PROJECT_METHODS
         cloud = not local and name != "project_list"
-        write = (local and name not in LOCAL_READS) or (
-            project and name not in PROJECT_READS
-        )
+        write = (local and name not in LOCAL_READS) or (project and name not in PROJECT_READS)
         models = LOCAL_MODELS if local else PROJECT_MODELS if project else GOOGLE_MODELS
         model = models.get(name)
-        schema: dict[str, Any] = model.model_json_schema() if model else {
-            "type": "object", "properties": {}, "additionalProperties": False,
-        }
+        schema: dict[str, Any] = (
+            model.model_json_schema()
+            if model
+            else {
+                "type": "object",
+                "properties": {},
+                "additionalProperties": False,
+            }
+        )
         if local:
             # Workspaces are server-owned account directories, never Desktop/Downloads.
             for field in ("root", "destination_root"):
@@ -95,21 +113,31 @@ def _native_templates() -> tuple[ToolDefinition, ...]:
             scopes.add("memories:read")
         if not local and not project:
             scopes.add("threads:read")
-        descriptions = LOCAL_DESCRIPTIONS if local else (
-            PROJECT_DESCRIPTIONS if project else GOOGLE_DESCRIPTIONS
+        descriptions = (
+            LOCAL_DESCRIPTIONS
+            if local
+            else (PROJECT_DESCRIPTIONS if project else GOOGLE_DESCRIPTIONS)
         )
         description = descriptions[name]
         if local:
             description += " Agent access is limited to workspace and authorized project roots."
-        tools.append(ToolDefinition(
-            id=f"native.{name}", description=description, transport="native",
-            categories=frozenset({"files" if local else "projects" if project else "google"}),
-            capabilities=frozenset({name, "file.write" if write else "file.read"})
-            if local or project else frozenset({name}),
-            input_schema=schema, configured=True, required_scopes=frozenset(scopes),
-            side_effect=write, action_policy="write" if write else "read",
-            settings={"network": cloud},
-        ))
+        tools.append(
+            ToolDefinition(
+                id=f"native.{name}",
+                description=description,
+                transport="native",
+                categories=frozenset({"files" if local else "projects" if project else "google"}),
+                capabilities=frozenset({name, "file.write" if write else "file.read"})
+                if local or project
+                else frozenset({name}),
+                input_schema=schema,
+                configured=True,
+                required_scopes=frozenset(scopes),
+                side_effect=write,
+                action_policy="write" if write else "read",
+                settings={"network": cloud},
+            )
+        )
     return tuple(tools)
 
 
@@ -128,13 +156,20 @@ def native_tool_definitions(
     connected: ConnectedService | None = None,
 ) -> tuple[ToolDefinition, ...]:
     """Return owned manifest entries while evaluating current service settings."""
-    return tuple(item.model_copy(deep=True, update={
-        "configured": connected is None or _configured(connected, item),
-    }) for item in _native_templates())
+    return tuple(
+        item.model_copy(
+            deep=True,
+            update={
+                "configured": connected is None or _configured(connected, item),
+            },
+        )
+        for item in _native_templates()
+    )
 
 
 def with_native_tools(
-    manifest: PlatformManifest, connected: ConnectedService,
+    manifest: PlatformManifest,
+    connected: ConnectedService,
 ) -> PlatformManifest:
     """Bind declared native IDs to canonical contracts, retaining explicit disabling.
 
@@ -150,17 +185,23 @@ def with_native_tools(
         if item.id not in known:
             raise ToolCatalogError(f"Unknown native tool: {item.id}")
         canonical = known[item.id]
-        definitions.append(canonical.model_copy(update={
-            "enabled": item.enabled,
-            "configured": item.configured and canonical.configured,
-        }))
+        definitions.append(
+            canonical.model_copy(
+                update={
+                    "enabled": item.enabled,
+                    "configured": item.configured and canonical.configured,
+                }
+            )
+        )
     values = manifest.model_dump(mode="python")
     values["tools"] = definitions
     return PlatformManifest.model_validate(values)
 
 
 def native_tool_status(
-    connected: ConnectedService, actor: ActorContext, tool_id: str,
+    connected: ConnectedService,
+    actor: ActorContext,
+    tool_id: str,
 ) -> dict[str, Any]:
     definition = _canonical_tools().get(tool_id)
     if definition is None:
@@ -204,25 +245,36 @@ class _BoundProjectFiles(ProjectFileService):
 
 class NativeToolTransport:
     def __init__(
-        self, connected: ConnectedService, *, actor: ActorContext, run_id: UUID,
+        self,
+        connected: ConnectedService,
+        *,
+        actor: ActorContext,
+        run_id: UUID,
         revalidate: Callable[[], ActorContext],
     ) -> None:
         self.connected, self.actor, self.run_id = connected, actor, run_id
         self.revalidate = revalidate
 
     def __call__(
-        self, definition: ToolDefinition, arguments: dict[str, Any],
+        self,
+        definition: ToolDefinition,
+        arguments: dict[str, Any],
         context: ToolExecutionContext,
     ) -> dict[str, Any]:
         if (context.actor_id, context.household_id, context.run_id) != (
-            self.actor.actor_id, self.actor.household_id, self.run_id,
+            self.actor.actor_id,
+            self.actor.household_id,
+            self.run_id,
         ):
             raise AuthorizationError("Native tool execution owner changed")
         canonical = _canonical_tools().get(definition.id)
         if canonical is None or definition.transport != "native":
             raise ToolCatalogError("Unknown native tool")
-        if (not definition.enabled or not definition.configured
-                or not _configured(self.connected, canonical)):
+        if (
+            not definition.enabled
+            or not definition.configured
+            or not _configured(self.connected, canonical)
+        ):
             raise ToolCatalogError("Native tool is disabled or unconfigured")
         if definition.id not in context.allowed_tool_ids:
             raise AuthorizationError("Native tool was not granted to this assignment")
@@ -232,14 +284,19 @@ class NativeToolTransport:
         def check() -> ActorContext:
             current = self.revalidate()
             if (current.actor_id, current.household_id) != (
-                self.actor.actor_id, self.actor.household_id,
+                self.actor.actor_id,
+                self.actor.household_id,
             ):
                 raise AuthorizationError("Native tool access changed")
             member = self.connected.identity.membership(current.actor_id, current.household_id)
-            current = current.model_copy(update={
-                "scopes": current.scopes & self.actor.scopes & context.scopes
-                & ROLE_SCOPES[member.role],
-            })
+            current = current.model_copy(
+                update={
+                    "scopes": current.scopes
+                    & self.actor.scopes
+                    & context.scopes
+                    & ROLE_SCOPES[member.role],
+                }
+            )
             if not canonical.required_scopes <= current.scopes:
                 raise AuthorizationError("Native tool permissions changed")
             status = native_tool_status(self.connected, current, definition.id)
@@ -262,8 +319,10 @@ class NativeToolTransport:
                 projects = _BoundProjectFiles(self.connected)
                 projects.api = self.connected.projects.api
                 method = getattr(projects, PROJECT_METHODS[name])
-                result = method(actor, request, key, check) if canonical.side_effect else (
-                    method(actor, request)
+                result = (
+                    method(actor, request, key, check)
+                    if canonical.side_effect
+                    else (method(actor, request))
                 )
             else:
                 result = self._google(actor, name, arguments, check)
@@ -275,7 +334,11 @@ class NativeToolTransport:
         return result
 
     def _local(
-        self, actor: ActorContext, name: str, arguments: dict[str, Any], key: str,
+        self,
+        actor: ActorContext,
+        name: str,
+        arguments: dict[str, Any],
+        key: str,
         check: Callable[[], ActorContext],
     ) -> dict[str, Any]:
         if name == "local_files_roots":
@@ -304,16 +367,24 @@ class NativeToolTransport:
         return self.connected.local_files.run(actor, name, arguments, key, check)
 
     def _google(
-        self, actor: ActorContext, name: str, arguments: dict[str, Any],
+        self,
+        actor: ActorContext,
+        name: str,
+        arguments: dict[str, Any],
         check: Callable[[], ActorContext],
     ) -> dict[str, Any]:
         if name == "google_accounts_list":
             if arguments:
                 raise ValidationError("No arguments expected")
-            return {"accounts": [self.connected.account_status(item) for item in
-                                 self.connected.store.google_connections(
-                                     actor.household_id, actor.actor_id,
-                                 )]}
+            return {
+                "accounts": [
+                    self.connected.account_status(item)
+                    for item in self.connected.store.google_connections(
+                        actor.household_id,
+                        actor.actor_id,
+                    )
+                ]
+            }
         request: Any = GOOGLE_MODELS[name].model_validate(arguments)
         if name == "drive_list_folder":
             return self.connected.projects.browse(actor, request, check)
@@ -339,15 +410,26 @@ def native_transport_factory(
     Mapping[str, ToolHandler],
 ]:
     def factory(
-        actor: ActorContext, run_id: UUID, revalidate: Callable[[], ActorContext],
+        actor: ActorContext,
+        run_id: UUID,
+        revalidate: Callable[[], ActorContext],
         lease: EnvironmentLease | None = None,
     ) -> Mapping[str, ToolHandler]:
-        handlers: dict[str, ToolHandler] = {"native": NativeToolTransport(
-            connected, actor=actor, run_id=run_id, revalidate=revalidate,
-        )}
+        handlers: dict[str, ToolHandler] = {
+            "native": NativeToolTransport(
+                connected,
+                actor=actor,
+                run_id=run_id,
+                revalidate=revalidate,
+            )
+        }
         if lease is not None and lease.definition.kind == "docker":
             handlers["workspace_files"] = WorkspaceFileTransport(
-                connected.local_files, lease, actor=actor, run_id=run_id, revalidate=revalidate,
+                connected.local_files,
+                lease,
+                actor=actor,
+                run_id=run_id,
+                revalidate=revalidate,
             )
         return handlers
 

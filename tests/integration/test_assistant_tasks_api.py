@@ -15,9 +15,7 @@ def task_body(title: str, priority: int = 3) -> dict[str, object]:
     }
 
 
-def test_assistant_tasks_can_be_edited_reordered_steered_and_cancelled(
-    client, auth_headers
-):
+def test_assistant_tasks_can_be_edited_reordered_steered_and_cancelled(client, auth_headers):
     assert client.post("/v1/assistant-tasks", json=task_body("private")).status_code == 403
     first_response = client.post(
         "/v1/assistant-tasks", headers=auth_headers, json=task_body("First", 3)
@@ -78,9 +76,7 @@ def test_assistant_tasks_can_be_edited_reordered_steered_and_cancelled(
     }
 
 
-def test_work_overview_combines_projects_and_assistant_tasks(
-    client, auth_headers, container
-):
+def test_work_overview_combines_projects_and_assistant_tasks(client, auth_headers, container):
     project = client.post(
         "/v1/memories",
         headers=auth_headers,
@@ -110,9 +106,7 @@ def test_work_overview_combines_projects_and_assistant_tasks(
     artifact_response = client.get(f"/v1/assistant-tasks/{task_id}/artifacts")
     assert artifact_response.status_code == 200
     assert artifact_response.json()[0]["name"] == "result.md"
-    download = client.get(
-        f"/v1/assistant-tasks/artifacts/{artifacts[0].id}/download"
-    )
+    download = client.get(f"/v1/assistant-tasks/artifacts/{artifacts[0].id}/download")
     assert download.status_code == 200 and download.content == b"# Panel result"
     assert "attachment" in download.headers["content-disposition"]
 

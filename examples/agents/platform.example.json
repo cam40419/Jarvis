@@ -8,9 +8,7 @@
       "tool_ids": [],
       "tool_scopes": [],
       "environment_ids": [],
-      "model_capabilities": [
-        "text"
-      ],
+      "model_capabilities": ["text"],
       "depth": 2,
       "importance": 2,
       "privacy": "allow_cloud",
@@ -37,9 +35,7 @@
       "tool_ids": [],
       "tool_scopes": [],
       "environment_ids": [],
-      "model_capabilities": [
-        "text"
-      ],
+      "model_capabilities": ["text"],
       "depth": 4,
       "importance": 4,
       "privacy": "allow_cloud",
@@ -63,19 +59,10 @@
     {
       "id": "maker",
       "instructions": "Create editable source artifacts with dependencies and validation evidence.",
-      "tool_ids": [
-        "cad.design",
-        "pcb.design",
-        "render.submit"
-      ],
+      "tool_ids": ["cad.design", "pcb.design", "render.submit"],
       "tool_scopes": [],
-      "environment_ids": [
-        "linux-container",
-        "design-machine"
-      ],
-      "model_capabilities": [
-        "text"
-      ],
+      "environment_ids": ["linux-container", "design-machine"],
+      "model_capabilities": ["text"],
       "depth": 4,
       "importance": 2,
       "privacy": "allow_cloud",
@@ -102,10 +89,7 @@
       "id": "research",
       "name": "Research and review",
       "version": 1,
-      "agent_ids": [
-        "researcher",
-        "reviewer"
-      ],
+      "agent_ids": ["researcher", "reviewer"],
       "max_parallel": 3,
       "allowed_workspace_ids": []
     },
@@ -113,11 +97,7 @@
       "id": "studio",
       "name": "Configurable design team",
       "version": 1,
-      "agent_ids": [
-        "researcher",
-        "maker",
-        "reviewer"
-      ],
+      "agent_ids": ["researcher", "maker", "reviewer"],
       "max_parallel": 4,
       "allowed_workspace_ids": []
     }
@@ -131,9 +111,7 @@
       "api_key_env": null,
       "local": true,
       "tier": "economy",
-      "capabilities": [
-        "text"
-      ],
+      "capabilities": ["text"],
       "context_window_tokens": 8192,
       "max_output_tokens": 1024,
       "reasoning_efforts": [],
@@ -150,18 +128,10 @@
       "api_key_env": "OPENAI_API_KEY",
       "local": false,
       "tier": "standard",
-      "capabilities": [
-        "text"
-      ],
+      "capabilities": ["text"],
       "context_window_tokens": 262144,
       "max_output_tokens": 16384,
-      "reasoning_efforts": [
-        "none",
-        "low",
-        "medium",
-        "high",
-        "xhigh"
-      ],
+      "reasoning_efforts": ["none", "low", "medium", "high", "xhigh"],
       "enabled": false,
       "priority": 100,
       "input_cost_per_million_usd": null,
@@ -175,18 +145,10 @@
       "api_key_env": "OPENAI_API_KEY",
       "local": false,
       "tier": "frontier",
-      "capabilities": [
-        "text"
-      ],
+      "capabilities": ["text"],
       "context_window_tokens": 262144,
       "max_output_tokens": 16384,
-      "reasoning_efforts": [
-        "low",
-        "medium",
-        "high",
-        "xhigh",
-        "max"
-      ],
+      "reasoning_efforts": ["low", "medium", "high", "xhigh", "max"],
       "enabled": false,
       "priority": 100,
       "input_cost_per_million_usd": null,
@@ -200,9 +162,7 @@
       "api_key_env": "ANTHROPIC_API_KEY",
       "local": false,
       "tier": "frontier",
-      "capabilities": [
-        "text"
-      ],
+      "capabilities": ["text"],
       "context_window_tokens": 32768,
       "max_output_tokens": 4096,
       "reasoning_efforts": [],
@@ -219,9 +179,7 @@
       "api_key_env": "GEMINI_API_KEY",
       "local": false,
       "tier": "frontier",
-      "capabilities": [
-        "text"
-      ],
+      "capabilities": ["text"],
       "context_window_tokens": 32768,
       "max_output_tokens": 4096,
       "reasoning_efforts": [],
@@ -236,11 +194,7 @@
       "id": "linux-container",
       "kind": "docker",
       "os": "linux",
-      "capabilities": [
-        "workspace.read",
-        "process.execute",
-        "workspace.write"
-      ],
+      "capabilities": ["workspace.read", "process.execute", "workspace.write"],
       "enabled": false,
       "container_image": "python:3.11-slim",
       "runner_url": null,
@@ -257,12 +211,7 @@
       "id": "design-machine",
       "kind": "machine",
       "os": "windows",
-      "capabilities": [
-        "cad.application",
-        "pcb.application",
-        "render.engine",
-        "desktop"
-      ],
+      "capabilities": ["cad.application", "pcb.application", "render.engine", "desktop"],
       "enabled": false,
       "container_image": null,
       "runner_url": "https://design-runner.example.invalid",
@@ -280,12 +229,8 @@
     {
       "id": "image.generate",
       "description": "Configure a provider or application for image.generate.",
-      "categories": [
-        "image"
-      ],
-      "capabilities": [
-        "image.generate"
-      ],
+      "categories": ["image"],
+      "capabilities": ["image.generate"],
       "transport": "http",
       "input_schema": {
         "type": "object"
@@ -295,9 +240,7 @@
       },
       "enabled": false,
       "configured": false,
-      "required_scopes": [
-        "tools:image.generate"
-      ],
+      "required_scopes": ["tools:image.generate"],
       "environment_capabilities": [],
       "side_effect": true,
       "action_policy": "write",
@@ -308,12 +251,8 @@
     {
       "id": "image.edit",
       "description": "Configure a provider or application for image.edit.",
-      "categories": [
-        "image"
-      ],
-      "capabilities": [
-        "image.edit"
-      ],
+      "categories": ["image"],
+      "capabilities": ["image.edit"],
       "transport": "http",
       "input_schema": {
         "type": "object"
@@ -323,9 +262,7 @@
       },
       "enabled": false,
       "configured": false,
-      "required_scopes": [
-        "tools:image.edit"
-      ],
+      "required_scopes": ["tools:image.edit"],
       "environment_capabilities": [],
       "side_effect": true,
       "action_policy": "write",
@@ -336,12 +273,8 @@
     {
       "id": "video.generate",
       "description": "Configure a provider or application for video.generate.",
-      "categories": [
-        "video"
-      ],
-      "capabilities": [
-        "video.generate"
-      ],
+      "categories": ["video"],
+      "capabilities": ["video.generate"],
       "transport": "external_job",
       "input_schema": {
         "type": "object"
@@ -351,9 +284,7 @@
       },
       "enabled": false,
       "configured": false,
-      "required_scopes": [
-        "tools:video.generate"
-      ],
+      "required_scopes": ["tools:video.generate"],
       "environment_capabilities": [],
       "side_effect": true,
       "action_policy": "write",
@@ -364,12 +295,8 @@
     {
       "id": "video.edit",
       "description": "Configure a provider or application for video.edit.",
-      "categories": [
-        "video"
-      ],
-      "capabilities": [
-        "video.edit"
-      ],
+      "categories": ["video"],
+      "capabilities": ["video.edit"],
       "transport": "cli",
       "input_schema": {
         "type": "object"
@@ -379,12 +306,8 @@
       },
       "enabled": false,
       "configured": false,
-      "required_scopes": [
-        "tools:video.edit"
-      ],
-      "environment_capabilities": [
-        "video.editor"
-      ],
+      "required_scopes": ["tools:video.edit"],
+      "environment_capabilities": ["video.editor"],
       "side_effect": true,
       "action_policy": "write",
       "endpoint": null,
@@ -394,12 +317,8 @@
     {
       "id": "audio.produce",
       "description": "Configure a provider or application for audio.produce.",
-      "categories": [
-        "audio"
-      ],
-      "capabilities": [
-        "audio.produce"
-      ],
+      "categories": ["audio"],
+      "capabilities": ["audio.produce"],
       "transport": "external_job",
       "input_schema": {
         "type": "object"
@@ -409,9 +328,7 @@
       },
       "enabled": false,
       "configured": false,
-      "required_scopes": [
-        "tools:audio.produce"
-      ],
+      "required_scopes": ["tools:audio.produce"],
       "environment_capabilities": [],
       "side_effect": true,
       "action_policy": "write",
@@ -422,12 +339,8 @@
     {
       "id": "graphics.design",
       "description": "Configure a provider or application for graphics.design.",
-      "categories": [
-        "graphics"
-      ],
-      "capabilities": [
-        "graphics.edit"
-      ],
+      "categories": ["graphics"],
+      "capabilities": ["graphics.edit"],
       "transport": "desktop",
       "input_schema": {
         "type": "object"
@@ -437,12 +350,8 @@
       },
       "enabled": false,
       "configured": false,
-      "required_scopes": [
-        "tools:graphics.design"
-      ],
-      "environment_capabilities": [
-        "graphics.editor"
-      ],
+      "required_scopes": ["tools:graphics.design"],
+      "environment_capabilities": ["graphics.editor"],
       "side_effect": true,
       "action_policy": "write",
       "endpoint": null,
@@ -452,12 +361,8 @@
     {
       "id": "cad.design",
       "description": "Configure a provider or application for cad.design.",
-      "categories": [
-        "cad"
-      ],
-      "capabilities": [
-        "cad.edit"
-      ],
+      "categories": ["cad"],
+      "capabilities": ["cad.edit"],
       "transport": "desktop",
       "input_schema": {
         "type": "object"
@@ -467,12 +372,8 @@
       },
       "enabled": false,
       "configured": false,
-      "required_scopes": [
-        "tools:cad.design"
-      ],
-      "environment_capabilities": [
-        "cad.application"
-      ],
+      "required_scopes": ["tools:cad.design"],
+      "environment_capabilities": ["cad.application"],
       "side_effect": true,
       "action_policy": "write",
       "endpoint": null,
@@ -482,12 +383,8 @@
     {
       "id": "pcb.design",
       "description": "Configure a provider or application for pcb.design.",
-      "categories": [
-        "pcb"
-      ],
-      "capabilities": [
-        "pcb.edit"
-      ],
+      "categories": ["pcb"],
+      "capabilities": ["pcb.edit"],
       "transport": "desktop",
       "input_schema": {
         "type": "object"
@@ -497,12 +394,8 @@
       },
       "enabled": false,
       "configured": false,
-      "required_scopes": [
-        "tools:pcb.design"
-      ],
-      "environment_capabilities": [
-        "pcb.application"
-      ],
+      "required_scopes": ["tools:pcb.design"],
+      "environment_capabilities": ["pcb.application"],
       "side_effect": true,
       "action_policy": "write",
       "endpoint": null,
@@ -512,12 +405,8 @@
     {
       "id": "three_d.design",
       "description": "Configure a provider or application for three_d.design.",
-      "categories": [
-        "3d"
-      ],
-      "capabilities": [
-        "3d.edit"
-      ],
+      "categories": ["3d"],
+      "capabilities": ["3d.edit"],
       "transport": "desktop",
       "input_schema": {
         "type": "object"
@@ -527,12 +416,8 @@
       },
       "enabled": false,
       "configured": false,
-      "required_scopes": [
-        "tools:three_d.design"
-      ],
-      "environment_capabilities": [
-        "3d.application"
-      ],
+      "required_scopes": ["tools:three_d.design"],
+      "environment_capabilities": ["3d.application"],
       "side_effect": true,
       "action_policy": "write",
       "endpoint": null,
@@ -542,12 +427,8 @@
     {
       "id": "render.submit",
       "description": "Configure a provider or application for render.submit.",
-      "categories": [
-        "render"
-      ],
-      "capabilities": [
-        "render.submit"
-      ],
+      "categories": ["render"],
+      "capabilities": ["render.submit"],
       "transport": "external_job",
       "input_schema": {
         "type": "object"
@@ -557,12 +438,8 @@
       },
       "enabled": false,
       "configured": false,
-      "required_scopes": [
-        "tools:render.submit"
-      ],
-      "environment_capabilities": [
-        "render.engine"
-      ],
+      "required_scopes": ["tools:render.submit"],
+      "environment_capabilities": ["render.engine"],
       "side_effect": true,
       "action_policy": "write",
       "endpoint": null,
@@ -572,12 +449,8 @@
     {
       "id": "simulation.submit",
       "description": "Configure a provider or application for simulation.submit.",
-      "categories": [
-        "simulation"
-      ],
-      "capabilities": [
-        "simulation.submit"
-      ],
+      "categories": ["simulation"],
+      "capabilities": ["simulation.submit"],
       "transport": "external_job",
       "input_schema": {
         "type": "object"
@@ -587,12 +460,8 @@
       },
       "enabled": false,
       "configured": false,
-      "required_scopes": [
-        "tools:simulation.submit"
-      ],
-      "environment_capabilities": [
-        "simulation"
-      ],
+      "required_scopes": ["tools:simulation.submit"],
+      "environment_capabilities": ["simulation"],
       "side_effect": true,
       "action_policy": "write",
       "endpoint": null,
@@ -602,12 +471,8 @@
     {
       "id": "writing.create",
       "description": "Configure a provider or application for writing.create.",
-      "categories": [
-        "writing"
-      ],
-      "capabilities": [
-        "document.create"
-      ],
+      "categories": ["writing"],
+      "capabilities": ["document.create"],
       "transport": "python",
       "input_schema": {
         "type": "object"
@@ -617,9 +482,7 @@
       },
       "enabled": false,
       "configured": false,
-      "required_scopes": [
-        "tools:writing.create"
-      ],
+      "required_scopes": ["tools:writing.create"],
       "environment_capabilities": [],
       "side_effect": true,
       "action_policy": "write",
@@ -630,12 +493,8 @@
     {
       "id": "files.create",
       "description": "Configure a provider or application for files.create.",
-      "categories": [
-        "files"
-      ],
-      "capabilities": [
-        "file.write"
-      ],
+      "categories": ["files"],
+      "capabilities": ["file.write"],
       "transport": "python",
       "input_schema": {
         "type": "object"
@@ -645,12 +504,8 @@
       },
       "enabled": false,
       "configured": false,
-      "required_scopes": [
-        "tools:files.create"
-      ],
-      "environment_capabilities": [
-        "workspace.write"
-      ],
+      "required_scopes": ["tools:files.create"],
+      "environment_capabilities": ["workspace.write"],
       "side_effect": true,
       "action_policy": "write",
       "endpoint": null,
@@ -660,12 +515,8 @@
     {
       "id": "files.read",
       "description": "Configure a provider or application for files.read.",
-      "categories": [
-        "files"
-      ],
-      "capabilities": [
-        "file.read"
-      ],
+      "categories": ["files"],
+      "capabilities": ["file.read"],
       "transport": "python",
       "input_schema": {
         "type": "object"
@@ -675,12 +526,8 @@
       },
       "enabled": false,
       "configured": false,
-      "required_scopes": [
-        "tools:files.read"
-      ],
-      "environment_capabilities": [
-        "workspace.read"
-      ],
+      "required_scopes": ["tools:files.read"],
+      "environment_capabilities": ["workspace.read"],
       "side_effect": false,
       "action_policy": "read",
       "endpoint": null,
@@ -690,12 +537,8 @@
     {
       "id": "storage.manage",
       "description": "Configure a provider or application for storage.manage.",
-      "categories": [
-        "storage"
-      ],
-      "capabilities": [
-        "storage.write"
-      ],
+      "categories": ["storage"],
+      "capabilities": ["storage.write"],
       "transport": "mcp",
       "input_schema": {
         "type": "object"
@@ -705,9 +548,7 @@
       },
       "enabled": false,
       "configured": false,
-      "required_scopes": [
-        "tools:storage.manage"
-      ],
+      "required_scopes": ["tools:storage.manage"],
       "environment_capabilities": [],
       "side_effect": true,
       "action_policy": "write",
@@ -718,12 +559,8 @@
     {
       "id": "web.research",
       "description": "Configure a provider or application for web.research.",
-      "categories": [
-        "web"
-      ],
-      "capabilities": [
-        "web.read"
-      ],
+      "categories": ["web"],
+      "capabilities": ["web.read"],
       "transport": "http",
       "input_schema": {
         "type": "object"
@@ -733,12 +570,8 @@
       },
       "enabled": false,
       "configured": false,
-      "required_scopes": [
-        "tools:web.research"
-      ],
-      "environment_capabilities": [
-        "network"
-      ],
+      "required_scopes": ["tools:web.research"],
+      "environment_capabilities": ["network"],
       "side_effect": false,
       "action_policy": "read",
       "endpoint": null,
@@ -748,12 +581,8 @@
     {
       "id": "browser.interact",
       "description": "Configure a provider or application for browser.interact.",
-      "categories": [
-        "web"
-      ],
-      "capabilities": [
-        "browser.control"
-      ],
+      "categories": ["web"],
+      "capabilities": ["browser.control"],
       "transport": "browser",
       "input_schema": {
         "type": "object"
@@ -763,12 +592,8 @@
       },
       "enabled": false,
       "configured": false,
-      "required_scopes": [
-        "tools:browser.interact"
-      ],
-      "environment_capabilities": [
-        "browser"
-      ],
+      "required_scopes": ["tools:browser.interact"],
+      "environment_capabilities": ["browser"],
       "side_effect": true,
       "action_policy": "write",
       "endpoint": null,
@@ -778,12 +603,8 @@
     {
       "id": "desktop.control",
       "description": "Configure a provider or application for desktop.control.",
-      "categories": [
-        "computer"
-      ],
-      "capabilities": [
-        "desktop.control"
-      ],
+      "categories": ["computer"],
+      "capabilities": ["desktop.control"],
       "transport": "desktop",
       "input_schema": {
         "type": "object"
@@ -793,12 +614,8 @@
       },
       "enabled": false,
       "configured": false,
-      "required_scopes": [
-        "tools:desktop.control"
-      ],
-      "environment_capabilities": [
-        "desktop"
-      ],
+      "required_scopes": ["tools:desktop.control"],
+      "environment_capabilities": ["desktop"],
       "side_effect": true,
       "action_policy": "write",
       "endpoint": null,
@@ -808,12 +625,8 @@
     {
       "id": "data.query",
       "description": "Configure a provider or application for data.query.",
-      "categories": [
-        "data"
-      ],
-      "capabilities": [
-        "data.read"
-      ],
+      "categories": ["data"],
+      "capabilities": ["data.read"],
       "transport": "mcp",
       "input_schema": {
         "type": "object"
@@ -823,9 +636,7 @@
       },
       "enabled": false,
       "configured": false,
-      "required_scopes": [
-        "tools:data.query"
-      ],
+      "required_scopes": ["tools:data.query"],
       "environment_capabilities": [],
       "side_effect": false,
       "action_policy": "read",
@@ -836,12 +647,8 @@
     {
       "id": "data.manage",
       "description": "Configure a provider or application for data.manage.",
-      "categories": [
-        "data"
-      ],
-      "capabilities": [
-        "data.write"
-      ],
+      "categories": ["data"],
+      "capabilities": ["data.write"],
       "transport": "mcp",
       "input_schema": {
         "type": "object"
@@ -851,9 +658,7 @@
       },
       "enabled": false,
       "configured": false,
-      "required_scopes": [
-        "tools:data.manage"
-      ],
+      "required_scopes": ["tools:data.manage"],
       "environment_capabilities": [],
       "side_effect": true,
       "action_policy": "write",
@@ -864,12 +669,8 @@
     {
       "id": "code.execute",
       "description": "Configure a provider or application for code.execute.",
-      "categories": [
-        "software"
-      ],
-      "capabilities": [
-        "code.execute"
-      ],
+      "categories": ["software"],
+      "capabilities": ["code.execute"],
       "transport": "cli",
       "input_schema": {
         "type": "object"
@@ -879,12 +680,8 @@
       },
       "enabled": false,
       "configured": false,
-      "required_scopes": [
-        "tools:code.execute"
-      ],
-      "environment_capabilities": [
-        "process.execute"
-      ],
+      "required_scopes": ["tools:code.execute"],
+      "environment_capabilities": ["process.execute"],
       "side_effect": true,
       "action_policy": "write",
       "endpoint": null,
@@ -894,12 +691,8 @@
     {
       "id": "home.manage",
       "description": "Configure a provider or application for home.manage.",
-      "categories": [
-        "home"
-      ],
-      "capabilities": [
-        "home.control"
-      ],
+      "categories": ["home"],
+      "capabilities": ["home.control"],
       "transport": "http",
       "input_schema": {
         "type": "object"
@@ -909,12 +702,8 @@
       },
       "enabled": false,
       "configured": false,
-      "required_scopes": [
-        "tools:home.manage"
-      ],
-      "environment_capabilities": [
-        "network"
-      ],
+      "required_scopes": ["tools:home.manage"],
+      "environment_capabilities": ["network"],
       "side_effect": true,
       "action_policy": "write",
       "endpoint": null,

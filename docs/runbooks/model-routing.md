@@ -40,11 +40,11 @@ the consequences of a weak result. Start with user-provided values or explicit t
 defaults; this foundation does not yet infer those scores from natural language.
 
 | Maximum of depth and importance | Minimum tier | Preferred supported effort |
-| --- | --- | --- |
-| 1–2 | economy | low |
-| 3 | standard | medium |
-| 4 | frontier | high |
-| 5 | frontier | highest configured effort |
+| ------------------------------- | ------------ | -------------------------- |
+| 1–2                             | economy      | low                        |
+| 3                               | standard     | medium                     |
+| 4                               | frontier     | high                       |
+| 5                               | frontier     | highest configured effort  |
 
 The router first checks enabled state, credentials, required capabilities, privacy,
 input-plus-output context capacity, output limits, minimum tier, and estimated budget.

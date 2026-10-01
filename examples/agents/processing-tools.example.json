@@ -2,12 +2,8 @@
   {
     "id": "document.extract_pdf",
     "description": "Read bounded PDF text from a local worker file, up to 100 pages.",
-    "categories": [
-      "document"
-    ],
-    "capabilities": [
-      "document.extract_pdf"
-    ],
+    "categories": ["document"],
+    "capabilities": ["document.extract_pdf"],
     "transport": "processing",
     "input_schema": {
       "type": "object",
@@ -24,9 +20,7 @@
           "maximum": 100
         }
       },
-      "required": [
-        "input"
-      ]
+      "required": ["input"]
     },
     "output_schema": {
       "type": "object",
@@ -45,22 +39,12 @@
           "type": "boolean"
         }
       },
-      "required": [
-        "exit_code",
-        "stdout",
-        "stderr",
-        "truncated"
-      ]
+      "required": ["exit_code", "stdout", "stderr", "truncated"]
     },
     "enabled": false,
     "configured": false,
-    "required_scopes": [
-      "jobs:read"
-    ],
-    "environment_capabilities": [
-      "pdf",
-      "python"
-    ],
+    "required_scopes": ["jobs:read"],
+    "environment_capabilities": ["pdf", "python"],
     "side_effect": false,
     "action_policy": "read",
     "endpoint": null,
@@ -70,12 +54,8 @@
   {
     "id": "document.convert",
     "description": "Convert Markdown, text, or DOCX to a new Markdown/text/DOCX file.",
-    "categories": [
-      "document"
-    ],
-    "capabilities": [
-      "document.convert"
-    ],
+    "categories": ["document"],
+    "capabilities": ["document.convert"],
     "transport": "processing",
     "input_schema": {
       "type": "object",
@@ -92,10 +72,7 @@
           "maxLength": 500
         }
       },
-      "required": [
-        "input",
-        "output"
-      ]
+      "required": ["input", "output"]
     },
     "output_schema": {
       "type": "object",
@@ -114,22 +91,12 @@
           "type": "boolean"
         }
       },
-      "required": [
-        "exit_code",
-        "stdout",
-        "stderr",
-        "truncated"
-      ]
+      "required": ["exit_code", "stdout", "stderr", "truncated"]
     },
     "enabled": false,
     "configured": false,
-    "required_scopes": [
-      "jobs:write"
-    ],
-    "environment_capabilities": [
-      "documents",
-      "python"
-    ],
+    "required_scopes": ["jobs:write"],
+    "environment_capabilities": ["documents", "python"],
     "side_effect": true,
     "action_policy": "write",
     "endpoint": null,
@@ -139,12 +106,8 @@
   {
     "id": "image.ocr",
     "description": "Read English text from a local PNG, JPEG, or TIFF using OCR.",
-    "categories": [
-      "image"
-    ],
-    "capabilities": [
-      "image.ocr"
-    ],
+    "categories": ["image"],
+    "capabilities": ["image.ocr"],
     "transport": "processing",
     "input_schema": {
       "type": "object",
@@ -156,9 +119,7 @@
           "maxLength": 500
         }
       },
-      "required": [
-        "input"
-      ]
+      "required": ["input"]
     },
     "output_schema": {
       "type": "object",
@@ -177,22 +138,12 @@
           "type": "boolean"
         }
       },
-      "required": [
-        "exit_code",
-        "stdout",
-        "stderr",
-        "truncated"
-      ]
+      "required": ["exit_code", "stdout", "stderr", "truncated"]
     },
     "enabled": false,
     "configured": false,
-    "required_scopes": [
-      "jobs:read"
-    ],
-    "environment_capabilities": [
-      "ocr",
-      "python"
-    ],
+    "required_scopes": ["jobs:read"],
+    "environment_capabilities": ["ocr", "python"],
     "side_effect": false,
     "action_policy": "read",
     "endpoint": null,
@@ -202,12 +153,8 @@
   {
     "id": "media.inspect",
     "description": "Read local audio/video stream metadata without contacting a network.",
-    "categories": [
-      "media"
-    ],
-    "capabilities": [
-      "media.inspect"
-    ],
+    "categories": ["media"],
+    "capabilities": ["media.inspect"],
     "transport": "processing",
     "input_schema": {
       "type": "object",
@@ -219,9 +166,7 @@
           "maxLength": 500
         }
       },
-      "required": [
-        "input"
-      ]
+      "required": ["input"]
     },
     "output_schema": {
       "type": "object",
@@ -240,22 +185,12 @@
           "type": "boolean"
         }
       },
-      "required": [
-        "exit_code",
-        "stdout",
-        "stderr",
-        "truncated"
-      ]
+      "required": ["exit_code", "stdout", "stderr", "truncated"]
     },
     "enabled": false,
     "configured": false,
-    "required_scopes": [
-      "jobs:read"
-    ],
-    "environment_capabilities": [
-      "media",
-      "python"
-    ],
+    "required_scopes": ["jobs:read"],
+    "environment_capabilities": ["media", "python"],
     "side_effect": false,
     "action_policy": "read",
     "endpoint": null,
@@ -265,12 +200,8 @@
   {
     "id": "media.thumbnail",
     "description": "Create a PNG frame from local video at a bounded timestamp and width.",
-    "categories": [
-      "media"
-    ],
-    "capabilities": [
-      "media.thumbnail"
-    ],
+    "categories": ["media"],
+    "capabilities": ["media.thumbnail"],
     "transport": "processing",
     "input_schema": {
       "type": "object",
@@ -298,10 +229,7 @@
           "maximum": 3600
         }
       },
-      "required": [
-        "input",
-        "output"
-      ]
+      "required": ["input", "output"]
     },
     "output_schema": {
       "type": "object",
@@ -320,22 +248,12 @@
           "type": "boolean"
         }
       },
-      "required": [
-        "exit_code",
-        "stdout",
-        "stderr",
-        "truncated"
-      ]
+      "required": ["exit_code", "stdout", "stderr", "truncated"]
     },
     "enabled": false,
     "configured": false,
-    "required_scopes": [
-      "jobs:write"
-    ],
-    "environment_capabilities": [
-      "media",
-      "python"
-    ],
+    "required_scopes": ["jobs:write"],
+    "environment_capabilities": ["media", "python"],
     "side_effect": true,
     "action_policy": "write",
     "endpoint": null,
@@ -345,12 +263,8 @@
   {
     "id": "media.extract_audio",
     "description": "Create up to ten minutes of mono 16 kHz WAV for transcription.",
-    "categories": [
-      "media"
-    ],
-    "capabilities": [
-      "media.extract_audio"
-    ],
+    "categories": ["media"],
+    "capabilities": ["media.extract_audio"],
     "transport": "processing",
     "input_schema": {
       "type": "object",
@@ -372,10 +286,7 @@
           "maximum": 600
         }
       },
-      "required": [
-        "input",
-        "output"
-      ]
+      "required": ["input", "output"]
     },
     "output_schema": {
       "type": "object",
@@ -394,22 +305,12 @@
           "type": "boolean"
         }
       },
-      "required": [
-        "exit_code",
-        "stdout",
-        "stderr",
-        "truncated"
-      ]
+      "required": ["exit_code", "stdout", "stderr", "truncated"]
     },
     "enabled": false,
     "configured": false,
-    "required_scopes": [
-      "jobs:write"
-    ],
-    "environment_capabilities": [
-      "media",
-      "python"
-    ],
+    "required_scopes": ["jobs:write"],
+    "environment_capabilities": ["media", "python"],
     "side_effect": true,
     "action_policy": "write",
     "endpoint": null,
@@ -419,12 +320,8 @@
   {
     "id": "media.transcode",
     "description": "Create up to ten minutes of H.264/AAC MP4 with a bounded width.",
-    "categories": [
-      "media"
-    ],
-    "capabilities": [
-      "media.transcode"
-    ],
+    "categories": ["media"],
+    "capabilities": ["media.transcode"],
     "transport": "processing",
     "input_schema": {
       "type": "object",
@@ -452,10 +349,7 @@
           "maximum": 600
         }
       },
-      "required": [
-        "input",
-        "output"
-      ]
+      "required": ["input", "output"]
     },
     "output_schema": {
       "type": "object",
@@ -474,22 +368,12 @@
           "type": "boolean"
         }
       },
-      "required": [
-        "exit_code",
-        "stdout",
-        "stderr",
-        "truncated"
-      ]
+      "required": ["exit_code", "stdout", "stderr", "truncated"]
     },
     "enabled": false,
     "configured": false,
-    "required_scopes": [
-      "jobs:write"
-    ],
-    "environment_capabilities": [
-      "media",
-      "python"
-    ],
+    "required_scopes": ["jobs:write"],
+    "environment_capabilities": ["media", "python"],
     "side_effect": true,
     "action_policy": "write",
     "endpoint": null,

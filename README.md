@@ -45,10 +45,15 @@ smoke run, or follow [identity setup](docs/runbooks/identity.md) and
 
 ## Other guides
 
+- [Current roadmap and delivery order](docs/next-phases.md)
+- [Development standards and formatting](docs/development.md)
+- [October 1 code review and remaining findings](docs/code-review-2026-10-01.md)
+
 - [Chat](docs/runbooks/assistant.md), [conversations](docs/runbooks/conversations.md),
   [memory](docs/runbooks/shared-context.md), and [voice](docs/runbooks/remote-voice.md)
 - [Google connections](docs/runbooks/google.md), [local files](docs/runbooks/local-files.md),
   [accounts](docs/runbooks/identity.md), and [persistence](docs/runbooks/persistence.md)
+- [Creative applications and desktop control](docs/runbooks/agent-environments.md#creative-applications-and-desktop-control)
 - [Agent profiles](docs/runbooks/agent-profiles.md), [execution](docs/runbooks/agent-execution.md),
   and the [company platform plan](docs/architecture/multi-agent-company-platform-plan.md)
 
@@ -60,7 +65,8 @@ integration; home credentials and device drivers stay in that repository. See
 ## Verify
 
 ```powershell
-.\venv\Scripts\python.exe -m ruff check src tests scripts
+.\venv\Scripts\python.exe -m ruff check src tests scripts examples
+.\venv\Scripts\python.exe -m ruff format --check src tests scripts examples
 .\venv\Scripts\python.exe -m mypy src
 .\venv\Scripts\python.exe -m pytest -q -m "not postgres and not browser and not live"
 ```

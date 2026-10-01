@@ -36,17 +36,17 @@ def quoted(value):
 def component(reference, value, footprint, pins, schematic, board, *, dnp=False):
     symbol = reference if reference.startswith("U") else value.replace("-", "_").replace(".", "_")
     symbol = "".join(char if char.isalnum() or char == "_" else "_" for char in symbol)
-    item = dict(
-        reference=reference,
-        value=value,
-        footprint=footprint,
-        pins=pins,
-        schematic=schematic,
-        board=board,
-        symbol=symbol,
-        dnp=dnp,
-        uuid=uid(reference),
-    )
+    item = {
+        "reference": reference,
+        "value": value,
+        "footprint": footprint,
+        "pins": pins,
+        "schematic": schematic,
+        "board": board,
+        "symbol": symbol,
+        "dnp": dnp,
+        "uuid": uid(reference),
+    }
     COMPONENTS.append(item)
     NETS.update(net for _name, net, _kind in pins.values() if net)
     return item

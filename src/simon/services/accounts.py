@@ -135,9 +135,14 @@ class AccountService:
             if account.enrollment_hash:
                 self.store.delete_enrollment(account.enrollment_hash)
             token = self.identity.enroll(identifier, account.household_id)
-            self.store.save_managed_account(account.model_copy(update={
-                "enrollment_hash": token_hash(token), "version": account.version + 1,
-            }))
+            self.store.save_managed_account(
+                account.model_copy(
+                    update={
+                        "enrollment_hash": token_hash(token),
+                        "version": account.version + 1,
+                    }
+                )
+            )
             self.identity.audit.record(
                 event_type="account.password_recovery_issued",
                 actor=actor,

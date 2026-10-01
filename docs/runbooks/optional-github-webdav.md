@@ -7,17 +7,17 @@ They do not connect through plugins installed in the coding application.
 
 ## Operations
 
-| Tool | Behavior |
-| --- | --- |
-| `github.repository` | Repository metadata |
-| `github.issues`, `github.issue` | Paginated issues or one issue, with Markdown body |
-| `github.pull_requests`, `github.pull_request` | Paginated pull requests or one pull request |
-| `github.file_read` | UTF-8 repository file at an optional branch or commit reference |
-| `github.issue_create` | Create an issue in a permitted repository |
-| `github.pull_request_draft` | Create a draft between existing branches in the same repository |
-| `webdav.list` | Immediate children of a directory under the configured root |
-| `webdav.read` | File content as UTF-8 text or base64, plus its ETag |
-| `webdav.write` | Conditional create or update, using an expected ETag |
+| Tool                                          | Behavior                                                        |
+| --------------------------------------------- | --------------------------------------------------------------- |
+| `github.repository`                           | Repository metadata                                             |
+| `github.issues`, `github.issue`               | Paginated issues or one issue, with Markdown body               |
+| `github.pull_requests`, `github.pull_request` | Paginated pull requests or one pull request                     |
+| `github.file_read`                            | UTF-8 repository file at an optional branch or commit reference |
+| `github.issue_create`                         | Create an issue in a permitted repository                       |
+| `github.pull_request_draft`                   | Create a draft between existing branches in the same repository |
+| `webdav.list`                                 | Immediate children of a directory under the configured root     |
+| `webdav.read`                                 | File content as UTF-8 text or base64, plus its ETag             |
+| `webdav.write`                                | Conditional create or update, using an expected ETag            |
 
 GitHub operations do not push commits, merge pull requests, delete content, or accept arbitrary
 HTTP requests. Draft pull requests require existing remote branches. GitHub's issue listing
@@ -99,7 +99,7 @@ and unquoted ETags are rejected. These conditions use the
 [HTTP conditional request contract](https://datatracker.ietf.org/doc/html/rfc9110#section-13.1).
 
 ```json
-{"path":"reports/summary.md","content":"New report","expected_etag":"","encoding":"text"}
+{ "path": "reports/summary.md", "content": "New report", "expected_etag": "", "encoding": "text" }
 ```
 
 Files are limited to 256 KiB per operation. GitHub files must be UTF-8 text. WebDAV supports UTF-8

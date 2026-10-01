@@ -56,29 +56,55 @@ class TranscribeAudio(StrictModel):
 
 
 def generative_tool_definitions(
-    *, image_model: str | None = None, transcription_model: str | None = None,
-    credential_env: str = "SIMON_OPENAI_API_KEY", enabled: bool = False,
+    *,
+    image_model: str | None = None,
+    transcription_model: str | None = None,
+    credential_env: str = "SIMON_OPENAI_API_KEY",
+    enabled: bool = False,
 ) -> tuple[ToolDefinition, ...]:
     """No model default is assumed. Operators must choose models with API access."""
     rows = (
-        ("generative.image_generate", image_model, IMAGE_ENDPOINT, GenerateImage,
-         "Generate one PNG in this task's workspace using a configured GPT Image model."),
-        ("generative.audio_transcribe", transcription_model, AUDIO_ENDPOINT, TranscribeAudio,
-         "Transcribe a root-level PCM WAV in this task's workspace, up to ten minutes and 24 MB."),
+        (
+            "generative.image_generate",
+            image_model,
+            IMAGE_ENDPOINT,
+            GenerateImage,
+            "Generate one PNG in this task's workspace using a configured GPT Image model.",
+        ),
+        (
+            "generative.audio_transcribe",
+            transcription_model,
+            AUDIO_ENDPOINT,
+            TranscribeAudio,
+            "Transcribe a root-level PCM WAV in this task's workspace, "
+            "up to ten minutes and 24 MB.",
+        ),
     )
-    return tuple(ToolDefinition(
-        id=identifier, description=description + (
-            " This calls a paid external service. Tool charges are outside the model budget."
-        ), categories=frozenset({"image" if schema is GenerateImage else "audio"}),
-        capabilities=frozenset({
-            "image.generate" if schema is GenerateImage else "audio.transcribe",
-        }),
-        transport="generative", input_schema=schema.model_json_schema(),
-        enabled=enabled, configured=bool(model), required_scopes=SCOPES,
-        environment_capabilities=CAPABILITIES, side_effect=True, action_policy="write",
-        endpoint=endpoint, credential_env=credential_env,
-        settings={"model": model or "", "network": True},
-    ) for identifier, model, endpoint, schema, description in rows)
+    return tuple(
+        ToolDefinition(
+            id=identifier,
+            description=description
+            + (" This calls a paid external service. Tool charges are outside the model budget."),
+            categories=frozenset({"image" if schema is GenerateImage else "audio"}),
+            capabilities=frozenset(
+                {
+                    "image.generate" if schema is GenerateImage else "audio.transcribe",
+                }
+            ),
+            transport="generative",
+            input_schema=schema.model_json_schema(),
+            enabled=enabled,
+            configured=bool(model),
+            required_scopes=SCOPES,
+            environment_capabilities=CAPABILITIES,
+            side_effect=True,
+            action_policy="write",
+            endpoint=endpoint,
+            credential_env=credential_env,
+            settings={"model": model or "", "network": True},
+        )
+        for identifier, model, endpoint, schema, description in rows
+    )
 
 
 def generative_configuration_reason(definition: ToolDefinition) -> str | None:
@@ -91,16 +117,22 @@ def generative_configuration_reason(definition: ToolDefinition) -> str | None:
     if definition.endpoint != expected:
         return "Generative tools require their fixed OpenAI endpoint"
     model = definition.settings.get("model")
-    if not isinstance(model, str) or not model.strip() or len(model) > 200 or any(
-        ord(char) < 33 or ord(char) > 126 for char in model
+    if (
+        not isinstance(model, str)
+        or not model.strip()
+        or len(model) > 200
+        or any(ord(char) < 33 or ord(char) > 126 for char in model)
     ):
         return "Configure an exact provider model ID"
     if not definition.credential_env:
         return "Configure a server credential environment variable"
-    if (not definition.side_effect or definition.action_policy != "write"
-            or definition.settings.get("network") is not True
-            or not definition.required_scopes >= SCOPES
-            or not definition.environment_capabilities >= CAPABILITIES):
+    if (
+        not definition.side_effect
+        or definition.action_policy != "write"
+        or definition.settings.get("network") is not True
+        or not definition.required_scopes >= SCOPES
+        or not definition.environment_capabilities >= CAPABILITIES
+    ):
         return "Generative tools require write, network and workspace permissions"
     return None
 
@@ -122,11 +154,21 @@ def _open_nofollow(path: Path) -> int:
         _fields_ = [("attributes", wintypes.DWORD), ("tag", wintypes.DWORD)]
 
     kernel = ctypes.WinDLL("kernel32", use_last_error=True)
-    kernel.CreateFileW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD,
-                                  wintypes.LPVOID, wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE]
+    kernel.CreateFileW.argtypes = [
+        wintypes.LPCWSTR,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.LPVOID,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.HANDLE,
+    ]
     kernel.CreateFileW.restype = wintypes.HANDLE
     kernel.GetFileInformationByHandleEx.argtypes = [
-        wintypes.HANDLE, ctypes.c_int, wintypes.LPVOID, wintypes.DWORD,
+        wintypes.HANDLE,
+        ctypes.c_int,
+        wintypes.LPVOID,
+        wintypes.DWORD,
     ]
     kernel.GetFileInformationByHandleEx.restype = wintypes.BOOL
     kernel.CloseHandle.argtypes = [wintypes.HANDLE]
@@ -137,7 +179,10 @@ def _open_nofollow(path: Path) -> int:
     try:
         info = AttributeTag()
         if not kernel.GetFileInformationByHandleEx(
-            handle, 9, ctypes.byref(info), ctypes.sizeof(info),
+            handle,
+            9,
+            ctypes.byref(info),
+            ctypes.sizeof(info),
         ):
             raise OSError("Workspace input attributes could not be read")
         if info.attributes & (0x400 | 0x10):
@@ -163,7 +208,9 @@ def _read_audio(workspace: Path, request: TranscribeAudio) -> bytes:
             data = source.read(MAX_AUDIO_BYTES + 1)
             after = os.fstat(source.fileno())
         if len(data) > MAX_AUDIO_BYTES or (
-            before.st_size, before.st_mtime_ns, before.st_ino,
+            before.st_size,
+            before.st_mtime_ns,
+            before.st_ino,
         ) != (after.st_size, after.st_mtime_ns, after.st_ino):
             raise ValidationError("Audio changed during reading")
         reject_links(path)
@@ -175,10 +222,13 @@ def _read_audio(workspace: Path, request: TranscribeAudio) -> bytes:
         raise ValidationError("Audio changed; use the current imported file hash")
     try:
         with wave.open(io.BytesIO(data), "rb") as audio:
-            if (audio.getcomptype() != "NONE" or audio.getnchannels() not in {1, 2}
-                    or audio.getsampwidth() not in {1, 2, 3, 4}
-                    or not 8000 <= audio.getframerate() <= 96000
-                    or not 0 < audio.getnframes() <= audio.getframerate() * 600):
+            if (
+                audio.getcomptype() != "NONE"
+                or audio.getnchannels() not in {1, 2}
+                or audio.getsampwidth() not in {1, 2, 3, 4}
+                or not 8000 <= audio.getframerate() <= 96000
+                or not 0 < audio.getnframes() <= audio.getframerate() * 600
+            ):
                 raise ValidationError("Use uncompressed mono/stereo PCM WAV of up to ten minutes")
             expected = audio.getnframes() * audio.getnchannels() * audio.getsampwidth()
             if len(audio.readframes(audio.getnframes())) != expected:
@@ -190,9 +240,15 @@ def _read_audio(workspace: Path, request: TranscribeAudio) -> bytes:
 
 class GenerativeToolTransport:
     def __init__(
-        self, lease: EnvironmentLease, *, actor: ActorContext, run_id: UUID,
-        revalidate: Callable[[], ActorContext], environ: Mapping[str, str] | None = None,
-        timeout_seconds: float = 120, transport: httpx.BaseTransport | None = None,
+        self,
+        lease: EnvironmentLease,
+        *,
+        actor: ActorContext,
+        run_id: UUID,
+        revalidate: Callable[[], ActorContext],
+        environ: Mapping[str, str] | None = None,
+        timeout_seconds: float = 120,
+        transport: httpx.BaseTransport | None = None,
     ) -> None:
         if not 0 < timeout_seconds <= 300:
             raise ValueError("Generative timeout must be between zero and 300 seconds")
@@ -202,24 +258,34 @@ class GenerativeToolTransport:
         self._environ = os.environ if environ is None else environ
 
     def __call__(
-        self, definition: ToolDefinition, arguments: dict[str, Any], context: ToolExecutionContext,
+        self,
+        definition: ToolDefinition,
+        arguments: dict[str, Any],
+        context: ToolExecutionContext,
     ) -> dict[str, Any]:
         reason = generative_configuration_reason(definition)
         if reason:
             raise ToolCatalogError(reason)
         assignment = self.lease.plan.request
-        if (context.actor_id != self.actor.actor_id
-                or context.household_id != self.actor.household_id
-                or context.household_id != assignment.workspace_id
-                or context.run_id != self.run_id or context.agent_id != assignment.agent_id
-                or context.authorized_action != "write"
-                or definition.id not in context.allowed_tool_ids
-                or not definition.required_scopes <= context.scopes):
+        if (
+            context.actor_id != self.actor.actor_id
+            or context.household_id != self.actor.household_id
+            or context.household_id != assignment.workspace_id
+            or context.run_id != self.run_id
+            or context.agent_id != assignment.agent_id
+            or context.authorized_action != "write"
+            or definition.id not in context.allowed_tool_ids
+            or not definition.required_scopes <= context.scopes
+        ):
             raise AuthorizationError("Generative tool is outside this assignment's grant")
-        if (not definition.enabled or not definition.configured or self.lease.status != "active"
-                or self.lease.definition.kind != "docker"
-                or not self.lease.definition.capabilities >= CAPABILITIES
-                or not context.environment_capabilities >= CAPABILITIES):
+        if (
+            not definition.enabled
+            or not definition.configured
+            or self.lease.status != "active"
+            or self.lease.definition.kind != "docker"
+            or not self.lease.definition.capabilities >= CAPABILITIES
+            or not context.environment_capabilities >= CAPABILITIES
+        ):
             raise ToolCatalogError(
                 "Generative tools require an enabled, writable Docker assignment",
             )
@@ -229,20 +295,23 @@ class GenerativeToolTransport:
 
         def check() -> None:
             current = self.revalidate()
-            if ((current.actor_id, current.household_id) != (
-                self.actor.actor_id, self.actor.household_id,
+            if (current.actor_id, current.household_id) != (
+                self.actor.actor_id,
+                self.actor.household_id,
             ) or not definition.required_scopes <= (
                 current.scopes & self.actor.scopes & context.scopes
-            )):
+            ):
                 raise AuthorizationError("Generative tool account permissions changed")
 
         check()
         workspace = self.lease.plan.workspace_path
         reject_links(workspace)
         try:
-            request = (GenerateImage.model_validate(arguments)
-                       if definition.id == "generative.image_generate"
-                       else TranscribeAudio.model_validate(arguments))
+            request = (
+                GenerateImage.model_validate(arguments)
+                if definition.id == "generative.image_generate"
+                else TranscribeAudio.model_validate(arguments)
+            )
         except SchemaError:
             raise ValidationError("Invalid generative tool arguments") from None
         suffix = ".png" if isinstance(request, GenerateImage) else ".txt"
@@ -255,10 +324,16 @@ class GenerativeToolTransport:
         model = str(definition.settings["model"])
         kwargs: dict[str, Any]
         if isinstance(request, GenerateImage):
-            kwargs = {"json": {
-                "model": model, "prompt": request.prompt, "size": request.size,
-                "quality": request.quality, "output_format": "png", "n": 1,
-            }}
+            kwargs = {
+                "json": {
+                    "model": model,
+                    "prompt": request.prompt,
+                    "size": request.size,
+                    "quality": request.quality,
+                    "output_format": "png",
+                    "n": 1,
+                }
+            }
             limit = ((MAX_IMAGE_BYTES + 2) // 3) * 4 + 65536
         else:
             audio = _read_audio(workspace, request)
@@ -269,15 +344,27 @@ class GenerativeToolTransport:
             limit = MAX_TRANSCRIPT_BYTES + 65536
         check()  # A slow file read must not send audio after cancellation/access revocation.
         deadline = monotonic() + self.timeout_seconds
-        headers = {"Authorization": f"Bearer {secret}", "Accept": "application/json",
-                   "Accept-Encoding": "identity", "X-Client-Request-Id": str(context.invocation_id)}
+        headers = {
+            "Authorization": f"Bearer {secret}",
+            "Accept": "application/json",
+            "Accept-Encoding": "identity",
+            "X-Client-Request-Id": str(context.invocation_id),
+        }
         try:
-            with httpx.Client(
-                transport=self._transport, timeout=self.timeout_seconds,
-                follow_redirects=False, trust_env=False,
-            ) as client, client.stream(
-                "POST", definition.endpoint or "", headers=headers, **kwargs,
-            ) as response:
+            with (
+                httpx.Client(
+                    transport=self._transport,
+                    timeout=self.timeout_seconds,
+                    follow_redirects=False,
+                    trust_env=False,
+                ) as client,
+                client.stream(
+                    "POST",
+                    definition.endpoint or "",
+                    headers=headers,
+                    **kwargs,
+                ) as response,
+            ):
                 if not 200 <= response.status_code < 300:
                     raise ToolExecutionError(
                         "Generative provider rejected the request",
@@ -302,10 +389,12 @@ class GenerativeToolTransport:
                     raise ValueError("Generated image encoding is invalid or oversized")
                 output = base64.b64decode(encoded, validate=True)
                 dimensions = tuple(int(value) for value in request.size.split("x"))
-                if (not 24 <= len(output) <= MAX_IMAGE_BYTES
-                        or not output.startswith(b"\x89PNG\r\n\x1a\n")
-                        or output[12:16] != b"IHDR"
-                        or struct.unpack(">II", output[16:24]) != dimensions):
+                if (
+                    not 24 <= len(output) <= MAX_IMAGE_BYTES
+                    or not output.startswith(b"\x89PNG\r\n\x1a\n")
+                    or output[12:16] != b"IHDR"
+                    or struct.unpack(">II", output[16:24]) != dimensions
+                ):
                     raise ValueError("Generated PNG does not match the requested size")
             else:
                 text = result.get("text")
@@ -330,12 +419,20 @@ class GenerativeToolTransport:
                 unknown=True,
             ) from None
         return {
-            "path": destination.name, "size": len(output),
+            "path": destination.name,
+            "size": len(output),
             "sha256": hashlib.sha256(output).hexdigest(),
             "media_type": "image/png" if isinstance(request, GenerateImage) else "text/plain",
-            "provider": "openai", "model": model, "external_cost_usd": None,
+            "provider": "openai",
+            "model": model,
+            "external_cost_usd": None,
             "cost_note": "Provider tool charges are separate from the run's model budget.",
-            **({"text": output.decode("utf-8")[:24000],
-                "truncated": len(output.decode("utf-8")) > 24000}
-               if isinstance(request, TranscribeAudio) else {}),
+            **(
+                {
+                    "text": output.decode("utf-8")[:24000],
+                    "truncated": len(output.decode("utf-8")) > 24000,
+                }
+                if isinstance(request, TranscribeAudio)
+                else {}
+            ),
         }

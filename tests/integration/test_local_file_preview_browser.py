@@ -10,24 +10,35 @@ def test_upload_image_preview_and_pdf_link_use_authenticated_routes(request, tmp
     from playwright.sync_api import expect
 
     page, _, container = request.getfixturevalue("agent_ui")
-    container.connected.settings = container.connected.settings.model_copy(update={
-        "local_files_enabled": True, "local_files_dir": tmp_path / "files",
-    })
+    container.connected.settings = container.connected.settings.model_copy(
+        update={
+            "local_files_enabled": True,
+            "local_files_dir": tmp_path / "files",
+        }
+    )
     page.locator("#local-files-open").click()
     panel = page.locator("#local-files-panel")
     expect(panel.locator("#local-file-upload")).to_be_visible()
-    panel.locator("#local-file-upload").set_input_files({
-        "name": "preview.png", "mimeType": "image/png", "buffer": png_bytes(),
-    })
+    panel.locator("#local-file-upload").set_input_files(
+        {
+            "name": "preview.png",
+            "mimeType": "image/png",
+            "buffer": png_bytes(),
+        }
+    )
     expect(panel.get_by_role("button", name="Preview image")).to_be_visible()
     panel.get_by_role("button", name="Preview image").click()
     image = panel.get_by_role("img", name="preview.png")
     expect(image).to_be_visible()
     page.wait_for_function("document.querySelector('.local-file-image')?.naturalWidth === 1")
     assert "/v1/local-files/preview?" in image.get_attribute("src")
-    panel.locator("#local-file-upload").set_input_files({
-        "name": "report.pdf", "mimeType": "application/pdf", "buffer": b"%PDF-1.7\n%%EOF",
-    })
+    panel.locator("#local-file-upload").set_input_files(
+        {
+            "name": "report.pdf",
+            "mimeType": "application/pdf",
+            "buffer": b"%PDF-1.7\n%%EOF",
+        }
+    )
     link = panel.get_by_role("link", name="View report.pdf in a new tab")
     expect(link).to_be_visible()
     assert link.get_attribute("target") == "_blank"

@@ -241,9 +241,11 @@ class ModelEndpointClient:
             candidate = document["candidates"][0]
             if candidate.get("finishReason") not in {"STOP", "MAX_TOKENS"}:
                 raise ValueError("Unexpected candidate finish reason")
-            for part in candidate["content"]["parts"]:
-                if not part.get("thought", False):
-                    text_parts.append(part["text"])
+            text_parts.extend(
+                part["text"]
+                for part in candidate["content"]["parts"]
+                if not part.get("thought", False)
+            )
             truncated = candidate["finishReason"] == "MAX_TOKENS"
             usage = document.get("usageMetadata") or {}
             incoming = usage.get("promptTokenCount")

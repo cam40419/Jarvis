@@ -97,9 +97,9 @@ class AgentPlatformService:
         self.tool_availability = tool_availability
         self.project_team_resolver: Callable[[ActorContext, UUID], TeamTemplate] | None = None
         self.project_visibility_resolver: Callable[[ActorContext, UUID], Any] | None = None
-        self.project_profile_resolver: Callable[
-            [ActorContext, UUID], dict[str, AgentProfile | None]
-        ] | None = None
+        self.project_profile_resolver: (
+            Callable[[ActorContext, UUID], dict[str, AgentProfile | None]] | None
+        ) = None
         self._environ = platform_credentials() if environ is None else environ
         self.models = ModelRouter(manifest.models, environ=self._environ)
         self.tools = ToolCatalog(manifest.tools, available_transports=available_transports)
@@ -148,7 +148,8 @@ class AgentPlatformService:
                 state = "unavailable"
                 reasons.append("Server credential is missing")
             elif self.tool_availability is not None and tool.transport in {
-                "native", "external_actions",
+                "native",
+                "external_actions",
             }:
                 availability = self.tool_availability(actor, tool.id)
                 if not availability["available"]:
@@ -157,16 +158,24 @@ class AgentPlatformService:
             else:
                 state, optional_reasons = integration_status(tool, actor, self._environ)
                 reasons.extend(optional_reasons)
-            result.append({
-                "id": tool.id, "description": tool.description,
-                "categories": sorted(tool.categories), "capabilities": sorted(tool.capabilities),
-                "transport": tool.transport, "side_effect": tool.side_effect,
-                "state": state, "blocked_reasons": reasons,
-            })
+            result.append(
+                {
+                    "id": tool.id,
+                    "description": tool.description,
+                    "categories": sorted(tool.categories),
+                    "capabilities": sorted(tool.capabilities),
+                    "transport": tool.transport,
+                    "side_effect": tool.side_effect,
+                    "state": state,
+                    "blocked_reasons": reasons,
+                }
+            )
         return result
 
     def profiles(
-        self, actor: ActorContext, project_id: UUID | None = None,
+        self,
+        actor: ActorContext,
+        project_id: UUID | None = None,
     ) -> tuple[AgentProfile, ...]:
         """Resolve current owner-scoped profiles without changing the shared manifest."""
         self.authorize(actor)
@@ -177,8 +186,11 @@ class AgentPlatformService:
         records = self.agent_profiles.list(actor)
         saved_ids = {record.id for record in records}
         stock = tuple(profile for profile in self.manifest.agents if profile.id not in saved_ids)
-        custom = tuple(record.profile for record in records
-                       if record.state == "configured" and record.id not in stock_ids)
+        custom = tuple(
+            record.profile
+            for record in records
+            if record.state == "configured" and record.id not in stock_ids
+        )
         profiles = (*stock, *custom)
         if project_id is not None and self.project_profile_resolver is not None:
             members = self.project_profile_resolver(actor, project_id)
@@ -191,7 +203,8 @@ class AgentPlatformService:
     def teams(self, actor: ActorContext) -> tuple[TeamTemplate, ...]:
         self.authorize(actor)
         visible = tuple(
-            team for team in self.manifest.teams
+            team
+            for team in self.manifest.teams
             if not team.allowed_workspace_ids or actor.household_id in team.allowed_workspace_ids
         )
         custom = self.agent_profiles.profiles(actor)
@@ -202,12 +215,15 @@ class AgentPlatformService:
             while identifier in occupied:
                 identifier = f"my-custom-agents-{suffix}"
                 suffix += 1
-            visible += (TeamTemplate(
-                id=identifier, name="My agents",
-                agent_ids=tuple(item.id for item in custom),
-                max_parallel=self.manifest.max_parallel,
-                allowed_workspace_ids=frozenset({actor.household_id}),
-            ),)
+            visible += (
+                TeamTemplate(
+                    id=identifier,
+                    name="My agents",
+                    agent_ids=tuple(item.id for item in custom),
+                    max_parallel=self.manifest.max_parallel,
+                    allowed_workspace_ids=frozenset({actor.household_id}),
+                ),
+            )
         return visible
 
     def plan_profiles(self, actor: ActorContext, plan: AgentTeamPlan) -> dict[str, AgentProfile]:
@@ -250,7 +266,8 @@ class AgentPlatformService:
             "max_parallel": self.manifest.max_parallel,
             "teams": [team.model_dump(mode="json") for team in teams],
             "agents": [
-                agent.model_dump(mode="json") for agent in self.profiles(actor)
+                agent.model_dump(mode="json")
+                for agent in self.profiles(actor)
                 if agent.id in agent_ids
             ],
             "custom_agents": [
@@ -259,44 +276,59 @@ class AgentPlatformService:
             "skills": self.agent_profiles.skills(actor, tool_statuses),
             "individual_skills": self.agent_profiles.individual_skills(actor, tool_statuses),
             "contexts": [
-                context.model_dump(mode="json") for context in self.manifest.contexts
+                context.model_dump(mode="json")
+                for context in self.manifest.contexts
                 if context.workspace_id == actor.household_id
                 and (not context.actor_ids or actor.actor_id in context.actor_ids)
             ],
             "models": [
                 {
-                    "id": item.id, "model": item.model, "provider": item.provider,
-                    "local": item.local, "tier": item.tier,
-                    "budget_configured": item.local or (
+                    "id": item.id,
+                    "model": item.model,
+                    "provider": item.provider,
+                    "local": item.local,
+                    "tier": item.tier,
+                    "budget_configured": item.local
+                    or (
                         item.input_cost_per_million_usd is not None
                         and item.output_cost_per_million_usd is not None
                     ),
-                    "capabilities": sorted(item.capabilities), "enabled": item.enabled,
+                    "capabilities": sorted(item.capabilities),
+                    "enabled": item.enabled,
                     "state": (
-                        "disabled" if not item.enabled else
-                        "unavailable" if item.api_key_env
-                        and not self._environ.get(item.api_key_env, "").strip() else "configured"
+                        "disabled"
+                        if not item.enabled
+                        else "unavailable"
+                        if item.api_key_env and not self._environ.get(item.api_key_env, "").strip()
+                        else "configured"
                     ),
                     "blocked_reasons": (
-                        ["Disabled by the server configuration"] if not item.enabled else
-                        ["Server credential is missing"] if item.api_key_env
-                        and not self._environ.get(item.api_key_env, "").strip() else []
+                        ["Disabled by the server configuration"]
+                        if not item.enabled
+                        else ["Server credential is missing"]
+                        if item.api_key_env and not self._environ.get(item.api_key_env, "").strip()
+                        else []
                     ),
                 }
                 for item in self.manifest.models
             ],
             "environments": [
                 {
-                    "id": item.id, "kind": item.kind, "os": item.os,
-                    "capabilities": sorted(item.capabilities), "enabled": item.enabled,
+                    "id": item.id,
+                    "kind": item.kind,
+                    "os": item.os,
+                    "capabilities": sorted(item.capabilities),
+                    "enabled": item.enabled,
                     "max_concurrency": item.max_concurrency,
                 }
                 for item in self.manifest.environments
             ],
             "tools": [
                 {
-                    "id": tool.id, "categories": sorted(tool.categories),
-                    "capabilities": sorted(tool.capabilities), "transport": tool.transport,
+                    "id": tool.id,
+                    "categories": sorted(tool.categories),
+                    "capabilities": sorted(tool.capabilities),
+                    "transport": tool.transport,
                     "side_effect": tool.side_effect,
                 }
                 for tool in self.tools.discover(scopes=actor.scopes)
@@ -307,11 +339,15 @@ class AgentPlatformService:
         }
 
     def _task(
-        self, actor: ActorContext, plan_id: UUID, task: AgentTaskSpec, profile: AgentProfile,
+        self,
+        actor: ActorContext,
+        plan_id: UUID,
+        task: AgentTaskSpec,
+        profile: AgentProfile,
         project_id: UUID | None = None,
     ) -> PlannedAgentTask:
         blocked: list[str] = []
-        render_agent_prompt(profile, task, {key: "" for key in task.depends_on})
+        render_agent_prompt(profile, task, dict.fromkeys(task.depends_on, ""))
         task_id = uuid5(plan_id, task.id)
         attempt_id = uuid5(task_id, "initial-attempt")
         selected_tools = task.tool_ids if task.tool_ids is not None else profile.tool_ids
@@ -334,7 +370,8 @@ class AgentPlatformService:
             ):
                 blocked.append(f"The selected agent cannot authorize this tool's action: {key}")
             if self.tool_availability is not None and tool.transport in {
-                "native", "external_actions",
+                "native",
+                "external_actions",
             }:
                 availability = self.tool_availability(actor, key)
                 if not availability["available"]:
@@ -350,24 +387,27 @@ class AgentPlatformService:
         ):
             blocked.append("A selected tool is missing its configured credential")
         needed = frozenset(
-            requirement for tool_id in selected_tools
+            requirement
+            for tool_id in selected_tools
             for requirement in definitions[tool_id].environment_capabilities
         )
         environment = None
         choices = (task.environment_id,) if task.environment_id else profile.environment_ids
         for identifier in choices:
-            definition = next(
-                item for item in self.manifest.environments if item.id == identifier
-            )
-            if definition.credential_env and not self._environ.get(
-                definition.credential_env, ""
-            ).strip():
+            definition = next(item for item in self.manifest.environments if item.id == identifier)
+            if (
+                definition.credential_env
+                and not self._environ.get(definition.credential_env, "").strip()
+            ):
                 continue
             try:
                 environment = self.environments.plan(
                     EnvironmentRequest(
-                        workspace_id=actor.household_id, agent_id=profile.id,
-                        task_id=task_id, attempt_id=attempt_id, capabilities=needed,
+                        workspace_id=actor.household_id,
+                        agent_id=profile.id,
+                        task_id=task_id,
+                        attempt_id=attempt_id,
+                        capabilities=needed,
                     ),
                     environment_id=identifier,
                 )
@@ -380,7 +420,8 @@ class AgentPlatformService:
             blocked.append("The selected tools require a configured execution environment")
         if (
             (task.privacy or profile.privacy) == "local_only"
-            and environment is not None and environment.network != "none"
+            and environment is not None
+            and environment.network != "none"
         ):
             blocked.append("Local-only tasks require an environment with networking disabled")
         if environment is not None:
@@ -388,8 +429,11 @@ class AgentPlatformService:
                 tool = definitions[key]
                 if tool.transport in {"cad", "pcb"}:
                     definition = self.environments.definitions[environment.environment_id]
-                    if (environment.network != "none" or definition.kind != "docker"
-                            or definition.os != "linux"):
+                    if (
+                        environment.network != "none"
+                        or definition.kind != "docker"
+                        or definition.os != "linux"
+                    ):
                         blocked.append(f"{key} requires an offline Linux Docker environment")
                 if tool.transport == "browser":
                     network = "none" if tool.id == "browser.render_html" else "bridge"
@@ -398,13 +442,17 @@ class AgentPlatformService:
                             f"{key} requires a browser environment with {network} networking"
                         )
         environment_capabilities = next(
-            (item.capabilities for item in self.manifest.environments
-             if environment is not None and item.id == environment.environment_id),
+            (
+                item.capabilities
+                for item in self.manifest.environments
+                if environment is not None and item.id == environment.environment_id
+            ),
             frozenset(),
         )
         try:
             self.tools.resolve(
-                selected_tools, scopes=actor.scopes & profile.tool_scopes,
+                selected_tools,
+                scopes=actor.scopes & profile.tool_scopes,
                 environment_capabilities=environment_capabilities,
             )
         except (ToolCatalogError, AuthorizationError) as error:
@@ -431,14 +479,23 @@ class AgentPlatformService:
         except ModelRoutingError as error:
             blocked.append(str(error))
         return PlannedAgentTask(
-            id=task.id, agent_id=profile.id, task_id=task_id, attempt_id=attempt_id,
-            objective=task.objective, depends_on=task.depends_on,
-            tool_ids=tuple(selected_tools), model=model, environment=environment,
+            id=task.id,
+            agent_id=profile.id,
+            task_id=task_id,
+            attempt_id=attempt_id,
+            objective=task.objective,
+            depends_on=task.depends_on,
+            tool_ids=tuple(selected_tools),
+            model=model,
+            environment=environment,
             blocked_reasons=tuple(blocked),
         )
 
     def resolve_team(
-        self, actor: ActorContext, team_id: str, project_id: UUID | None = None,
+        self,
+        actor: ActorContext,
+        team_id: str,
+        project_id: UUID | None = None,
     ) -> TeamTemplate:
         if project_id is not None:
             if self.project_team_resolver is None:
@@ -470,7 +527,8 @@ class AgentPlatformService:
                 raise IdempotencyConflictError("Idempotency key was used for a different plan")
             return self.get(actor, identifier)
         limit = min(
-            self.manifest.max_parallel, team.max_parallel,
+            self.manifest.max_parallel,
+            team.max_parallel,
             request.max_parallel or self.manifest.max_parallel,
         )
         profiles = {profile.id: profile for profile in self.profiles(actor, request.project_id)}
@@ -482,47 +540,73 @@ class AgentPlatformService:
         )
         waves = self._waves(tasks, limit)
         plan = AgentTeamPlan(
-            id=identifier, workspace_id=actor.household_id, actor_id=actor.actor_id,
-            team_id=team.id, team_version=team.version, context_id=request.context_id,
+            id=identifier,
+            workspace_id=actor.household_id,
+            actor_id=actor.actor_id,
+            team_id=team.id,
+            team_version=team.version,
+            context_id=request.context_id,
             project_id=request.project_id,
             manifest_digest=digest(stable_configuration(self.manifest.model_dump(mode="python"))),
             max_parallel=limit,
             state="blocked" if any(t.blocked_reasons for t in tasks) else "planned",
-            tasks=tasks, waves=waves,
+            tasks=tasks,
+            waves=waves,
         )
         job = Job(
-            id=identifier, household_id=actor.household_id, created_by=actor.actor_id,
+            id=identifier,
+            household_id=actor.household_id,
+            created_by=actor.actor_id,
             kind=PLAN_KIND,
-            idempotency_key=digest({
-                "actor": str(actor.actor_id), "key": request.idempotency_key,
-            }),
+            idempotency_key=digest(
+                {
+                    "actor": str(actor.actor_id),
+                    "key": request.idempotency_key,
+                }
+            ),
             input={
                 "request": request.model_dump(mode="json"),
                 "plan": plan.model_dump(mode="json"),
                 "configuration": {
                     "team": team.model_dump(mode="json"),
-                    "agents": [profiles[key].model_dump(mode="json")
-                               for key in sorted({task.agent_id for task in tasks})],
-                    "models": [item.model_dump(mode="json") for item in self.manifest.models
-                               if item.id in {task.model.endpoint_id for task in tasks
-                                              if task.model is not None}],
-                    "environments": [
-                        item.model_dump(mode="json") for item in self.manifest.environments
-                        if item.id in {task.environment.environment_id for task in tasks
-                                       if task.environment is not None}
+                    "agents": [
+                        profiles[key].model_dump(mode="json")
+                        for key in sorted({task.agent_id for task in tasks})
                     ],
-                    "tools": [item.model_dump(mode="json") for item in self.manifest.tools
-                              if item.id in {key for task in tasks for key in task.tool_ids}],
+                    "models": [
+                        item.model_dump(mode="json")
+                        for item in self.manifest.models
+                        if item.id
+                        in {task.model.endpoint_id for task in tasks if task.model is not None}
+                    ],
+                    "environments": [
+                        item.model_dump(mode="json")
+                        for item in self.manifest.environments
+                        if item.id
+                        in {
+                            task.environment.environment_id
+                            for task in tasks
+                            if task.environment is not None
+                        }
+                    ],
+                    "tools": [
+                        item.model_dump(mode="json")
+                        for item in self.manifest.tools
+                        if item.id in {key for task in tasks for key in task.tool_ids}
+                    ],
                 },
             },
-            input_digest=fingerprint, status=JobStatus.WAITING,
+            input_digest=fingerprint,
+            status=JobStatus.WAITING,
         )
         with self.store.transaction(actor.household_id):
             saved, created = self.store.create_job(job)
             if created:
                 self.audit.record(
-                    event_type="platform.plan.created", actor=actor,
-                    resource_type="platform.plan", resource_id=str(identifier),
+                    event_type="platform.plan.created",
+                    actor=actor,
+                    resource_type="platform.plan",
+                    resource_id=str(identifier),
                     payload={"team_id": team.id, "state": plan.state, "tasks": len(tasks)},
                 )
         return AgentTeamPlan.model_validate(saved.input["plan"])
@@ -559,7 +643,8 @@ class AgentPlatformService:
         self.authorize(actor)
         job = self.store.get_job(identifier)
         if (
-            job is None or job.kind != PLAN_KIND
+            job is None
+            or job.kind != PLAN_KIND
             or (job.household_id, job.created_by) != (actor.household_id, actor.actor_id)
         ):
             raise NotFoundError("Agent plan not found")

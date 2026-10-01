@@ -20,9 +20,7 @@ class CreateAssistantTask(StrictModel):
 class EditAssistantTask(StrictModel):
     expected_version: int = Field(ge=1)
     title: str | None = Field(default=None, min_length=1, max_length=120, pattern=r"\S")
-    instructions: str | None = Field(
-        default=None, min_length=1, max_length=4000, pattern=r"\S"
-    )
+    instructions: str | None = Field(default=None, min_length=1, max_length=4000, pattern=r"\S")
     task_type: Literal["work", "research"] | None = None
     project_id: UUID | None = None
     change_project: bool = False
@@ -31,9 +29,13 @@ class EditAssistantTask(StrictModel):
     @model_validator(mode="after")
     def changed(self) -> "EditAssistantTask":
         if not any(
-            (self.title is not None, self.instructions is not None,
-             self.task_type is not None,
-             self.change_project, self.priority is not None)
+            (
+                self.title is not None,
+                self.instructions is not None,
+                self.task_type is not None,
+                self.change_project,
+                self.priority is not None,
+            )
         ):
             raise ValueError("provide at least one task change")
         return self

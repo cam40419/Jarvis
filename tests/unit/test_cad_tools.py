@@ -21,25 +21,47 @@ from simon.domain.tool_catalog import ToolCatalogError, ToolExecutionContext, To
 @pytest.fixture
 def runtime(tmp_path):
     definition = EnvironmentDefinition(
-        id="cad", kind="docker", container_image="simon-cad:local", enabled=True,
+        id="cad",
+        kind="docker",
+        container_image="simon-cad:local",
+        enabled=True,
         capabilities=CAPABILITIES,
     )
     request = EnvironmentRequest(
-        workspace_id=uuid4(), agent_id="cad", task_id=uuid4(), attempt_id=uuid4(),
+        workspace_id=uuid4(),
+        agent_id="cad",
+        task_id=uuid4(),
+        attempt_id=uuid4(),
         capabilities=CAPABILITIES,
     )
     lease = EnvironmentLease(
-        id=uuid4(), plan=EnvironmentPlan(
-            environment_id="cad", kind="docker", request=request, workspace_path=tmp_path,
-            network="none", cpu_limit=2, memory_mb=2048, gpu_devices=(),
-        ), definition=definition, fencing_token=9, status="active",
-        created_at=utc_now(), heartbeat_at=utc_now(),
+        id=uuid4(),
+        plan=EnvironmentPlan(
+            environment_id="cad",
+            kind="docker",
+            request=request,
+            workspace_path=tmp_path,
+            network="none",
+            cpu_limit=2,
+            memory_mb=2048,
+            gpu_devices=(),
+        ),
+        definition=definition,
+        fencing_token=9,
+        status="active",
+        created_at=utc_now(),
+        heartbeat_at=utc_now(),
     )
     tools = {tool.id: tool for tool in cad_tool_definitions(enabled=True)}
     context = ToolExecutionContext(
-        actor_id=uuid4(), household_id=request.workspace_id, run_id=uuid4(), agent_id="cad",
-        scopes=frozenset({"jobs:read", "jobs:write"}), allowed_tool_ids=frozenset(tools),
-        authorized_action="write", environment_capabilities=CAPABILITIES,
+        actor_id=uuid4(),
+        household_id=request.workspace_id,
+        run_id=uuid4(),
+        agent_id="cad",
+        scopes=frozenset({"jobs:read", "jobs:write"}),
+        allowed_tool_ids=frozenset(tools),
+        authorized_action="write",
+        environment_capabilities=CAPABILITIES,
     )
 
     class Manager:
@@ -77,31 +99,52 @@ def test_cross_assignment_is_rejected_before_execution(runtime, field):
     manager, _, tools, context, transport = runtime
     value = "other" if field == "agent_id" else uuid4()
     with pytest.raises(AuthorizationError):
-        transport(tools["cad.mesh_inspect"], {"input": "shape.stl"},
-                  context.model_copy(update={field: value}))
+        transport(
+            tools["cad.mesh_inspect"],
+            {"input": "shape.stl"},
+            context.model_copy(update={field: value}),
+        )
     assert not manager.calls
 
 
-@pytest.mark.parametrize("updates", [
-    {"scopes": frozenset()}, {"allowed_tool_ids": frozenset()}, {"authorized_action": "read"},
-])
+@pytest.mark.parametrize(
+    "updates",
+    [
+        {"scopes": frozenset()},
+        {"allowed_tool_ids": frozenset()},
+        {"authorized_action": "read"},
+    ],
+)
 def test_exports_require_write_permission(runtime, updates):
     manager, _, tools, context, transport = runtime
     with pytest.raises(AuthorizationError):
-        transport(tools["cad.openscad_export"], {"input": "source.scad", "output": "out.stl"},
-                  context.model_copy(update=updates))
+        transport(
+            tools["cad.openscad_export"],
+            {"input": "source.scad", "output": "out.stl"},
+            context.model_copy(update=updates),
+        )
     assert not manager.calls
 
 
-@pytest.mark.parametrize("updates", [
-    {"side_effect": False}, {"action_policy": "read"}, {"required_scopes": frozenset()},
-    {"environment_capabilities": frozenset()}, {"enabled": False}, {"transport": "http"},
-])
+@pytest.mark.parametrize(
+    "updates",
+    [
+        {"side_effect": False},
+        {"action_policy": "read"},
+        {"required_scopes": frozenset()},
+        {"environment_capabilities": frozenset()},
+        {"enabled": False},
+        {"transport": "http"},
+    ],
+)
 def test_weakened_declarations_are_rejected(runtime, updates):
     manager, _, tools, context, transport = runtime
     with pytest.raises(ToolCatalogError):
-        transport(tools["cad.openscad_export"].model_copy(update=updates),
-                  {"input": "source.scad", "output": "out.stl"}, context)
+        transport(
+            tools["cad.openscad_export"].model_copy(update=updates),
+            {"input": "source.scad", "output": "out.stl"},
+            context,
+        )
     assert not manager.calls
 
 
@@ -115,8 +158,18 @@ def test_requires_offline_equipped_docker(runtime, updates):
     assert not manager.calls
 
 
-@pytest.mark.parametrize("path", ["../out.stl", "/etc/file.stl", "C:/out.stl", ".git/out.stl",
-                                  "https://host/out.stl", "--out.stl", "bad\x00.stl"])
+@pytest.mark.parametrize(
+    "path",
+    [
+        "../out.stl",
+        "/etc/file.stl",
+        "C:/out.stl",
+        ".git/out.stl",
+        "https://host/out.stl",
+        "--out.stl",
+        "bad\x00.stl",
+    ],
+)
 def test_paths_cannot_escape_or_inject_options(runtime, path):
     manager, _, tools, context, transport = runtime
     with pytest.raises(ToolCatalogError):
@@ -124,14 +177,17 @@ def test_paths_cannot_escape_or_inject_options(runtime, path):
     assert not manager.calls
 
 
-@pytest.mark.parametrize("arguments", [
-    {"input": "a.stl", "output": "a.png", "samples": 129},
-    {"input": "a.stl", "output": "a.png", "resolution": True},
-    {"input": "a.stl", "output": "a.png", "save_scene": "yes"},
-    {"input": "a.stl", "output": "a.png", "material": "url"},
-    {"input": "a.blend", "output": "a.png"},
-    {"input": "a.stl", "output": "a.png", "script": "arbitrary.py"},
-])
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {"input": "a.stl", "output": "a.png", "samples": 129},
+        {"input": "a.stl", "output": "a.png", "resolution": True},
+        {"input": "a.stl", "output": "a.png", "save_scene": "yes"},
+        {"input": "a.stl", "output": "a.png", "material": "url"},
+        {"input": "a.blend", "output": "a.png"},
+        {"input": "a.stl", "output": "a.png", "script": "arbitrary.py"},
+    ],
+)
 def test_renderer_is_bounded_and_does_not_accept_user_code(arguments):
     with pytest.raises(ValueError):
         runner.validate_arguments("cad.render_mesh", arguments)
@@ -167,3 +223,65 @@ def test_runner_rejects_output_collision_directories_and_links(tmp_path):
     with pytest.raises(ValueError, match="links"):
         runner.workspace_file(tmp_path, linked.name)
     assert source.read_bytes() == b"existing"
+
+
+def test_blender_scripting_is_explicit_and_requires_extra_capability(runtime):
+    manager, lease, _, context, _ = runtime
+    assert "cad.blender_script" not in {tool.id for tool in cad_tool_definitions()}
+    definition = next(
+        tool
+        for tool in cad_tool_definitions(enabled=True, include_scripting=True)
+        if tool.id == "cad.blender_script"
+    )
+    context = context.model_copy(update={"allowed_tool_ids": frozenset({definition.id})})
+    transport = CadToolTransport(manager, lease, actor_id=context.actor_id, run_id=context.run_id)
+    with pytest.raises(ToolCatalogError):
+        transport(definition, {"input": "scene.py", "output": "scene.blend"}, context)
+    assert not manager.calls
+    capabilities = CAPABILITIES | {"blender.script"}
+    lease = lease.model_copy(
+        update={"definition": lease.definition.model_copy(update={"capabilities": capabilities})}
+    )
+    context = context.model_copy(update={"environment_capabilities": capabilities})
+    transport = CadToolTransport(manager, lease, actor_id=context.actor_id, run_id=context.run_id)
+    transport(definition, {"input": "scene.py", "output": "scene.blend"}, context)
+    payload = json.loads(manager.calls[0][1].argv[-1])
+    assert payload["operation"] == "cad.blender_script"
+    assert payload["arguments"] == {"input": "scene.py", "output": "scene.blend"}
+
+
+def test_blender_script_runner_stages_native_output_and_refuses_overwrite(tmp_path, monkeypatch):
+    import ast
+    import sys
+    from pathlib import Path
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(runner.sys, "platform", "linux")
+    monkeypatch.setitem(
+        sys.modules, "resource", SimpleNamespace(RLIMIT_FSIZE=1, setrlimit=lambda *_: None)
+    )
+    (tmp_path / "scene.py").write_text("import bpy\nbpy.ops.mesh.primitive_cube_add()")
+    commands = []
+
+    def run(command, **kwargs):
+        commands.append(command)
+        source = Path(command[-1]).read_text()
+        tree = ast.parse(source)
+        save = tree.body[-1].value
+        destination = Path(ast.literal_eval(save.keywords[0].value))
+        destination.write_bytes(b"BLENDER-native-scene")
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(runner.subprocess, "run", run)
+    request = {
+        "operation": "cad.blender_script",
+        "arguments": {"input": "scene.py", "output": "result.blend"},
+        "timeout_seconds": 30,
+    }
+    assert runner.run(request, tmp_path) == 0
+    assert (tmp_path / "result.blend").read_bytes() == b"BLENDER-native-scene"
+    assert commands[0][0] == "/usr/bin/blender"
+    assert "--disable-autoexec" in commands[0]
+    with pytest.raises(ValueError, match="Output exists"):
+        runner.run(request, tmp_path)
+    assert len(commands) == 1

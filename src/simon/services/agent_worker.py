@@ -32,6 +32,7 @@ from simon.adapters.tool_preflight import uses_network
 from simon.adapters.tool_transports import TransportRegistry
 from simon.domain.agent_platform import AgentProfile, AgentTaskSpec, PlannedAgentTask
 from simon.domain.agent_worker import WorkerResult, WorkerStatus, WorkerToolRecord
+from simon.domain.artifacts import DependencyArtifact
 from simon.domain.errors import AuthorizationError
 from simon.domain.model_routing import (
     RoutingDecision,
@@ -93,7 +94,9 @@ def _finite_float(value: str) -> float:
 
 def _strict_json(value: str) -> Any:
     return json.loads(
-        value, object_pairs_hook=_unique_object, parse_constant=_invalid_constant,
+        value,
+        object_pairs_hook=_unique_object,
+        parse_constant=_invalid_constant,
         parse_float=_finite_float,
     )
 
@@ -114,19 +117,26 @@ class _Progress:
         self, status: WorkerStatus, code: str | None = None, output: str = ""
     ) -> WorkerResult:
         return WorkerResult(
-            status=status, output=output, error_code=code, steps=self.steps,
-            tool_calls=self.tool_calls, input_tokens=self.input_tokens,
-            output_tokens=self.output_tokens, provenance=tuple(self.provenance),
+            status=status,
+            output=output,
+            error_code=code,
+            steps=self.steps,
+            tool_calls=self.tool_calls,
+            input_tokens=self.input_tokens,
+            output_tokens=self.output_tokens,
+            provenance=tuple(self.provenance),
         )
 
     def usage(self, response: TextGenerationResult) -> None:
         self.input_tokens = (
             self.input_tokens + response.input_tokens
-            if self.input_tokens is not None and response.input_tokens is not None else None
+            if self.input_tokens is not None and response.input_tokens is not None
+            else None
         )
         self.output_tokens = (
             self.output_tokens + response.output_tokens
-            if self.output_tokens is not None and response.output_tokens is not None else None
+            if self.output_tokens is not None and response.output_tokens is not None
+            else None
         )
 
 
@@ -166,6 +176,7 @@ class AgentWorker:
         spec: AgentTaskSpec,
         profile: AgentProfile,
         dependency_outputs: Mapping[str, str],
+        dependency_artifacts: tuple[DependencyArtifact, ...] = (),
         context_name: str = "",
         environment_capabilities: frozenset[str] = frozenset(),
         cancelled: Callable[[], bool] = _not_cancelled,
@@ -189,8 +200,11 @@ class AgentWorker:
                 checkpoint(event)
             except WorkerCheckpointError as exc:
                 status: WorkerStatus = (
-                    "unknown" if after_dispatch else
-                    "cancelled" if exc.code == "cancelled" else "failed"
+                    "unknown"
+                    if after_dispatch
+                    else "cancelled"
+                    if exc.code == "cancelled"
+                    else "failed"
                 )
                 return progress.result(status, exc.code)
             except Exception:
@@ -204,8 +218,11 @@ class AgentWorker:
         if "jobs:write" not in actor.scopes:
             return progress.result("failed", "worker_not_authorized")
         if (
-            task.agent_id != profile.id or spec.agent_id != profile.id or task.id != spec.id
-            or task.objective != spec.objective or task.depends_on != spec.depends_on
+            task.agent_id != profile.id
+            or spec.agent_id != profile.id
+            or task.id != spec.id
+            or task.objective != spec.objective
+            or task.depends_on != spec.depends_on
             or not set(task.tool_ids) <= set(profile.tool_ids)
             or (spec.tool_ids is not None and set(task.tool_ids) != set(spec.tool_ids))
         ):
@@ -213,20 +230,23 @@ class AgentWorker:
         decision = task.model
         if task.blocked_reasons or decision is None:
             return progress.result("failed", "task_blocked")
-        if (
-            (profile.privacy == "local_only" or spec.privacy == "local_only")
-            and not decision.local
-        ):
+        if (profile.privacy == "local_only" or spec.privacy == "local_only") and not decision.local:
             return progress.result("failed", "model_privacy_violation")
         if not decision.request.required_capabilities <= {"text", "tools"}:
             return progress.result("failed", "unsupported_worker_model_capability")
         scopes = actor.scopes & profile.tool_scopes
         try:
             selected = self.tool_catalog.resolve(
-                task.tool_ids, scopes=scopes, environment_capabilities=environment_capabilities,
+                task.tool_ids,
+                scopes=scopes,
+                environment_capabilities=environment_capabilities,
             )
             prepared = render_agent_prompt(
-                profile, spec, dependency_outputs, context_name=context_name,
+                profile,
+                spec,
+                dependency_outputs,
+                context_name=context_name,
+                dependency_artifacts=dependency_artifacts,
             )
         except AuthorizationError:
             return progress.result("failed", "tool_not_authorized")
@@ -241,7 +261,8 @@ class AgentWorker:
             return progress.result("failed", "local_only_network_tool")
         if (
             (spec.privacy or profile.privacy) == "local_only"
-            and task.environment is not None and task.environment.network != "none"
+            and task.environment is not None
+            and task.environment.network != "none"
         ):
             return progress.result("failed", "local_only_network_environment")
         if selected and "tools" not in decision.request.required_capabilities:
@@ -250,19 +271,32 @@ class AgentWorker:
             return progress.result("failed", "tool_transport_unavailable")
         if any(
             item.action_policy == "external_commitment"
-            or (item.side_effect and profile.max_action != "write") for item in selected
+            or (item.side_effect and profile.max_action != "write")
+            for item in selected
         ):
             return progress.result("failed", "tool_action_not_authorized")
         system = prepared.system
         if selected:
-            system += "\n\n" + _CONTROLLER + "\nGranted tools:\n" + _json([
-                {"id": item.id, "description": item.description,
-                 "input_schema": item.input_schema, "action_policy": item.action_policy}
-                for item in selected
-            ])
+            system += (
+                "\n\n"
+                + _CONTROLLER
+                + "\nGranted tools:\n"
+                + _json(
+                    [
+                        {
+                            "id": item.id,
+                            "description": item.description,
+                            "input_schema": item.input_schema,
+                            "action_policy": item.action_policy,
+                        }
+                        for item in selected
+                    ]
+                )
+            )
         history: list[dict[str, Any]] = []
-        maximum_output = min(spec.output_tokens, profile.max_output_tokens,
-                             decision.request.output_tokens)
+        maximum_output = min(
+            spec.output_tokens, profile.max_output_tokens, decision.request.output_tokens
+        )
         for _ in range(profile.max_steps):
             if halt := stopped():
                 return halt
@@ -280,19 +314,32 @@ class AgentWorker:
                 )
             except UnicodeError:
                 return progress.result("failed", "invalid_prompt_encoding")
-            wire_decision = decision.model_copy(update={"request": decision.request.model_copy(
-                update={"required_capabilities": frozenset({"text"}),
-                        "input_tokens": reserved_input, "output_tokens": maximum_output}
-            )})
+            wire_decision = decision.model_copy(
+                update={
+                    "request": decision.request.model_copy(
+                        update={
+                            "required_capabilities": frozenset({"text"}),
+                            "input_tokens": reserved_input,
+                            "output_tokens": maximum_output,
+                        }
+                    )
+                }
+            )
             request = TextGenerationRequest(
-                system=system, prompt=prompt, max_output_tokens=maximum_output,
+                system=system,
+                prompt=prompt,
+                max_output_tokens=maximum_output,
             )
             next_step = progress.steps + 1
-            if halt := save({
-                "event": "model_dispatch", "step": next_step,
-                "endpoint_id": decision.endpoint_id, "input_tokens_reserved": reserved_input,
-                "output_tokens_reserved": maximum_output,
-            }):
+            if halt := save(
+                {
+                    "event": "model_dispatch",
+                    "step": next_step,
+                    "endpoint_id": decision.endpoint_id,
+                    "input_tokens_reserved": reserved_input,
+                    "output_tokens_reserved": maximum_output,
+                }
+            ):
                 return halt
             progress.steps = next_step
             try:
@@ -301,7 +348,8 @@ class AgentWorker:
                 if exc.may_have_been_dispatched:
                     progress.input_tokens = progress.output_tokens = None
                 return progress.result(
-                    "unknown" if exc.may_have_been_dispatched else "failed", exc.code,
+                    "unknown" if exc.may_have_been_dispatched else "failed",
+                    exc.code,
                 )
             except Exception:
                 progress.input_tokens = progress.output_tokens = None
@@ -309,11 +357,17 @@ class AgentWorker:
             progress.usage(response)
             if response.endpoint_id != decision.endpoint_id:
                 return progress.result("unknown", "model_identity_mismatch")
-            if halt := save({
-                "event": "model_complete", "step": progress.steps,
-                "endpoint_id": decision.endpoint_id, "input_tokens": response.input_tokens,
-                "output_tokens": response.output_tokens, "truncated": response.truncated,
-            }, after_dispatch=True):
+            if halt := save(
+                {
+                    "event": "model_complete",
+                    "step": progress.steps,
+                    "endpoint_id": decision.endpoint_id,
+                    "input_tokens": response.input_tokens,
+                    "output_tokens": response.output_tokens,
+                    "truncated": response.truncated,
+                },
+                after_dispatch=True,
+            ):
                 return halt
             if halt := stopped():
                 return halt
@@ -328,15 +382,19 @@ class AgentWorker:
                 if not isinstance(control, dict):
                     raise ValueError("Controller response must be an object")
                 if control.get("type") == "final" and set(control) in (
-                    {"type", "output"}, {"type", "output", "artifacts"},
+                    {"type", "output"},
+                    {"type", "output", "artifacts"},
                 ):
                     if not isinstance(control["output"], str):
                         raise ValueError("Final output must be a string")
                     paths = control.get("artifacts", [])
                     if (
-                        not isinstance(paths, list) or len(paths) > 16
-                        or any(not isinstance(path, str) or not 1 <= len(path) <= 1000
-                               for path in paths)
+                        not isinstance(paths, list)
+                        or len(paths) > 16
+                        or any(
+                            not isinstance(path, str) or not 1 <= len(path) <= 1000
+                            for path in paths
+                        )
                         or len(set(paths)) != len(paths)
                     ):
                         raise ValueError("Invalid artifact list")
@@ -370,18 +428,27 @@ class AgentWorker:
             except (SchemaValidationError, Unresolvable, RecursionError):
                 return progress.result("failed", "invalid_tool_arguments")
             context = ToolExecutionContext(
-                actor_id=actor.actor_id, household_id=actor.household_id, run_id=run_id,
-                agent_id=profile.id, invocation_id=uuid4(), allowed_tool_ids=frozenset(definitions),
-                scopes=scopes, environment_capabilities=environment_capabilities,
+                actor_id=actor.actor_id,
+                household_id=actor.household_id,
+                run_id=run_id,
+                agent_id=profile.id,
+                invocation_id=uuid4(),
+                allowed_tool_ids=frozenset(definitions),
+                scopes=scopes,
+                environment_capabilities=environment_capabilities,
                 authorized_action=profile.max_action,
             )
             if halt := stopped():
                 return halt
-            if halt := save({
-                "event": "tool_dispatch", "step": progress.steps,
-                "tool_id": definition.id, "invocation_id": str(context.invocation_id),
-                "side_effect": definition.side_effect,
-            }):
+            if halt := save(
+                {
+                    "event": "tool_dispatch",
+                    "step": progress.steps,
+                    "tool_id": definition.id,
+                    "invocation_id": str(context.invocation_id),
+                    "side_effect": definition.side_effect,
+                }
+            ):
                 return halt
             progress.tool_calls += 1
             try:
@@ -391,30 +458,48 @@ class AgentWorker:
                 return self._tool_failure(progress, definition, context, "tool_not_authorized")
             except ToolExecutionError as exc:
                 return self._tool_failure(
-                    progress, definition, context, "tool_execution_failed", unknown=exc.unknown,
+                    progress,
+                    definition,
+                    context,
+                    "tool_execution_failed",
+                    unknown=exc.unknown,
                 )
             except Exception:
                 # Even a handler without side effects may have contacted an external service.
                 return self._tool_failure(
-                    progress, definition, context, "tool_execution_unknown", unknown=True,
+                    progress,
+                    definition,
+                    context,
+                    "tool_execution_unknown",
+                    unknown=True,
                 )
             record = WorkerToolRecord(
-                tool_id=definition.id, invocation_id=context.invocation_id, status="succeeded",
+                tool_id=definition.id,
+                invocation_id=context.invocation_id,
+                status="succeeded",
                 output_sha256=hashlib.sha256(serialized.encode("utf-8")).hexdigest(),
                 output_chars=len(serialized),
             )
             progress.provenance.append(record)
-            if halt := save({
-                "event": "tool_complete", "step": progress.steps,
-                **record.model_dump(mode="json"),
-            }, after_dispatch=True):
+            if halt := save(
+                {
+                    "event": "tool_complete",
+                    "step": progress.steps,
+                    **record.model_dump(mode="json"),
+                },
+                after_dispatch=True,
+            ):
                 return halt
             if len(serialized) > profile.max_input_chars:
                 return progress.result("failed", "worker_input_limit")
-            history.append({
-                "tool_id": definition.id, "invocation_id": str(context.invocation_id),
-                "arguments": control["arguments"], "output": result.output,
-            })
+            history.append(
+                {
+                    "tool_id": definition.id,
+                    "invocation_id": str(context.invocation_id),
+                    "arguments": control["arguments"],
+                    "output": result.output,
+                }
+            )
         return progress.result("failed", "worker_step_limit")
 
     @staticmethod
@@ -441,8 +526,11 @@ class AgentWorker:
         *,
         unknown: bool = False,
     ) -> WorkerResult:
-        progress.provenance.append(WorkerToolRecord(
-            tool_id=definition.id, invocation_id=context.invocation_id,
-            status="unknown" if unknown else "failed",
-        ))
+        progress.provenance.append(
+            WorkerToolRecord(
+                tool_id=definition.id,
+                invocation_id=context.invocation_id,
+                status="unknown" if unknown else "failed",
+            )
+        )
         return progress.result("unknown" if unknown else "failed", code)

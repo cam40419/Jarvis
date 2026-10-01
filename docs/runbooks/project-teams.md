@@ -14,17 +14,17 @@ They do not need a separate model provider or a permanently running agent for ea
 
 Open **Work**, select a project, and use its workspace tabs:
 
-| Tab | Contents |
-| --- | --- |
-| Overview | Goal, task counts, current cycle, lead request, recent tasks and project resource shortcuts |
-| Execution tasks | Saved agent assignments, dependencies, progress and completed-task archive |
-| Files | Project files on the local server, configured Google Drive folder and generated outputs |
-| Run history | All saved project runs, including earlier planning and execution cycles, with expandable results and artifact downloads |
-| Board | Primary ClickUp board connection, import/publish review, synchronization and uncertain update recovery |
-| Findings | Saved conclusions, research and project notes |
-| Activity | Continuing project updates and older activity pages |
-| Sessions | Project conversations and background tasks |
-| Team | Team membership, responsibilities, lead and autonomy settings |
+| Tab             | Contents                                                                                                                |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Overview        | Goal, task counts, current cycle, lead request, recent tasks and project resource shortcuts                             |
+| Execution tasks | Saved agent assignments, dependencies, progress and completed-task archive                                              |
+| Files           | Project files on the local server, configured Google Drive folder and generated outputs                                 |
+| Run history     | All saved project runs, including earlier planning and execution cycles, with expandable results and artifact downloads |
+| Board           | Primary ClickUp board connection, import/publish review, synchronization and uncertain update recovery                  |
+| Findings        | Saved conclusions, research and project notes                                                                           |
+| Activity        | Continuing project updates and older activity pages                                                                     |
+| Sessions        | Project conversations and background tasks                                                                              |
+| Team            | Team membership, responsibilities, lead and autonomy settings                                                           |
 
 Run history loads newest first. Use **Load earlier runs** to continue through previous pages.
 Each record keeps its original run status and saved results. Removing an agent from the current
@@ -89,13 +89,13 @@ provider cost even before you approve the specialist plan.
 
 For continuing work, select **scheduled** mode and save all of these limits:
 
-| Setting | Meaning |
-| --- | --- |
-| Standing objective | The goal sent to the lead on subsequent scheduled cycles, with saved project context |
-| Cadence | At least 5 minutes and at most 7 days between completed cycles and the next due cycle |
-| Maximum cycles | A finite allowance of 1–100 scheduled cycles for this scheduled session |
-| Model budget | A positive per-cycle token-cost reservation covering planning and delegated execution |
-| Paused | Prevents new planning and delegation while preserving saved work |
+| Setting            | Meaning                                                                               |
+| ------------------ | ------------------------------------------------------------------------------------- |
+| Standing objective | The goal sent to the lead on subsequent scheduled cycles, with saved project context  |
+| Cadence            | At least 5 minutes and at most 7 days between completed cycles and the next due cycle |
+| Maximum cycles     | A finite allowance of 1–100 scheduled cycles for this scheduled session               |
+| Model budget       | A positive per-cycle token-cost reservation covering planning and delegated execution |
+| Paused             | Prevents new planning and delegation while preserving saved work                      |
 
 Scheduled cycles automatically advance a valid delegated plan, within these limits. A command
 sent explicitly while scheduled mode is selected starts an immediate scheduled cycle and
@@ -201,19 +201,19 @@ local services. See [agent execution](agent-execution.md) for run recovery and d
 All routes below are relative to `/v1/projects/{project_id}` and any configured public path.
 They use the existing authenticated session, project access checks and mutation CSRF checks.
 
-| Method and path | Purpose |
-| --- | --- |
-| `GET /command` | Project state, recent activity, linked plans/runs and current blockers |
-| `GET /runs` | All saved project runs, newest first, using `limit` (1–50, default 20) and an opaque `cursor`; follow `next_cursor` for older records |
-| `GET /runs` | All owned project runs, newest first, using `limit` and `cursor` |
-| `POST /command` | Queue an instruction with a caller-generated `idempotency_key` |
-| `PATCH /team` | Save `team` and/or `autonomy` using `expected_version` |
-| `POST /control` | `pause`, `resume`, `run_ready`, `discard` or `acknowledge`, with `expected_version` |
-| `POST /todos` | Add `{todo, idempotency_key}` |
-| `PATCH /todos/{todo_id}` | Edit or archive `{todo, expected_version}` |
-| `GET /todos/archived` | Read archived snapshots using `offset` and `limit` |
-| `GET /activity` | Read immutable history using `offset` and `limit` |
-| `POST /activity` | Append `{entry, idempotency_key}` |
+| Method and path          | Purpose                                                                                                                               |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /command`           | Project state, recent activity, linked plans/runs and current blockers                                                                |
+| `GET /runs`              | All saved project runs, newest first, using `limit` (1–50, default 20) and an opaque `cursor`; follow `next_cursor` for older records |
+| `GET /runs`              | All owned project runs, newest first, using `limit` and `cursor`                                                                      |
+| `POST /command`          | Queue an instruction with a caller-generated `idempotency_key`                                                                        |
+| `PATCH /team`            | Save `team` and/or `autonomy` using `expected_version`                                                                                |
+| `POST /control`          | `pause`, `resume`, `run_ready`, `discard` or `acknowledge`, with `expected_version`                                                   |
+| `POST /todos`            | Add `{todo, idempotency_key}`                                                                                                         |
+| `PATCH /todos/{todo_id}` | Edit or archive `{todo, expected_version}`                                                                                            |
+| `GET /todos/archived`    | Read archived snapshots using `offset` and `limit`                                                                                    |
+| `GET /activity`          | Read immutable history using `offset` and `limit`                                                                                     |
+| `POST /activity`         | Append `{entry, idempotency_key}`                                                                                                     |
 
 Reuse the same idempotency key when retrying the same command, task or finding. A different
 payload with that key is a conflict. Generated default todo IDs are derived from the key;

@@ -8,14 +8,14 @@ oversized request returns 413, and the entire request body must arrive within
 restart that deadline. Rejected or disconnected bodies never reach handlers,
 so they cannot leave a partially applied endpoint mutation.
 
-| Route | Maximum request body |
-| --- | --- |
-| `/auth` and its subpaths | 64 KiB |
-| `/v1/local-files/upload` | 50 MiB |
-| `/v1/projects/{project-id}/upload` | 16 MiB, allowing the existing 10 MiB base64 file |
-| `/v1/local-files/action` | 32 MiB, allowing the existing editor's Unicode JSON payload |
-| `/v1/agent-platform/plans` | 32 MiB, allowing the existing 100-task batch |
-| Other routes | 2 MiB |
+| Route                              | Maximum request body                                        |
+| ---------------------------------- | ----------------------------------------------------------- |
+| `/auth` and its subpaths           | 64 KiB                                                      |
+| `/v1/local-files/upload`           | 50 MiB                                                      |
+| `/v1/projects/{project-id}/upload` | 16 MiB, allowing the existing 10 MiB base64 file            |
+| `/v1/local-files/action`           | 32 MiB, allowing the existing editor's Unicode JSON payload |
+| `/v1/agent-platform/plans`         | 32 MiB, allowing the existing 100-task batch                |
+| Other routes                       | 2 MiB                                                       |
 
 The configured public path and ASGI mount root are removed before route matching;
 `/simon/auth/password/login` therefore has the same cap as `/auth/password/login`.

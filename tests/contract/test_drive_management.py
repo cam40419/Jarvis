@@ -26,14 +26,14 @@ class BrowsableDrive(FakeDrive):
             item["capabilities"]["canTrash"] = True
             if not item["parents"]:
                 item["parents"] = ["my-drive"]
-        self.items["my-drive"] = dict(
-            id="my-drive",
-            name="My Drive",
-            mimeType=FOLDER,
-            parents=[],
-            version="1",
-            capabilities={"canEdit": False, "canAddChildren": True, "canTrash": False},
-        )
+        self.items["my-drive"] = {
+            "id": "my-drive",
+            "name": "My Drive",
+            "mimeType": FOLDER,
+            "parents": [],
+            "version": "1",
+            "capabilities": {"canEdit": False, "canAddChildren": True, "canTrash": False},
+        }
 
     def metadata(self, token, identifier):
         item = super().metadata(token, "my-drive" if identifier == "root" else identifier)

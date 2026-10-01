@@ -10,9 +10,13 @@ from simon.services.project_work import ProjectWorkService
 
 
 def project_board_service(
-    settings: Settings, store: Store, work: ProjectWorkService,
+    settings: Settings,
+    store: Store,
+    work: ProjectWorkService,
 ) -> ProjectBoardService:
     return ProjectBoardService(
-        store, work, ClickUpAdapter(BoundedHTTP(environ=platform_credentials())),
+        store,
+        work,
+        ClickUpAdapter(BoundedHTTP(environ=platform_credentials())),
         load_board_connections(settings.project_boards_file),
     )

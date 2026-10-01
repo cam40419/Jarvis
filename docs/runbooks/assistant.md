@@ -51,12 +51,12 @@ Model availability and billing depend on the configured API account.
 
 ## Response controls
 
-| Mode | Default model | Reasoning | Output token cap | Generation timeout |
-| --- | --- | --- | --- | --- |
-| Quick | gpt-5.4-mini | none | 2,048 (configurable) | 30 seconds |
-| Balanced | gpt-5.4-mini | low; Auto can select medium | 8,192 | 60 seconds |
-| Deep | gpt-5.4 | high | 16,384 | 120 seconds |
-| Auto | Selects one of these profiles | Recorded in the run | Selected profile | Selected profile |
+| Mode     | Default model                 | Reasoning                   | Output token cap     | Generation timeout |
+| -------- | ----------------------------- | --------------------------- | -------------------- | ------------------ |
+| Quick    | gpt-5.4-mini                  | none                        | 2,048 (configurable) | 30 seconds         |
+| Balanced | gpt-5.4-mini                  | low; Auto can select medium | 8,192                | 60 seconds         |
+| Deep     | gpt-5.4                       | high                        | 16,384               | 120 seconds        |
+| Auto     | Selects one of these profiles | Recorded in the run         | Selected profile     | Selected profile   |
 
 The chat defaults to Auto for both response mode and answer length. Routing v2 considers direct-answer
 and transformation requests, comparisons, analysis/debugging cues, explicit depth requests, multiple

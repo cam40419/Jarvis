@@ -15,9 +15,7 @@ def main() -> None:
         raise RuntimeError("SIMON_ACCOUNT_HOUSEHOLD_ID must identify the local workspace.")
     store = PostgresStore(settings.database_url.get_secret_value())
     identity = IdentityService(store, settings)
-    membership = identity.membership(
-        settings.account_admin_actor_id, settings.account_household_id
-    )
+    membership = identity.membership(settings.account_admin_actor_id, settings.account_household_id)
     if membership.role != "owner":
         raise RuntimeError("The configured administrator must own the account workspace.")
     actor = ActorContext(

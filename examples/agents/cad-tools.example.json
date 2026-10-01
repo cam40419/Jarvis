@@ -3,13 +3,8 @@
     {
       "id": "cad.openscad_export",
       "description": "Export local parametric OpenSCAD source to a new STL or 3MF file.",
-      "categories": [
-        "cad",
-        "3d"
-      ],
-      "capabilities": [
-        "cad.openscad_export"
-      ],
+      "categories": ["cad", "3d"],
+      "capabilities": ["cad.openscad_export"],
       "transport": "cad",
       "input_schema": {
         "type": "object",
@@ -26,10 +21,7 @@
             "maxLength": 240
           }
         },
-        "required": [
-          "input",
-          "output"
-        ]
+        "required": ["input", "output"]
       },
       "output_schema": {
         "type": "object",
@@ -48,22 +40,12 @@
             "type": "boolean"
           }
         },
-        "required": [
-          "exit_code",
-          "stdout",
-          "stderr",
-          "truncated"
-        ]
+        "required": ["exit_code", "stdout", "stderr", "truncated"]
       },
       "enabled": false,
       "configured": false,
-      "required_scopes": [
-        "jobs:write"
-      ],
-      "environment_capabilities": [
-        "python",
-        "cad"
-      ],
+      "required_scopes": ["jobs:write"],
+      "environment_capabilities": ["python", "cad"],
       "side_effect": true,
       "action_policy": "write",
       "endpoint": null,
@@ -75,13 +57,8 @@
     {
       "id": "cad.mesh_inspect",
       "description": "Inspect STL/3MF topology, dimensions and optional vase wall samples.",
-      "categories": [
-        "cad",
-        "3d"
-      ],
-      "capabilities": [
-        "cad.mesh_inspect"
-      ],
+      "categories": ["cad", "3d"],
+      "capabilities": ["cad.mesh_inspect"],
       "transport": "cad",
       "input_schema": {
         "type": "object",
@@ -96,9 +73,7 @@
             "type": "boolean"
           }
         },
-        "required": [
-          "input"
-        ]
+        "required": ["input"]
       },
       "output_schema": {
         "type": "object",
@@ -117,22 +92,12 @@
             "type": "boolean"
           }
         },
-        "required": [
-          "exit_code",
-          "stdout",
-          "stderr",
-          "truncated"
-        ]
+        "required": ["exit_code", "stdout", "stderr", "truncated"]
       },
       "enabled": false,
       "configured": false,
-      "required_scopes": [
-        "jobs:read"
-      ],
-      "environment_capabilities": [
-        "python",
-        "cad"
-      ],
+      "required_scopes": ["jobs:read"],
+      "environment_capabilities": ["python", "cad"],
       "side_effect": false,
       "action_policy": "read",
       "endpoint": null,
@@ -144,13 +109,8 @@
     {
       "id": "cad.render_mesh",
       "description": "Render STL/3MF as a studio PNG and optional editable Blender scene.",
-      "categories": [
-        "cad",
-        "3d"
-      ],
-      "capabilities": [
-        "cad.render_mesh"
-      ],
+      "categories": ["cad", "3d"],
+      "capabilities": ["cad.render_mesh"],
       "transport": "cad",
       "input_schema": {
         "type": "object",
@@ -168,12 +128,7 @@
           },
           "material": {
             "type": "string",
-            "enum": [
-              "celadon",
-              "ivory",
-              "terracotta",
-              "charcoal"
-            ]
+            "enum": ["celadon", "ivory", "terracotta", "charcoal"]
           },
           "resolution": {
             "type": "integer",
@@ -189,10 +144,7 @@
             "type": "boolean"
           }
         },
-        "required": [
-          "input",
-          "output"
-        ]
+        "required": ["input", "output"]
       },
       "output_schema": {
         "type": "object",
@@ -211,22 +163,12 @@
             "type": "boolean"
           }
         },
-        "required": [
-          "exit_code",
-          "stdout",
-          "stderr",
-          "truncated"
-        ]
+        "required": ["exit_code", "stdout", "stderr", "truncated"]
       },
       "enabled": false,
       "configured": false,
-      "required_scopes": [
-        "jobs:write"
-      ],
-      "environment_capabilities": [
-        "python",
-        "cad"
-      ],
+      "required_scopes": ["jobs:write"],
+      "environment_capabilities": ["python", "cad"],
       "side_effect": true,
       "action_policy": "write",
       "endpoint": null,

@@ -45,8 +45,15 @@ def _check_nonsecret_settings(value: Any) -> None:
         for key, child in value.items():
             normalized = str(key).lower().replace("-", "_")
             if normalized in {
-                "password", "secret", "token", "api_key", "authorization", "credentials",
-                "access_token", "refresh_token", "private_key",
+                "password",
+                "secret",
+                "token",
+                "api_key",
+                "authorization",
+                "credentials",
+                "access_token",
+                "refresh_token",
+                "private_key",
             }:
                 raise ValueError("Tool credentials must use credential_env, not inline settings")
             _check_nonsecret_settings(child)
@@ -110,8 +117,7 @@ class ToolDefinition(StrictModel):
             or parsed.query
             or parsed.fragment
             or (
-                parsed.scheme == "http"
-                and parsed.hostname not in {"localhost", "127.0.0.1", "::1"}
+                parsed.scheme == "http" and parsed.hostname not in {"localhost", "127.0.0.1", "::1"}
             )
         ):
             raise ValueError("Tool endpoints require HTTPS or loopback HTTP without credentials")

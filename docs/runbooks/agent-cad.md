@@ -25,11 +25,11 @@ The reusable example remains disabled until its worker image is provisioned.
 Write operations require `jobs:write` and a write-capable profile; inspection
 requires `jobs:read`. Registration never expands an account's existing scopes.
 
-| Tool | Arguments and output |
-| --- | --- |
-| `cad.openscad_export` | `input` relative `.scad` filename, `output` new `.stl` or `.3mf`. STL output is binary. |
-| `cad.mesh_inspect` | `input` relative `.stl`/`.3mf`; optional `vase_checks`. Returns dimensions, bounds, topology, volume, area and hash as JSON in stdout. |
-| `cad.render_mesh` | `input` `.stl`/`.3mf`, new PNG `output`, optional `material` (`celadon`, `ivory`, `terracotta`, `charcoal`), `resolution` 256–1600, `samples` 8–128 and `save_scene` boolean. The latter also saves a `.blend` next to the PNG. |
+| Tool                  | Arguments and output                                                                                                                                                                                                            |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cad.openscad_export` | `input` relative `.scad` filename, `output` new `.stl` or `.3mf`. STL output is binary.                                                                                                                                         |
+| `cad.mesh_inspect`    | `input` relative `.stl`/`.3mf`; optional `vase_checks`. Returns dimensions, bounds, topology, volume, area and hash as JSON in stdout.                                                                                          |
+| `cad.render_mesh`     | `input` `.stl`/`.3mf`, new PNG `output`, optional `material` (`celadon`, `ivory`, `terracotta`, `charcoal`), `resolution` 256–1600, `samples` 8–128 and `save_scene` boolean. The latter also saves a `.blend` next to the PNG. |
 
 Tool results use the same exit-code/stdout/stderr contract as document processing.
 Input files and individual outputs are limited to 48 MiB; inspected meshes are
@@ -82,3 +82,25 @@ verifies download hashes, renders the 1200-pixel PNG through the authenticated
 preview route, checks desktop/mobile sizing, rejects anonymous and other-account
 access, and exercises the Engineering profiles and CAD tool search. It neither
 contacts model providers nor touches the active server's sessions or files.
+
+## Full Blender scripting
+
+For modeling, materials, modifiers, animation and other Python-accessible Blender operations,
+add the disabled [Blender scripting tool](../../examples/agents/blender-script.example.json)
+to the operator manifest. Grant `cad.blender_script` to the profile and add `blender.script`
+to its offline Docker environment's capabilities alongside `python` and `cad`. The existing
+CAD image contains Blender. This operation is excluded from default CAD definitions unless
+`cad_tool_definitions(include_scripting=True)` is explicitly requested.
+
+Call it with a workspace Python `input` and a new `.blend` `output`. The script may use the
+installed version's full `bpy` API; after successful execution the controller saves the scene
+and publishes the new file without replacing an existing destination. Source scripts are
+limited to one MiB, native output to 48 MiB, and execution to the existing bounded CAD timeout.
+Worker final artifact declarations still control durable publication.
+
+This is a code-execution grant inside an offline container, not a filtered modeling language.
+Scripts can modify the task workspace. Immutable source artifacts remain outside that mount.
+No host application or personal Blender session is used. Additional plugins, GPU configuration,
+long render supervision, and real Blender image acceptance remain operator setup. Tests cover
+command construction, capability admission, staged output and overwrite rejection with a fake
+Blender process; they do not establish feature compatibility with every installed Blender version.

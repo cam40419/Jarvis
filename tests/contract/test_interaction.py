@@ -147,10 +147,14 @@ def test_feedback_can_change_clear_and_survive_replays(model_setup):
         interactions.answers(other, thread.id)
     with pytest.raises(NotFoundError):
         interactions.save_feedback(other, run.id, request)
-    assert next(
-        answer.feedback for answer in interactions.answers(actor, thread.id)
-        if answer.run_id == run.id
-    ) == cleared
+    assert (
+        next(
+            answer.feedback
+            for answer in interactions.answers(actor, thread.id)
+            if answer.run_id == run.id
+        )
+        == cleared
+    )
     with pytest.raises(InvalidTransitionError):
         interactions.save_feedback(
             actor, run.id, feedback_request(idempotency_key="feedback-stale")

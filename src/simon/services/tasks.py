@@ -372,7 +372,9 @@ class AssistantTaskService:
                     actor = self.worker_actor(job)
                 except DomainError:
                     self._save(
-                        job, job.version, status=JobStatus.FAILED,
+                        job,
+                        job.version,
+                        status=JobStatus.FAILED,
                         error_code="Task account access is no longer available.",
                     )
                     continue

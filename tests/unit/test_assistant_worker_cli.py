@@ -13,7 +13,9 @@ from simon.config import Settings
 def runtime(monkeypatch):
     records = SimpleNamespace(opened=0, closed=False, tasks=0, sessions=0, error=None)
     records.settings = Settings(
-        _env_file=None, storage_backend="postgres", model_provider="openai",
+        _env_file=None,
+        storage_backend="postgres",
+        model_provider="openai",
         openai_api_key=SecretStr("synthetic-worker-key"),
     )
     monkeypatch.setattr(cli, "Settings", lambda: records.settings)
@@ -82,9 +84,14 @@ def test_initialization_failure_closes_database_and_redacts_details(runtime, mon
     assert "provider-private-key" not in capsys.readouterr().err
 
 
-@pytest.mark.parametrize("changes", [
-    {"storage_backend": "memory"}, {"model_provider": "local"}, {"openai_api_key": None},
-])
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"storage_backend": "memory"},
+        {"model_provider": "local"},
+        {"openai_api_key": None},
+    ],
+)
 def test_invalid_worker_configuration_never_opens_store(runtime, changes):
     runtime.settings = runtime.settings.model_copy(update=changes)
     with pytest.raises(SystemExit) as error:
@@ -92,11 +99,17 @@ def test_invalid_worker_configuration_never_opens_store(runtime, changes):
     assert error.value.code == 2 and runtime.opened == 0
 
 
-@pytest.mark.parametrize("arguments", [
-    ["--once", "--check"], ["--once", "--stop-file", "unused"],
-    ["--check", "--stop-file", "unused"], ["--poll-seconds", "nan"],
-    ["--poll-seconds", "0.1"], ["--poll-seconds", "11"],
-])
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        ["--once", "--check"],
+        ["--once", "--stop-file", "unused"],
+        ["--check", "--stop-file", "unused"],
+        ["--poll-seconds", "nan"],
+        ["--poll-seconds", "0.1"],
+        ["--poll-seconds", "11"],
+    ],
+)
 def test_invalid_cli_arguments_never_open_store(runtime, arguments):
     with pytest.raises(SystemExit) as error:
         cli.main(arguments)
@@ -141,8 +154,9 @@ def test_stop_request_drains_three_active_calls_and_keeps_marker(tmp_path):
             return 0
 
     def serve():
-        results.append(cli._serve(Service(), Service(), poll_seconds=0.02, stop=stop,
-                                  stop_file=marker))
+        results.append(
+            cli._serve(Service(), Service(), poll_seconds=0.02, stop=stop, stop_file=marker)
+        )
 
     thread = Thread(target=serve)
     thread.start()

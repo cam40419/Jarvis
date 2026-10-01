@@ -40,7 +40,12 @@ class RecordingManager:
         self.result = ExecutionResult(exit_code=0, stdout="Extracted text")
 
     def execute(
-        self, lease_id: UUID, command: ExecutionCommand, *, attempt_id: UUID, fencing_token: int,
+        self,
+        lease_id: UUID,
+        command: ExecutionCommand,
+        *,
+        attempt_id: UUID,
+        fencing_token: int,
     ) -> ExecutionResult:
         self.calls.append((lease_id, command, attempt_id, fencing_token))
         if self.fail:
@@ -48,35 +53,65 @@ class RecordingManager:
         return self.result
 
 
-def setup(operation: str = "document.extract_pdf") -> tuple[
-    RecordingManager, EnvironmentLease, ToolDefinition, ToolExecutionContext,
+def setup(
+    operation: str = "document.extract_pdf",
+) -> tuple[
+    RecordingManager,
+    EnvironmentLease,
+    ToolDefinition,
+    ToolExecutionContext,
     ProcessingToolTransport,
 ]:
     tool = next(item for item in processing_tool_definitions(enabled=True) if item.id == operation)
     definition = EnvironmentDefinition(
-        id="processor", kind="docker", container_image="simon-processing:local", enabled=True,
+        id="processor",
+        kind="docker",
+        container_image="simon-processing:local",
+        enabled=True,
         capabilities=frozenset({"python", "pdf", "ocr", "media", "documents"}),
     )
     request = EnvironmentRequest(
-        workspace_id=uuid4(), agent_id="processor", task_id=uuid4(), attempt_id=uuid4(),
+        workspace_id=uuid4(),
+        agent_id="processor",
+        task_id=uuid4(),
+        attempt_id=uuid4(),
         capabilities=tool.environment_capabilities,
     )
     lease = EnvironmentLease(
-        id=uuid4(), plan=EnvironmentPlan(
-            environment_id=definition.id, kind="docker", request=request,
-            workspace_path=Path("unused"), network="none", cpu_limit=2, memory_mb=2048,
+        id=uuid4(),
+        plan=EnvironmentPlan(
+            environment_id=definition.id,
+            kind="docker",
+            request=request,
+            workspace_path=Path("unused"),
+            network="none",
+            cpu_limit=2,
+            memory_mb=2048,
             gpu_devices=(),
-        ), definition=definition, fencing_token=4, status="active", resource_handle="owned",
-        created_at=utc_now(), heartbeat_at=utc_now(),
+        ),
+        definition=definition,
+        fencing_token=4,
+        status="active",
+        resource_handle="owned",
+        created_at=utc_now(),
+        heartbeat_at=utc_now(),
     )
     context = ToolExecutionContext(
-        actor_id=uuid4(), household_id=request.workspace_id, run_id=uuid4(), agent_id="processor",
-        allowed_tool_ids=frozenset({tool.id}), scopes=tool.required_scopes,
-        environment_capabilities=definition.capabilities, authorized_action=tool.action_policy,
+        actor_id=uuid4(),
+        household_id=request.workspace_id,
+        run_id=uuid4(),
+        agent_id="processor",
+        allowed_tool_ids=frozenset({tool.id}),
+        scopes=tool.required_scopes,
+        environment_capabilities=definition.capabilities,
+        authorized_action=tool.action_policy,
     )
     manager = RecordingManager()
     transport = ProcessingToolTransport(
-        manager, lease, actor_id=context.actor_id, run_id=context.run_id,
+        manager,
+        lease,
+        actor_id=context.actor_id,
+        run_id=context.run_id,
     )
     return manager, lease, tool, context, transport
 
@@ -110,33 +145,55 @@ def test_cannot_cross_worker_assignment(field: str) -> None:
     assert manager.calls == []
 
 
-@pytest.mark.parametrize("change", [
-    {"scopes": frozenset()}, {"allowed_tool_ids": frozenset()}, {"authorized_action": "read"},
-])
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"scopes": frozenset()},
+        {"allowed_tool_ids": frozenset()},
+        {"authorized_action": "read"},
+    ],
+)
 def test_conversion_requires_write_authorization(change: dict[str, Any]) -> None:
     manager, _, tool, context, transport = setup("document.convert")
     with pytest.raises(AuthorizationError):
-        transport(tool, {"input": "report.md", "output": "report.docx"},
-                  context.model_copy(update=change))
+        transport(
+            tool, {"input": "report.md", "output": "report.docx"}, context.model_copy(update=change)
+        )
     assert manager.calls == []
 
 
 def test_online_environment_is_rejected() -> None:
     manager, lease, tool, context, _ = setup()
-    lease = lease.model_copy(update={"definition": lease.definition.model_copy(
-        update={"network": "bridge"},
-    )})
+    lease = lease.model_copy(
+        update={
+            "definition": lease.definition.model_copy(
+                update={"network": "bridge"},
+            )
+        }
+    )
     transport = ProcessingToolTransport(
-        manager, lease, actor_id=context.actor_id, run_id=context.run_id,
+        manager,
+        lease,
+        actor_id=context.actor_id,
+        run_id=context.run_id,
     )
     with pytest.raises(ToolCatalogError, match="offline"):
         transport(tool, {"input": "report.pdf"}, context)
     assert manager.calls == []
 
 
-@pytest.mark.parametrize("path", ["../report.pdf", "/tmp/report.pdf", "C:/report.pdf",
-                                  "https://example.test/report.pdf", ".git/report.pdf",
-                                  "--report.pdf", "report\x00.pdf"])
+@pytest.mark.parametrize(
+    "path",
+    [
+        "../report.pdf",
+        "/tmp/report.pdf",
+        "C:/report.pdf",
+        "https://example.test/report.pdf",
+        ".git/report.pdf",
+        "--report.pdf",
+        "report\x00.pdf",
+    ],
+)
 def test_bad_paths_rejected_before_runner(path: str) -> None:
     manager, _, tool, context, transport = setup()
     with pytest.raises(ToolCatalogError):
@@ -144,18 +201,21 @@ def test_bad_paths_rejected_before_runner(path: str) -> None:
     assert manager.calls == []
 
 
-@pytest.mark.parametrize(("operation", "arguments"), [
-    ("document.extract_pdf", {"input": "report.pdf", "max_pages": 101}),
-    ("document.extract_pdf", {"input": "report.pdf", "max_pages": True}),
-    ("document.extract_pdf", {"input": "report.html"}),
-    ("document.convert", {"input": "report.md", "output": "report.pdf"}),
-    ("document.convert", {"input": "report.md", "output": "report.md"}),
-    ("image.ocr", {"input": "source.svg"}),
-    ("media.inspect", {"input": "remote.m3u8"}),
-    ("media.transcode", {"input": "video.mp4", "output": "new.mp4", "width": 101}),
-    ("media.transcode", {"input": "video.mp4", "output": "new.mp4", "duration_seconds": 601}),
-    ("media.inspect", {"input": "video.mp4", "args": ["-show_data"]}),
-])
+@pytest.mark.parametrize(
+    ("operation", "arguments"),
+    [
+        ("document.extract_pdf", {"input": "report.pdf", "max_pages": 101}),
+        ("document.extract_pdf", {"input": "report.pdf", "max_pages": True}),
+        ("document.extract_pdf", {"input": "report.html"}),
+        ("document.convert", {"input": "report.md", "output": "report.pdf"}),
+        ("document.convert", {"input": "report.md", "output": "report.md"}),
+        ("image.ocr", {"input": "source.svg"}),
+        ("media.inspect", {"input": "remote.m3u8"}),
+        ("media.transcode", {"input": "video.mp4", "output": "new.mp4", "width": 101}),
+        ("media.transcode", {"input": "video.mp4", "output": "new.mp4", "duration_seconds": 601}),
+        ("media.inspect", {"input": "video.mp4", "args": ["-show_data"]}),
+    ],
+)
 def test_options_formats_and_limits_are_fixed(operation: str, arguments: dict[str, Any]) -> None:
     with pytest.raises(ValueError):
         validate_arguments(operation, arguments)
@@ -194,16 +254,21 @@ def test_pandoc_uses_sandbox_and_fixed_formats() -> None:
     assert command[-2:] == ["--", str(source)]
 
 
-@pytest.mark.parametrize("operation", ["media.inspect", "media.thumbnail", "media.extract_audio",
-                                       "media.transcode"])
+@pytest.mark.parametrize(
+    "operation", ["media.inspect", "media.thumbnail", "media.extract_audio", "media.transcode"]
+)
 def test_media_has_no_network_protocols_and_explicit_demuxer(operation: str) -> None:
     arguments: dict[str, Any] = {"input": "source.mp4"}
     suffixes = {"media.thumbnail": ".png", "media.extract_audio": ".wav", "media.transcode": ".mp4"}
     if operation != "media.inspect":
         arguments["output"] = "result" + suffixes[operation]
     checked = validate_arguments(operation, arguments)
-    command = processing_command(operation, checked, Path("/workspace/source.mp4"),
-                                 Path("/workspace/output" + suffixes.get(operation, "")))
+    command = processing_command(
+        operation,
+        checked,
+        Path("/workspace/source.mp4"),
+        Path("/workspace/output" + suffixes.get(operation, "")),
+    )
     assert command[command.index("-protocol_whitelist") + 1] == "file"
     assert command[command.index("-f") + 1] == "mov"
     if operation != "media.inspect":

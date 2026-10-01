@@ -49,7 +49,8 @@ class ToolCatalog:
             and capability_filter <= item.capabilities
             and (
                 not query
-                or query in " ".join(
+                or query
+                in " ".join(
                     (item.id, item.description, *item.categories, *item.capabilities)
                 ).casefold()
             )

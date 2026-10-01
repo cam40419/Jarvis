@@ -1,136 +1,208 @@
-# Simon: practical-use roadmap
+# Simon roadmap
 
-> Historical roadmap for the former combined system. Home control now lives in
-> RobbinsHome; several items below have since shipped or moved. For the current
-> implementation use the README and agent runbooks. The next storage/recovery
-> sequence is recorded in [local storage and recovery](runbooks/storage-recovery.md).
+Updated October 1, 2026. This is the authoritative delivery order for Simon. Detailed
+architecture documents explain design choices; runbooks describe implemented behavior.
+The remaining subsystem plans provide design context and do not define the current backlog.
 
-## September 30: current implementation and remaining setup
+Simon is a local workspace for delegating outcomes to configurable teams. The next
+milestone is **reviewed project delivery**: submit a brief, receive validated files,
+request a revision, recover an interruption, and inspect the accumulated cost through
+one project experience.
 
-The [Work dashboard](runbooks/work-platform.md) now provides reusable teams, task
-dependencies, plan review, durable execution, cancellation and authenticated
-deliverable downloads. Tool discovery includes configuration blockers and a
-searchable catalog. Local files remain the primary storage; cloud adapters add
-bounded access to connected sources rather than replacing the local filesystem.
+## Product boundaries
 
-Concrete adapters now cover local/project files, Google, Docker Python/Git,
-documents/OCR/media, static browser capture, OpenSCAD/Blender CAD, KiCad PCB checks/exports,
-image generation/transcription,
-GitHub, WebDAV, Dropbox, Box, OneDrive/SharePoint and remote MCP tools. Configuration
-templates for other applications remain disabled; template presence does not mean
-the application is installed. The starter has nine teams and separate grants for
-readers, writers and isolated workers.
+- Simon owns conversations, goals, project execution, team configuration, permissions,
+  findings, deliverables, and the review experience. Standalone work and personal projects
+  must remain usable without company or home configuration.
+- Connected project boards own their business task fields and human collaboration.
+  The implemented ClickUp bridge maintains a bounded local execution mirror. Avoid
+  creating a competing company task authority inside Simon.
+- Managed files and artifacts remain local by default. Connected storage supplies
+  authorized inputs and export destinations; each artifact needs one canonical location.
+- RobbinsHome owns devices and physical automation. Simon uses its optional external
+  API. Printer control, plate swapping, and home workflows belong to that repository.
+- Keep the modular monolith and separate workers. Add infrastructure when a measured
+  workflow requires another failure, privilege, hardware, or scaling boundary.
 
-[Project teams](runbooks/project-teams.md) now support a custom roster, lead and role
-responsibilities. Natural-language commands create durable lead planning runs, validated
-specialist dependency graphs and final reviews. Saved todos, findings, archived tasks and
-activity support bounded scheduled work with pause and recovery controls. Project state
-uses the existing PostgreSQL job journal; closing a browser does not stop its workers.
+## Status definitions
 
-[Managed project boards](runbooks/project-boards.md) connect selected ClickUp tasks to
-the local execution backlog. ClickUp supplies the shared company workspace and board
-views. Explicit bindings control task publishing, progress comments and status updates;
-durable operation records hold interrupted writes for reconciliation. Local artifacts
-remain on the server. A ClickUp account, token and allowed workspace/list IDs must be
-configured before using the connection. OpenProject is the planned self-hosted alternative.
+| Status                      | Meaning                                                                                                      |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Implemented                 | Code and documented usage exist. This does not certify a configured provider or a production deployment.     |
+| Needs deployment acceptance | Implementation exists, but installation, account setup, or checks on the actual deployment remain necessary. |
+| Next                        | Prioritized application work, ordered below.                                                                 |
+| Deferred                    | Retained direction with an explicit condition for revisiting it.                                             |
 
-[External actions](runbooks/external-actions.md) add reviewable booking/order/reservation
-proposals, optional merchant quote/commit adapters and Twilio outbound phone messages.
-Live commitments require exact user confirmation and configured providers. Unknown outcomes
-are held for reconciliation instead of being submitted again. Interactive conversational
-phone agents and general website checkout remain additional integrations.
+## Implemented foundation
 
-Deployment work that depends on the operator's infrastructure:
+| Area                      | Current behavior and limits                                                                                                                                                 | Reference                                                                                                                  |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Identity and conversation | Private accounts, sessions, passkeys, saved conversations, personal preferences, shared text and voice context                                                              | [Identity](runbooks/identity.md), [shared context](runbooks/shared-context.md)                                             |
+| Project teams             | Editable members and skills, lead planning, validated dependencies, final synthesis, saved backlog and findings, bounded scheduled cycles                                   | [Project teams](runbooks/project-teams.md)                                                                                 |
+| Worker execution          | Concurrent bounded execution, durable run claims and reservations, cancellation, isolated Docker environments, explicit reconciliation after interruption; one manager host | [Agent execution](runbooks/agent-execution.md)                                                                             |
+| Files and outputs         | Managed/project file operations, authenticated downloads, text and native file publication, bounded ZIP bundles with hashes                                                 | [Work platform](runbooks/work-platform.md), [local files](runbooks/local-files.md)                                         |
+| Tool adapters             | Local and Google tools, local Git/Python, document/media processing, static browser capture, scriptable CAD/PCB, optional cloud storage and MCP                             | [Installed adapters](runbooks/work-platform.md#integration-readiness)                                                      |
+| Business boards           | ClickUp task selection, explicit publishing/status bindings, durable write reconciliation; provider owns business fields                                                    | [Project boards](runbooks/project-boards.md)                                                                               |
+| External actions          | Exact proposal review, optional gateway commitments and prerecorded phone messages, unknown-outcome reconciliation                                                          | [External actions](runbooks/external-actions.md)                                                                           |
+| Model controls            | Chat profiles and feedback; worker routing; conservative per-run and scheduled-cycle token-cost admission estimates                                                         | [Model routing](runbooks/model-routing.md), [project teams](runbooks/project-teams.md#manual-review-and-ongoing-schedules) |
+| Operations                | Combined database/file recovery bundles, isolated restore checks, HTTPS configuration staging, ingress limits, Windows startup/recovery tooling                             | [Storage recovery](runbooks/storage-recovery.md), [remote access](runbooks/remote-access.md)                               |
 
-- Select the permanent data volume and an encrypted off-machine backup destination.
-  Combined database/file bundles and isolated restore checks are implemented.
-- Select and authenticate the private HTTPS hostname for remote access; update
-  passkey enrollment and Google callbacks on that origin.
-- Provision repository/folder-scoped tokens for additional cloud services and
-  define their workspace/actor grants. Their API adapters are implemented; a shared
-  in-app OAuth enrollment/refresh flow for these providers is still future work.
+## Needs deployment acceptance
 
-The HTTPS setup tool now stages a consistent origin, passkey RP, callback and proxy
-configuration with private rollback copies. Startup/recovery tasks, HSTS and HTTP
-body/authentication limits are implemented. Provider selection/login and final
-remote-device acceptance remain deployment steps.
+These tasks can proceed alongside application work. Record evidence from the actual
+installation before marking them complete; historical test totals are not current acceptance.
 
-Additional application work remains for other CAD/PCB desktop integrations, video
-generation, interactive authenticated browser tasks, remote Git publishing,
-artifact transfer between isolated tasks, and distributed machine-runner software.
-These require their own concrete adapters, application provisioning and acceptance
-tests. They are not enabled by turning on a generic template.
+- Select permanent file, artifact, and configuration paths outside the checkout. Migrate
+  with writers stopped, verify hashes, and exercise authorized downloads.
+- Select encrypted off-machine backup storage. Schedule complete database/file bundles;
+  the existing nightly database-only job does not protect all deliverables. Exercise a
+  restore and preserve credential recovery material separately.
+- Configure the final private HTTPS origin and provider authentication. Test phone login,
+  private uploads/previews/downloads, streaming, voice, Google callbacks, and account isolation.
+- Verify cold-start and recovery behavior on the deployed host. Windows logon tasks require
+  a signed-in user and Docker Desktop; they do not provide availability before sign-in.
+- Provision only the selected workflows' model endpoints, token prices, worker images,
+  provider accounts, and scoped grants. A catalog entry or configuration check is not a
+  successful live integration test.
 
-## Workflow execution foundation
+## Next application work
 
-The [workflow architecture](https://github.com/cam40419/RobbinsHome/blob/main/docs/workflow-architecture.md) now has an executable first phase: versioned
-definitions, private runs, timed waits, dependencies, a separate durable worker, attempt/job records,
-lease recovery, pause/resume/cancel, and a timeline API. Migration 0014 adds its storage. Only echo
-and saved-inventory reads execute today. Start the worker using `scripts/start-workflow-worker.ps1`.
-Condition monitoring, recurring triggers, Automations UI/chat controls, and physical actions follow.
+### 1 Reviewed artifact handoff
 
-## Shared context across text and voice
+Dependency file transfer is implemented: Docker tasks receive verified predecessor
+deliverables and a checksum-bearing input manifest, with the exact references saved on
+the task. Workers without a local Docker workspace receive references explicitly marked
+as unavailable. Owner-reported file checks and explicit, versioned acceptance are also implemented in Work.
+Automated inspection evidence and repair orchestration remain outstanding.
+See [artifact handoff](runbooks/agent-execution.md#dependency-artifact-handoff).
 
-Implemented account-scoped conversation recall and personal memory tools. Voice starts with a
-bounded context snapshot and delegates recall/saving to the same backend as chat. Personal facts,
-preferences, and projects can be saved from current user statements, corrected, or retracted.
-Existing stored text and voice history is searchable without a backfill. New conversations are
-private; legacy shared threads keep their visibility and exclude private context. Migration 0013
-adds conversation visibility and recall indexes. See the [context runbook](runbooks/shared-context.md).
+- Implemented: reference authorized predecessor artifacts and immutable input revisions.
+- Implemented for Docker: import verified files and intact bundles into isolated task
+  workspaces with dependency manifests. Remote machine transfer remains unsupported.
+- Implemented for owner review: record format, procedure, observations, and pass/fail checks
+  against the exact artifact hash. Add independently recorded worker inspection and validator receipts.
+- Implemented: explicit acceptance of passing owner reviews, retained accepted-revision history,
+  and conflicting-promotion rejection. Add downstream replanning when accepted inputs change.
+- Support a bounded repair and review cycle, with source files, previews, and exports
+  accessible together from the project.
 
-## Account and workshop follow-up
+Acceptance: a maker publishes editable files; a reviewer opens the exact candidate and
+finds a seeded defect; a repair creates a new revision; the accepted package and earlier
+revision remain retrievable. Unauthorized or altered artifacts cannot enter the handoff.
 
-Private account invitations, access revocation, and per-user personality/voice preferences are now implemented.
-The [accounts and workshop plan](accounts-workshop-plan.md) is the proposed layout and delivery sequence
-for project folders, file management, Bambu A1 slicing, the existing plate-swap generator, and print automation.
-Filesystem and printer execution have not been enabled. Per-workspace home-provider credentials,
-connector pairing, explicit sharing, and account budgets remain planned.
+### 2 Recoverable execution and operations
 
-## September 16 phase: Home, voice, and remote access preparation
+- Classify interrupted attempts as safely resumable, definitively failed, or requiring
+  reconciliation. Preserve the existing prohibition on replaying uncertain commitments.
+- Add checkpoint packets, explicit ownership/lease evidence, and stale-worker rejection
+  for any new automatic continuation path.
+- Show worker health, exhausted resources, pending reconciliation, and actionable recovery
+  steps in the project. Keep interactive capacity available under background load.
+- Move remote history reads and large local-file/ZIP operations out of broad workspace
+  transactions using short claims and version-checked completion; preserve duplicate protection.
+- Complete scheduled encrypted backup delivery and measure restore duration.
 
-Implemented:
+Acceptance: terminate a worker at representative boundaries; recover safe work without
+losing inputs; retain uncertain provider calls for investigation; reject stale publication;
+restore project records and their files together.
 
-- A dedicated Home dashboard groups existing inventory by room. Light cards support power, brightness, and color according to device capabilities; outlet cards link to existing naming/load setup.
-- Direct dashboard changes reuse permission checks, idempotent receipts, live preflight, and readback verification. Uncertain outcomes require a status check before another UI command.
-- Shelly charts show 1/6/24-hour power histories and observed kWh, coverage, missing readings, and counter resets. The UI never treats unavailable samples as zero consumption. Status is refreshed explicitly; the existing backend continues sampling power.
-- Live OpenAI WebRTC voice, independent of the text model, with server-side delegation into Simon's existing Auto routing and tools. Captions, recent call transcripts, mute, end call, and Stop task are available in chat.
-- Session ownership, CSRF, single-call admission, duration/start limits, heartbeat expiry, cancellation revalidation, server-only delegation results, and cumulative usage persistence.
-- `/simon` URL prefix support for pages, assets, auth, chat, streaming, and Google callbacks. Vercel external rewrite and named-tunnel examples, a production launcher, and passkey enrollment instructions.
+### 3 One project experience
 
-The live synthetic WebRTC test connected and received final usage confirmation. Mocked integration tests exercise delegation and cancellation. Human speech quality, interruption timing on the user's phone, and physical home-device behavior still need acceptance testing. The public tunnel and Vercel portfolio routes were deployed September 16, then paused in favor of the faster local app at `http://localhost:8000/login`. Windows startup tasks were installed later that day, as described below.
+Creative tooling foundation: opt-in full Blender scripting, a structured machine-application
+transport, and an initial Windows UI Automation bridge are implemented. Native inspection and
+saving connectors now cover Fusion, Houdini, Rhino, Cinema 4D, SOLIDWORKS, Photoshop, and
+Premiere, with parameter edits for Fusion and Houdini. Host scripts, an Adobe UXP panel,
+contract tests, and [setup instructions](runbooks/native-connectors.md) are included.
+Licensed-host acceptance, richer editing operations, desktop deployment, remote artifact
+transfer, and live screen capture remain outstanding; use the
+[compatibility matrix](runbooks/agent-environments.md#application-compatibility-targets).
 
-Verification: 447 tests passed with PostgreSQL and browser checks enabled, at 95.23% coverage. Four opt-in paid tests were skipped in that suite; the new live WebRTC test passed separately. Ruff, strict mypy, and the production configuration check passed. Migration 0011 was applied to the local development database. No household devices were switched during these checks.
+Implemented visibility: active runs and project teams show per-task tool/model activity,
+checkpoint timestamps and recent history; published images can be previewed in Work. Live
+application screens still require a desktop-session adapter. Prioritize a concrete Fusion or
+Premiere workflow before adding general desktop control, and bind any screen feed to the
+same authenticated task/lease boundary.
 
-See [remote and voice setup](runbooks/remote-voice.md). Migration 0011 stores voice-session records. The first version requires one server worker and a foreground browser tab; it has no background wake word or mobile app service.
+- Connect chat requests, project commands, assistant sessions, agent runs, external reviews,
+  and deliverables through a consistent goal and execution history.
+- Show the outcome, current plan, progress, blocker, next decision, costs, and accepted files
+  without requiring the user to understand the underlying runtime.
+- Support corrections and replanning with explicit input/configuration versions.
+- Improve provider connect/test/repair flows. Extend scoped OAuth enrollment and refresh
+  to a selected provider when a pilot requires it.
 
-## Local PC rollout
+Acceptance: begin a request in chat, inspect and steer it from Work, reopen it on another
+authorized device, and retrieve the same status and deliverables after a restart.
 
-The `cam40419` account is the configured site administrator. Simon runs at localhost under one
-non-reloading server worker, with password login available and development-token login disabled.
-The seven transferred devices remain associated with this account's workspace. Windows logon,
-recovery, and daily backup tasks are installed for PostgreSQL and Simon. A controlled shutdown,
-stopped-container recovery, and a 37-table restore comparison passed. The tunnel remains stopped.
-See [local operations](runbooks/local-operations.md). An actual Windows reboot is still needed to
-confirm the logon behavior from a cold start; the task triggers and manual recovery passed.
+### 4 Shared spending controls and quality evidence
 
-Next:
+- Introduce a shared account/project ledger across conversation, voice, planning,
+  specialists, reviews, retries, and paid tools, with time-period allowances.
+- Reserve against applicable ceilings atomically; settle known usage and retain conservative
+  reservations for unknown outcomes. Label estimates and unpriced charges explicitly.
+- Expose accumulated usage and projected cost before admitting additional work.
+- Evaluate routing and context selection with representative tasks and user feedback.
 
-1. Exercise each of the seven transferred devices from `cam40419`: read status, on/off, brightness/color where supported, readback, meter samples, and unavailable-device handling. Record any device-specific fixes without switching unrelated loads.
-2. If remote access is needed again, serve only the browser interface from the website and proxy its authenticated API/streaming calls to this PC. Implement remote-origin login, cookies, CSRF, throttling, voice, and browser tests before enabling the route.
+Acceptance: concurrent work cannot independently spend the same allowance; children and
+reviews count toward their parent; unknown usage stays visible; media/tool charges are
+accounted for or explicitly blocked by the configured spending policy.
 
-## Next: workflows, scenes, and schedules
+### 5 Event driven ongoing work
 
-The [workflow automation plan](https://github.com/cam40419/RobbinsHome/blob/main/docs/workflow-automation-plan.md) expands automations into full workflows: scheduled individual steps, condition waits, monitoring, branches, durable recovery, and a run timeline. Build the execution foundation before printer automation, using simulated tools and existing read-only home capabilities first. Chat and UI will share the same workflow controls and authorization rules.
+- Add structured, source-linked project decisions and business records with effective dates.
+  Keep personal memory, scratch work, and accepted project knowledge distinct.
+- Resume a bounded project on a correlated reply, approval, or completed tool job rather
+  than repeatedly asking a model whether it can continue.
+- Persist long tool-job identifiers and reconcile before resubmitting paid work.
+- Evaluate a durable workflow engine when a real multi-day process requires multiple
+  external events, timers, approvals, and compensating actions. Give one engine ownership
+  of each process's transitions.
 
-- Persist named scenes such as Work, Wind down, and All lights off; edit their device membership and settings from Home and chat. Capture per-device receipts and partial failures.
-- Add an actual scheduling worker with timezone-aware routines, repeat rules, retry/idempotency policy, and an execution history. Existing job records alone do not provide scheduled automation.
-- Extend power views with daily aggregates before offering weekly/monthly charts; account for missing coverage and meter resets. Add tariff/cost estimates only after the user provides a rate.
+Acceptance: a supplier/reply or comparable process survives downtime, waits without model
+polling, resumes on the correct event, and never repeats an uncertain commitment.
 
-## Next: faster and more capable assistance
+## Pilot workflows and measures
 
-- Measure first speech, first text, delegation latency, and interruption latency on realistic personal tasks. Tune routing with those measurements rather than a claimed speed target.
-- Add configurable budgets and usage visibility across speech and delegated reasoning. The existing call limits do not provide an account-wide spending cap.
-- Evaluate direct handling of well-defined device commands and reusable scene actions. Retain ambiguity checks and permissions.
-- Extend Google with calendar edits/recurrence and inbox reading, then evaluate reservation-specific integrations. Arbitrary website form completion is still unavailable.
+Use these two workflows to drive the next milestone rather than implementing every target
+adapter at once:
 
-Keep [model management](model-management-plan.md) and [home integration](https://github.com/cam40419/RobbinsHome/blob/main/docs/home-integration-plan.md) as the detailed subsystem plans.
+1. Research to decision package: sourced report, comparison spreadsheet, checked references
+   and calculations, recommendation, and unresolved owner decisions.
+2. Engineering brief to reviewed artifact package: editable sources, exports, previews,
+   validation reports, actual-file review, and a follow-up revision from a changed requirement.
+
+Measure first-pass acceptance, owner correction time, cost per accepted deliverable, artifact
+retrieval success, recovery success, and interactive latency under background load. Establish
+baselines before setting numerical targets or increasing concurrency.
+
+## Deferred expansion
+
+| Work                                                                     | Revisit when                                                                                                 |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| Additional board providers and company administration                    | A real organization cannot use the existing board boundary or needs a self-hosted provider.                  |
+| Broad authenticated browser and desktop automation                       | A selected workflow lacks a suitable API or scriptable adapter and has a defined validation contract.        |
+| More CAD/PCB applications and video generation                           | The pilot requires a concrete missing output or editing operation.                                           |
+| Remote Git publishing and richer coding runtimes                         | A repository workflow needs reviewed branch delivery beyond the implemented local Git and GitHub operations. |
+| Distributed runners, larger seat pools, and alternative storage backends | Measured resource pressure, placement, or artifact volume justifies the operational cost.                    |
+| Local inference infrastructure                                           | Representative evaluations demonstrate a quality, privacy, availability, or total-cost benefit.              |
+| General checkout and interactive phone agents                            | A specific provider/workflow and exact authorization/reconciliation contract are selected.                   |
+| Broader sharing, retention, and semantic memory extraction               | Explicit scope, deletion/retention semantics, and retrieval-quality acceptance tests are defined.            |
+
+## Document ownership and maintenance
+
+This roadmap owns priority and status. Runbooks own setup, operations, and current limits.
+The [platform design](architecture/multi-agent-company-platform-plan.md) remains the detailed
+target architecture; its original delivery table is design history, not a second backlog.
+The [repository boundary](architecture/repository-separation.md) supersedes combined-system
+Home/Workshop plans.
+
+The [model management plan](model-management-plan.md) and
+[accounts and workshop plan](accounts-workshop-plan.md) retain subsystem design context.
+Their dated future-work statements must be reconciled here before becoming new work.
+The superseded roadmap, Phase 1 readiness checklist, and combined Simon/Home architecture
+have been removed; current behavior belongs in runbooks and boundaries in the repository
+separation document. Committed historical versions remain available through Git.
+
+When a change ships, update its runbook and this roadmap in the same change. Separate
+implementation from deployment acceptance, link repeatable evidence, and preserve unresolved
+limits. Do not use a historical coverage number or an available adapter as proof of readiness.

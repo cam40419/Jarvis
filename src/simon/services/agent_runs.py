@@ -26,7 +26,10 @@ ActorResolver = Callable[[UUID, UUID], ActorContext]
 
 class AgentRunService:
     def __init__(
-        self, platform: AgentPlatformService, *, enabled: bool = False,
+        self,
+        platform: AgentPlatformService,
+        *,
+        enabled: bool = False,
         actor_resolver: ActorResolver | None = None,
     ) -> None:
         self.platform, self.store, self.enabled = platform, platform.store, enabled
@@ -36,12 +39,22 @@ class AgentRunService:
         account = self.store.managed_account(actor_id)
         if account is not None and account.disabled:
             raise AuthorizationError("Account access has been disabled")
-        membership = next((item for item in self.store.memberships(actor_id)
-                           if item.household_id == workspace_id), None)
+        membership = next(
+            (
+                item
+                for item in self.store.memberships(actor_id)
+                if item.household_id == workspace_id
+            ),
+            None,
+        )
         if membership is None:
             raise AuthorizationError("Workspace membership required")
-        return ActorContext(actor_id=actor_id, household_id=workspace_id,
-                            channel=Channel.WORKER, scopes=ROLE_SCOPES[membership.role])
+        return ActorContext(
+            actor_id=actor_id,
+            household_id=workspace_id,
+            channel=Channel.WORKER,
+            scopes=ROLE_SCOPES[membership.role],
+        )
 
     @staticmethod
     def view(job: Job) -> AgentRun:
@@ -81,9 +94,9 @@ class AgentRunService:
 
     def assert_team(self, actor: ActorContext, plan: AgentTeamPlan) -> None:
         team = self.platform.resolve_team(actor, plan.team_id, plan.project_id)
-        if team.version != plan.team_version or not {
-            task.agent_id for task in plan.tasks
-        } <= set(team.agent_ids):
+        if team.version != plan.team_version or not {task.agent_id for task in plan.tasks} <= set(
+            team.agent_ids
+        ):
             raise InvalidTransitionError("Project team changed; create a new plan")
 
     def live_actor(self, job: Job) -> ActorContext:
@@ -92,9 +105,11 @@ class AgentRunService:
         current = self.actor_resolver(job.created_by, job.household_id)
         if (current.actor_id, current.household_id) != (job.created_by, job.household_id):
             raise AuthorizationError("Actor resolver returned a different owner")
-        actor = current.model_copy(update={
-            "scopes": current.scopes & frozenset(job.input["scopes"]),
-        })
+        actor = current.model_copy(
+            update={
+                "scopes": current.scopes & frozenset(job.input["scopes"]),
+            }
+        )
         self.platform.authorize(actor, write=True)
         plan = self.platform.get(actor, UUID(job.input["plan_id"]))
         self.assert_configuration(actor, plan)
@@ -102,7 +117,10 @@ class AgentRunService:
         return actor
 
     def _reservations(
-        self, actor: ActorContext, plan: AgentTeamPlan, request: PlanTeamRequest,
+        self,
+        actor: ActorContext,
+        plan: AgentTeamPlan,
+        request: PlanTeamRequest,
     ) -> tuple[TaskExecution, ...]:
         profiles = self.platform.plan_profiles(actor, plan)
         endpoints = {item.id: item for item in self.platform.manifest.models}
@@ -116,22 +134,29 @@ class AgentRunService:
             # Reserve the full permitted loop before siblings can spend independently.
             # This estimates model token costs only; external tool charges are excluded.
             input_rate, output_rate = (
-                endpoint.input_cost_per_million_usd, endpoint.output_cost_per_million_usd
+                endpoint.input_cost_per_million_usd,
+                endpoint.output_cost_per_million_usd,
             )
             estimate = None
             if endpoint.local or (input_rate is not None and output_rate is not None):
-                estimate = (profile.max_steps if task.tool_ids else 1) * (
-                    endpoint.context_window_tokens * (input_rate or 0)
-                    + min(spec.output_tokens, profile.max_output_tokens) * (output_rate or 0)
-                ) / 1_000_000
-            if spec.budget_usd is not None and (
-                estimate is None or estimate > spec.budget_usd
-            ):
+                estimate = (
+                    (profile.max_steps if task.tool_ids else 1)
+                    * (
+                        endpoint.context_window_tokens * (input_rate or 0)
+                        + min(spec.output_tokens, profile.max_output_tokens) * (output_rate or 0)
+                    )
+                    / 1_000_000
+                )
+            if spec.budget_usd is not None and (estimate is None or estimate > spec.budget_usd):
                 raise ValidationError("Task model budget cannot cover its permitted execution")
-            tasks.append(TaskExecution(id=task.id, agent_id=task.agent_id,
-                                       environment_id=(task.environment.environment_id
-                                                       if task.environment else None),
-                                       model_reserved_usd=estimate))
+            tasks.append(
+                TaskExecution(
+                    id=task.id,
+                    agent_id=task.agent_id,
+                    environment_id=(task.environment.environment_id if task.environment else None),
+                    model_reserved_usd=estimate,
+                )
+            )
         return tuple(tasks)
 
     def start(self, actor: ActorContext, plan_id: UUID, request: StartAgentRun) -> AgentRun:
@@ -157,34 +182,52 @@ class AgentRunService:
             tasks = self._reservations(actor, plan, specifications)
             total = (
                 sum(task.model_reserved_usd or 0 for task in tasks)
-                if all(task.model_reserved_usd is not None for task in tasks) else None
+                if all(task.model_reserved_usd is not None for task in tasks)
+                else None
             )
             if request.model_budget_usd is not None and (
                 total is None or total > request.model_budget_usd
             ):
                 raise ValidationError("Run model budget cannot cover all task reservations")
             state = AgentRun(
-                id=identifier, plan_id=plan.id, workspace_id=actor.household_id,
-                actor_id=actor.actor_id, tasks=tasks, model_reserved_usd=total,
+                id=identifier,
+                plan_id=plan.id,
+                workspace_id=actor.household_id,
+                actor_id=actor.actor_id,
+                tasks=tasks,
+                model_reserved_usd=total,
                 model_budget_usd=request.model_budget_usd,
             )
             job = Job(
-                id=identifier, household_id=actor.household_id, created_by=actor.actor_id,
-                kind=RUN_KIND, idempotency_key=identifier.hex, input_digest=fingerprint,
-                input={"plan_id": str(plan.id), "request": request.model_dump(mode="json"),
-                       "scopes": sorted(actor.scopes),
-                       "initial_state": state.model_dump(mode="json")},
+                id=identifier,
+                household_id=actor.household_id,
+                created_by=actor.actor_id,
+                kind=RUN_KIND,
+                idempotency_key=identifier.hex,
+                input_digest=fingerprint,
+                input={
+                    "plan_id": str(plan.id),
+                    "request": request.model_dump(mode="json"),
+                    "scopes": sorted(actor.scopes),
+                    "initial_state": state.model_dump(mode="json"),
+                },
             )
             saved, _created = self.store.create_job(job)
             self.platform.audit.record(
-                event_type="platform.run.queued", actor=actor, resource_type=RUN_KIND,
-                resource_id=str(identifier), payload={"plan_id": str(plan.id)},
+                event_type="platform.run.queued",
+                actor=actor,
+                resource_type=RUN_KIND,
+                resource_id=str(identifier),
+                payload={"plan_id": str(plan.id)},
             )
             return self.view(saved)
 
     def update(
-        self, identifier: UUID, change: Callable[[AgentRun], AgentRun],
-        *, executor_id: UUID | None = None,
+        self,
+        identifier: UUID,
+        change: Callable[[AgentRun], AgentRun],
+        *,
+        executor_id: UUID | None = None,
     ) -> AgentRun:
         job = self.job(identifier)
         with self.store.transaction(job.household_id):
@@ -196,17 +239,32 @@ class AgentRunService:
                 raise InvalidTransitionError("Dispatcher no longer owns this run")
             updated = change(state)
             saved = self.store.transition_job(
-                job.id, job.version, updated.status, updated.model_dump(mode="json"),
+                job.id,
+                job.version,
+                updated.status,
+                updated.model_dump(mode="json"),
             )
             return self.view(saved)
 
     def task_update(
-        self, identifier: UUID, task_id: str, change: Callable[[TaskExecution], TaskExecution],
-        *, executor_id: UUID,
+        self,
+        identifier: UUID,
+        task_id: str,
+        change: Callable[[TaskExecution], TaskExecution],
+        *,
+        executor_id: UUID,
     ) -> AgentRun:
-        return self.update(identifier, lambda state: state.model_copy(update={
-            "tasks": tuple(change(task) if task.id == task_id else task for task in state.tasks),
-        }), executor_id=executor_id)
+        return self.update(
+            identifier,
+            lambda state: state.model_copy(
+                update={
+                    "tasks": tuple(
+                        change(task) if task.id == task_id else task for task in state.tasks
+                    ),
+                }
+            ),
+            executor_id=executor_id,
+        )
 
     def cancel(self, actor: ActorContext, identifier: UUID) -> AgentRun:
         self.platform.authorize(actor, write=True)
@@ -217,9 +275,13 @@ class AgentRunService:
                 return state
             updates: dict[str, Any] = {"cancel_requested": True}
             if state.status == JobStatus.QUEUED:
-                updates.update(status=JobStatus.CANCELLED, finished_at=utc_now(), tasks=tuple(
-                    task.model_copy(update={"status": "cancelled"}) for task in state.tasks
-                ))
+                updates.update(
+                    status=JobStatus.CANCELLED,
+                    finished_at=utc_now(),
+                    tasks=tuple(
+                        task.model_copy(update={"status": "cancelled"}) for task in state.tasks
+                    ),
+                )
             return state.model_copy(update=updates)
 
         return self.update(identifier, change)
@@ -241,13 +303,19 @@ class AgentRunService:
             used = sum(self.view(item).reserved_slots for item in active)
             if used + slots > self.platform.manifest.max_parallel:
                 return None
+
             def change(current: AgentRun) -> AgentRun:
                 if current.status != JobStatus.QUEUED or current.cancel_requested:
                     raise InvalidTransitionError("Run was cancelled or claimed")
-                return current.model_copy(update={
-                    "status": JobStatus.RUNNING, "execution_started": True,
-                    "reserved_slots": slots, "executor_id": uuid4(), "started_at": utc_now(),
-                })
+                return current.model_copy(
+                    update={
+                        "status": JobStatus.RUNNING,
+                        "execution_started": True,
+                        "reserved_slots": slots,
+                        "executor_id": uuid4(),
+                        "started_at": utc_now(),
+                    }
+                )
 
             try:
                 return self.update(identifier, change)
@@ -255,7 +323,10 @@ class AgentRunService:
                 return None
 
     def reconcile(
-        self, actor: ActorContext, identifier: UUID, request: ReconcileAgentRun,
+        self,
+        actor: ActorContext,
+        identifier: UUID,
+        request: ReconcileAgentRun,
     ) -> AgentRun:
         self.platform.authorize(actor, write=True)
         if "identity:manage" not in actor.scopes:
@@ -265,7 +336,11 @@ class AgentRunService:
         return self._reconcile(actor, identifier, request)
 
     def recover_interrupted(
-        self, identifier: UUID, expected_version: int, *, operator_actor_id: UUID,
+        self,
+        identifier: UUID,
+        expected_version: int,
+        *,
+        operator_actor_id: UUID,
     ) -> AgentRun:
         """Trusted local CLI recovery after the operator has stopped the old dispatcher.
 
@@ -273,14 +348,26 @@ class AgentRunService:
         owner's current account. Never expose it as an authenticated user endpoint.
         """
         job = self.job(identifier)
-        actor = ActorContext(actor_id=operator_actor_id, household_id=job.household_id,
-                             channel=Channel.WORKER, scopes=frozenset({"identity:manage"}))
-        return self._reconcile(actor, identifier, ReconcileAgentRun(
-            expected_version=expected_version, worker_stopped=True,
-        ))
+        actor = ActorContext(
+            actor_id=operator_actor_id,
+            household_id=job.household_id,
+            channel=Channel.WORKER,
+            scopes=frozenset({"identity:manage"}),
+        )
+        return self._reconcile(
+            actor,
+            identifier,
+            ReconcileAgentRun(
+                expected_version=expected_version,
+                worker_stopped=True,
+            ),
+        )
 
     def _reconcile(
-        self, actor: ActorContext, identifier: UUID, request: ReconcileAgentRun,
+        self,
+        actor: ActorContext,
+        identifier: UUID,
+        request: ReconcileAgentRun,
     ) -> AgentRun:
 
         def change(state: AgentRun) -> AgentRun:
@@ -300,17 +387,25 @@ class AgentRunService:
                 elif task.status == "queued":
                     updates["status"] = "cancelled"
                 recovered_tasks.append(task.model_copy(update=updates))
-            return state.model_copy(update={
-                "status": JobStatus.NEEDS_HUMAN, "executor_id": None, "reserved_slots": 0,
-                "cancel_requested": True, "finished_at": utc_now(),
-                "tasks": tuple(recovered_tasks),
-            })
+            return state.model_copy(
+                update={
+                    "status": JobStatus.NEEDS_HUMAN,
+                    "executor_id": None,
+                    "reserved_slots": 0,
+                    "cancel_requested": True,
+                    "finished_at": utc_now(),
+                    "tasks": tuple(recovered_tasks),
+                }
+            )
 
         with self.store.transaction(actor.household_id):
             state = self.update(identifier, change)
             self.platform.audit.record(
-                event_type="platform.run.reconciled", actor=actor, resource_type=RUN_KIND,
-                resource_id=str(identifier), payload={"worker_stopped": True},
+                event_type="platform.run.reconciled",
+                actor=actor,
+                resource_type=RUN_KIND,
+                resource_id=str(identifier),
+                payload={"worker_stopped": True},
             )
             return state
 

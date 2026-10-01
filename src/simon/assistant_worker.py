@@ -40,7 +40,8 @@ def _store(settings: Settings) -> PostgresStore:
 
 
 def _services(
-    store: PostgresStore, settings: Settings,
+    store: PostgresStore,
+    settings: Settings,
 ) -> tuple[AssistantTaskService, WorkSessionService]:
     from simon.adapters.openai_model import OpenAIModel
     from simon.services.model_conversations import ModelConversationService
@@ -50,7 +51,11 @@ def _services(
     identity, audit = IdentityService(store, settings), AuditService(store)
     connected = ConnectedService(store, audit, settings, identity)
     conversations = ModelConversationService(
-        store, audit, OpenAIModel(settings.openai_api_key.get_secret_value()), settings, connected,
+        store,
+        audit,
+        OpenAIModel(settings.openai_api_key.get_secret_value()),
+        settings,
+        connected,
     )
     tasks = AssistantTaskService(store, identity, conversations)
     connected.tasks = tasks
@@ -82,14 +87,20 @@ def _finish(future: Future[int], label: str) -> bool:
             logger.info("Completed %s %s tick(s)", completed, label)
         return True
     except Exception as error:
-        logger.error("%s failed (%s); inspect saved work before retrying",
-                     label, type(error).__name__)
+        logger.error(
+            "%s failed (%s); inspect saved work before retrying", label, type(error).__name__
+        )
         return False
 
 
 def _serve(
-    tasks: TickService, sessions: TickService, *, poll_seconds: float, stop: Event,
-    once: bool = False, stop_file: Path | None = None,
+    tasks: TickService,
+    sessions: TickService,
+    *,
+    poll_seconds: float,
+    stop: Event,
+    once: bool = False,
+    stop_file: Path | None = None,
 ) -> bool:
     active: dict[Future[int], str] = {}
     executor = ThreadPoolExecutor(max_workers=3, thread_name_prefix="assistant-worker")
@@ -124,13 +135,16 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     modes = parser.add_mutually_exclusive_group()
     modes.add_argument("--once", action="store_true", help="Process one batch, then exit")
-    modes.add_argument("--check", action="store_true",
-                       help="Validate settings without opening a DB")
+    modes.add_argument(
+        "--check", action="store_true", help="Validate settings without opening a DB"
+    )
     parser.add_argument("--poll-seconds", type=float, default=1)
-    parser.add_argument("--stop-file", type=Path,
-                        help="Persistent operator-owned graceful stop marker")
-    parser.add_argument("--log-file", type=Path,
-                        help="Append rotating operational logs (5 MiB, 3 backups)")
+    parser.add_argument(
+        "--stop-file", type=Path, help="Persistent operator-owned graceful stop marker"
+    )
+    parser.add_argument(
+        "--log-file", type=Path, help="Append rotating operational logs (5 MiB, 3 backups)"
+    )
     args = parser.parse_args(argv)
     if not 0.2 <= args.poll_seconds <= 10:
         parser.error("poll-seconds must be between 0.2 and 10")
@@ -153,8 +167,9 @@ def main(argv: Sequence[str] | None = None) -> None:
     try:
         if args.log_file is not None:
             args.log_file.parent.mkdir(parents=True, exist_ok=True)
-            file_handler = RotatingFileHandler(args.log_file, maxBytes=5 * 1024 * 1024,
-                                              backupCount=3, encoding="utf-8")
+            file_handler = RotatingFileHandler(
+                args.log_file, maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8"
+            )
             file_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
             logger.addHandler(file_handler)
         stop = Event()
@@ -165,8 +180,14 @@ def main(argv: Sequence[str] | None = None) -> None:
             store = _store(settings)
             tasks, sessions = _services(store, settings)
             logger.info("Simon assistant worker started")
-            if not _serve(tasks, sessions, poll_seconds=args.poll_seconds, stop=stop,
-                          once=args.once, stop_file=args.stop_file):
+            if not _serve(
+                tasks,
+                sessions,
+                poll_seconds=args.poll_seconds,
+                stop=stop,
+                once=args.once,
+                stop_file=args.stop_file,
+            ):
                 parser.exit(1, "Assistant batch failed; inspect the worker log and saved work.\n")
             logger.info("Simon assistant worker stopped")
     except KeyboardInterrupt:

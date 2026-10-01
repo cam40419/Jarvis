@@ -81,9 +81,13 @@ def project_command_router(
         plans, executions = [], []
         blockers = list(state.blocked_reasons)
         if coordinator.boards is not None:
-            blockers.extend(board_blockers(
-                coordinator.boards, actor, coordinator.boards.get(actor, project_id),
-            ))
+            blockers.extend(
+                board_blockers(
+                    coordinator.boards,
+                    actor,
+                    coordinator.boards.get(actor, project_id),
+                )
+            )
         if not runs.enabled:
             blockers.append("Agent execution is disabled on this server.")
         if state.team is None:
@@ -114,9 +118,13 @@ def project_command_router(
             "activity": work.list_activity(actor, project_id),
             "plans": plans,
             "runs": executions,
-            "external_actions": [action.model_dump(mode="json") for identifier in run_ids
-                for action in coordinator.external_actions.list_for_run(actor, identifier)]
-                if coordinator.external_actions else [],
+            "external_actions": [
+                action.model_dump(mode="json")
+                for identifier in run_ids
+                for action in coordinator.external_actions.list_for_run(actor, identifier)
+            ]
+            if coordinator.external_actions
+            else [],
             "blocked_reasons": list(dict.fromkeys(blockers)),
         }
 
@@ -163,7 +171,8 @@ def project_command_router(
 
     @router.get("/todos/archived")
     def archived(
-        project_id: UUID, actor: Annotated[ActorContext, Depends(authenticate)],
+        project_id: UUID,
+        actor: Annotated[ActorContext, Depends(authenticate)],
         offset: Annotated[int, Query(ge=0, le=10000000)] = 0,
         limit: Annotated[int, Query(ge=1, le=100)] = 50,
     ) -> dict[str, Any]:

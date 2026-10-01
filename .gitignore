@@ -172,6 +172,8 @@ cython_debug/
 
 # Other
 .vscode
+node_modules/
+.ruff_cache/
 
 # Local credentials and OAuth tokens
 secret/

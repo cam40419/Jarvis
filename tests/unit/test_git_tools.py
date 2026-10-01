@@ -46,7 +46,12 @@ class RecordingManager:
         self.result = ExecutionResult(exit_code=0, stdout="## main\n")
 
     def execute(
-        self, lease_id: UUID, command: ExecutionCommand, *, attempt_id: UUID, fencing_token: int,
+        self,
+        lease_id: UUID,
+        command: ExecutionCommand,
+        *,
+        attempt_id: UUID,
+        fencing_token: int,
     ) -> ExecutionResult:
         self.calls.append((lease_id, command, attempt_id, fencing_token))
         if self.fail:
@@ -54,31 +59,60 @@ class RecordingManager:
         return self.result
 
 
-def setup(operation: str = "status") -> tuple[
-    RecordingManager, EnvironmentLease, ToolDefinition, ToolExecutionContext, GitToolTransport,
+def setup(
+    operation: str = "status",
+) -> tuple[
+    RecordingManager,
+    EnvironmentLease,
+    ToolDefinition,
+    ToolExecutionContext,
+    GitToolTransport,
 ]:
     definition = EnvironmentDefinition(
-        id="git-worker", kind="docker", container_image="simon-git-worker:local",
-        enabled=True, capabilities=GIT_CAPABILITIES,
+        id="git-worker",
+        kind="docker",
+        container_image="simon-git-worker:local",
+        enabled=True,
+        capabilities=GIT_CAPABILITIES,
     )
     request = EnvironmentRequest(
-        workspace_id=uuid4(), agent_id="coder", task_id=uuid4(), attempt_id=uuid4(),
+        workspace_id=uuid4(),
+        agent_id="coder",
+        task_id=uuid4(),
+        attempt_id=uuid4(),
         capabilities=GIT_CAPABILITIES,
     )
     lease = EnvironmentLease(
-        id=uuid4(), plan=EnvironmentPlan(
-            environment_id=definition.id, kind="docker", request=request,
-            workspace_path=Path("unused"), network="none", cpu_limit=2, memory_mb=2048,
+        id=uuid4(),
+        plan=EnvironmentPlan(
+            environment_id=definition.id,
+            kind="docker",
+            request=request,
+            workspace_path=Path("unused"),
+            network="none",
+            cpu_limit=2,
+            memory_mb=2048,
             gpu_devices=(),
-        ), definition=definition, fencing_token=3, status="active", resource_handle="owned",
-        created_at=utc_now(), heartbeat_at=utc_now(),
+        ),
+        definition=definition,
+        fencing_token=3,
+        status="active",
+        resource_handle="owned",
+        created_at=utc_now(),
+        heartbeat_at=utc_now(),
     )
-    tool = next(item for item in git_tool_definitions(enabled=True)
-                if item.id == "git." + operation)
+    tool = next(
+        item for item in git_tool_definitions(enabled=True) if item.id == "git." + operation
+    )
     context = ToolExecutionContext(
-        actor_id=uuid4(), household_id=request.workspace_id, run_id=uuid4(), agent_id="coder",
-        allowed_tool_ids=frozenset({tool.id}), scopes=tool.required_scopes,
-        environment_capabilities=GIT_CAPABILITIES, authorized_action=tool.action_policy,
+        actor_id=uuid4(),
+        household_id=request.workspace_id,
+        run_id=uuid4(),
+        agent_id="coder",
+        allowed_tool_ids=frozenset({tool.id}),
+        scopes=tool.required_scopes,
+        environment_capabilities=GIT_CAPABILITIES,
+        authorized_action=tool.action_policy,
     )
     manager = RecordingManager()
     transport = GitToolTransport(manager, lease, actor_id=context.actor_id, run_id=context.run_id)
@@ -88,8 +122,15 @@ def setup(operation: str = "status") -> tuple[
 def test_definitions_default_to_unconfigured_and_cover_real_operations() -> None:
     definitions = git_tool_definitions()
     assert {item.id for item in definitions} == {
-        "git.status", "git.diff", "git.log", "git.branches", "git.init", "git.branch",
-        "git.switch", "git.add", "git.commit",
+        "git.status",
+        "git.diff",
+        "git.log",
+        "git.branches",
+        "git.init",
+        "git.branch",
+        "git.switch",
+        "git.add",
+        "git.commit",
     }
     assert all(not item.enabled and not item.configured for item in definitions)
 
@@ -118,9 +159,14 @@ def test_cannot_cross_worker_assignment(field: str) -> None:
     assert manager.calls == []
 
 
-@pytest.mark.parametrize("change", [
-    {"scopes": frozenset()}, {"allowed_tool_ids": frozenset()}, {"authorized_action": "read"},
-])
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"scopes": frozenset()},
+        {"allowed_tool_ids": frozenset()},
+        {"authorized_action": "read"},
+    ],
+)
 def test_writes_require_assignment_scope_and_action_authorization(change: dict[str, Any]) -> None:
     manager, _, tool, context, transport = setup("commit")
     with pytest.raises(AuthorizationError):
@@ -130,15 +176,29 @@ def test_writes_require_assignment_scope_and_action_authorization(change: dict[s
 
 def test_relabelled_write_cannot_evade_scope_check() -> None:
     manager, _, tool, context, transport = setup("commit")
-    tool = tool.model_copy(update={"required_scopes": frozenset(), "action_policy": "read",
-                                   "side_effect": False})
+    tool = tool.model_copy(
+        update={"required_scopes": frozenset(), "action_policy": "read", "side_effect": False}
+    )
     with pytest.raises(AuthorizationError):
         transport(tool, {"message": "Example"}, context.model_copy(update={"scopes": frozenset()}))
     assert manager.calls == []
 
 
-@pytest.mark.parametrize("path", ["../escape", "/tmp", "C:/tmp", "a\\b", "a//b", ".git",
-                                  "a/.git/config", "--help", "bad\nname", "a/../b"])
+@pytest.mark.parametrize(
+    "path",
+    [
+        "../escape",
+        "/tmp",
+        "C:/tmp",
+        "a\\b",
+        "a//b",
+        ".git",
+        "a/.git/config",
+        "--help",
+        "bad\nname",
+        "a/../b",
+    ],
+)
 def test_paths_rejected_before_runner_dispatch(path: str) -> None:
     manager, _, tool, context, transport = setup()
     with pytest.raises(ToolCatalogError):
@@ -152,13 +212,22 @@ def test_branch_names_cannot_be_options_or_special_refs(name: str) -> None:
         branch_name(name)
 
 
-@pytest.mark.parametrize(("operation", "arguments"), [
-    ("status", {"argv": ["git", "push"]}), ("push", {}), ("log", {"limit": 101}),
-    ("log", {"limit": True}), ("diff", {"staged": 1}), ("add", {"paths": []}),
-    ("add", {"paths": ["../escape"]}), ("commit", {"message": "\x00"}),
-])
+@pytest.mark.parametrize(
+    ("operation", "arguments"),
+    [
+        ("status", {"argv": ["git", "push"]}),
+        ("push", {}),
+        ("log", {"limit": 101}),
+        ("log", {"limit": True}),
+        ("diff", {"staged": 1}),
+        ("add", {"paths": []}),
+        ("add", {"paths": ["../escape"]}),
+        ("commit", {"message": "\x00"}),
+    ],
+)
 def test_invalid_arguments_are_not_interpreted_as_command_options(
-    operation: str, arguments: dict[str, Any],
+    operation: str,
+    arguments: dict[str, Any],
 ) -> None:
     with pytest.raises(ValueError):
         validate_arguments(operation, arguments)
@@ -184,9 +253,13 @@ def test_guard_timeout_marks_commit_outcome_uncertain() -> None:
 
 def test_actual_lease_capabilities_are_checked() -> None:
     manager, lease, tool, context, _ = setup()
-    lease = lease.model_copy(update={"definition": lease.definition.model_copy(
-        update={"capabilities": frozenset({"python"})},
-    )})
+    lease = lease.model_copy(
+        update={
+            "definition": lease.definition.model_copy(
+                update={"capabilities": frozenset({"python"})},
+            )
+        }
+    )
     transport = GitToolTransport(manager, lease, actor_id=context.actor_id, run_id=context.run_id)
     with pytest.raises(ToolCatalogError, match="Git and Python"):
         transport(tool, {}, context)
@@ -203,14 +276,17 @@ def test_command_contract_disables_executable_configuration(tmp_path: Path) -> N
     assert argv[-2:] == [arguments["message"], "--"]
 
 
-@pytest.mark.parametrize("config", [
-    '[core]\n bare = false\n hooksPath = /tmp/hooks\n',
-    '[core]\n bare = false\n fsmonitor = command\n',
-    '[include]\n path = /tmp/config\n',
-    '[filter "evil"]\n clean = command\n',
-    '[core]\n worktree = /tmp/escape\n',
-    '[core]\n bare = true\n',
-])
+@pytest.mark.parametrize(
+    "config",
+    [
+        "[core]\n bare = false\n hooksPath = /tmp/hooks\n",
+        "[core]\n bare = false\n fsmonitor = command\n",
+        "[include]\n path = /tmp/config\n",
+        '[filter "evil"]\n clean = command\n',
+        "[core]\n worktree = /tmp/escape\n",
+        "[core]\n bare = true\n",
+    ],
+)
 def test_unsafe_repository_configuration_rejected(tmp_path: Path, config: str) -> None:
     (tmp_path / ".git").mkdir()
     (tmp_path / ".git" / "config").write_text(config)
@@ -247,12 +323,19 @@ def test_real_git_lifecycle_and_hooks_are_disabled(tmp_path: Path) -> None:
     )
 
     def invoke(operation: str, **arguments: Any) -> subprocess.CompletedProcess[str]:
-        request = {"operation": operation, "arguments": arguments,
-                   "author_name": "Test Agent", "author_email": "test@example.invalid",
-                   "timeout_seconds": 20}
+        request = {
+            "operation": operation,
+            "arguments": arguments,
+            "author_name": "Test Agent",
+            "author_email": "test@example.invalid",
+            "timeout_seconds": 20,
+        }
         return subprocess.run(
             [sys.executable, "-c", script, json.dumps(request), str(tmp_path), executable],
-            text=True, capture_output=True, timeout=25, check=False,
+            text=True,
+            capture_output=True,
+            timeout=25,
+            check=False,
         )
 
     result = invoke("init")

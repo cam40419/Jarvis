@@ -39,17 +39,17 @@ are inherited.
 
 All paths are relative to the lease workspace. `repository` defaults to `.`.
 
-| Tool | Example arguments | Effect |
-| --- | --- | --- |
-| `git.init` | `{"repository":"source","branch":"main"}` | Initialize a new repository |
-| `git.status` | `{"repository":"source"}` | Inspect changes |
-| `git.diff` | `{"repository":"source","staged":true}` | Read a patch |
-| `git.log` | `{"repository":"source","limit":20}` | Read recent commit summaries |
-| `git.branches` | `{"repository":"source"}` | List local branches |
-| `git.branch` | `{"repository":"source","name":"feature/report"}` | Create a branch |
-| `git.switch` | `{"repository":"source","name":"feature/report"}` | Switch to that branch |
-| `git.add` | `{"repository":"source","paths":["report.md"]}` | Stage listed paths |
-| `git.commit` | `{"repository":"source","message":"Add report"}` | Commit staged changes |
+| Tool           | Example arguments                                 | Effect                       |
+| -------------- | ------------------------------------------------- | ---------------------------- |
+| `git.init`     | `{"repository":"source","branch":"main"}`         | Initialize a new repository  |
+| `git.status`   | `{"repository":"source"}`                         | Inspect changes              |
+| `git.diff`     | `{"repository":"source","staged":true}`           | Read a patch                 |
+| `git.log`      | `{"repository":"source","limit":20}`              | Read recent commit summaries |
+| `git.branches` | `{"repository":"source"}`                         | List local branches          |
+| `git.branch`   | `{"repository":"source","name":"feature/report"}` | Create a branch              |
+| `git.switch`   | `{"repository":"source","name":"feature/report"}` | Switch to that branch        |
+| `git.add`      | `{"repository":"source","paths":["report.md"]}`   | Stage listed paths           |
+| `git.commit`   | `{"repository":"source","message":"Add report"}`  | Commit staged changes        |
 
 Populate the workspace through approved assignment tooling or an administrator's
 staging process. Git tooling does not mount the Simon checkout or project library.

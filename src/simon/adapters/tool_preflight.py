@@ -3,6 +3,7 @@
 from collections.abc import Mapping
 
 from simon.adapters._browser_runner import allowed_origins
+from simon.adapters.application_tools import application_configuration_reason
 from simon.adapters.cad_tools import cad_configuration_reason
 from simon.adapters.cloud_storage_tools import cloud_storage_tool_status
 from simon.adapters.generative_tools import generative_configuration_reason
@@ -12,17 +13,42 @@ from simon.domain.models import ActorContext
 from simon.domain.tool_catalog import ToolDefinition
 
 INSTALLED_TRANSPORTS = (
-    "http", "environment", "native", "git", "mcp", "workspace_files", "processing",
-    "github", "webdav", "dropbox", "box", "onedrive", "browser", "generative", "cad", "pcb",
-    "project_work", "external_actions",
+    "application",
+    "http",
+    "environment",
+    "native",
+    "git",
+    "mcp",
+    "workspace_files",
+    "processing",
+    "github",
+    "webdav",
+    "dropbox",
+    "box",
+    "onedrive",
+    "browser",
+    "generative",
+    "cad",
+    "pcb",
+    "project_work",
+    "external_actions",
 )
 
 
 def uses_network(tool: ToolDefinition) -> bool:
     """Transport identity wins over a mistakenly omitted network declaration."""
     return (
-        tool.transport in {
-            "http", "mcp", "github", "webdav", "dropbox", "box", "onedrive", "generative",
+        tool.transport
+        in {
+            "http",
+            "mcp",
+            "github",
+            "webdav",
+            "dropbox",
+            "box",
+            "onedrive",
+            "generative",
+            "application",
         }
         or (tool.transport == "browser" and tool.id != "browser.render_html")
         or (tool.transport == "external_actions" and tool.id == "external_actions.quote")
@@ -31,14 +57,20 @@ def uses_network(tool: ToolDefinition) -> bool:
 
 
 def integration_status(
-    tool: ToolDefinition, actor: ActorContext, environ: Mapping[str, str],
+    tool: ToolDefinition,
+    actor: ActorContext,
+    environ: Mapping[str, str],
 ) -> tuple[str, tuple[str, ...]]:
+    if tool.transport == "application" and (reason := application_configuration_reason(tool)):
+        return "unconfigured", (reason,)
     if tool.transport == "external_actions":
         from simon.adapters.external_action_tools import external_action_configuration_reason
+
         if reason := external_action_configuration_reason(tool):
             return "unconfigured", (reason,)
     if tool.transport == "project_work":
         from simon.adapters.project_work_tools import project_tool_configuration_reason
+
         if reason := project_tool_configuration_reason(tool):
             return "unconfigured", (reason,)
     if tool.transport in {"github", "webdav"}:
@@ -58,7 +90,8 @@ def integration_status(
         if reason:
             return "unconfigured", (reason,)
     if tool.transport == "mcp" and (
-        not tool.endpoint or not isinstance(tool.settings.get("tool_name"), str)
+        not tool.endpoint
+        or not isinstance(tool.settings.get("tool_name"), str)
         or not tool.settings.get("tool_name")
         or tool.settings.get("protocol_version", "2025-11-25") != "2025-11-25"
     ):

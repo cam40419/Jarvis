@@ -1,3 +1,5 @@
+"""Compose scoped services, HTTP routes, and process-owned background resources."""
+
 import asyncio
 import logging
 from collections.abc import AsyncIterator
@@ -158,39 +160,57 @@ class AppContainer:
         self.connected.tasks = self.tasks
         self.work_sessions = WorkSessionService(self.tasks)
         self.agent_platform = AgentPlatformService(
-            self.store, with_native_tools(
-                load_manifest(self.settings.agent_manifest_file), self.connected,
+            self.store,
+            with_native_tools(
+                load_manifest(self.settings.agent_manifest_file),
+                self.connected,
             ),
             state_dir=self.settings.agent_state_dir,
             available_transports=INSTALLED_TRANSPORTS,
-            tool_availability=lambda actor, tool_id: native_tool_status(
-                self.connected, actor, tool_id,
-            ) if tool_id.startswith("native.") else external_tool_status(
-                self.external_actions, actor, tool_id,
+            tool_availability=lambda actor, tool_id: (
+                native_tool_status(
+                    self.connected,
+                    actor,
+                    tool_id,
+                )
+                if tool_id.startswith("native.")
+                else external_tool_status(
+                    self.external_actions,
+                    actor,
+                    tool_id,
+                )
             ),
         )
         self.agent_transport_factory = native_transport_factory(self.connected)
         self.agent_runs = AgentRunService(
-            self.agent_platform, enabled=self.settings.agent_execution_enabled,
+            self.agent_platform,
+            enabled=self.settings.agent_execution_enabled,
         )
         self.project_work = ProjectWorkService(
-            self.store, project_resolver=self.tasks.project,
+            self.store,
+            project_resolver=self.tasks.project,
         )
         self.project_boards = project_board_service(self.settings, self.store, self.project_work)
         self.project_coordinator = ProjectCoordinator(
-            self.project_work, self.agent_runs, external_actions=self.external_actions,
+            self.project_work,
+            self.agent_runs,
+            external_actions=self.external_actions,
             boards=self.project_boards,
         )
         self.project_work.team_validator = self.project_coordinator.validate_team
         self.project_autonomy = ProjectAutonomyService(
-            self.project_work, self.project_coordinator,
+            self.project_work,
+            self.project_coordinator,
             enabled=self.settings.agent_execution_enabled,
         )
         self.agent_transport_factory = project_transport_factory(
-            self.agent_transport_factory, self.project_work, self.agent_runs,
+            self.agent_transport_factory,
+            self.project_work,
+            self.agent_runs,
         )
         self.agent_transport_factory = external_transport_factory(
-            self.agent_transport_factory, self.external_actions,
+            self.agent_transport_factory,
+            self.external_actions,
         )
         self.memories = MemoryService(self.store, self.audit)
         self.voice = VoiceService(
@@ -292,9 +312,13 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
         valid_host = False
         try:
             incoming = urlsplit("//" + supplied_host)
-            if (incoming.hostname == public_origin.hostname and incoming.netloc == supplied_host
-                    and incoming.username is None and incoming.password is None
-                    and (incoming.port is None or 1 <= incoming.port <= 65535)):
+            if (
+                incoming.hostname == public_origin.hostname
+                and incoming.netloc == supplied_host
+                and incoming.username is None
+                and incoming.password is None
+                and (incoming.port is None or 1 <= incoming.port <= 65535)
+            ):
                 valid_host = True
                 # TrustedHost checks the hostname but ignores a supplied port.
                 # Accepted hosts always use our configured port in generated URLs.
@@ -307,8 +331,11 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
         path = str(request.scope.get("path", "")).removeprefix(services.settings.public_path)
         callback = path == "/auth/google/callback"
         try:
-            response = (await call_next(request) if valid_host else
-                        JSONResponse({"detail": "Invalid host header"}, status_code=400))
+            response = (
+                await call_next(request)
+                if valid_host
+                else JSONResponse({"detail": "Invalid host header"}, status_code=400)
+            )
         finally:
             if callback:
                 # OAuth codes must not appear in Uvicorn access logs, even on errors.
@@ -347,9 +374,13 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
         return actor
 
     app.include_router(task_router(services.tasks, checked_actor))
-    app.include_router(agent_platform_router(
-        services.agent_platform, checked_actor, services.agent_runs,
-    ))
+    app.include_router(
+        agent_platform_router(
+            services.agent_platform,
+            checked_actor,
+            services.agent_runs,
+        )
+    )
     app.include_router(project_router(services.connected.projects, checked_actor))
     app.include_router(project_command_router(services.project_coordinator, checked_actor))
     app.include_router(external_actions_router(services.external_actions, checked_actor))
@@ -841,7 +872,8 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
         root.state.container = services
         root.add_middleware(TrustedHostMiddleware, allowed_hosts=[hostname])
         root.add_middleware(
-            RequestIngressMiddleware, public_path=services.settings.public_path,
+            RequestIngressMiddleware,
+            public_path=services.settings.public_path,
             auth_rate_limit=services.settings.auth_rate_limit,
             auth_rate_window_seconds=services.settings.auth_rate_window_seconds,
         )
@@ -849,7 +881,8 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
         root.mount(services.settings.public_path, app)
         return root
     app.add_middleware(
-        RequestIngressMiddleware, auth_rate_limit=services.settings.auth_rate_limit,
+        RequestIngressMiddleware,
+        auth_rate_limit=services.settings.auth_rate_limit,
         auth_rate_window_seconds=services.settings.auth_rate_window_seconds,
     )
     app.middleware("http")(security_headers)

@@ -28,8 +28,14 @@ def main() -> None:
         with partial.open("wb") as output:
             subprocess.run(
                 command(
-                    "pg_dump", "-U", "jarvis", "-d", "jarvis", "--format=custom",
-                    "--no-owner", "--no-privileges",
+                    "pg_dump",
+                    "-U",
+                    "jarvis",
+                    "-d",
+                    "jarvis",
+                    "--format=custom",
+                    "--no-owner",
+                    "--no-privileges",
                 ),
                 stdout=output,
                 stderr=subprocess.PIPE,
@@ -61,7 +67,8 @@ def main() -> None:
                     "format_check": "passed",
                 },
                 indent=2,
-            ) + "\n",
+            )
+            + "\n",
             encoding="utf-8",
         )
         print(f"Validated backup: {archive}")

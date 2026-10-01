@@ -77,8 +77,12 @@ class JobStore(TransactionStore, Protocol):
     def jobs_all(self, kind: str, limit: int, status: str = "queued") -> Sequence[Job]: ...
 
     def project_run_jobs(
-        self, household_id: UUID, actor_id: UUID, project_id: UUID,
-        before: tuple[datetime, UUID] | None, limit: int,
+        self,
+        household_id: UUID,
+        actor_id: UUID,
+        project_id: UUID,
+        before: tuple[datetime, UUID] | None,
+        limit: int,
     ) -> Sequence[Job]: ...
 
     def save_job(self, job: Job, expected_version: int) -> Job: ...
@@ -211,8 +215,6 @@ class VoiceStore(TransactionStore, Protocol):
     def voice_sessions(self, household_id: UUID, actor_id: UUID) -> Sequence[VoiceSession]: ...
     def voice_session(self, household_id: UUID, session_id: UUID) -> VoiceSession | None: ...
     def save_voice_session(self, session: VoiceSession) -> None: ...
-
-
 
 
 class ProjectArtifactStore(TransactionStore, Protocol):

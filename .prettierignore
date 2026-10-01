@@ -1,0 +1,6 @@
+# Private state, dependencies, and generated engineering evidence are not source.
+.local/
+venv/
+node_modules/
+examples/hardware/
+db/migrations/

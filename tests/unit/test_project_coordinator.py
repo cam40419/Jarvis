@@ -165,11 +165,20 @@ def planning(h):
     return h.work.get(h.actor, h.project.id)
 
 
-@pytest.mark.parametrize("owner,edit_during_run", [
-    ("file-writer", False), ("lead", False), ("custom", False), ("custom", True),
-])
+@pytest.mark.parametrize(
+    "owner,edit_during_run",
+    [
+        ("file-writer", False),
+        ("lead", False),
+        ("custom", False),
+        ("custom", True),
+    ],
+)
 def test_one_owner_researches_writes_and_verifies_real_document(
-    tmp_path, monkeypatch, owner, edit_during_run,
+    tmp_path,
+    monkeypatch,
+    owner,
+    edit_during_run,
 ):
     # Only model responses are synthetic: the dispatcher, grants, native transport,
     # revision receipts and local file storage run through their real implementations.
@@ -177,8 +186,13 @@ def test_one_owner_researches_writes_and_verifies_real_document(
     source_text = f"Approved launch code: {uuid4()}.\nPilot production: 24 shirts.\n"
     source = {"root": "workspace", "path": "sources/launch.txt"}
     output = {"root": "workspace", "path": "reports/launch-brief.md"}
-    files.run(actor, "local_file_write", {**source, "content": source_text},
-              "seed-project-source", lambda: actor)
+    files.run(
+        actor,
+        "local_file_write",
+        {**source, "content": source_text},
+        "seed-project-source",
+        lambda: actor,
+    )
     source_bytes = (files.workspace(actor) / source["path"]).read_bytes()
     project = SimpleNamespace(
         id=uuid4(), subject="Launch brief", content="Use the approved local launch notes."
@@ -186,7 +200,9 @@ def test_one_owner_researches_writes_and_verifies_real_document(
 
     def resolver(current, identifier):
         if (current.actor_id, current.household_id, identifier) != (
-            actor.actor_id, actor.household_id, project.id,
+            actor.actor_id,
+            actor.household_id,
+            project.id,
         ):
             raise NotFoundError("Project not found")
         return project
@@ -196,59 +212,91 @@ def test_one_owner_researches_writes_and_verifies_real_document(
         tools=tuple(tool for tool in native_tool_definitions(connected) if tool.id in tool_ids),
         agents=tuple(
             AgentProfile(
-                id=key, instructions="Research sources, write documents and check your work.",
+                id=key,
+                instructions="Research sources, write documents and check your work.",
                 description="Research and document production",
                 tool_ids=tool_ids[:1] if key == "research" else tool_ids,
                 tool_scopes=frozenset({"jobs:read", "jobs:write"}),
-                max_action="read" if key == "research" else "write", max_output_tokens=4096,
+                max_action="read" if key == "research" else "write",
+                max_output_tokens=4096,
             )
             for key in ("lead", "research", "file-writer")
         ),
-        teams=(TeamTemplate(
-            id="documents", name="Documents", agent_ids=("lead", "research", "file-writer"),
-        ),),
-        models=(ModelEndpoint(
-            id="local", provider="openai_compatible", model="test",
-            base_url="http://localhost:11434/v1", local=True,
-            capabilities=frozenset({"text", "tools"}),
-        ),),
+        teams=(
+            TeamTemplate(
+                id="documents",
+                name="Documents",
+                agent_ids=("lead", "research", "file-writer"),
+            ),
+        ),
+        models=(
+            ModelEndpoint(
+                id="local",
+                provider="openai_compatible",
+                model="test",
+                base_url="http://localhost:11434/v1",
+                local=True,
+                capabilities=frozenset({"text", "tools"}),
+            ),
+        ),
     )
     platform = AgentPlatformService(
-        connected.store, manifest, state_dir=tmp_path / "agents", environ={},
+        connected.store,
+        manifest,
+        state_dir=tmp_path / "agents",
+        environ={},
         available_transports=("native",),
         tool_availability=lambda current, identifier: native_tool_status(
-            connected, current, identifier,
+            connected,
+            current,
+            identifier,
         ),
     )
     runs = AgentRunService(platform, enabled=True, actor_resolver=lambda *_: actor)
     work = ProjectWorkService(
-        connected.store, project_resolver=resolver, actor_resolver=lambda *_: actor,
+        connected.store,
+        project_resolver=resolver,
+        actor_resolver=lambda *_: actor,
     )
     coordinator = ProjectCoordinator(work, runs)
     work.team_validator = coordinator.validate_team
     members = ("lead", "research", "file-writer")
     if owner == "custom":
         skills = platform.agent_profiles.skills(actor)
-        skill_ids = tuple(skill["id"] for skill in skills if set(
-            skill["source_agent_ids"],
-        ) & {"research", "file-writer"})
-        created = platform.agent_profiles.create(actor, CreateAgentProfile(
-            name="Collection researcher and writer",
-            description="Research the source files, produce the launch brief and verify it.",
-            skill_ids=skill_ids, idempotency_key="custom-collection-owner",
-        ))
+        skill_ids = tuple(
+            skill["id"]
+            for skill in skills
+            if set(
+                skill["source_agent_ids"],
+            )
+            & {"research", "file-writer"}
+        )
+        created = platform.agent_profiles.create(
+            actor,
+            CreateAgentProfile(
+                name="Collection researcher and writer",
+                description="Research the source files, produce the launch brief and verify it.",
+                skill_ids=skill_ids,
+                idempotency_key="custom-collection-owner",
+            ),
+        )
         owner = created.profile.id
         assert len(created.skill_ids) >= 2
         assert set(created.profile.tool_ids) == set(tool_ids)
         members += (owner,)
-    work.configure(actor, project.id, ConfigureProjectWork(
-        expected_version=0,
-        team=ProjectTeam(
-            name="Documents", agent_ids=members,
-            lead_agent_id="lead",
-            roles={"file-writer": "Research sources and write verified documents."},
+    work.configure(
+        actor,
+        project.id,
+        ConfigureProjectWork(
+            expected_version=0,
+            team=ProjectTeam(
+                name="Documents",
+                agent_ids=members,
+                lead_agent_id="lead",
+                roles={"file-writer": "Research sources and write verified documents."},
+            ),
         ),
-    ))
+    )
     model_stages = []
     verified_output = "Saved and read back reports/launch-brief.md from sources/launch.txt."
 
@@ -266,13 +314,19 @@ def test_one_owner_researches_writes_and_verifies_real_document(
             assert [tool["id"] for tool in roster["research"]["ready_tools"]] == [tool_ids[0]]
             assert roster[owner]["max_action"] == "write"
             response = {
-                "status": "plan", "summary": "One owner can research, save and verify the brief.",
-                "tasks": [{
-                    "id": "brief", "title": "Verified launch brief", "agent_id": owner,
-                    "objective": "Read sources/launch.txt; write reports/launch-brief.md "
-                                 "with the approved code and quantity; read back to verify both.",
-                    "tool_ids": list(tool_ids), "depends_on": [],
-                }],
+                "status": "plan",
+                "summary": "One owner can research, save and verify the brief.",
+                "tasks": [
+                    {
+                        "id": "brief",
+                        "title": "Verified launch brief",
+                        "agent_id": owner,
+                        "objective": "Read sources/launch.txt; write reports/launch-brief.md "
+                        "with the approved code and quantity; read back to verify both.",
+                        "tool_ids": list(tool_ids),
+                        "depends_on": [],
+                    }
+                ],
             }
         elif "Granted tools:" in request.system:
             model_stages.append("deliverable")
@@ -289,13 +343,22 @@ def test_one_owner_researches_writes_and_verifies_real_document(
                 content = "# Launch brief\n\n" + history[0]["output"]["text"]
                 if edit_during_run:
                     saved = platform.agent_profiles.get(actor, owner)
-                    platform.agent_profiles.update(actor, owner, UpdateAgentProfile(
-                        name=saved.name, description="The user changed this role during execution.",
-                        skill_ids=saved.skill_ids, expected_version=saved.version,
-                        idempotency_key="change-role-during-run",
-                    ))
-                response = {"type": "tool", "tool_id": tool_ids[1],
-                            "arguments": {**output, "content": content}}
+                    platform.agent_profiles.update(
+                        actor,
+                        owner,
+                        UpdateAgentProfile(
+                            name=saved.name,
+                            description="The user changed this role during execution.",
+                            skill_ids=saved.skill_ids,
+                            expected_version=saved.version,
+                            idempotency_key="change-role-during-run",
+                        ),
+                    )
+                response = {
+                    "type": "tool",
+                    "tool_id": tool_ids[1],
+                    "arguments": {**output, "content": content},
+                }
             elif len(history) == 2:
                 assert history[-1]["output"]["status"] == "succeeded"
                 response = {"type": "tool", "tool_id": tool_ids[0], "arguments": output}
@@ -308,19 +371,27 @@ def test_one_owner_researches_writes_and_verifies_real_document(
             assert "Review the execution results" in request.prompt
             assert verified_output in request.prompt
             return TextGenerationResult(
-                endpoint_id=route.endpoint_id, model=route.model,
+                endpoint_id=route.endpoint_id,
+                model=route.model,
                 text="Reviewed: the sourced brief was saved and read back; approval remains.",
-                input_tokens=10, output_tokens=10,
+                input_tokens=10,
+                output_tokens=10,
             )
         return TextGenerationResult(
-            endpoint_id=route.endpoint_id, model=route.model, text=json.dumps(response),
-            input_tokens=10, output_tokens=10,
+            endpoint_id=route.endpoint_id,
+            model=route.model,
+            text=json.dumps(response),
+            input_tokens=10,
+            output_tokens=10,
         )
 
     monkeypatch.setattr(ModelEndpointClient, "generate", generate)
     dispatcher = AgentDispatcher(runs, transport_factory=native_transport_factory(connected))
     state = work.request_cycle(
-        actor, project.id, "Prepare the verified launch brief.", "brief-cycle",
+        actor,
+        project.id,
+        "Prepare the verified launch brief.",
+        "brief-cycle",
     )
     coordinator.begin(actor, project.id, state.active_cycle)
     assert dispatcher.tick().status == JobStatus.SUCCEEDED
@@ -335,9 +406,14 @@ def test_one_owner_researches_writes_and_verifies_real_document(
     assert plan.waves == (("brief",), ("lead-summary",))
     assert [task.tool_ids for task in plan.tasks] == [tool_ids, ()]
     assert not (files.workspace(actor) / output["path"]).exists()
-    state = work.control(actor, project.id, ProjectWorkControl(
-        action="run_ready", expected_version=state.version,
-    ))
+    state = work.control(
+        actor,
+        project.id,
+        ProjectWorkControl(
+            action="run_ready",
+            expected_version=state.version,
+        ),
+    )
     coordinator.advance(actor, project.id, state.active_cycle)
     completed = dispatcher.tick()
     if edit_during_run:
@@ -356,7 +432,8 @@ def test_one_owner_researches_writes_and_verifies_real_document(
         return
     assert completed.status == JobStatus.SUCCEEDED
     assert [(task.agent_id, task.tool_calls) for task in completed.tasks] == [
-        (owner, 3), ("lead", 0),
+        (owner, 3),
+        ("lead", 0),
     ]
     state = work.get(actor, project.id)
     update = coordinator.advance(actor, project.id, state.active_cycle)
@@ -390,9 +467,14 @@ def test_board_preflight_failure_blocks_before_any_model_run(tmp_path):
 def test_publishing_failure_blocks_before_specialists_start(tmp_path):
     h = harness(tmp_path)
     state = planning(h)
-    state = h.work.control(h.actor, h.project.id, ProjectWorkControl(
-        action="run_ready", expected_version=state.version,
-    ))
+    state = h.work.control(
+        h.actor,
+        h.project.id,
+        ProjectWorkControl(
+            action="run_ready",
+            expected_version=state.version,
+        ),
+    )
 
     def blocked(*args):
         raise ValidationError("ClickUp task outcome is unknown")

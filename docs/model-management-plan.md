@@ -1,5 +1,9 @@
 # Model management plan
 
+> Historical planning and implementation record. Use the [current roadmap](next-phases.md)
+> for delivery order and current runbooks for implemented behavior. Dated backlog items below
+> may have shipped or moved to RobbinsHome.
+
 Accepted September 13, 2026. Prioritize a responsive everyday assistant before tool integration.
 
 ## Phase A: profiles and interaction (implemented)
@@ -59,7 +63,6 @@ Migration 0006 is applied locally, and the wheel includes it. No paid model requ
 
 No automatic second generation, cross-provider fallback, or daily spending guarantees are introduced
 in Phase A. Live partial text is provisional; completed answers remain the canonical durable records.
-
 
 ## Connected capabilities: brought forward September 14, 2026
 

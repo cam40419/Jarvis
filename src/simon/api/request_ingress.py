@@ -26,11 +26,20 @@ class SourceRateLimiter:
     """Bounded per-source token buckets; active entries cannot be evicted to evade limits."""
 
     def __init__(
-        self, limit: int, window_seconds: float, max_sources: int, clock: Callable[[], float],
+        self,
+        limit: int,
+        window_seconds: float,
+        max_sources: int,
+        clock: Callable[[], float],
     ) -> None:
-        if (type(limit) is not int or not 0 <= limit <= 10000
-                or not math.isfinite(window_seconds) or not 0 < window_seconds <= 86400
-                or type(max_sources) is not int or not 1 <= max_sources <= 65536):
+        if (
+            type(limit) is not int
+            or not 0 <= limit <= 10000
+            or not math.isfinite(window_seconds)
+            or not 0 < window_seconds <= 86400
+            or type(max_sources) is not int
+            or not 1 <= max_sources <= 65536
+        ):
             raise ValueError("Invalid authentication rate limits")
         self.limit, self.window_seconds, self.max_sources = limit, window_seconds, max_sources
         self.clock = clock
@@ -51,11 +60,19 @@ class SourceRateLimiter:
             overflow = source not in self._buckets and len(self._buckets) >= self.max_sources
             previous = self._overflow if overflow else self._buckets.get(source)
             tokens, updated = previous if previous is not None else (float(self.limit), now)
-            tokens = min(float(self.limit), tokens + max(0, now - updated)
-                         * self.limit / self.window_seconds)
-            retry = None if tokens >= 1 else max(1, math.ceil(
-                (1 - tokens) * self.window_seconds / self.limit,
-            ))
+            tokens = min(
+                float(self.limit), tokens + max(0, now - updated) * self.limit / self.window_seconds
+            )
+            retry = (
+                None
+                if tokens >= 1
+                else max(
+                    1,
+                    math.ceil(
+                        (1 - tokens) * self.window_seconds / self.limit,
+                    ),
+                )
+            )
             state = (tokens - 1 if retry is None else tokens, now)
             if overflow:
                 self._overflow = state
@@ -67,26 +84,40 @@ class SourceRateLimiter:
 
 class RequestIngressMiddleware:
     def __init__(
-        self, app: ASGIApp, *, public_path: str = "", auth_rate_limit: int = 60,
-        auth_rate_window_seconds: float = 60.0, auth_max_sources: int = 1024,
-        auth_max_body_bytes: int = 65536, default_max_body_bytes: int = 2 * 1024 * 1024,
-        local_upload_max_body_bytes: int = MAX_FILE, body_timeout_seconds: float = 60.0,
+        self,
+        app: ASGIApp,
+        *,
+        public_path: str = "",
+        auth_rate_limit: int = 60,
+        auth_rate_window_seconds: float = 60.0,
+        auth_max_sources: int = 1024,
+        auth_max_body_bytes: int = 65536,
+        default_max_body_bytes: int = 2 * 1024 * 1024,
+        local_upload_max_body_bytes: int = MAX_FILE,
+        body_timeout_seconds: float = 60.0,
         clock: Callable[[], float] = monotonic,
     ) -> None:
         limits = (auth_max_body_bytes, default_max_body_bytes, local_upload_max_body_bytes)
         if any(type(value) is not int or not 1 <= value <= 64 * 1024 * 1024 for value in limits):
             raise ValueError("Ingress body limits must be between one byte and 64 MiB")
-        if (not math.isfinite(body_timeout_seconds) or not 0 < body_timeout_seconds <= 3600
-                or (public_path and not re.fullmatch(r"(?:/[a-zA-Z0-9_-]+)+", public_path))):
+        if (
+            not math.isfinite(body_timeout_seconds)
+            or not 0 < body_timeout_seconds <= 3600
+            or (public_path and not re.fullmatch(r"(?:/[a-zA-Z0-9_-]+)+", public_path))
+        ):
             raise ValueError("Invalid ingress timeout or public path")
         self.app, self.public_path = app, public_path
         self.auth_max_body_bytes, self.default_max_body_bytes = (
-            auth_max_body_bytes, default_max_body_bytes,
+            auth_max_body_bytes,
+            default_max_body_bytes,
         )
         self.local_upload_max_body_bytes = local_upload_max_body_bytes
         self.body_timeout_seconds = body_timeout_seconds
         self.limiter = SourceRateLimiter(
-            auth_rate_limit, auth_rate_window_seconds, auth_max_sources, clock,
+            auth_rate_limit,
+            auth_rate_window_seconds,
+            auth_max_sources,
+            clock,
         )
 
     def path(self, scope: Scope) -> str:
@@ -94,7 +125,7 @@ class RequestIngressMiddleware:
         root = str(scope.get("root_path", "")).rstrip("/")
         for prefix in dict.fromkeys((root, self.public_path)):
             if prefix and (path == prefix or path.startswith(prefix + "/")):
-                path = path[len(prefix):]
+                path = path[len(prefix) :]
         return path.rstrip("/") or "/"
 
     def limit_for(self, path: str) -> int:
@@ -127,12 +158,21 @@ class RequestIngressMiddleware:
 
     @staticmethod
     def authentication_path(path: str) -> bool:
-        return (path == "/auth/dev-login" or path == "/auth/password"
-                or path.startswith(("/auth/password/", "/auth/passkeys/")))
+        return (
+            path == "/auth/dev-login"
+            or path == "/auth/password"
+            or path.startswith(("/auth/password/", "/auth/passkeys/"))
+        )
 
     async def reject(
-        self, scope: Scope, receive: Receive, send: Send, status: int, detail: str,
-        *, retry: int | None = None,
+        self,
+        scope: Scope,
+        receive: Receive,
+        send: Send,
+        status: int,
+        detail: str,
+        *,
+        retry: int | None = None,
     ) -> None:
         headers = {"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"}
         if retry is not None:
@@ -148,22 +188,27 @@ class RequestIngressMiddleware:
         if scope["method"] == "POST" and self.authentication_path(path):
             retry = self.limiter.retry_after(self.source(scope))
             if retry is not None:
-                await self.reject(scope, receive, send, 429, "Too many authentication requests",
-                                  retry=retry)
+                await self.reject(
+                    scope, receive, send, 429, "Too many authentication requests", retry=retry
+                )
                 return
         limit = self.limit_for(path)
         lengths = [value for key, value in scope.get("headers", ()) if key == b"content-length"]
         chunked = any(key == b"transfer-encoding" for key, _ in scope.get("headers", ()))
         length = None
         if lengths:
-            if (chunked or any(not value.isdigit() or len(value) > 20 for value in lengths)
-                    or len(set(lengths)) != 1):
+            if (
+                chunked
+                or any(not value.isdigit() or len(value) > 20 for value in lengths)
+                or len(set(lengths)) != 1
+            ):
                 await self.reject(scope, receive, send, 400, "Invalid request body framing")
                 return
             length = int(lengths[0])
             if length > limit:
-                await self.reject(scope, receive, send, 413,
-                                  "Request body exceeds this route's limit")
+                await self.reject(
+                    scope, receive, send, 413, "Request body exceeds this route's limit"
+                )
                 return
         if scope["method"] in {"GET", "HEAD", "OPTIONS"} and not chunked and not length:
             await self.app(scope, receive, send)
@@ -188,8 +233,9 @@ class RequestIngressMiddleware:
                 chunk = message.get("body", b"")
                 size += len(chunk)
                 if size > limit:
-                    await self.reject(scope, receive, send, 413,
-                                      "Request body exceeds this route's limit")
+                    await self.reject(
+                        scope, receive, send, 413, "Request body exceeds this route's limit"
+                    )
                     return
                 if size > _SPOOL_MEMORY:
                     await asyncio.to_thread(body.write, chunk)
@@ -209,8 +255,11 @@ class RequestIngressMiddleware:
                 if replay_done:
                     return await receive()
                 count = min(65536, remaining)
-                chunk = (await asyncio.to_thread(body.read, count) if size > _SPOOL_MEMORY
-                         else body.read(count))
+                chunk = (
+                    await asyncio.to_thread(body.read, count)
+                    if size > _SPOOL_MEMORY
+                    else body.read(count)
+                )
                 remaining -= len(chunk)
                 replay_done = remaining == 0
                 return {"type": "http.request", "body": chunk, "more_body": not replay_done}

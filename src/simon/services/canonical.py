@@ -1,3 +1,5 @@
+"""Stable JSON serialization for persisted idempotency keys and action digests."""
+
 import hashlib
 import json
 from typing import Any

@@ -22,10 +22,13 @@ def grant(service, actor, scopes):
     service.store.save_google_connection(connection.model_copy(update={"scopes": scopes}))
 
 
-@pytest.mark.parametrize("scope,tools,flag", [
-    (GMAIL_READ_SCOPE, ("gmail_search_messages", "gmail_read_message"), "gmail_read"),
-    (DRIVE_READ_SCOPE, ("drive_search_files", "drive_read_file"), "drive_read"),
-])
+@pytest.mark.parametrize(
+    "scope,tools,flag",
+    [
+        (GMAIL_READ_SCOPE, ("gmail_search_messages", "gmail_read_message"), "gmail_read"),
+        (DRIVE_READ_SCOPE, ("drive_search_files", "drive_read_file"), "drive_read"),
+    ],
+)
 def test_read_only_oauth_grants_and_independent_tools(store, scope, tools, flag):
     service, actor, session = connected_setup(store)
     assert service.status(actor)["needs_reconnect"]
@@ -41,12 +44,15 @@ def test_read_only_oauth_grants_and_independent_tools(store, scope, tools, flag)
     assert "calendar_list_events" not in service.available(actor)
 
 
-@pytest.mark.parametrize("name,method,args,scope", [
-    ("gmail_search_messages", "gmail_search", {"query": "is:unread"}, GMAIL_READ_SCOPE),
-    ("gmail_read_message", "gmail_message", {"id": "abc"}, GMAIL_READ_SCOPE),
-    ("drive_search_files", "drive_search", {"query": "notes"}, DRIVE_READ_SCOPE),
-    ("drive_read_file", "drive_file", {"id": "file"}, DRIVE_READ_SCOPE),
-])
+@pytest.mark.parametrize(
+    "name,method,args,scope",
+    [
+        ("gmail_search_messages", "gmail_search", {"query": "is:unread"}, GMAIL_READ_SCOPE),
+        ("gmail_read_message", "gmail_message", {"id": "abc"}, GMAIL_READ_SCOPE),
+        ("drive_search_files", "drive_search", {"query": "notes"}, DRIVE_READ_SCOPE),
+        ("drive_read_file", "drive_file", {"id": "file"}, DRIVE_READ_SCOPE),
+    ],
+)
 def test_read_dispatch_scope_validation_and_disconnect(store, name, method, args, scope):
     service, actor, _ = connected_setup(store)
     execute = service.executor(actor, uuid4(), [], lambda: actor)

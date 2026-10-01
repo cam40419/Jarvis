@@ -30,26 +30,54 @@ REPORT_ID = "member-" + "b" * 32
 
 @pytest.fixture
 def member_projects(store, tmp_path):
-    actor = ActorContext(actor_id=DEV_ACTOR_ID, household_id=DEV_HOUSEHOLD_ID,
-                         channel=Channel.API, scopes=frozenset({"jobs:read", "jobs:write"}))
+    actor = ActorContext(
+        actor_id=DEV_ACTOR_ID,
+        household_id=DEV_HOUSEHOLD_ID,
+        channel=Channel.API,
+        scopes=frozenset({"jobs:read", "jobs:write"}),
+    )
     first, second = uuid4(), uuid4()
     manifest = PlatformManifest(
-        agents=(AgentProfile(id="editor", name="Editor", instructions="Use authorized sources.",
-                             tool_ids=("native.local_file_read", "native.local_file_write"),
-                             tool_scopes=actor.scopes, max_action="write"),),
+        agents=(
+            AgentProfile(
+                id="editor",
+                name="Editor",
+                instructions="Use authorized sources.",
+                tool_ids=("native.local_file_read", "native.local_file_write"),
+                tool_scopes=actor.scopes,
+                max_action="write",
+            ),
+        ),
         teams=(TeamTemplate(id="studio", name="Studio", agent_ids=("editor",)),),
         tools=(
-            ToolDefinition(id="native.local_file_read", description="Read local files",
-                           transport="native", configured=True,
-                           required_scopes=frozenset({"jobs:read"})),
-            ToolDefinition(id="native.local_file_write", description="Write local files",
-                           transport="native", configured=True, side_effect=True,
-                           action_policy="write", required_scopes=frozenset({"jobs:write"})),
+            ToolDefinition(
+                id="native.local_file_read",
+                description="Read local files",
+                transport="native",
+                configured=True,
+                required_scopes=frozenset({"jobs:read"}),
+            ),
+            ToolDefinition(
+                id="native.local_file_write",
+                description="Write local files",
+                transport="native",
+                configured=True,
+                side_effect=True,
+                action_policy="write",
+                required_scopes=frozenset({"jobs:write"}),
+            ),
         ),
-        models=(ModelEndpoint(id="local", provider="openai_compatible", model="test-local",
-                              tier="economy", local=True,
-                              capabilities=frozenset({"text", "tools"}),
-                              base_url="http://localhost:11434/v1"),),
+        models=(
+            ModelEndpoint(
+                id="local",
+                provider="openai_compatible",
+                model="test-local",
+                tier="economy",
+                local=True,
+                capabilities=frozenset({"text", "tools"}),
+                base_url="http://localhost:11434/v1",
+            ),
+        ),
     )
 
     def resolve(current, project_id):
@@ -63,35 +91,63 @@ def member_projects(store, tmp_path):
         from simon.adapters.postgres import PostgresStore
 
         backing = PostgresStore(store._database_url) if isinstance(store, PostgresStore) else store
-        platform = AgentPlatformService(backing, manifest, state_dir=tmp_path, environ={},
-                                         available_transports=("native",))
-        work = ProjectWorkService(backing, project_resolver=resolve,
-                                  actor_resolver=lambda *_: actor)
+        platform = AgentPlatformService(
+            backing, manifest, state_dir=tmp_path, environ={}, available_transports=("native",)
+        )
+        work = ProjectWorkService(
+            backing, project_resolver=resolve, actor_resolver=lambda *_: actor
+        )
         runs = AgentRunService(platform, enabled=True, actor_resolver=lambda *_: actor)
         coordinator = ProjectCoordinator(work, runs)
         work.team_validator = coordinator.validate_team
         return SimpleNamespace(platform=platform, work=work, coordinator=coordinator)
 
     api, worker = instance(), instance()
-    skills = {item["tool_ids"][0]: item["id"]
-              for item in api.platform.catalog(actor)["individual_skills"] if item["tool_ids"]}
-    reader = AgentRoleDefinition(name="Source researcher", description="Read and compare sources.",
-                                 skill_ids=(skills["native.local_file_read"],))
-    writer = AgentRoleDefinition(name="Report writer", description="Write the finished report.",
-                                 skill_ids=(skills["native.local_file_write"],))
-    team = ProjectTeam(name="Project team", agent_ids=(RESEARCH_ID, REPORT_ID),
-                       lead_agent_id=RESEARCH_ID,
-                       members={RESEARCH_ID: reader, REPORT_ID: writer})
-    return SimpleNamespace(actor=actor, first=first, second=second, api=api, worker=worker,
-                           team=team, reader=reader, writer=writer, instance=instance)
+    skills = {
+        item["tool_ids"][0]: item["id"]
+        for item in api.platform.catalog(actor)["individual_skills"]
+        if item["tool_ids"]
+    }
+    reader = AgentRoleDefinition(
+        name="Source researcher",
+        description="Read and compare sources.",
+        skill_ids=(skills["native.local_file_read"],),
+    )
+    writer = AgentRoleDefinition(
+        name="Report writer",
+        description="Write the finished report.",
+        skill_ids=(skills["native.local_file_write"],),
+    )
+    team = ProjectTeam(
+        name="Project team",
+        agent_ids=(RESEARCH_ID, REPORT_ID),
+        lead_agent_id=RESEARCH_ID,
+        members={RESEARCH_ID: reader, REPORT_ID: writer},
+    )
+    return SimpleNamespace(
+        actor=actor,
+        first=first,
+        second=second,
+        api=api,
+        worker=worker,
+        team=team,
+        reader=reader,
+        writer=writer,
+        instance=instance,
+    )
 
 
 def test_member_skills_are_independent_durable_and_project_scoped(member_projects):
     h = member_projects
     before = h.api.platform.catalog(h.actor)["agents"]
-    state = h.api.work.configure(h.actor, h.first, ConfigureProjectWork(
-        expected_version=0, team=h.team,
-    ))
+    state = h.api.work.configure(
+        h.actor,
+        h.first,
+        ConfigureProjectWork(
+            expected_version=0,
+            team=h.team,
+        ),
+    )
     h.api.work.configure(h.actor, h.second, ConfigureProjectWork(expected_version=0, team=h.team))
     assert h.worker.work.get(h.actor, h.first).team == state.team
     original = {p.id: p for p in h.worker.platform.profiles(h.actor, h.first)}
@@ -100,21 +156,33 @@ def test_member_skills_are_independent_durable_and_project_scoped(member_project
     assert original[RESEARCH_ID].max_action == "read"
     assert original[REPORT_ID].max_action == "write"
 
-    combined = h.reader.model_copy(update={"name": "Research and reports",
-                                          "skill_ids": (*h.reader.skill_ids, *h.writer.skill_ids)})
+    combined = h.reader.model_copy(
+        update={
+            "name": "Research and reports",
+            "skill_ids": (*h.reader.skill_ids, *h.writer.skill_ids),
+        }
+    )
     changed = h.team.model_copy(update={"members": {**h.team.members, RESEARCH_ID: combined}})
-    edited = h.api.work.configure(h.actor, h.first, ConfigureProjectWork(
-        expected_version=state.version, team=changed,
-    ))
+    edited = h.api.work.configure(
+        h.actor,
+        h.first,
+        ConfigureProjectWork(
+            expected_version=state.version,
+            team=changed,
+        ),
+    )
     h.api.work.add_todo(
-        h.actor, h.first, ProjectTodo(title="Review notes", objective="Review notes."),
+        h.actor,
+        h.first,
+        ProjectTodo(title="Review notes", objective="Review notes."),
         idempotency_key="member-snapshot-survives-todo",
     )
     restarted = h.instance()
     current = {p.id: p for p in restarted.platform.profiles(h.actor, h.first)}
     other = {p.id: p for p in h.worker.platform.profiles(h.actor, h.second)}
     assert set(current[RESEARCH_ID].tool_ids) == {
-        "native.local_file_read", "native.local_file_write",
+        "native.local_file_read",
+        "native.local_file_write",
     }
     assert current[RESEARCH_ID].name == "Research and reports"
     assert current[REPORT_ID] == original[REPORT_ID]
@@ -128,25 +196,49 @@ def test_member_skills_are_independent_durable_and_project_scoped(member_project
 def test_planner_cannot_borrow_a_teammates_or_other_projects_skill(member_projects):
     h = member_projects
     h.api.work.configure(h.actor, h.first, ConfigureProjectWork(expected_version=0, team=h.team))
-    readonly_team = h.team.model_copy(update={"members": {
-        RESEARCH_ID: h.reader, REPORT_ID: h.reader,
-    }})
-    h.api.work.configure(h.actor, h.second, ConfigureProjectWork(
-        expected_version=0, team=readonly_team,
-    ))
+    readonly_team = h.team.model_copy(
+        update={
+            "members": {
+                RESEARCH_ID: h.reader,
+                REPORT_ID: h.reader,
+            }
+        }
+    )
+    h.api.work.configure(
+        h.actor,
+        h.second,
+        ConfigureProjectWork(
+            expected_version=0,
+            team=readonly_team,
+        ),
+    )
     for project_id, member in ((h.first, RESEARCH_ID), (h.second, REPORT_ID)):
         with pytest.raises(AuthorizationError, match="grant"):
-            h.worker.platform.plan(h.actor, PlanTeamRequest(
-                team_id="project-" + project_id.hex, project_id=project_id,
-                idempotency_key="borrow-grant-" + project_id.hex,
-                tasks=(AgentTaskSpec(id="write", agent_id=member, objective="Save a report.",
-                                     tool_ids=("native.local_file_write",)),),
-            ))
-    valid = h.worker.platform.plan(h.actor, PlanTeamRequest(
-        team_id="project-" + h.first.hex, project_id=h.first,
-        idempotency_key="member-authorized-plan",
-        tasks=(AgentTaskSpec(id="write", agent_id=REPORT_ID, objective="Save a report."),),
-    ))
+            h.worker.platform.plan(
+                h.actor,
+                PlanTeamRequest(
+                    team_id="project-" + project_id.hex,
+                    project_id=project_id,
+                    idempotency_key="borrow-grant-" + project_id.hex,
+                    tasks=(
+                        AgentTaskSpec(
+                            id="write",
+                            agent_id=member,
+                            objective="Save a report.",
+                            tool_ids=("native.local_file_write",),
+                        ),
+                    ),
+                ),
+            )
+    valid = h.worker.platform.plan(
+        h.actor,
+        PlanTeamRequest(
+            team_id="project-" + h.first.hex,
+            project_id=h.first,
+            idempotency_key="member-authorized-plan",
+            tasks=(AgentTaskSpec(id="write", agent_id=REPORT_ID, objective="Save a report."),),
+        ),
+    )
     assert valid.state == "planned"
     assert valid.tasks[0].tool_ids == ("native.local_file_write",)
     stranger = h.actor.model_copy(update={"actor_id": uuid4()})

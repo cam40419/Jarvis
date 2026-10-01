@@ -26,26 +26,40 @@ def test_real_vase_files_preview_download_privacy_and_engineering_catalog(reques
     if not location:
         pytest.skip("Set SIMON_VASE_SMOKE_WORKSPACE to a successful vase_smoke.py workspace")
     workspace = Path(location)
-    names = ("lilt-vase.scad", "lilt-vase.stl", "lilt-vase.3mf", "lilt-vase.blend",
-             "lilt-vase.png", "geometry-validation.json", "lilt-vase-readme.txt")
+    names = (
+        "lilt-vase.scad",
+        "lilt-vase.stl",
+        "lilt-vase.3mf",
+        "lilt-vase.blend",
+        "lilt-vase.png",
+        "geometry-validation.json",
+        "lilt-vase-readme.txt",
+    )
     originals = {name: (workspace / name).read_bytes() for name in names}
     geometry = json.loads(originals["geometry-validation.json"])["lilt-vase.stl"]
     assert geometry["watertight"] and geometry["vase"]["open_mouth"]
     assert hashlib.sha256(originals["lilt-vase.stl"]).hexdigest() == geometry["sha256"]
 
     page, _, container = request.getfixturevalue("agent_ui")
-    container.connected.settings = container.connected.settings.model_copy(update={
-        "local_files_enabled": True, "local_files_dir": tmp_path / "files",
-    })
+    container.connected.settings = container.connected.settings.model_copy(
+        update={
+            "local_files_enabled": True,
+            "local_files_dir": tmp_path / "files",
+        }
+    )
     origin = container.settings.public_origin
     page.locator("#local-files-open").click()
     panel = page.locator("#local-files-panel")
     for name, content in originals.items():
         expect(panel.locator("#local-file-upload")).to_be_enabled()
         with page.expect_response("**/v1/local-files/upload?*") as uploaded:
-            panel.locator("#local-file-upload").set_input_files({
-                "name": name, "mimeType": "application/octet-stream", "buffer": content,
-            })
+            panel.locator("#local-file-upload").set_input_files(
+                {
+                    "name": name,
+                    "mimeType": "application/octet-stream",
+                    "buffer": content,
+                }
+            )
         assert uploaded.value.status == 200, uploaded.value.text()
         row = panel.locator("article").filter(has=page.locator("strong", has_text=name))
         expect(row).to_be_visible()
@@ -84,32 +98,52 @@ def test_real_vase_files_preview_download_privacy_and_engineering_catalog(reques
     image.scroll_into_view_if_needed()
     page.screenshot(path=str(tmp_path / "real-vase-preview-mobile.png"), animations="disabled")
 
-    cookie = next(item["value"] for item in page.context.cookies()
-                  if item["name"] == "simon_session")
+    cookie = next(
+        item["value"] for item in page.context.cookies() if item["name"] == "simon_session"
+    )
     _, actor = container.identity.resolve(cookie)
     other_id = uuid4()
-    container.store.put_membership(Membership(
-        actor_id=other_id, household_id=actor.household_id, role="owner",
-        display_name="Separate synthetic account", household_name="Test household",
-    ))
+    container.store.put_membership(
+        Membership(
+            actor_id=other_id,
+            household_id=actor.household_id,
+            role="owner",
+            display_name="Separate synthetic account",
+            household_name="Test household",
+        )
+    )
     other_token, _ = container.identity._issue(other_id, actor.household_id, "development")
     with httpx.Client(base_url=origin, trust_env=False) as anonymous:
         for endpoint in ("download", "preview"):
             path = f"/v1/local-files/{endpoint}"
             params = {"root": "workspace", "path": "lilt-vase.png"}
             assert anonymous.get(path, params=params).status_code == 401
-            assert anonymous.get(path, params=params, headers={
-                "Cookie": "simon_session=" + other_token,
-            }).status_code == 422
+            assert (
+                anonymous.get(
+                    path,
+                    params=params,
+                    headers={
+                        "Cookie": "simon_session=" + other_token,
+                    },
+                ).status_code
+                == 422
+            )
     panel.get_by_role("button", name="Close", exact=True).click()
     page.set_viewport_size({"width": 1440, "height": 1080})
 
-    manifest = starter_manifest(Settings(
-        _env_file=None, model_provider="local", openai_api_key=None,
-    ))
+    manifest = starter_manifest(
+        Settings(
+            _env_file=None,
+            model_provider="local",
+            openai_api_key=None,
+        )
+    )
     replacement = AgentPlatformService(
-        container.store, manifest, state_dir=tmp_path / "engineering",
-        available_transports=INSTALLED_TRANSPORTS, environ={},
+        container.store,
+        manifest,
+        state_dir=tmp_path / "engineering",
+        available_transports=INSTALLED_TRANSPORTS,
+        environ={},
     )
     container.agent_platform.__dict__.update(replacement.__dict__)
     with page.expect_response("**/v1/agent-platform/catalog") as catalog_response:

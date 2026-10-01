@@ -10,7 +10,9 @@ pytestmark = [pytest.mark.postgres, pytest.mark.browser]
 
 
 def test_send_clears_immediately_and_preserves_followup_and_failed_drafts(
-    postgres_url, tmp_path, monkeypatch,
+    postgres_url,
+    tmp_path,
+    monkeypatch,
 ):
     if os.environ.get("SIMON_BROWSER_TESTS") != "1":
         pytest.skip("set SIMON_BROWSER_TESTS=1")
@@ -30,15 +32,25 @@ def test_send_clears_immediately_and_preserves_followup_and_failed_drafts(
         try:
             context = browser.new_context()
             origin = str(api.base_url).rstrip("/")
-            context.add_cookies([{
-                "name": "simon_session", "value": token, "url": origin, "sameSite": "Strict",
-            }])
+            context.add_cookies(
+                [
+                    {
+                        "name": "simon_session",
+                        "value": token,
+                        "url": origin,
+                        "sameSite": "Strict",
+                    }
+                ]
+            )
             page = context.new_page()
             errors, requests = [], []
             page.on("pageerror", lambda error: errors.append(str(error)))
-            page.route("**/v1/assistant", lambda route: route.fulfill(
-                json={"provider": "openai", "auto_deep_enabled": True},
-            ))
+            page.route(
+                "**/v1/assistant",
+                lambda route: route.fulfill(
+                    json={"provider": "openai", "auto_deep_enabled": True},
+                ),
+            )
             page.route("**/runs/stream", lambda route: requests.append(route))
             page.goto(origin + "/chat")
             expect(page.locator("#new-chat")).to_be_enabled()

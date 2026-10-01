@@ -9,12 +9,8 @@ from simon.domain.models import utc_now
 
 
 def test_recent_actions_uses_current_thread_and_completed_run_receipts(store):
-    first = Thread(
-        household_id=DEV_HOUSEHOLD_ID, created_by=DEV_ACTOR_ID, title="Office"
-    )
-    other = Thread(
-        household_id=DEV_HOUSEHOLD_ID, created_by=DEV_ACTOR_ID, title="Kitchen"
-    )
+    first = Thread(household_id=DEV_HOUSEHOLD_ID, created_by=DEV_ACTOR_ID, title="Office")
+    other = Thread(household_id=DEV_HOUSEHOLD_ID, created_by=DEV_ACTOR_ID, title="Kitchen")
     started = utc_now()
 
     def record(thread: Thread, seconds: int) -> tuple[Run, ActionProposal]:
@@ -45,9 +41,7 @@ def test_recent_actions_uses_current_thread_and_completed_run_receipts(store):
     with store.transaction():
         store.insert_thread(first)
         store.insert_thread(other)
-        for run, action in (
-            (older_run, older), (newer_run, newer), (other_run, unrelated)
-        ):
+        for run, action in ((older_run, older), (newer_run, newer), (other_run, unrelated)):
             store.insert_run(run, ())
             store.save_action(action)
         unreferenced = newer.model_copy(update={"id": uuid4()})

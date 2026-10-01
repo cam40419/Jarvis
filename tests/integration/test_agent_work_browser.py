@@ -17,6 +17,7 @@ from simon.agent_setup import starter_manifest
 from simon.api.app import AppContainer, create_app
 from simon.config import Settings
 from simon.domain.agent_platform import AgentProfile, PlatformManifest, TeamTemplate
+from simon.domain.agent_worker import WorkerResult
 from simon.domain.model_routing import ModelEndpoint, TextGenerationResult
 from simon.services.agent_dispatcher import AgentDispatcher
 from simon.services.agent_platform import AgentPlatformService
@@ -159,9 +160,21 @@ def test_create_plan_run_download_and_return_to_saved_result(agent_ui, tmp_path)
     download = downloaded.value
     assert download.suggested_filename == "answer.txt"
     assert "A useful, saved result." in Path(download.path()).read_text(encoding="utf-8")
+    page.get_by_role("button", name="Review answer.txt", exact=True).click()
+    page.get_by_label("Checks performed").fill(
+        "Read the downloaded report and verify required sections"
+    )
+    page.get_by_label("Observed results").fill("All required sections are present")
+    page.get_by_label("Review result").select_option("passed")
+    page.get_by_label("I inspected this downloaded revision").check()
+    page.get_by_role("button", name="Save review", exact=True).click()
+    page.get_by_role("button", name="Accept this revision", exact=True).click()
+    expect(page.get_by_text("Accepted revision", exact=True)).to_be_visible()
     page.reload()
     page.get_by_role("button", name="Work", exact=True).click()
     expect(page.locator("#agent-detail")).to_contain_text("A useful, saved result.")
+    page.get_by_role("button", name="Review answer.txt", exact=True).click()
+    expect(page.get_by_text("Accepted revision", exact=True)).to_be_visible()
     page.screenshot(path=str(tmp_path / "agent-work-desktop.png"), animations="disabled")
     page.set_viewport_size({"width": 390, "height": 844})
     expect(page.locator("#agent-detail")).to_be_visible()
@@ -191,6 +204,49 @@ def test_dependency_loop_is_rejected_and_queued_run_can_be_cancelled(agent_ui):
     expect(page.locator("#agent-browser")).to_contain_text("Available tool templates")
     page.get_by_role("tab", name="Tools & setup").press("ArrowLeft")
     expect(page.get_by_role("tab", name="Plans")).to_have_attribute("aria-selected", "true")
+
+
+def test_live_task_activity_updates_while_tool_is_running(agent_ui):
+    from playwright.sync_api import expect
+
+    page, dispatcher, _ = agent_ui
+    entered, release = threading.Event(), threading.Event()
+
+    class Worker:
+        def execute(self, **kwargs):
+            kwargs["checkpoint"](
+                {"event": "tool_dispatch", "tool_id": "cad.render_mesh", "step": 2}
+            )
+            entered.set()
+            assert release.wait(20)
+            kwargs["checkpoint"](
+                {"event": "tool_complete", "tool_id": "cad.render_mesh", "step": 2}
+            )
+            return WorkerResult(status="succeeded", output="Render finished", steps=2, tool_calls=1)
+
+    dispatcher.worker_factory = lambda *_: Worker()
+    page.get_by_role("button", name="New agent plan", exact=True).click()
+    page.get_by_label("What should this task produce?").fill("Create a preview")
+    page.get_by_role("button", name="Review plan", exact=True).click()
+    page.get_by_role("button", name="Start run", exact=True).click()
+    expect(page.locator("#agent-detail")).to_contain_text("Waiting for dispatcher")
+    runner = threading.Thread(target=dispatcher.tick)
+    runner.start()
+    try:
+        assert entered.wait(5)
+        activity = page.get_by_role("region", name="Activity for task-1")
+        expect(activity).to_contain_text("Running Blender mesh render", timeout=10000)
+        expect(activity).to_contain_text("No desktop session")
+        expect(activity).to_contain_text("Last recorded activity")
+        release.set()
+        runner.join(5)
+        expect(activity).to_contain_text("succeeded", timeout=10000)
+        activity.get_by_text("Recent activity (2)", exact=True).click()
+        expect(activity).to_contain_text("Finished Blender mesh render")
+    finally:
+        release.set()
+        runner.join(5)
+        assert not runner.is_alive()
 
 
 def test_blocked_plan_explains_setup_and_does_not_offer_start(agent_ui):

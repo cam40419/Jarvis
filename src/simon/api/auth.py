@@ -189,7 +189,9 @@ def auth_router(identity: IdentityService) -> APIRouter:
             response,
             identity,
             identity.register_password(
-                body.token, body.username, body.password,
+                body.token,
+                body.username,
+                body.password,
                 request.cookies.get(session_cookie(identity)),
             ),
         )
@@ -204,7 +206,9 @@ def auth_router(identity: IdentityService) -> APIRouter:
             response,
             identity,
             identity.reset_password(
-                body.token, body.username, body.password,
+                body.token,
+                body.username,
+                body.password,
                 request.cookies.get(session_cookie(identity)),
             ),
         )
@@ -220,9 +224,11 @@ def auth_router(identity: IdentityService) -> APIRouter:
         local_password_access(identity)
         token = request.cookies.get(session_cookie(identity), "")
         require_csrf(request, identity, token)
-        return {"username": identity.set_password(
-            token, body.username, body.password, body.current_password
-        )}
+        return {
+            "username": identity.set_password(
+                token, body.username, body.password, body.current_password
+            )
+        }
 
     @router.post("/passkeys/register/options")
     def registration_options(

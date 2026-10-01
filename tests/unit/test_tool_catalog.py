@@ -89,8 +89,10 @@ def test_resolution_rejects_unknown_missing_scope_capability_environment_or_exec
         catalog.resolve([tool.id], scopes=tool.required_scopes)
     with pytest.raises(ToolCatalogError, match="capabilities"):
         catalog.resolve(
-            [tool.id], scopes=tool.required_scopes,
-            environment_capabilities={"robotics.application"}, capabilities={"cad.edit"},
+            [tool.id],
+            scopes=tool.required_scopes,
+            environment_capabilities={"robotics.application"},
+            capabilities={"cad.edit"},
         )
     with pytest.raises(ToolCatalogError, match="no execution handler"):
         ToolCatalog([tool], available_transports=()).resolve([tool.id], scopes=tool.required_scopes)
@@ -108,16 +110,19 @@ def test_catalog_owns_schemas_and_returns_independent_copies():
         ToolCatalog([tool, tool])
 
 
-@pytest.mark.parametrize("invalid", [
-    {"input_schema": {"type": "nonsense"}},
-    {"input_schema": {"$ref": "https://example.com/remote.json"}},
-    {"settings": {"nested": {"api_key": "secret"}}},
-    {"endpoint": "https://user:password@example.com/action"},
-    {"endpoint": "http://example.com/action"},
-    {"endpoint": "https://example.com/action?token=secret"},
-    {"side_effect": True, "action_policy": "read"},
-    {"transport": "http", "configured": True},
-])
+@pytest.mark.parametrize(
+    "invalid",
+    [
+        {"input_schema": {"type": "nonsense"}},
+        {"input_schema": {"$ref": "https://example.com/remote.json"}},
+        {"settings": {"nested": {"api_key": "secret"}}},
+        {"endpoint": "https://user:password@example.com/action"},
+        {"endpoint": "http://example.com/action"},
+        {"endpoint": "https://example.com/action?token=secret"},
+        {"side_effect": True, "action_policy": "read"},
+        {"transport": "http", "configured": True},
+    ],
+)
 def test_invalid_schemas_credentials_and_endpoint_configuration_fail_early(invalid):
     with pytest.raises(ValidationError):
         definition(**invalid)
@@ -126,8 +131,21 @@ def test_invalid_schemas_credentials_and_endpoint_configuration_fail_early(inval
 def test_templates_cover_media_engineering_and_business_but_grant_nothing():
     templates = builtin_tool_templates()
     categories = {category for item in templates for category in item.categories}
-    assert {"image", "video", "cad", "pcb", "3d", "render", "writing", "files", "storage",
-            "web", "data", "home", "computer"} <= categories
+    assert {
+        "image",
+        "video",
+        "cad",
+        "pcb",
+        "3d",
+        "render",
+        "writing",
+        "files",
+        "storage",
+        "web",
+        "data",
+        "home",
+        "computer",
+    } <= categories
     assert all(
         not item.enabled and not item.configured and item.required_scopes for item in templates
     )
@@ -186,7 +204,8 @@ def test_unresolved_schema_reference_fails_before_execution():
 def test_http_transport_sends_fixed_endpoint_environment_secret_and_trusted_context(monkeypatch):
     monkeypatch.setenv("SYNTHETIC_TOOL_TOKEN", "synthetic-test-token")
     tool = definition(
-        transport="http", endpoint="https://tools.example/action",
+        transport="http",
+        endpoint="https://tools.example/action",
         credential_env="SYNTHETIC_TOOL_TOKEN",
     )
     context = execution_context(tool)
@@ -211,8 +230,10 @@ def test_http_transport_sends_fixed_endpoint_environment_secret_and_trusted_cont
 @pytest.mark.parametrize("failure", ["timeout", "redirect", "server", "invalid", "oversize"])
 def test_http_write_failure_is_bounded_sanitized_and_never_retried(failure):
     tool = definition(
-        transport="http", endpoint="https://tools.example/action",
-        side_effect=True, action_policy="write",
+        transport="http",
+        endpoint="https://tools.example/action",
+        side_effect=True,
+        action_policy="write",
     )
     calls = []
 
@@ -227,9 +248,13 @@ def test_http_write_failure_is_bounded_sanitized_and_never_retried(failure):
         return httpx.Response(200, content=b"x" * (101 if failure == "oversize" else 1))
 
     registry = TransportRegistry()
-    registry.register("http", HttpJsonTransport(
-        transport=httpx.MockTransport(respond), max_response_bytes=100,
-    ))
+    registry.register(
+        "http",
+        HttpJsonTransport(
+            transport=httpx.MockTransport(respond),
+            max_response_bytes=100,
+        ),
+    )
     with pytest.raises(ToolExecutionError) as caught:
         registry.execute(
             tool, {"part": "plate"}, execution_context(tool, authorized_action="write")

@@ -6,6 +6,7 @@ from threading import Event
 from typing import Any
 from uuid import UUID, uuid5
 
+from simon.adapters.application_tools import ApplicationToolTransport
 from simon.adapters.cloud_storage_tools import BoxTransport, DropboxTransport, OneDriveTransport
 from simon.adapters.environment_tools import EnvironmentCommandTransport
 from simon.adapters.github_tools import GitHubTransport
@@ -16,12 +17,13 @@ from simon.adapters.webdav_tools import WebDAVTransport
 from simon.domain.agent_platform import AgentProfile, AgentTaskSpec, AgentTeamPlan, PlannedAgentTask
 from simon.domain.agent_runs import AgentRun, TaskExecution
 from simon.domain.agent_worker import WorkerResult
-from simon.domain.artifacts import Artifact
+from simon.domain.artifacts import Artifact, ArtifactError
 from simon.domain.errors import DomainError
 from simon.domain.execution import EnvironmentLease, ExecutionCapacityError, ExecutionError
 from simon.domain.models import ActorContext, JobStatus, utc_now
 from simon.services.agent_runs import DISPATCH_LOCK, RUN_KIND, AgentRunService
 from simon.services.agent_worker import AgentWorker, WorkerCheckpointError
+from simon.services.artifact_handoff import prepare_dependency_artifacts
 from simon.services.artifacts import ArtifactStore
 
 WorkerFactory = Callable[[AgentProfile, EnvironmentLease | None, ActorContext, UUID], AgentWorker]
@@ -33,7 +35,10 @@ TransportFactory = Callable[
 
 class AgentDispatcher:
     def __init__(
-        self, runs: AgentRunService, *, artifacts: ArtifactStore | None = None,
+        self,
+        runs: AgentRunService,
+        *,
+        artifacts: ArtifactStore | None = None,
         worker_factory: WorkerFactory | None = None,
         transport_factory: TransportFactory | None = None,
     ) -> None:
@@ -43,7 +48,10 @@ class AgentDispatcher:
         self.transport_factory = transport_factory
 
     def _worker(
-        self, profile: AgentProfile, lease: EnvironmentLease | None, actor: ActorContext,
+        self,
+        profile: AgentProfile,
+        lease: EnvironmentLease | None,
+        actor: ActorContext,
         run_id: UUID,
     ) -> AgentWorker:
         executor_id = self.runs.view(self.runs.job(run_id)).executor_id
@@ -51,41 +59,86 @@ class AgentDispatcher:
         def revalidate() -> ActorContext:
             job = self.runs.job(run_id)
             state = self.runs.view(job)
-            if (state.cancel_requested or state.status != JobStatus.RUNNING
-                    or state.executor_id != executor_id):
+            if (
+                state.cancel_requested
+                or state.status != JobStatus.RUNNING
+                or state.executor_id != executor_id
+            ):
                 raise WorkerCheckpointError("cancelled")
             if lease is not None:
                 live_lease = self.platform.environments.get(lease.id)
-                if (live_lease.status != "active" or live_lease.plan != lease.plan
-                        or live_lease.fencing_token != lease.fencing_token):
+                if (
+                    live_lease.status != "active"
+                    or live_lease.plan != lease.plan
+                    or live_lease.fencing_token != lease.fencing_token
+                ):
                     raise WorkerCheckpointError("environment_lease_changed")
             return self.runs.live_actor(job)
 
         transports = TransportRegistry()
-        transports.register("http", HttpJsonTransport(
-            timeout_seconds=min(30, profile.timeout_seconds), environ=self.platform._environ,
-        ))
-        transports.register("mcp", MCPHttpTransport(
-            timeout_seconds=min(30, profile.timeout_seconds), environ=self.platform._environ,
-            before_call=revalidate,
-        ))
-        transports.register("github", GitHubTransport(
-            timeout_seconds=min(30, profile.timeout_seconds), environ=self.platform._environ,
-        ))
-        transports.register("webdav", WebDAVTransport(
-            timeout_seconds=min(30, profile.timeout_seconds), environ=self.platform._environ,
-        ))
+        transports.register(
+            "http",
+            HttpJsonTransport(
+                timeout_seconds=min(30, profile.timeout_seconds),
+                environ=self.platform._environ,
+            ),
+        )
+        transports.register(
+            "mcp",
+            MCPHttpTransport(
+                timeout_seconds=min(30, profile.timeout_seconds),
+                environ=self.platform._environ,
+                before_call=revalidate,
+            ),
+        )
+        transports.register(
+            "github",
+            GitHubTransport(
+                timeout_seconds=min(30, profile.timeout_seconds),
+                environ=self.platform._environ,
+            ),
+        )
+        transports.register(
+            "webdav",
+            WebDAVTransport(
+                timeout_seconds=min(30, profile.timeout_seconds),
+                environ=self.platform._environ,
+            ),
+        )
         for name, transport_type in (
-            ("dropbox", DropboxTransport), ("box", BoxTransport), ("onedrive", OneDriveTransport),
+            ("dropbox", DropboxTransport),
+            ("box", BoxTransport),
+            ("onedrive", OneDriveTransport),
         ):
-            transports.register(name, transport_type(
-                timeout_seconds=min(30, profile.timeout_seconds), environ=self.platform._environ,
-            ))
+            transports.register(
+                name,
+                transport_type(
+                    timeout_seconds=min(30, profile.timeout_seconds),
+                    environ=self.platform._environ,
+                ),
+            )
         if lease is not None:
-            transports.register("environment", EnvironmentCommandTransport(
-                self.platform.environments, lease, actor_id=actor.actor_id, run_id=run_id,
-                max_timeout_seconds=min(60, profile.timeout_seconds),
-            ))
+            if lease.definition.kind == "machine":
+                transports.register(
+                    "application",
+                    ApplicationToolTransport(
+                        self.platform.environments,
+                        lease,
+                        actor_id=actor.actor_id,
+                        run_id=run_id,
+                        max_timeout_seconds=min(300, profile.timeout_seconds),
+                    ),
+                )
+            transports.register(
+                "environment",
+                EnvironmentCommandTransport(
+                    self.platform.environments,
+                    lease,
+                    actor_id=actor.actor_id,
+                    run_id=run_id,
+                    max_timeout_seconds=min(60, profile.timeout_seconds),
+                ),
+            )
             from simon.adapters.browser_tools import BrowserToolTransport
             from simon.adapters.cad_tools import CadToolTransport
             from simon.adapters.generative_tools import GenerativeToolTransport
@@ -93,41 +146,80 @@ class AgentDispatcher:
             from simon.adapters.pcb_tools import PCBToolTransport
             from simon.adapters.processing_tools import ProcessingToolTransport
 
-            transports.register("git", GitToolTransport(
-                self.platform.environments, lease, actor_id=actor.actor_id, run_id=run_id,
-                max_timeout_seconds=min(60, profile.timeout_seconds),
-            ))
-            transports.register("processing", ProcessingToolTransport(
-                self.platform.environments, lease, actor_id=actor.actor_id, run_id=run_id,
-                max_timeout_seconds=min(60, profile.timeout_seconds),
-            ))
-            transports.register("browser", BrowserToolTransport(
-                self.platform.environments, lease, actor_id=actor.actor_id, run_id=run_id,
-                max_timeout_seconds=min(60, profile.timeout_seconds),
-            ))
-            transports.register("cad", CadToolTransport(
-                self.platform.environments, lease, actor_id=actor.actor_id, run_id=run_id,
-                max_timeout_seconds=min(300, profile.timeout_seconds),
-            ))
-            transports.register("pcb", PCBToolTransport(
-                self.platform.environments, lease, actor_id=actor.actor_id, run_id=run_id,
-                max_timeout_seconds=min(120, profile.timeout_seconds),
-            ))
+            transports.register(
+                "git",
+                GitToolTransport(
+                    self.platform.environments,
+                    lease,
+                    actor_id=actor.actor_id,
+                    run_id=run_id,
+                    max_timeout_seconds=min(60, profile.timeout_seconds),
+                ),
+            )
+            transports.register(
+                "processing",
+                ProcessingToolTransport(
+                    self.platform.environments,
+                    lease,
+                    actor_id=actor.actor_id,
+                    run_id=run_id,
+                    max_timeout_seconds=min(60, profile.timeout_seconds),
+                ),
+            )
+            transports.register(
+                "browser",
+                BrowserToolTransport(
+                    self.platform.environments,
+                    lease,
+                    actor_id=actor.actor_id,
+                    run_id=run_id,
+                    max_timeout_seconds=min(60, profile.timeout_seconds),
+                ),
+            )
+            transports.register(
+                "cad",
+                CadToolTransport(
+                    self.platform.environments,
+                    lease,
+                    actor_id=actor.actor_id,
+                    run_id=run_id,
+                    max_timeout_seconds=min(300, profile.timeout_seconds),
+                ),
+            )
+            transports.register(
+                "pcb",
+                PCBToolTransport(
+                    self.platform.environments,
+                    lease,
+                    actor_id=actor.actor_id,
+                    run_id=run_id,
+                    max_timeout_seconds=min(120, profile.timeout_seconds),
+                ),
+            )
             if lease.definition.kind == "docker":
-                transports.register("generative", GenerativeToolTransport(
-                    lease, actor=actor, run_id=run_id, revalidate=revalidate,
-                    environ=self.platform._environ,
-                    timeout_seconds=min(120, profile.timeout_seconds),
-                ))
+                transports.register(
+                    "generative",
+                    GenerativeToolTransport(
+                        lease,
+                        actor=actor,
+                        run_id=run_id,
+                        revalidate=revalidate,
+                        environ=self.platform._environ,
+                        timeout_seconds=min(120, profile.timeout_seconds),
+                    ),
+                )
         if self.transport_factory is not None:
             handlers = self.transport_factory(actor, run_id, revalidate, lease)
             for transport, handler in handlers.items():
                 transports.register(transport, handler)
         return AgentWorker(
             ModelEndpointClient(
-                self.platform.manifest.models, environ=self.platform._environ,
+                self.platform.manifest.models,
+                environ=self.platform._environ,
                 timeout_seconds=min(120, profile.timeout_seconds),
-            ), self.platform.tools, transports,
+            ),
+            self.platform.tools,
+            transports,
         )
 
     def tick(self) -> AgentRun | None:
@@ -148,16 +240,19 @@ class AgentDispatcher:
         plan_job = self.runs.store.get_job(claimed.plan_id)
         assert plan_job is not None
         plan = AgentTeamPlan.model_validate(plan_job.input["plan"])
-        specs = {item["id"]: AgentTaskSpec.model_validate(item)
-                 for item in plan_job.input["request"]["tasks"]}
+        specs = {
+            item["id"]: AgentTaskSpec.model_validate(item)
+            for item in plan_job.input["request"]["tasks"]
+        }
         assignments = {task.id: task for task in plan.tasks}
         pending = set(assignments)
         active: dict[Future[None], str] = {}
         resource_counts: dict[str, int] = {}
         try:
             self.runs.live_actor(job)
-            with ThreadPoolExecutor(max_workers=claimed.reserved_slots,
-                                    thread_name_prefix="simon-agent") as pool:
+            with ThreadPoolExecutor(
+                max_workers=claimed.reserved_slots, thread_name_prefix="simon-agent"
+            ) as pool:
                 while pending or active:
                     state = self.runs.view(self.runs.job(claimed.id))
                     records = {item.id: item for item in state.tasks}
@@ -169,8 +264,10 @@ class AgentDispatcher:
                             pending.remove(name)
                             continue
                         dependencies = [records[key] for key in task.depends_on]
-                        if any(item.status in {"failed", "blocked", "cancelled", "unknown"}
-                               for item in dependencies):
+                        if any(
+                            item.status in {"failed", "blocked", "cancelled", "unknown"}
+                            for item in dependencies
+                        ):
                             self._skip(claimed, name, "blocked", "dependency_failed")
                             pending.remove(name)
                             continue
@@ -204,31 +301,59 @@ class AgentDispatcher:
                         Event().wait(0.2)
         except Exception:
             # Never requeue a claimed run: a process/callback failure may follow a dispatched call.
-            return self.runs.update(claimed.id, lambda state: state.model_copy(update={
-                "status": JobStatus.NEEDS_HUMAN, "finished_at": utc_now(), "reserved_slots": 0,
-                "tasks": tuple(item.model_copy(update={
-                    "status": "unknown" if item.status == "running" else "blocked",
-                    "error_code": "dispatch_interrupted",
-                }) if item.status in {"queued", "running"} else item for item in state.tasks),
-            }), executor_id=executor_id)
+            return self.runs.update(
+                claimed.id,
+                lambda state: state.model_copy(
+                    update={
+                        "status": JobStatus.NEEDS_HUMAN,
+                        "finished_at": utc_now(),
+                        "reserved_slots": 0,
+                        "tasks": tuple(
+                            item.model_copy(
+                                update={
+                                    "status": "unknown" if item.status == "running" else "blocked",
+                                    "error_code": "dispatch_interrupted",
+                                }
+                            )
+                            if item.status in {"queued", "running"}
+                            else item
+                            for item in state.tasks
+                        ),
+                    }
+                ),
+                executor_id=executor_id,
+            )
 
         def finish(state: AgentRun) -> AgentRun:
             statuses = {item.status for item in state.tasks}
             status = (
-                JobStatus.NEEDS_HUMAN if "unknown" in statuses else
-                JobStatus.CANCELLED if state.cancel_requested else
-                JobStatus.FAILED if statuses != {"succeeded"} else JobStatus.SUCCEEDED
+                JobStatus.NEEDS_HUMAN
+                if "unknown" in statuses
+                else JobStatus.CANCELLED
+                if state.cancel_requested
+                else JobStatus.FAILED
+                if statuses != {"succeeded"}
+                else JobStatus.SUCCEEDED
             )
-            return state.model_copy(update={"status": status, "reserved_slots": 0,
-                                            "finished_at": utc_now()})
+            return state.model_copy(
+                update={"status": status, "reserved_slots": 0, "finished_at": utc_now()}
+            )
 
         return self.runs.update(claimed.id, finish, executor_id=executor_id)
 
     def _skip(self, run: AgentRun, name: str, status: str, reason: str) -> None:
         assert run.executor_id is not None
-        self.runs.task_update(run.id, name, lambda item: item.model_copy(update={
-            "status": status, "error_code": reason,
-        }), executor_id=run.executor_id)
+        self.runs.task_update(
+            run.id,
+            name,
+            lambda item: item.model_copy(
+                update={
+                    "status": status,
+                    "error_code": reason,
+                }
+            ),
+            executor_id=run.executor_id,
+        )
 
     def _reserve_task(self, run: AgentRun, task: PlannedAgentTask) -> bool:
         assert run.executor_id is not None
@@ -247,13 +372,18 @@ class AgentDispatcher:
                 if used >= capacity:
                     return False
             self.runs.task_update(
-                run.id, task.id, lambda item: item.model_copy(update={"status": "running"}),
+                run.id,
+                task.id,
+                lambda item: item.model_copy(update={"status": "running"}),
                 executor_id=run.executor_id,
             )
             return True
 
     def _task(
-        self, run: AgentRun, planned: PlannedAgentTask, spec: AgentTaskSpec,
+        self,
+        run: AgentRun,
+        planned: PlannedAgentTask,
+        spec: AgentTaskSpec,
         dependencies: dict[str, str],
     ) -> None:
         assert run.executor_id is not None
@@ -276,15 +406,23 @@ class AgentDispatcher:
             if task.environment is not None:
                 request = task.environment.request.model_copy(update={"attempt_id": attempt})
                 lease = self.platform.environments.allocate(
-                    request, environment_id=task.environment.environment_id,
+                    request,
+                    environment_id=task.environment.environment_id,
                 )
                 if lease.status != "active":
                     raise ExecutionError("The execution resource has an unresolved lease")
                 task = task.model_copy(update={"environment": lease.plan})
                 lease_id = lease.id
-                self.runs.task_update(run.id, task.id, lambda item: item.model_copy(update={
-                    "environment_lease_id": lease_id,
-                }), executor_id=executor_id)
+                self.runs.task_update(
+                    run.id,
+                    task.id,
+                    lambda item: item.model_copy(
+                        update={
+                            "environment_lease_id": lease_id,
+                        }
+                    ),
+                    executor_id=executor_id,
+                )
 
             def cancelled() -> bool:
                 state = self.runs.view(self.runs.job(run.id))
@@ -298,30 +436,99 @@ class AgentDispatcher:
                         raise WorkerCheckpointError("cancelled")
                     live = self.runs.live_actor(self.runs.job(run.id))
                     self.platform.tools.resolve(
-                        task.tool_ids, scopes=live.scopes & profile.tool_scopes,
+                        task.tool_ids,
+                        scopes=live.scopes & profile.tool_scopes,
                         environment_capabilities=lease.definition.capabilities if lease else (),
                     )
                     if lease is not None:
                         self.platform.environments.heartbeat(
-                            lease.id, attempt_id=attempt, fencing_token=lease.fencing_token,
+                            lease.id,
+                            attempt_id=attempt,
+                            fencing_token=lease.fencing_token,
                         )
-                self.runs.task_update(run.id, task.id, lambda item: item.model_copy(update={
-                    "events": (*item.events, event)[-128:],
-                }), executor_id=executor_id)
+                self.runs.task_update(
+                    run.id,
+                    task.id,
+                    lambda item: item.model_copy(
+                        update={
+                            "steps": max(item.steps, event["step"])
+                            if type(event.get("step")) is int
+                            else item.steps,
+                            "tool_calls": item.tool_calls + (event.get("event") == "tool_dispatch"),
+                            "events": (
+                                *item.events,
+                                {**event, "occurred_at": utc_now().isoformat()},
+                            )[-128:],
+                        }
+                    ),
+                    executor_id=executor_id,
+                )
 
-            context_id = self.platform.get(actor, run.plan_id).context_id
-            context_name = next((context.name for context in self.platform.manifest.contexts
-                                 if context.id == context_id), "")
+            saved_plan = self.platform.get(actor, run.plan_id)
+            context_id = saved_plan.context_id
+            context_name = next(
+                (
+                    context.name
+                    for context in self.platform.manifest.contexts
+                    if context.id == context_id
+                ),
+                "",
+            )
+
+            def authorize_inputs() -> None:
+                if cancelled():
+                    raise WorkerCheckpointError("cancelled")
+                live = self.runs.live_actor(self.runs.job(run.id))
+                if (live.actor_id, live.household_id) != (actor.actor_id, actor.household_id):
+                    raise WorkerCheckpointError("assignment_no_longer_available")
+                if lease is not None:
+                    current_lease = self.platform.environments.get(lease.id)
+                    if (
+                        current_lease.status != "active"
+                        or current_lease.plan != lease.plan
+                        or current_lease.fencing_token != lease.fencing_token
+                    ):
+                        raise WorkerCheckpointError("environment_lease_changed")
+
+            records = {item.id: item for item in self.runs.view(self.runs.job(run.id)).tasks}
+            inputs = prepare_dependency_artifacts(
+                self.artifacts,
+                actor=actor,
+                run_id=run.id,
+                dependencies=tuple(records[name] for name in planned.depends_on),
+                task_ids={item.id: item.task_id for item in saved_plan.tasks},
+                workspace=(
+                    lease.plan.workspace_path
+                    if lease is not None and lease.definition.kind == "docker"
+                    else None
+                ),
+                revalidate=authorize_inputs,
+            )
+            if inputs:
+                self.runs.task_update(
+                    run.id,
+                    task.id,
+                    lambda item: item.model_copy(update={"input_artifacts": inputs}),
+                    executor_id=executor_id,
+                )
             result = self.worker_factory(profile, lease, actor, run.id).execute(
-                actor=actor, run_id=run.id, task=task, spec=spec, profile=profile,
-                dependency_outputs=dependencies, context_name=context_name,
+                actor=actor,
+                run_id=run.id,
+                task=task,
+                spec=spec,
+                profile=profile,
+                dependency_outputs=dependencies,
+                dependency_artifacts=inputs,
+                context_name=context_name,
                 environment_capabilities=lease.definition.capabilities if lease else frozenset(),
-                cancelled=cancelled, checkpoint=checkpoint,
+                cancelled=cancelled,
+                checkpoint=checkpoint,
             )
             if result.status == "succeeded":
                 if cancelled():
-                    result = result.model_copy(update={"status": "cancelled", "output": "",
-                                                       "error_code": "cancelled"})
+                    result = result.model_copy(
+                        update={"status": "cancelled", "output": "", "error_code": "cancelled"}
+                    )
                 else:
                     # Artifact publication is owned by the controller, never a model-provided path.
                     self.runs.live_actor(self.runs.job(run.id))
@@ -330,34 +537,54 @@ class AgentDispatcher:
                         if lease is None or lease.definition.kind != "docker":
                             raise WorkerCheckpointError("artifact_workspace_unavailable")
                         self.platform.environments.release(
-                            lease.id, attempt_id=attempt, fencing_token=lease.fencing_token,
+                            lease.id,
+                            attempt_id=attempt,
+                            fencing_token=lease.fencing_token,
                         )
                         lease = lease.model_copy(update={"status": "released"})
                         if cancelled():
                             raise WorkerCheckpointError("cancelled")
                         self.runs.live_actor(self.runs.job(run.id))
                         file_artifacts = self.artifacts.publish_workspace_files(
-                            workspace=lease.plan.workspace_path, paths=result.artifact_paths,
-                            workspace_id=actor.household_id, actor_id=actor.actor_id,
-                            run_id=run.id, task_id=task.task_id,
+                            workspace=lease.plan.workspace_path,
+                            paths=result.artifact_paths,
+                            workspace_id=actor.household_id,
+                            actor_id=actor.actor_id,
+                            run_id=run.id,
+                            task_id=task.task_id,
                         )
-                    published = (self.artifacts.publish_text(
-                        workspace_id=actor.household_id, actor_id=actor.actor_id,
-                        run_id=run.id, task_id=task.task_id, text=result.output,
-                        name="answer.json" if profile.output_format == "json" else "answer.txt",
-                        media_type=("application/json" if profile.output_format == "json"
-                                    else "text/plain"),
-                    ), *file_artifacts)
+                    published = (
+                        self.artifacts.publish_text(
+                            workspace_id=actor.household_id,
+                            actor_id=actor.actor_id,
+                            run_id=run.id,
+                            task_id=task.task_id,
+                            text=result.output,
+                            name="answer.json" if profile.output_format == "json" else "answer.txt",
+                            media_type=(
+                                "application/json"
+                                if profile.output_format == "json"
+                                else "text/plain"
+                            ),
+                        ),
+                        *file_artifacts,
+                    )
+        except ArtifactError:
+            result = WorkerResult(
+                status="failed", error_code="artifact_integrity_or_handoff_failed"
+            )
         except ExecutionCapacityError:
             result = WorkerResult(status="failed", error_code="environment_capacity_unavailable")
         except ExecutionError:
             result = WorkerResult(status="unknown", error_code="environment_outcome_unknown")
         except WorkerCheckpointError as error:
-            result = WorkerResult(status="cancelled" if error.code == "cancelled" else "failed",
-                                  error_code=error.code)
+            result = WorkerResult(
+                status="cancelled" if error.code == "cancelled" else "failed", error_code=error.code
+            )
         except DomainError:
-            result = WorkerResult(status="failed",
-                                  error_code="authorization_or_configuration_changed")
+            result = WorkerResult(
+                status="failed", error_code="authorization_or_configuration_changed"
+            )
         except Exception:
             result = WorkerResult(status="unknown", error_code="worker_interrupted")
         finally:
@@ -367,34 +594,52 @@ class AgentDispatcher:
                     if lease is not None:
                         recovered_id = lease.id
                         self.runs.task_update(
-                            run.id, planned.id, lambda item: item.model_copy(update={
-                                "environment_lease_id": recovered_id,
-                            }), executor_id=executor_id,
+                            run.id,
+                            planned.id,
+                            lambda item: item.model_copy(
+                                update={
+                                    "environment_lease_id": recovered_id,
+                                }
+                            ),
+                            executor_id=executor_id,
                         )
                 except Exception:
                     # A journal/DB failure must not suppress cleanup when ownership
                     # was recovered successfully before recording the reference.
-                    result = result.model_copy(update={
-                        "status": "unknown", "error_code": "lease_reference_not_persisted",
-                    })
+                    result = result.model_copy(
+                        update={
+                            "status": "unknown",
+                            "error_code": "lease_reference_not_persisted",
+                        }
+                    )
             if lease is not None and lease.status != "released":
                 try:
                     self.platform.environments.release(
-                        lease.id, attempt_id=lease.plan.request.attempt_id,
+                        lease.id,
+                        attempt_id=lease.plan.request.attempt_id,
                         fencing_token=lease.fencing_token,
                     )
                 except Exception:
-                    result = result.model_copy(update={"status": "unknown",
-                                                       "error_code": "environment_cleanup_unknown"})
+                    result = result.model_copy(
+                        update={"status": "unknown", "error_code": "environment_cleanup_unknown"}
+                    )
 
         def finish(item: TaskExecution) -> TaskExecution:
-            return item.model_copy(update={
-                "status": ("blocked" if result.error_code == "environment_capacity_unavailable"
-                           else result.status),
-                "output": result.output, "error_code": result.error_code,
-                "steps": result.steps, "tool_calls": result.tool_calls,
-                "input_tokens": result.input_tokens, "output_tokens": result.output_tokens,
-                "artifacts": published,
-            })
+            return item.model_copy(
+                update={
+                    "status": (
+                        "blocked"
+                        if result.error_code == "environment_capacity_unavailable"
+                        else result.status
+                    ),
+                    "output": result.output,
+                    "error_code": result.error_code,
+                    "steps": result.steps,
+                    "tool_calls": result.tool_calls,
+                    "input_tokens": result.input_tokens,
+                    "output_tokens": result.output_tokens,
+                    "artifacts": published,
+                }
+            )
 
         self.runs.task_update(run.id, planned.id, finish, executor_id=run.executor_id)

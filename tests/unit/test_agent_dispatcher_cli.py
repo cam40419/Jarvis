@@ -12,13 +12,19 @@ from simon.config import Settings
 from simon.domain.agent_platform import PlatformManifest
 from simon.domain.agent_runs import AgentRun
 from simon.domain.models import JobStatus
+from simon.services.agent_profiles import AgentProfileService
 
 
 def completed_run(**updates):
-    values = dict(
-        id=uuid4(), plan_id=uuid4(), workspace_id=uuid4(), actor_id=uuid4(),
-        status=JobStatus.SUCCEEDED, tasks=(), version=9,
-    )
+    values = {
+        "id": uuid4(),
+        "plan_id": uuid4(),
+        "workspace_id": uuid4(),
+        "actor_id": uuid4(),
+        "status": JobStatus.SUCCEEDED,
+        "tasks": (),
+        "version": 9,
+    }
     values.update(updates)
     return AgentRun(**values)
 
@@ -27,7 +33,9 @@ def completed_run(**updates):
 def runtime(monkeypatch, tmp_path):
     records = SimpleNamespace(ticks=0, closed=False, recovered=[], stores=[], dispatchers=0)
     records.settings = Settings(
-        _env_file=None, storage_backend="postgres", agent_execution_enabled=True,
+        _env_file=None,
+        storage_backend="postgres",
+        agent_execution_enabled=True,
         agent_state_dir=tmp_path / "same-host-state",
     )
     records.result = completed_run()
@@ -48,7 +56,9 @@ def runtime(monkeypatch, tmp_path):
     def platform(store, configured, *, state_dir, available_transports):
         records.state_dir = state_dir
         records.available_transports = available_transports
-        return SimpleNamespace(store=store, manifest=configured)
+        return SimpleNamespace(
+            store=store, manifest=configured, agent_profiles=AgentProfileService(store, configured)
+        )
 
     monkeypatch.setattr(cli, "AgentPlatformService", platform)
 
@@ -62,12 +72,20 @@ def runtime(monkeypatch, tmp_path):
             return records.result
 
     monkeypatch.setattr(cli, "AgentRunService", Runs)
-    monkeypatch.setattr(cli, "ProjectAutonomyService", lambda *args, **kwargs: SimpleNamespace(
-        tick=lambda: 0,
-    ))
-    monkeypatch.setattr(cli, "project_board_service", lambda *args, **kwargs: SimpleNamespace(
-        tick=lambda: 0,
-    ))
+    monkeypatch.setattr(
+        cli,
+        "ProjectAutonomyService",
+        lambda *args, **kwargs: SimpleNamespace(
+            tick=lambda: 0,
+        ),
+    )
+    monkeypatch.setattr(
+        cli,
+        "project_board_service",
+        lambda *args, **kwargs: SimpleNamespace(
+            tick=lambda: 0,
+        ),
+    )
 
     class Dispatcher:
         def __init__(self, runs, *, transport_factory):
@@ -90,13 +108,20 @@ def test_once_executes_one_run_prints_only_summary_and_closes_store(runtime, cap
     assert runtime.ticks == 1 and runtime.closed and runtime.enabled
     assert runtime.state_dir == runtime.settings.agent_state_dir
     assert {
-        "http", "environment", "native", "git", "mcp", "workspace_files",
+        "http",
+        "environment",
+        "native",
+        "git",
+        "mcp",
+        "workspace_files",
     } <= set(runtime.available_transports)
     assert callable(runtime.transport_factory)
     assert runtime.stores == [(runtime.settings, 3)]
     assert signal.getsignal(signal.SIGINT) == previous
     assert json.loads(capsys.readouterr().out) == {
-        "id": str(runtime.result.id), "status": "succeeded", "version": 9,
+        "id": str(runtime.result.id),
+        "status": "succeeded",
+        "version": 9,
     }
 
 
@@ -114,28 +139,40 @@ def test_operator_recovery_is_explicit_and_never_constructs_a_dispatcher(runtime
     assert runtime.recovered == [(identifier, 8, runtime.settings.account_admin_actor_id)]
     assert runtime.dispatchers == 0 and runtime.ticks == 0 and runtime.closed
     assert json.loads(capsys.readouterr().out) == {
-        "id": str(identifier), "status": "needs_human", "version": 9,
+        "id": str(identifier),
+        "status": "needs_human",
+        "version": 9,
     }
 
 
-@pytest.mark.parametrize("arguments", [
-    ["--recover-run", str(uuid4())],
-    ["--recover-run", str(uuid4()), "--expected-version", "1"],
-    ["--recover-run", str(uuid4()), "--expected-version", "0", "--worker-stopped"],
-    ["--worker-stopped"], ["--expected-version", "1"],
-    ["--once", "--recover-run", str(uuid4())],
-    ["--poll-seconds", "0.1"], ["--poll-seconds", "11"], ["--poll-seconds", "nan"],
-    ["--once", "--stop-file", "unused.request"],
-])
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        ["--recover-run", str(uuid4())],
+        ["--recover-run", str(uuid4()), "--expected-version", "1"],
+        ["--recover-run", str(uuid4()), "--expected-version", "0", "--worker-stopped"],
+        ["--worker-stopped"],
+        ["--expected-version", "1"],
+        ["--once", "--recover-run", str(uuid4())],
+        ["--poll-seconds", "0.1"],
+        ["--poll-seconds", "11"],
+        ["--poll-seconds", "nan"],
+        ["--once", "--stop-file", "unused.request"],
+    ],
+)
 def test_invalid_or_unacknowledged_options_never_open_store(runtime, arguments):
     with pytest.raises(SystemExit) as error:
         cli.main(arguments)
     assert error.value.code == 2 and not runtime.stores
 
 
-@pytest.mark.parametrize("changes", [
-    {"storage_backend": "memory"}, {"agent_execution_enabled": False},
-])
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"storage_backend": "memory"},
+        {"agent_execution_enabled": False},
+    ],
+)
 def test_dispatcher_requires_postgres_and_explicit_execution_enablement(runtime, changes):
     runtime.settings = runtime.settings.model_copy(update=changes)
     with pytest.raises(SystemExit) as error:
@@ -279,9 +316,16 @@ def test_stop_request_drains_active_tick_without_claiming_more_work(tmp_path):
             assert release.wait(5)
             return None
 
-    thread = Thread(target=cli._serve, args=(Dispatcher(),), kwargs={
-        "concurrency": 1, "poll_seconds": 0.05, "stop": stop, "stop_file": stop_file,
-    })
+    thread = Thread(
+        target=cli._serve,
+        args=(Dispatcher(),),
+        kwargs={
+            "concurrency": 1,
+            "poll_seconds": 0.05,
+            "stop": stop,
+            "stop_file": stop_file,
+        },
+    )
     thread.start()
     try:
         assert started.wait(5)
@@ -323,10 +367,16 @@ def test_slow_board_poll_does_not_block_other_runs_and_is_drained():
             dispatched.set()
             return None
 
-    thread = Thread(target=cli._serve, args=(Dispatcher(),), kwargs={
-        "concurrency": 1, "poll_seconds": 0.05, "stop": stop,
-        "project_tick": project_tick,
-    })
+    thread = Thread(
+        target=cli._serve,
+        args=(Dispatcher(),),
+        kwargs={
+            "concurrency": 1,
+            "poll_seconds": 0.05,
+            "stop": stop,
+            "project_tick": project_tick,
+        },
+    )
     thread.start()
     try:
         assert coordinating.wait(5) and dispatched.wait(5)

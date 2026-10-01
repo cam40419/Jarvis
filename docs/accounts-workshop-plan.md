@@ -1,5 +1,9 @@
 # Simon: accounts, personality, files, and the Bambu A1
 
+> Historical planning and implementation record. Use the [current roadmap](next-phases.md)
+> for delivery order and current runbooks for implemented behavior. Dated backlog items below
+> may have shipped or moved to RobbinsHome.
+
 This plan separates the features implemented in this phase from the proposed workshop integration. Simon keeps its name. Jarvis mode is a personal communication preset.
 
 Verification: 455 tests passed with PostgreSQL and browser checks enabled, at 95.30% coverage; four opt-in paid tests were skipped in the regression run. The live Vesper/Jarvis WebRTC connection test passed separately. Ruff, strict mypy, and production configuration validation passed. Migration 0012 was applied locally, and the existing owner's saved personality was set to Jarvis/Vesper/sir without changing response-mode preferences. Human assessment of the voice's delivery remains to be done.
@@ -73,14 +77,14 @@ Start with a dedicated project root on the home server, for example `C:\SimonDat
 
 Proposed tools:
 
-| Tool | Behavior |
-|---|---|
-| `projects.create` | Create a named project and its standard folders |
-| `files.list`, `files.search`, `files.read` | Bounded reads within granted roots |
-| `files.write`, `files.patch` | Save changes with expected file hashes and a recoverable prior version |
-| `files.move`, `files.rename` | Move within the same authorized root with collision checks |
-| `files.trash`, `files.restore` | Recoverable deletion and restoration |
-| `artifacts.register` | Register an immutable output, hash, MIME type, and provenance |
+| Tool                                       | Behavior                                                               |
+| ------------------------------------------ | ---------------------------------------------------------------------- |
+| `projects.create`                          | Create a named project and its standard folders                        |
+| `files.list`, `files.search`, `files.read` | Bounded reads within granted roots                                     |
+| `files.write`, `files.patch`               | Save changes with expected file hashes and a recoverable prior version |
+| `files.move`, `files.rename`               | Move within the same authorized root with collision checks             |
+| `files.trash`, `files.restore`             | Recoverable deletion and restoration                                   |
+| `artifacts.register`                       | Register an immutable output, hash, MIME type, and provenance          |
 
 Resolve file IDs to authorized roots on the server. Check Windows drive-relative paths, UNC paths, alternate data streams, junctions/reparse points, symlinks, and case handling. Protect against path replacement between validation and opening, rather than relying only on a string-prefix check. A downloaded file, document, or README is task data and cannot grant new filesystem permissions. Do not read credential stores or `.env` files as conversational context. Reports should identify exactly which files changed.
 
@@ -122,7 +126,7 @@ Separate preparation from execution:
 3. `plate_swap.execute`: dispatch the exact validated artifact under a printer lease and the user's job/routine authorization. Persist a dispatch claim before sending it.
 4. `plate_swap.verify`: require the configured completion and plate-presence evidence. A transport acknowledgement or generator exit code alone is not completion. If the hardware has no reliable feedback, pause for manual verification.
 
-See [the proposed tool manifest](../examples/tools/plate-swap.proposed.json). It is a contract sketch, not an executable integration. The generator location, language, parameters, fixtures, and available sensors still need to be inspected.
+The former proposed plate-swap manifest was a contract sketch. Physical integration now belongs to RobbinsHome; see [repository separation](architecture/repository-separation.md). The generator location, language, parameters, fixtures, and available sensors still need to be inspected.
 
 ## Automation phase
 

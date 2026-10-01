@@ -6,7 +6,7 @@ from uuid import UUID
 
 from pydantic import Field
 
-from simon.domain.artifacts import Artifact
+from simon.domain.artifacts import Artifact, DependencyArtifact
 from simon.domain.models import JobStatus, StrictModel
 
 
@@ -29,6 +29,7 @@ class TaskExecution(StrictModel):
     output_tokens: int | None = None
     model_reserved_usd: float | None = None
     artifacts: tuple[Artifact, ...] = ()
+    input_artifacts: tuple[DependencyArtifact, ...] = ()
     environment_lease_id: UUID | None = None
     environment_id: str | None = None
     events: tuple[dict[str, Any], ...] = ()

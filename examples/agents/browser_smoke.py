@@ -21,28 +21,49 @@ def smoke(*, online: bool) -> None:
     state = (Path(".local/agents") / ("browser-smoke-" + uuid4().hex)).resolve()
     network: Literal["none", "bridge"] = "bridge" if online else "none"
     manager = EnvironmentManager(
-        [EnvironmentDefinition(
-            id="browser-smoke", kind="docker", enabled=True,
-            container_image="simon-browser:local", capabilities=BROWSER_CAPABILITIES,
-            network=network,
-        )], state_path=state / "leases.sqlite3", workspace_root=state / "workspaces",
+        [
+            EnvironmentDefinition(
+                id="browser-smoke",
+                kind="docker",
+                enabled=True,
+                container_image="simon-browser:local",
+                capabilities=BROWSER_CAPABILITIES,
+                network=network,
+            )
+        ],
+        state_path=state / "leases.sqlite3",
+        workspace_root=state / "workspaces",
     )
     request = EnvironmentRequest(
-        workspace_id=uuid4(), agent_id="browser-smoke", task_id=uuid4(), attempt_id=uuid4(),
-        capabilities=BROWSER_CAPABILITIES, os="linux",
+        workspace_id=uuid4(),
+        agent_id="browser-smoke",
+        task_id=uuid4(),
+        attempt_id=uuid4(),
+        capabilities=BROWSER_CAPABILITIES,
+        os="linux",
     )
     lease = manager.allocate(request, environment_id="browser-smoke")
     ownership = {"attempt_id": request.attempt_id, "fencing_token": lease.fencing_token}
     context = ToolExecutionContext(
-        actor_id=uuid4(), household_id=request.workspace_id, run_id=uuid4(),
-        agent_id="browser-smoke", scopes=frozenset({"jobs:read", "jobs:write"}),
+        actor_id=uuid4(),
+        household_id=request.workspace_id,
+        run_id=uuid4(),
+        agent_id="browser-smoke",
+        scopes=frozenset({"jobs:read", "jobs:write"}),
         allowed_tool_ids=frozenset(item.id for item in browser_tool_definitions()),
-        environment_capabilities=BROWSER_CAPABILITIES, authorized_action="write",
+        environment_capabilities=BROWSER_CAPABILITIES,
+        authorized_action="write",
     )
     registry = TransportRegistry()
-    registry.register("browser", BrowserToolTransport(
-        manager, lease, actor_id=context.actor_id, run_id=context.run_id,
-    ))
+    registry.register(
+        "browser",
+        BrowserToolTransport(
+            manager,
+            lease,
+            actor_id=context.actor_id,
+            run_id=context.run_id,
+        ),
+    )
     definitions = {item.id: item for item in browser_tool_definitions(enabled=True)}
     try:
         if online:
@@ -65,16 +86,30 @@ def smoke(*, online: bool) -> None:
                 "<script>document.body.textContent='UNSAFE SCRIPT RAN'</script>"
                 "<img src='https://example.com/blocked.png'></body></html>"
             )
-            fixture = "from pathlib import Path; Path('/workspace/source.html').write_text(" + repr(
-                html
-            ) + ")"
-            created = manager.execute(lease.id, ExecutionCommand(argv=(
-                "/usr/local/bin/python3", "-I", "-c", fixture,
-            )), **ownership)
+            fixture = (
+                "from pathlib import Path; Path('/workspace/source.html').write_text("
+                + repr(html)
+                + ")"
+            )
+            created = manager.execute(
+                lease.id,
+                ExecutionCommand(
+                    argv=(
+                        "/usr/local/bin/python3",
+                        "-I",
+                        "-c",
+                        fixture,
+                    )
+                ),
+                **ownership,
+            )
             if created.exit_code:
                 raise RuntimeError("Could not create synthetic HTML input")
-            result = registry.execute(definitions["browser.render_html"],
-                                      {"input": "source.html", "output": "preview.png"}, context)
+            result = registry.execute(
+                definitions["browser.render_html"],
+                {"input": "source.html", "output": "preview.png"},
+                context,
+            )
             if result.output["exit_code"]:
                 raise RuntimeError("browser.render_html: " + result.output["stderr"])
             content = json.loads(result.output["stdout"])
@@ -90,8 +125,11 @@ def smoke(*, online: bool) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--online", action="store_true",
-                        help="Also read/screenshot the public https://example.com page")
+    parser.add_argument(
+        "--online",
+        action="store_true",
+        help="Also read/screenshot the public https://example.com page",
+    )
     options = parser.parse_args()
     smoke(online=False)
     if options.online:

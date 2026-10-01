@@ -1,3 +1,5 @@
+"""Bridge bounded model threads to SSE with backpressure and access revalidation."""
+
 import asyncio
 import json
 from collections.abc import AsyncIterator, Callable

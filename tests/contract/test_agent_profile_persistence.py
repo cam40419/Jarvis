@@ -23,15 +23,27 @@ from simon.services.agent_runs import AgentRunService
 
 @pytest.fixture
 def custom_agents(store, tmp_path):
-    actor = ActorContext(actor_id=DEV_ACTOR_ID, household_id=DEV_HOUSEHOLD_ID,
-                         channel=Channel.API, scopes=frozenset({"jobs:read", "jobs:write"}))
+    actor = ActorContext(
+        actor_id=DEV_ACTOR_ID,
+        household_id=DEV_HOUSEHOLD_ID,
+        channel=Channel.API,
+        scopes=frozenset({"jobs:read", "jobs:write"}),
+    )
     manifest = PlatformManifest(
-        agents=(AgentProfile(id="analyst", name="Analysis",
-                             instructions="Analyze supplied facts."),),
+        agents=(
+            AgentProfile(id="analyst", name="Analysis", instructions="Analyze supplied facts."),
+        ),
         teams=(TeamTemplate(id="analysis", name="Analysis", agent_ids=("analyst",)),),
-        models=(ModelEndpoint(id="local", provider="openai_compatible", local=True,
-                              model="test-local", tier="economy",
-                              base_url="http://localhost:11434/v1"),),
+        models=(
+            ModelEndpoint(
+                id="local",
+                provider="openai_compatible",
+                local=True,
+                model="test-local",
+                tier="economy",
+                base_url="http://localhost:11434/v1",
+            ),
+        ),
     )
 
     def instance():
@@ -52,27 +64,47 @@ def custom_agents(store, tmp_path):
 def test_saved_agent_is_visible_without_restarting_existing_worker(custom_agents):
     actor, api, worker, skill = custom_agents
     assert worker.agent_profiles.list(actor) == ()
-    record = api.agent_profiles.create(actor, CreateAgentProfile(
-        name="Brand strategist", description="Develop and maintain the brand launch plan.",
-        skill_ids=(skill,), idempotency_key="brand-strategist-creation",
-    ))
+    record = api.agent_profiles.create(
+        actor,
+        CreateAgentProfile(
+            name="Brand strategist",
+            description="Develop and maintain the brand launch plan.",
+            skill_ids=(skill,),
+            idempotency_key="brand-strategist-creation",
+        ),
+    )
     assert worker.agent_profiles.get(actor, record.id) == record
-    plan = api.plan(actor, PlanTeamRequest(
-        team_id="my-custom-agents", idempotency_key="brand-strategist-plan",
-        tasks=(AgentTaskSpec(id="strategy", agent_id=record.id,
-                             objective="Write a launch strategy for the supplied brief"),),
-    ))
+    plan = api.plan(
+        actor,
+        PlanTeamRequest(
+            team_id="my-custom-agents",
+            idempotency_key="brand-strategist-plan",
+            tasks=(
+                AgentTaskSpec(
+                    id="strategy",
+                    agent_id=record.id,
+                    objective="Write a launch strategy for the supplied brief",
+                ),
+            ),
+        ),
+    )
     assert plan.state == "planned"
     runs = AgentRunService(worker, enabled=True, actor_resolver=lambda *_: actor)
     run = runs.start(actor, plan.id, StartAgentRun(idempotency_key="brand-strategist-run"))
     assert runs.live_actor(runs.job(run.id)).actor_id == actor.actor_id
     assert worker.plan_profiles(actor, plan)[record.id].description == record.description
 
-    api.agent_profiles.update(actor, record.id, UpdateAgentProfile(
-        name="Brand director", description="Own the brand strategy and document decisions.",
-        skill_ids=(skill,), expected_version=record.version,
-        idempotency_key="brand-strategist-edit",
-    ))
+    api.agent_profiles.update(
+        actor,
+        record.id,
+        UpdateAgentProfile(
+            name="Brand director",
+            description="Own the brand strategy and document decisions.",
+            skill_ids=(skill,),
+            expected_version=record.version,
+            idempotency_key="brand-strategist-edit",
+        ),
+    )
     assert worker.agent_profiles.get(actor, record.id).name == "Brand director"
     with pytest.raises(InvalidTransitionError, match=r"profile changed|unavailable"):
         runs.live_actor(runs.job(run.id))
@@ -82,19 +114,30 @@ def test_saved_agent_is_visible_without_restarting_existing_worker(custom_agents
 
 def test_concurrent_profile_edits_have_one_winner(custom_agents):
     actor, api, worker, skill = custom_agents
-    record = api.agent_profiles.create(actor, CreateAgentProfile(
-        name="Researcher", description="Research supplied materials.", skill_ids=(skill,),
-        idempotency_key="concurrent-profile-create",
-    ))
+    record = api.agent_profiles.create(
+        actor,
+        CreateAgentProfile(
+            name="Researcher",
+            description="Research supplied materials.",
+            skill_ids=(skill,),
+            idempotency_key="concurrent-profile-create",
+        ),
+    )
 
     def edit(index):
         platform = api if index == 0 else worker
         try:
-            return platform.agent_profiles.update(actor, record.id, UpdateAgentProfile(
-                name=f"Editor {index}", description="Research and document conclusions.",
-                skill_ids=(skill,), expected_version=record.version,
-                idempotency_key=f"concurrent-profile-edit-{index}",
-            )).name
+            return platform.agent_profiles.update(
+                actor,
+                record.id,
+                UpdateAgentProfile(
+                    name=f"Editor {index}",
+                    description="Research and document conclusions.",
+                    skill_ids=(skill,),
+                    expected_version=record.version,
+                    idempotency_key=f"concurrent-profile-edit-{index}",
+                ),
+            ).name
         except InvalidTransitionError:
             return "conflict"
 

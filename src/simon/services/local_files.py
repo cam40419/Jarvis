@@ -191,7 +191,9 @@ class LocalFileService:
                 content = stream.read(limit + 1)
                 after = os.fstat(stream.fileno())
                 if (before.st_ino, before.st_size, before.st_mtime_ns) != (
-                    after.st_ino, after.st_size, after.st_mtime_ns,
+                    after.st_ino,
+                    after.st_size,
+                    after.st_mtime_ns,
                 ):
                     raise ValidationError("File changed while reading. Read its latest revision.")
         except OSError:

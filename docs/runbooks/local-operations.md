@@ -11,13 +11,13 @@ Run `./scripts/install-local-tasks.ps1` from PowerShell in the repository root t
 tasks below. They run as the current Windows user with an interactive logon token; sign in to Windows
 before expecting Simon to be available. Docker Desktop also starts at user sign-in.
 
-| Task | Purpose |
-| --- | --- |
-| `Simon-PostgreSQL` | At sign-in, wait for Docker Desktop and start the Compose PostgreSQL container. The container itself has `restart: unless-stopped`. |
-| `Simon-Local` | At sign-in, apply migrations, check the `cam40419` owner/password credential, and run one Uvicorn server without a reload watcher. Task Scheduler retries failed exits three times. |
-| `Simon-Workflow` | Compatibility task name: run Simon's assistant tasks and work sessions. Home automation now runs independently in RobbinsHome. |
-| `Simon-Recovery` | Every five minutes, restart ready PostgreSQL/API tasks when unhealthy and ready assistant/agent workers when PostgreSQL is healthy. Disabled tasks, persistent stop requests, and maintenance are respected. |
-| `Simon-Backup` | At 3 AM, create and format-check a PostgreSQL archive. It retains the newest 14 automatic archives. |
+| Task               | Purpose                                                                                                                                                                                                      |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `Simon-PostgreSQL` | At sign-in, wait for Docker Desktop and start the Compose PostgreSQL container. The container itself has `restart: unless-stopped`.                                                                          |
+| `Simon-Local`      | At sign-in, apply migrations, check the `cam40419` owner/password credential, and run one Uvicorn server without a reload watcher. Task Scheduler retries failed exits three times.                          |
+| `Simon-Workflow`   | Compatibility task name: run Simon's assistant tasks and work sessions. Home automation now runs independently in RobbinsHome.                                                                               |
+| `Simon-Recovery`   | Every five minutes, restart ready PostgreSQL/API tasks when unhealthy and ready assistant/agent workers when PostgreSQL is healthy. Disabled tasks, persistent stop requests, and maintenance are respected. |
+| `Simon-Backup`     | At 3 AM, create and format-check a PostgreSQL archive. It retains the newest 14 automatic archives.                                                                                                          |
 
 Task Scheduler uses the current user's Windows session because Docker Desktop is a user-session app.
 These tasks do not provide service before that user signs in. The recovery task checks liveness; if

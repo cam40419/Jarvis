@@ -152,3 +152,92 @@ After a manager crash, first stop the original manager process. An administrator
 can then call `release(..., recover_interrupted=True)` with the recorded attempt
 ID and fencing token to clean an interrupted operation. Preserve generated files
 and inspect uncertain external effects before creating a new attempt.
+
+## Creative applications and desktop control
+
+Simon now has an `application` transport for structured operations against an
+operator-installed bridge in a dedicated machine lease. The bridge can use an application's
+native API, an installed plugin, or Windows UI Automation. An application ID is a routing
+label, not certification that a vendor application is supported. Each connector needs an
+installed version, available license/API entitlement, and an end-to-end acceptance test.
+
+The first desktop bridge implements `desktop.inspect`, `desktop.invoke`, and
+`desktop.set_text`. It attaches only to the exact process and window selected by the runner.
+Inspection returns bounded accessible controls and a state hash. Mutations require a control
+ID and that exact state; changed observations are rejected. Password controls are omitted.
+Text is set literally through the control API, without interpreting keyboard macro syntax.
+Invocation receipts are written before dispatch and completed afterward; reusing an invocation
+ID never repeats a mutation. A failed invocation is uncertain and requires session inspection.
+
+This bridge supports Windows UI Automation controls. Custom canvases, controls without Invoke
+or editable-value support, elevated/locked sessions, and application-specific modal workflows
+are not automatically supported. There is no coordinate clicking, global keyboard fallback,
+screenshot/vision loop, or screen-streaming service in this implementation. Native application
+connectors remain the preferred route for geometry, timeline edits, native saving, and validation.
+The current model worker can consume the accessibility text; visual computer use needs additional
+multimodal worker support.
+
+### Provision the Windows bridge
+
+The disabled [desktop manifest fragment](../../examples/agents/desktop-tools.example.json)
+contains tool and environment declarations. It does not install or start a runner.
+
+1. Provision a dedicated interactive Windows account or VM and an authenticated runner
+   implementing the machine lease protocol described above. The runner must enforce one owner,
+   fencing, timeouts, workspace boundaries, and application/session cleanup between leases.
+   Simon includes the client protocol and bridge; it does **not** ship that machine server.
+2. Install Simon and its optional desktop dependency on that worker with
+   `python -m pip install -e ".[desktop]"`. Start the licensed application in that dedicated
+   interactive session. Do not attach it to an unrelated personal desktop.
+3. For each owned command, the trusted runner sets `SIMON_DESKTOP_ENABLED=1`,
+   `SIMON_DESKTOP_LEASE_ID`, `SIMON_DESKTOP_FENCING_TOKEN`,
+   `SIMON_DESKTOP_WINDOW_HANDLE`, and `SIMON_DESKTOP_PROCESS_ID`. The lease and fencing
+   values must come from the runner's current ownership journal, not unvalidated command data.
+   Window/process bindings are operator- or runner-selected. The working directory is the
+   task workspace. Serialize UI mutations through the exclusive machine lease.
+4. Set the manifest's worker Python path, runner HTTPS origin, and credential environment
+   reference. Enable only the provisioned environment and tools, then grant their IDs to
+   a write-capable agent profile. These tools are conservatively classified as network-capable
+   because desktop applications may access external accounts; local-only profiles reject them.
+5. Verify inspection, literal text editing, stale-state rejection, duplicate-invocation rejection,
+   revoked/stale lease rejection, application saving, and session reset on the actual worker
+   before admitting unattended work. Test against a disposable document first.
+
+The application transport sends one JSON argument after the configured `argv_prefix`:
+`version`, `operation`, `arguments`, `invocation_id`, `lease_id`, and `fencing_token`.
+Model input cannot select the executable or operation. Custom bridges validate operation-specific
+arguments, implement native application logic, and write bounded receipts to stdout. They must
+not expose provider credentials. A nonzero exit or lost reply is treated as uncertain with no
+automatic retry. Remote file transfer, artifact collection, and authenticated live screens are
+still outstanding for machine workers; Docker artifact publication remains the implemented path.
+
+### Application compatibility targets
+
+| Application family                     | Implemented integration                                | Current Simon status                                                   |
+| -------------------------------------- | ------------------------------------------------------ | ---------------------------------------------------------------------- |
+| Blender                                | Offline Python scripting, editable `.blend`            | Opt-in adapter; real image acceptance required                         |
+| Fusion                                 | Native inspect, parameter expressions, F3D/STEP export | Add-in and connector implemented; licensed-host acceptance pending     |
+| Photoshop / Premiere                   | Native inspect and PSD/PRPROJ save                     | UXP panel and connectors implemented; licensed-host acceptance pending |
+| InDesign / Media Encoder / other Adobe | Product-specific SDKs                                  | Separate adapters still required                                       |
+| Houdini                                | Native inspect, numeric parameters, HIP save           | Python host implemented; licensed-host acceptance pending              |
+| Rhino 8                                | Native inspect and 3DM write                           | Python host implemented; licensed-host acceptance pending              |
+| Cinema 4D                              | Native inspect and C4D save                            | Python host implemented; licensed-host acceptance pending              |
+| SOLIDWORKS                             | COM inspect, native copy / STEP export                 | COM host implemented; licensed-host acceptance pending                 |
+| Other modeling/editing tools           | Native SDK or tested UI adapter                        | Evaluate each application/version independently                        |
+
+See [native connector setup and recovery](native-connectors.md) for host installation,
+operation coverage, the disabled manifest, and acceptance requirements. These connectors
+operate on documents already open in dedicated sessions; they do not provide universal
+editing coverage or automatically install the applications.
+
+Vendor API routes: [Fusion add-ins](https://help.autodesk.com/cloudhelp/ENU/Fusion-360-API/files/WritingDebugging_UM.htm),
+[Adobe UXP](https://developer.adobe.com/uxp/),
+[Houdini HOM](https://www.sidefx.com/docs/houdini/hom/),
+[Rhino.Python](https://developer.rhino3d.com/guides/rhinopython/),
+[Cinema 4D SDK](https://developers.maxon.net/docs/py/), and
+[SOLIDWORKS COM](https://help.solidworks.com/2026/english/api/sldworksapiprogguide/Overview/COM_vs_Dispatch.htm).
+These establish extension routes, not blanket feature coverage or licensing rights.
+
+The initial tests use fake controls and a simulated machine executor. They verify request
+binding, schemas, grants, stale observations, literal text, and invocation receipts. No real
+Adobe/Fusion installation or personal desktop was controlled during development.

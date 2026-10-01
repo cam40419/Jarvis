@@ -190,7 +190,9 @@ class GoogleAPI:
         self, token: str, item: GoogleItem, *, metadata: bool = False
     ) -> dict[str, Any]:
         result = self._request(
-            "GET", f"{GMAIL_URL}/{item.id}", token=token,
+            "GET",
+            f"{GMAIL_URL}/{item.id}",
+            token=token,
             params={"format": "metadata" if metadata else "full"},
         )
         payload = result.get("payload", {})
@@ -212,23 +214,28 @@ class GoogleAPI:
         if not metadata:
             text = message_text(payload)
             output.update(
-                body=text[:40000], truncated=len(text) > 40000,
-                body_available=bool(text), attachments_included=False,
+                body=text[:40000],
+                truncated=len(text) > 40000,
+                body_available=bool(text),
+                attachments_included=False,
             )
         return output
 
     def gmail_search(self, token: str, query: GoogleSearch) -> dict[str, Any]:
         result = self._request(
-            "GET", GMAIL_URL, token=token,
+            "GET",
+            GMAIL_URL,
+            token=token,
             params={
-                "q": query.query, "maxResults": str(query.limit),
+                "q": query.query,
+                "maxResults": str(query.limit),
                 "pageToken": query.page_token,
             },
         )
         return {
             "messages": [
                 self.gmail_message(token, GoogleItem(id=item["id"]), metadata=True)
-                for item in result.get("messages", [])[:query.limit]
+                for item in result.get("messages", [])[: query.limit]
             ],
             "next_page_token": result.get("nextPageToken", ""),
         }
@@ -236,30 +243,38 @@ class GoogleAPI:
     def drive_search(self, token: str, query: GoogleSearch) -> dict[str, Any]:
         escaped = query.query.replace("\\", "\\\\").replace("'", "\\'")
         result = self._request(
-            "GET", DRIVE_URL, token=token,
+            "GET",
+            DRIVE_URL,
+            token=token,
             params={
                 "q": "trashed = false" + (f" and fullText contains '{escaped}'" if escaped else ""),
-                "pageSize": str(query.limit), "pageToken": query.page_token,
-                "orderBy": "modifiedTime desc", "spaces": "drive",
-                "supportsAllDrives": "true", "includeItemsFromAllDrives": "true",
+                "pageSize": str(query.limit),
+                "pageToken": query.page_token,
+                "orderBy": "modifiedTime desc",
+                "spaces": "drive",
+                "supportsAllDrives": "true",
+                "includeItemsFromAllDrives": "true",
                 "fields": (
                     "nextPageToken,incompleteSearch,files(id,name,mimeType,modifiedTime,size)"
                 ),
             },
         )
         files = []
-        for item in result.get("files", [])[:query.limit]:
+        for item in result.get("files", [])[: query.limit]:
             identifier = GoogleItem(id=item["id"]).id
             files.append({**item, "url": f"https://drive.google.com/file/d/{identifier}/view"})
         return {
-            "files": files, "next_page_token": result.get("nextPageToken", ""),
+            "files": files,
+            "next_page_token": result.get("nextPageToken", ""),
             "incomplete_search": bool(result.get("incompleteSearch")),
         }
 
     def drive_file(self, token: str, item: GoogleItem) -> dict[str, Any]:
         url = f"{DRIVE_URL}/{item.id}"
         result = self._request(
-            "GET", url, token=token,
+            "GET",
+            url,
+            token=token,
             params={"fields": "id,name,mimeType,size", "supportsAllDrives": "true"},
         )
         result["url"] = f"https://drive.google.com/file/d/{item.id}/view"
@@ -270,17 +285,27 @@ class GoogleAPI:
             "application/vnd.google-apps.spreadsheet": "text/csv",
         }
         if mime in exports:
-            result.update(self._request(
-                "GET", url + "/export", token=token,
-                params={"mimeType": exports[mime]}, text_response=True,
-            ))
+            result.update(
+                self._request(
+                    "GET",
+                    url + "/export",
+                    token=token,
+                    params={"mimeType": exports[mime]},
+                    text_response=True,
+                )
+            )
             if mime == "application/vnd.google-apps.spreadsheet":
                 result["content_note"] = "CSV export contains the first sheet only."
         elif mime.startswith("text/") or mime in {"application/json", "application/xml"}:
-            result.update(self._request(
-                "GET", url, token=token,
-                params={"alt": "media", "supportsAllDrives": "true"}, text_response=True,
-            ))
+            result.update(
+                self._request(
+                    "GET",
+                    url,
+                    token=token,
+                    params={"alt": "media", "supportsAllDrives": "true"},
+                    text_response=True,
+                )
+            )
         else:
             result["content_note"] = (
                 "Metadata only. Content reading supports Google Docs, Slides, the first sheet "

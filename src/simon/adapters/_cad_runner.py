@@ -15,16 +15,24 @@ from pathlib import Path
 from typing import Any
 
 READ_OPERATIONS = frozenset({"cad.mesh_inspect"})
-WRITE_OPERATIONS = frozenset({"cad.openscad_export", "cad.render_mesh"})
+WRITE_OPERATIONS = frozenset({"cad.openscad_export", "cad.render_mesh", "cad.blender_script"})
 FILE_LIMIT = 48 * 1024 * 1024
 
 
 def relative_file(value: Any) -> str:
-    if (not isinstance(value, str) or not value or len(value) > 240
-            or value.startswith(("/", "-")) or "\\" in value or ":" in value
-            or any(ord(char) < 32 or ord(char) == 127 for char in value)
-            or any(part in {"", ".", ".."} or part.casefold().startswith((".git", ".simon"))
-                   for part in value.split("/"))):
+    if (
+        not isinstance(value, str)
+        or not value
+        or len(value) > 240
+        or value.startswith(("/", "-"))
+        or "\\" in value
+        or ":" in value
+        or any(ord(char) < 32 or ord(char) == 127 for char in value)
+        or any(
+            part in {"", ".", ".."} or part.casefold().startswith((".git", ".simon"))
+            for part in value.split("/")
+        )
+    ):
         raise ValueError("Use a relative workspace filename without traversal or internal paths")
     return value
 
@@ -32,6 +40,7 @@ def relative_file(value: Any) -> str:
 def validate_arguments(operation: str, arguments: dict[str, Any]) -> dict[str, Any]:
     fields = {
         "cad.openscad_export": {"input", "output"},
+        "cad.blender_script": {"input", "output"},
         "cad.mesh_inspect": {"input", "vase_checks"},
         "cad.render_mesh": {"input", "output", "material", "resolution", "samples", "save_scene"},
     }
@@ -39,12 +48,24 @@ def validate_arguments(operation: str, arguments: dict[str, Any]) -> dict[str, A
         raise ValueError("Unsupported CAD operation or arguments")
     result = dict(arguments)
     result["input"] = relative_file(arguments.get("input"))
-    expected = {".scad"} if operation == "cad.openscad_export" else {".stl", ".3mf"}
+    expected = (
+        {".py"}
+        if operation == "cad.blender_script"
+        else {".scad"}
+        if operation == "cad.openscad_export"
+        else {".stl", ".3mf"}
+    )
     if Path(result["input"]).suffix.lower() not in expected:
         raise ValueError("Unsupported CAD input extension")
     if operation in WRITE_OPERATIONS:
         result["output"] = relative_file(arguments.get("output"))
-        allowed = {".stl", ".3mf"} if operation == "cad.openscad_export" else {".png"}
+        allowed = (
+            {".blend"}
+            if operation == "cad.blender_script"
+            else {".stl", ".3mf"}
+            if operation == "cad.openscad_export"
+            else {".png"}
+        )
         if Path(result["output"]).suffix.lower() not in allowed:
             raise ValueError("Unsupported CAD output extension")
     if operation == "cad.mesh_inspect":
@@ -52,15 +73,20 @@ def validate_arguments(operation: str, arguments: dict[str, Any]) -> dict[str, A
         if type(result["vase_checks"]) is not bool:
             raise ValueError("vase_checks must be boolean")
     if operation == "cad.render_mesh":
-        for name, default, minimum, maximum in (("resolution", 960, 256, 1600),
-                                              ("samples", 32, 8, 128)):
+        for name, default, minimum, maximum in (
+            ("resolution", 960, 256, 1600),
+            ("samples", 32, 8, 128),
+        ):
             value = arguments.get(name, default)
             if type(value) is not int or not minimum <= value <= maximum:
                 raise ValueError(f"{name} is outside its supported range")
             result[name] = value
         result["material"] = arguments.get("material", "celadon")
         if not isinstance(result["material"], str) or result["material"] not in {
-            "celadon", "ivory", "terracotta", "charcoal",
+            "celadon",
+            "ivory",
+            "terracotta",
+            "charcoal",
         }:
             raise ValueError("Unknown studio material")
         result["save_scene"] = arguments.get("save_scene", False)
@@ -88,33 +114,45 @@ def workspace_file(workspace: Path, value: str, *, output: bool = False) -> Path
 
 
 def load_mesh(source: Path) -> Any:
-    import numpy as np
+    # Geometry dependencies are installed in the CAD image, not the API environment.
+    np = importlib.import_module("numpy")
     trimesh = importlib.import_module("trimesh")
 
     if source.suffix.lower() == ".3mf":
         with zipfile.ZipFile(source) as archive:
             members = archive.infolist()
-            if (len(members) > 64 or sum(item.file_size for item in members) > 128 * 1024 * 1024
-                    or any(item.flag_bits & 1 for item in members)):
+            if (
+                len(members) > 64
+                or sum(item.file_size for item in members) > 128 * 1024 * 1024
+                or any(item.flag_bits & 1 for item in members)
+            ):
                 raise ValueError("3MF package exceeds inspection bounds")
     mesh = trimesh.load(source, force="mesh", process=True, allow_remote=False)
-    if (not isinstance(mesh, trimesh.Trimesh) or not 1 <= len(mesh.faces) <= 500000
-            or not np.isfinite(mesh.vertices).all()):
+    if (
+        not isinstance(mesh, trimesh.Trimesh)
+        or not 1 <= len(mesh.faces) <= 500000
+        or not np.isfinite(mesh.vertices).all()
+    ):
         raise ValueError("Expected a finite triangle mesh with at most 500,000 faces")
     return mesh
 
 
 def inspect_mesh(source: Path, *, vase_checks: bool) -> dict[str, Any]:
-    import numpy as np
+    np = importlib.import_module("numpy")
 
     mesh = load_mesh(source)
     report: dict[str, Any] = {
-        "units": "mm", "vertices": len(mesh.vertices), "triangles": len(mesh.faces),
-        "bounds_mm": mesh.bounds.tolist(), "dimensions_mm": mesh.extents.tolist(),
+        "units": "mm",
+        "vertices": len(mesh.vertices),
+        "triangles": len(mesh.faces),
+        "bounds_mm": mesh.bounds.tolist(),
+        "dimensions_mm": mesh.extents.tolist(),
         "watertight": bool(mesh.is_watertight),
         "winding_consistent": bool(mesh.is_winding_consistent),
-        "positive_volume": bool(mesh.is_volume), "volume_mm3": float(mesh.volume),
-        "surface_area_mm2": float(mesh.area), "euler_number": int(mesh.euler_number),
+        "positive_volume": bool(mesh.is_volume),
+        "volume_mm3": float(mesh.volume),
+        "surface_area_mm2": float(mesh.area),
+        "euler_number": int(mesh.euler_number),
         "connected_components": len(mesh.split(only_watertight=False)),
         "sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
         "note": "STL has no units; values assume millimeters. No automatic mesh repair applied.",
@@ -127,12 +165,13 @@ def inspect_mesh(source: Path, *, vase_checks: bool) -> dict[str, Any]:
     # Centerline crossings establish a solid floor and an unobstructed mouth.
     origin = np.array([[0.0, 0.0, high + 1]])
     locations, _, _ = mesh.ray.intersects_location(origin, [[0, 0, -1]], multiple_hits=True)
-    levels = sorted(set(round(float(point[2]), 5) for point in locations))
+    levels = sorted({round(float(point[2]), 5) for point in locations})
     centers = mesh.triangles_center
     normals = mesh.face_normals
     radial_dot = np.sum(centers[:, :2] * normals[:, :2], axis=1)
-    candidates = np.flatnonzero((radial_dot > 2) & (centers[:, 2] > low + 8)
-                               & (centers[:, 2] < high - 8))
+    candidates = np.flatnonzero(
+        (radial_dot > 2) & (centers[:, 2] > low + 8) & (centers[:, 2] < high - 8)
+    )
     if len(candidates) < 64:
         raise ValueError("Insufficient outer surface for vase wall sampling")
     samples = candidates[np.linspace(0, len(candidates) - 1, min(512, len(candidates))).astype(int)]
@@ -155,7 +194,7 @@ def inspect_mesh(source: Path, *, vase_checks: bool) -> dict[str, Any]:
     return report
 
 
-BLENDER_SOURCE = r'''
+BLENDER_SOURCE = r"""
 import bpy, json, math, sys
 from mathutils import Vector
 params = json.loads(sys.argv[sys.argv.index('--') + 1])
@@ -240,7 +279,7 @@ scene.view_settings.exposure = -2.4
 if params.get('scene'):
     bpy.ops.wm.save_as_mainfile(filepath=params['scene'])
 bpy.ops.render.render(write_still=True)
-'''
+"""
 
 
 def run(request: dict[str, Any], workspace: Path) -> int:
@@ -249,6 +288,7 @@ def run(request: dict[str, Any], workspace: Path) -> int:
     source = workspace_file(workspace, arguments["input"])
     if sys.platform == "linux":
         import resource
+
         resource.setrlimit(resource.RLIMIT_FSIZE, (FILE_LIMIT, FILE_LIMIT))
     else:
         raise ValueError("CAD runner requires the isolated Linux image")
@@ -259,12 +299,20 @@ def run(request: dict[str, Any], workspace: Path) -> int:
     scene_target = None
     if arguments.get("save_scene"):
         scene_target = workspace_file(
-            workspace, str(Path(arguments["output"]).with_suffix(".blend")), output=True,
+            workspace,
+            str(Path(arguments["output"]).with_suffix(".blend")),
+            output=True,
         )
     target.parent.mkdir(parents=True, exist_ok=True)
-    environment = {"PATH": "/usr/bin:/bin", "HOME": "/tmp", "TMPDIR": "/tmp",
-                   "LANG": "C.UTF-8", "QT_QPA_PLATFORM": "offscreen", "OMP_NUM_THREADS": "2",
-                   "OPENBLAS_NUM_THREADS": "2"}
+    environment = {
+        "PATH": "/usr/bin:/bin",
+        "HOME": "/tmp",
+        "TMPDIR": "/tmp",
+        "LANG": "C.UTF-8",
+        "QT_QPA_PLATFORM": "offscreen",
+        "OMP_NUM_THREADS": "2",
+        "OPENBLAS_NUM_THREADS": "2",
+    }
     with tempfile.TemporaryDirectory(prefix=".simon-cad-", dir=target.parent) as temporary:
         staging = Path(temporary)
         staged = staging / ("result" + target.suffix.lower())
@@ -273,6 +321,30 @@ def run(request: dict[str, Any], workspace: Path) -> int:
             command = ["/usr/bin/openscad", "--hardwarnings", "-o", str(staged), str(source)]
             if target.suffix.lower() == ".stl":
                 command[1:1] = ["--export-format", "binstl"]
+        elif operation == "cad.blender_script":
+            if source.stat().st_size > 1024 * 1024:
+                raise ValueError("Blender scripts must be at most one MiB")
+            script = staging / "script.py"
+            # The Python program has the full Blender API inside the offline
+            # container. Isolation is enforced by the lease, not Python filtering.
+            script.write_text(
+                "import bpy, runpy\n"
+                + f"runpy.run_path({str(source)!r}, run_name='__main__')\n"
+                + f"bpy.ops.wm.save_as_mainfile(filepath={str(staged)!r})\n",
+                encoding="utf-8",
+            )
+            command = [
+                "/usr/bin/blender",
+                "--background",
+                "--factory-startup",
+                "--disable-autoexec",
+                "--threads",
+                "2",
+                "--python-exit-code",
+                "2",
+                "--python",
+                str(script),
+            ]
         else:
             mesh = load_mesh(source)
             staged_mesh = staging / "input.stl"
@@ -280,17 +352,38 @@ def run(request: dict[str, Any], workspace: Path) -> int:
             script = staging / "render.py"
             script.write_text(BLENDER_SOURCE, encoding="utf-8")
             scene = staging / "scene.blend" if scene_target else None
-            command = ["/usr/bin/blender", "--background", "--factory-startup",
-                       "--disable-autoexec",
-                       "--threads", "2", "--python-exit-code", "2", "--python", str(script), "--",
-                       json.dumps({**arguments, "input": str(staged_mesh), "output": str(staged),
-                                   "scene": str(scene) if scene else None, "label": "vase"})]
+            command = [
+                "/usr/bin/blender",
+                "--background",
+                "--factory-startup",
+                "--disable-autoexec",
+                "--threads",
+                "2",
+                "--python-exit-code",
+                "2",
+                "--python",
+                str(script),
+                "--",
+                json.dumps(
+                    {
+                        **arguments,
+                        "input": str(staged_mesh),
+                        "output": str(staged),
+                        "scene": str(scene) if scene else None,
+                        "label": "vase",
+                    }
+                ),
+            ]
             if scene is not None and scene_target is not None:
                 outputs.append((scene, scene_target))
         try:
             result = subprocess.run(
-                command, cwd=workspace, env=environment, stdin=subprocess.DEVNULL,
-                timeout=request["timeout_seconds"], check=False,
+                command,
+                cwd=workspace,
+                env=environment,
+                stdin=subprocess.DEVNULL,
+                timeout=request["timeout_seconds"],
+                check=False,
             )
         except subprocess.TimeoutExpired:
             print("CAD operation timed out; inspect its lease before retrying", file=sys.stderr)
@@ -298,17 +391,24 @@ def run(request: dict[str, Any], workspace: Path) -> int:
         if result.returncode:
             return result.returncode
         for output, _ in outputs:
-            if (output.is_symlink() or not stat.S_ISREG(output.stat().st_mode)
-                    or output.stat().st_size > FILE_LIMIT):
+            if (
+                output.is_symlink()
+                or not stat.S_ISREG(output.stat().st_mode)
+                or output.stat().st_size > FILE_LIMIT
+            ):
                 raise ValueError("CAD did not produce a valid bounded file")
         # Every destination is no-overwrite; a partial publication on an I/O
         # failure is inspectable and never silently replaced on a later attempt.
         published = []
         for output, destination in outputs:
             os.link(output, destination, follow_symlinks=False)
-            published.append({"path": destination.relative_to(workspace).as_posix(),
-                              "bytes": destination.stat().st_size,
-                              "sha256": hashlib.sha256(destination.read_bytes()).hexdigest()})
+            published.append(
+                {
+                    "path": destination.relative_to(workspace).as_posix(),
+                    "bytes": destination.stat().st_size,
+                    "sha256": hashlib.sha256(destination.read_bytes()).hexdigest(),
+                }
+            )
         print(json.dumps({"files": published}))
     return 0
 
@@ -317,6 +417,8 @@ if __name__ == "__main__":
     try:
         sys.exit(run(json.loads(sys.argv[1]), Path("/workspace")))
     except (ValueError, OSError, zipfile.BadZipFile):
-        print("CAD rejected: invalid file, unsupported arguments, or output already exists",
-              file=sys.stderr)
+        print(
+            "CAD rejected: invalid file, unsupported arguments, or output already exists",
+            file=sys.stderr,
+        )
         sys.exit(2)

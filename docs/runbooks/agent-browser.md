@@ -22,9 +22,9 @@ The normal [environment provisioning requirements](agent-environments.md) apply.
 
 Use two separate environment definitions:
 
-| Use | Network | Tools |
-| --- | --- | --- |
-| Generated HTML previews | `none` | `browser.render_html` |
+| Use                              | Network  | Tools                                |
+| -------------------------------- | -------- | ------------------------------------ |
+| Generated HTML previews          | `none`   | `browser.render_html`                |
 | Public HTTPS reading/screenshots | `bridge` | `browser.read`, `browser.screenshot` |
 
 Copy selected [tool definitions](../../examples/agents/browser-tools.example.json)

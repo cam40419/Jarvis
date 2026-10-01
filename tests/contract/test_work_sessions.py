@@ -150,12 +150,17 @@ def test_interrupted_sessions_preserve_progress_without_replaying_actions(store)
         actor, thread.id, SubmitRun(text="Act once", idempotency_key="act-once-request")
     )
     job = store.get_job(UUID(item["id"]))
-    store.save_job(job.model_copy(update={
-        "status": JobStatus.RUNNING,
-        "updated_at": utc_now() - timedelta(minutes=6),
-        "input": {**job.input, "run_id": str(uuid4())},
-        "result": {"text": "Action was started"},
-    }), job.version)
+    store.save_job(
+        job.model_copy(
+            update={
+                "status": JobStatus.RUNNING,
+                "updated_at": utc_now() - timedelta(minutes=6),
+                "input": {**job.input, "run_id": str(uuid4())},
+                "result": {"text": "Action was started"},
+            }
+        ),
+        job.version,
+    )
     assert service.tick() == 0
     saved = service.list(actor, thread.id)[0]
     assert saved["status"] == "failed"
@@ -168,21 +173,38 @@ def test_task_recovery_requeues_unstarted_and_pauses_uncertain_work(store):
     from simon.domain.tasks import CreateAssistantTask
 
     service, actor, model, _, _, _ = setup_sessions(store)
-    task = service.tasks.create(actor, CreateAssistantTask(
-        title="Recover task", instructions="Write a summary", task_type="research",
-        idempotency_key="recover-task",
-    ))
+    task = service.tasks.create(
+        actor,
+        CreateAssistantTask(
+            title="Recover task",
+            instructions="Write a summary",
+            task_type="research",
+            idempotency_key="recover-task",
+        ),
+    )
     job = store.get_job(task.id)
-    store.save_job(job.model_copy(update={
-        "status": JobStatus.RUNNING, "updated_at": utc_now() - timedelta(minutes=11),
-    }), job.version)
+    store.save_job(
+        job.model_copy(
+            update={
+                "status": JobStatus.RUNNING,
+                "updated_at": utc_now() - timedelta(minutes=11),
+            }
+        ),
+        job.version,
+    )
     service.tasks.recover_interrupted()
     job = store.get_job(task.id)
     assert job.status == JobStatus.QUEUED
-    store.save_job(job.model_copy(update={
-        "status": JobStatus.RUNNING, "updated_at": utc_now() - timedelta(minutes=11),
-        "input": {**job.input, "run_id": str(uuid4())},
-    }), job.version)
+    store.save_job(
+        job.model_copy(
+            update={
+                "status": JobStatus.RUNNING,
+                "updated_at": utc_now() - timedelta(minutes=11),
+                "input": {**job.input, "run_id": str(uuid4())},
+            }
+        ),
+        job.version,
+    )
     service.tasks.recover_interrupted()
     assert store.get_job(task.id).status == JobStatus.WAITING
     assert not model.requests

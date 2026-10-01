@@ -29,8 +29,12 @@ def publish(store: ArtifactStore, text: str = "An answer.") -> Artifact:
 
 def content_path(root: Path, artifact: Artifact) -> Path:
     return root.joinpath(
-        str(artifact.workspace_id), str(artifact.actor_id), str(artifact.run_id),
-        str(artifact.task_id), str(artifact.id), "content",
+        str(artifact.workspace_id),
+        str(artifact.actor_id),
+        str(artifact.run_id),
+        str(artifact.task_id),
+        str(artifact.id),
+        "content",
     )
 
 
@@ -46,18 +50,56 @@ def test_publish_source_bundle_preserves_paths_and_hashes(tmp_path: Path) -> Non
     (workspace / "src/main.py").write_bytes(b"print('hello')\n")
     (workspace / "image.png").write_bytes(b"synthetic image bytes")
     store = ArtifactStore(tmp_path / "artifacts")
-    artifact, = store.publish_workspace_files(
-        workspace=workspace, paths=("src/main.py", "image.png"), workspace_id=uuid4(),
-        actor_id=uuid4(), run_id=uuid4(), task_id=uuid4(),
+    (artifact,) = store.publish_workspace_files(
+        workspace=workspace,
+        paths=("src/main.py", "image.png"),
+        workspace_id=uuid4(),
+        actor_id=uuid4(),
+        run_id=uuid4(),
+        task_id=uuid4(),
     )
     assert artifact.name == "deliverables.zip"
     with zipfile.ZipFile(io.BytesIO(store.read(artifact))) as archive:
         assert archive.read("src/main.py") == b"print('hello')\n"
         manifest = json.loads(archive.read("simon-deliverables.json"))
         assert len(manifest["files"]) == 2
-        assert manifest["files"][0]["sha256"] == hashlib.sha256(
-            archive.read("src/main.py")
-        ).hexdigest()
+        entries = {item["path"]: item for item in manifest["files"]}
+        assert (
+            entries["src/main.py"]["sha256"]
+            == hashlib.sha256(archive.read("src/main.py")).hexdigest()
+        )
+
+
+def test_bundle_identity_ignores_collection_time_and_input_order(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    (workspace / "a.txt").write_bytes(b"First file")
+    (workspace / "b.txt").write_bytes(b"Second file")
+    store = ArtifactStore(tmp_path / "artifacts")
+    references = {
+        "workspace_id": uuid4(),
+        "actor_id": uuid4(),
+        "run_id": uuid4(),
+        "task_id": uuid4(),
+    }
+    monkeypatch.setattr(zipfile.time, "localtime", lambda *_: (2020, 1, 1, 0, 0, 0, 2, 1, -1))
+    (original,) = store.publish_workspace_files(
+        workspace=workspace, paths=("a.txt", "b.txt"), **references
+    )
+    monkeypatch.setattr(zipfile.time, "localtime", lambda *_: (2026, 1, 1, 0, 0, 0, 3, 1, -1))
+    (repeated,) = store.publish_workspace_files(
+        workspace=workspace, paths=("b.txt", "a.txt"), **references
+    )
+    assert repeated == original
+    (workspace / "b.txt").write_bytes(b"Revised second file")
+    (revised,) = store.publish_workspace_files(
+        workspace=workspace, paths=("a.txt", "b.txt"), **references
+    )
+    assert revised.id != original.id
+    with zipfile.ZipFile(io.BytesIO(store.read(original))) as archive:
+        assert archive.read("b.txt") == b"Second file"
 
 
 @pytest.mark.parametrize("path", ["../secret", "/secret", ".env", ".git/config", "missing"])
@@ -67,8 +109,12 @@ def test_workspace_publication_rejects_private_or_invalid_paths(tmp_path: Path, 
     store = ArtifactStore(tmp_path / "artifacts")
     with pytest.raises(DomainError):
         store.publish_workspace_files(
-            workspace=workspace, paths=(path,), workspace_id=uuid4(), actor_id=uuid4(),
-            run_id=uuid4(), task_id=uuid4(),
+            workspace=workspace,
+            paths=(path,),
+            workspace_id=uuid4(),
+            actor_id=uuid4(),
+            run_id=uuid4(),
+            task_id=uuid4(),
         )
     assert not store.root.exists()
 
@@ -88,8 +134,10 @@ def test_identical_publication_is_idempotent_and_changed_content_is_new(tmp_path
     store = ArtifactStore(tmp_path)
     original = publish(store)
     references = {
-        "workspace_id": original.workspace_id, "actor_id": original.actor_id,
-        "run_id": original.run_id, "task_id": original.task_id,
+        "workspace_id": original.workspace_id,
+        "actor_id": original.actor_id,
+        "run_id": original.run_id,
+        "task_id": original.task_id,
     }
     same = store.publish_text(**references, text="An answer.")
     changed = store.publish_text(**references, text="A revised answer.")
@@ -102,7 +150,10 @@ def test_identical_publication_is_idempotent_and_changed_content_is_new(tmp_path
 def test_concurrent_identical_publications_return_one_complete_artifact(tmp_path: Path) -> None:
     store = ArtifactStore(tmp_path)
     references = {
-        "workspace_id": uuid4(), "actor_id": uuid4(), "run_id": uuid4(), "task_id": uuid4(),
+        "workspace_id": uuid4(),
+        "actor_id": uuid4(),
+        "run_id": uuid4(),
+        "task_id": uuid4(),
     }
     with ThreadPoolExecutor(max_workers=8) as executor:
         futures = [
@@ -120,8 +171,12 @@ def test_names_cannot_supply_paths(tmp_path: Path, name: str) -> None:
     store = ArtifactStore(tmp_path)
     with pytest.raises(ArtifactError, match="metadata is invalid"):
         store.publish_text(
-            workspace_id=uuid4(), actor_id=uuid4(), run_id=uuid4(), task_id=uuid4(),
-            text="text", name=name,
+            workspace_id=uuid4(),
+            actor_id=uuid4(),
+            run_id=uuid4(),
+            task_id=uuid4(),
+            text="text",
+            name=name,
         )
     assert not list(tmp_path.iterdir())
 
@@ -144,8 +199,11 @@ def test_tampered_content_is_never_returned_or_overwritten(tmp_path: Path) -> No
         store.read(artifact)
     with pytest.raises(ArtifactError, match="integrity"):
         store.publish_text(
-            workspace_id=artifact.workspace_id, actor_id=artifact.actor_id,
-            run_id=artifact.run_id, task_id=artifact.task_id, text="An answer.",
+            workspace_id=artifact.workspace_id,
+            actor_id=artifact.actor_id,
+            run_id=artifact.run_id,
+            task_id=artifact.task_id,
+            text="An answer.",
         )
     assert content_path(tmp_path, artifact).read_bytes() == b"Altered!!!"
 
@@ -198,9 +256,7 @@ def test_invalid_storage_limits_rejected(tmp_path: Path) -> None:
             ArtifactStore(tmp_path, max_bytes=invalid)
 
 
-def test_windows_reparse_point_is_rejected(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_windows_reparse_point_is_rejected(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     root = tmp_path / "junction"
     original_lstat = Path.lstat
 

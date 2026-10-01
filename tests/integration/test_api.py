@@ -11,14 +11,6 @@ def test_health_does_not_require_authentication(client: TestClient) -> None:
     assert client.get("/health/live").json() == {"status": "ok"}
 
 
-
-
-
-
-
-
-
-
 def test_capabilities_are_filtered_by_scope(
     client: TestClient, auth_headers: dict[str, str]
 ) -> None:

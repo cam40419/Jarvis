@@ -40,37 +40,78 @@ def main() -> None:
     state = (Path(".local/agents") / ("processing-smoke-" + uuid4().hex)).resolve()
     capabilities = frozenset({"python", "pdf", "ocr", "media", "documents"})
     manager = EnvironmentManager(
-        [EnvironmentDefinition(
-            id="processing-smoke", kind="docker", enabled=True,
-            container_image="simon-processing:local", capabilities=capabilities, network="none",
-        )], state_path=state / "leases.sqlite3", workspace_root=state / "workspaces",
+        [
+            EnvironmentDefinition(
+                id="processing-smoke",
+                kind="docker",
+                enabled=True,
+                container_image="simon-processing:local",
+                capabilities=capabilities,
+                network="none",
+            )
+        ],
+        state_path=state / "leases.sqlite3",
+        workspace_root=state / "workspaces",
     )
     request = EnvironmentRequest(
-        workspace_id=uuid4(), agent_id="processing-smoke", task_id=uuid4(), attempt_id=uuid4(),
-        capabilities=capabilities, os="linux",
+        workspace_id=uuid4(),
+        agent_id="processing-smoke",
+        task_id=uuid4(),
+        attempt_id=uuid4(),
+        capabilities=capabilities,
+        os="linux",
     )
     lease = manager.allocate(request, environment_id="processing-smoke")
     ownership = {"attempt_id": request.attempt_id, "fencing_token": lease.fencing_token}
     context = ToolExecutionContext(
-        actor_id=uuid4(), household_id=request.workspace_id, run_id=uuid4(),
-        agent_id="processing-smoke", scopes=frozenset({"jobs:read", "jobs:write"}),
+        actor_id=uuid4(),
+        household_id=request.workspace_id,
+        run_id=uuid4(),
+        agent_id="processing-smoke",
+        scopes=frozenset({"jobs:read", "jobs:write"}),
         allowed_tool_ids=frozenset(item.id for item in processing_tool_definitions()),
-        environment_capabilities=capabilities, authorized_action="write",
+        environment_capabilities=capabilities,
+        authorized_action="write",
     )
     registry = TransportRegistry()
-    registry.register("processing", ProcessingToolTransport(
-        manager, lease, actor_id=context.actor_id, run_id=context.run_id,
-    ))
+    registry.register(
+        "processing",
+        ProcessingToolTransport(
+            manager,
+            lease,
+            actor_id=context.actor_id,
+            run_id=context.run_id,
+        ),
+    )
     definitions = {item.id: item for item in processing_tool_definitions(enabled=True)}
     try:
         for argv in (
             ("/usr/local/bin/python3", "-I", "-c", _FIXTURES),
-            ("/usr/bin/ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin", "-n",
-             "-f", "lavfi", "-i", "color=c=white:s=640x360:r=10:d=2", "-f", "lavfi",
-             "-i", "sine=frequency=440:duration=2", "-vf",
-             "drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf:"
-             "text=SIMON TEST:fontcolor=black:fontsize=40:x=80:y=150", "-c:v", "libx264",
-             "-c:a", "aac", "-shortest", "/workspace/source.mp4"),
+            (
+                "/usr/bin/ffmpeg",
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-nostdin",
+                "-n",
+                "-f",
+                "lavfi",
+                "-i",
+                "color=c=white:s=640x360:r=10:d=2",
+                "-f",
+                "lavfi",
+                "-i",
+                "sine=frequency=440:duration=2",
+                "-vf",
+                "drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf:"
+                "text=SIMON TEST:fontcolor=black:fontsize=40:x=80:y=150",
+                "-c:v",
+                "libx264",
+                "-c:a",
+                "aac",
+                "-shortest",
+                "/workspace/source.mp4",
+            ),
         ):
             result = manager.execute(lease.id, ExecutionCommand(argv=argv), **ownership)
             if result.exit_code:
@@ -89,14 +130,19 @@ def main() -> None:
             result = registry.execute(definitions[operation], arguments, context)
             if result.output["exit_code"]:
                 raise RuntimeError(f"{operation}: {result.output['stderr']}")
-            if (operation == "document.extract_pdf"
-                    and "SIMON PDF TEST" not in result.output["stdout"]):
+            if (
+                operation == "document.extract_pdf"
+                and "SIMON PDF TEST" not in result.output["stdout"]
+            ):
                 raise RuntimeError("PDF extraction did not return fixture text")
             if operation == "image.ocr" and "SIMON TEST" not in result.output["stdout"]:
                 raise RuntimeError("OCR did not return fixture text")
             print(f"{operation}: passed")
-        collision = registry.execute(definitions["document.convert"],
-                                     {"input": "source.md", "output": "report.docx"}, context)
+        collision = registry.execute(
+            definitions["document.convert"],
+            {"input": "source.md", "output": "report.docx"},
+            context,
+        )
         if collision.output["exit_code"] == 0:
             raise RuntimeError("Existing output was overwritten")
         print("Existing output preserved: passed")

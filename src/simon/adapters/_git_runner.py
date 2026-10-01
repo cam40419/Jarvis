@@ -22,10 +22,11 @@ def relative_path(value: Any, *, allow_dot: bool = True) -> str:
     if value == "." and allow_dot:
         return value
     if (
-        value.startswith(("/", "-")) or "\\" in value or ":" in value
+        value.startswith(("/", "-"))
+        or "\\" in value
+        or ":" in value
         or any(ord(char) < 32 or ord(char) == 127 for char in value)
-        or any(part in {"", ".", ".."} or part.casefold() == ".git"
-               for part in value.split("/"))
+        or any(part in {"", ".", ".."} or part.casefold() == ".git" for part in value.split("/"))
     ):
         raise ValueError("Paths must stay inside the repository and exclude Git metadata")
     return value
@@ -35,7 +36,9 @@ def branch_name(value: Any) -> str:
     if (
         not isinstance(value, str)
         or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/-]{0,99}", value) is None
-        or ".." in value or "//" in value or value.endswith((".", "/"))
+        or ".." in value
+        or "//" in value
+        or value.endswith((".", "/"))
         or any(part.startswith(".") or part.endswith(".lock") for part in value.split("/"))
         or value == "HEAD"
     ):
@@ -60,8 +63,12 @@ def check_repository(repository: Path) -> None:
         raise ValueError("A standalone repository with a local .git directory is required")
     # Git follows metadata paths independently of the worktree. Reject linked
     # worktrees, alternates, symlinks, and oversized metadata before invoking Git.
-    forbidden = {"commondir", "config.worktree", "objects/info/alternates",
-                 "objects/info/http-alternates"}
+    forbidden = {
+        "commondir",
+        "config.worktree",
+        "objects/info/alternates",
+        "objects/info/http-alternates",
+    }
     count = 0
     for parent, directories, files in os.walk(metadata, followlinks=False):
         for name in (*directories, *files):
@@ -79,8 +86,17 @@ def check_repository(repository: Path) -> None:
     if parser.defaults():
         raise ValueError("Unsupported repository configuration")
     allowed = {
-        "core": {"repositoryformatversion", "filemode", "bare", "logallrefupdates",
-                 "ignorecase", "precomposeunicode", "symlinks", "autocrlf", "safecrlf"},
+        "core": {
+            "repositoryformatversion",
+            "filemode",
+            "bare",
+            "logallrefupdates",
+            "ignorecase",
+            "precomposeunicode",
+            "symlinks",
+            "autocrlf",
+            "safecrlf",
+        },
         "user": {"name", "email"},
         "extensions": {"objectformat"},
     }
@@ -99,9 +115,15 @@ def check_repository(repository: Path) -> None:
 
 def validate_arguments(operation: str, arguments: dict[str, Any]) -> dict[str, Any]:
     fields = {
-        "status": set(), "diff": {"staged", "paths"}, "log": {"limit"},
-        "branches": set(), "init": {"branch"}, "branch": {"name"},
-        "switch": {"name"}, "add": {"paths"}, "commit": {"message"},
+        "status": set(),
+        "diff": {"staged", "paths"},
+        "log": {"limit"},
+        "branches": set(),
+        "init": {"branch"},
+        "branch": {"name"},
+        "switch": {"name"},
+        "add": {"paths"},
+        "commit": {"message"},
     }
     if operation not in fields or set(arguments) - fields[operation] - {"repository"}:
         raise ValueError("Unsupported Git operation or arguments")
@@ -113,8 +135,7 @@ def validate_arguments(operation: str, arguments: dict[str, Any]) -> dict[str, A
         result["branch"] = branch_name(arguments.get("branch", "main"))
     if operation in {"diff", "add"}:
         paths = arguments.get("paths", [])
-        if (not isinstance(paths, list) or len(paths) > 50
-                or (operation == "add" and not paths)):
+        if not isinstance(paths, list) or len(paths) > 50 or (operation == "add" and not paths):
             raise ValueError("Expected between one and fifty explicit paths to stage")
         result["paths"] = [relative_path(path) for path in paths]
     if operation == "diff":
@@ -129,39 +150,98 @@ def validate_arguments(operation: str, arguments: dict[str, Any]) -> dict[str, A
         result["limit"] = limit
     if operation == "commit":
         message = arguments.get("message")
-        if (not isinstance(message, str) or not message.strip() or len(message) > 4000
-                or any(ord(char) < 32 and char not in "\n\t" for char in message)):
+        if (
+            not isinstance(message, str)
+            or not message.strip()
+            or len(message) > 4000
+            or any(ord(char) < 32 and char not in "\n\t" for char in message)
+        ):
             raise ValueError("Commit message must be nonempty text up to 4000 characters")
     return result
 
 
 def git_command(
-    operation: str, arguments: dict[str, Any], repository: Path, *,
-    executable: str = "/usr/bin/git", author_name: str, author_email: str,
+    operation: str,
+    arguments: dict[str, Any],
+    repository: Path,
+    *,
+    executable: str = "/usr/bin/git",
+    author_name: str,
+    author_email: str,
 ) -> list[str]:
     prefix = [
-        executable, "--no-pager", "--literal-pathspecs", "--no-optional-locks",
-        "-c", "core.hooksPath=" + os.devnull,
-        "-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false",
-        "-c", "commit.gpgSign=false", "-c", "tag.gpgSign=false",
-        "-c", "gc.auto=0", "-c", "maintenance.auto=false",
-        "-c", "protocol.allow=never", "-c", "submodule.recurse=false",
-        "-c", "core.quotePath=true", "-c", "color.ui=false",
-        "-c", "user.name=" + author_name, "-c", "user.email=" + author_email,
+        executable,
+        "--no-pager",
+        "--literal-pathspecs",
+        "--no-optional-locks",
+        "-c",
+        "core.hooksPath=" + os.devnull,
+        "-c",
+        "core.fsmonitor=false",
+        "-c",
+        "core.untrackedCache=false",
+        "-c",
+        "commit.gpgSign=false",
+        "-c",
+        "tag.gpgSign=false",
+        "-c",
+        "gc.auto=0",
+        "-c",
+        "maintenance.auto=false",
+        "-c",
+        "protocol.allow=never",
+        "-c",
+        "submodule.recurse=false",
+        "-c",
+        "core.quotePath=true",
+        "-c",
+        "color.ui=false",
+        "-c",
+        "user.name=" + author_name,
+        "-c",
+        "user.email=" + author_email,
     ]
     if operation == "init":
-        return [*prefix, "init", "--template=", "--initial-branch=" + arguments["branch"],
-                "--", str(repository)]
+        return [
+            *prefix,
+            "init",
+            "--template=",
+            "--initial-branch=" + arguments["branch"],
+            "--",
+            str(repository),
+        ]
     prefix += ["--git-dir=" + str(repository / ".git"), "--work-tree=" + str(repository)]
     if operation == "status":
-        return [*prefix, "status", "--short", "--branch", "--untracked-files=normal",
-                "--ignore-submodules=all"]
+        return [
+            *prefix,
+            "status",
+            "--short",
+            "--branch",
+            "--untracked-files=normal",
+            "--ignore-submodules=all",
+        ]
     if operation == "diff":
-        return [*prefix, "diff", "--no-ext-diff", "--no-textconv", "--ignore-submodules=all",
-                *(["--cached"] if arguments["staged"] else []), "--", *arguments["paths"]]
+        return [
+            *prefix,
+            "diff",
+            "--no-ext-diff",
+            "--no-textconv",
+            "--ignore-submodules=all",
+            *(["--cached"] if arguments["staged"] else []),
+            "--",
+            *arguments["paths"],
+        ]
     if operation == "log":
-        return [*prefix, "log", "--no-decorate", "--no-show-signature",
-                "--format=%h %s", "-n", str(arguments["limit"]), "--"]
+        return [
+            *prefix,
+            "log",
+            "--no-decorate",
+            "--no-show-signature",
+            "--format=%h %s",
+            "-n",
+            str(arguments["limit"]),
+            "--",
+        ]
     if operation == "branches":
         return [*prefix, "branch", "--list", "--no-color"]
     if operation == "branch":
@@ -171,8 +251,16 @@ def git_command(
     if operation == "add":
         return [*prefix, "add", "--", *arguments["paths"]]
     if operation == "commit":
-        return [*prefix, "commit", "--no-gpg-sign", "--no-verify", "--cleanup=verbatim",
-                "-m", arguments["message"], "--"]
+        return [
+            *prefix,
+            "commit",
+            "--no-gpg-sign",
+            "--no-verify",
+            "--cleanup=verbatim",
+            "-m",
+            arguments["message"],
+            "--",
+        ]
     raise ValueError("Unsupported Git operation")
 
 
@@ -189,18 +277,29 @@ def run(request: dict[str, Any], workspace: Path, *, executable: str = "/usr/bin
     for path in arguments.get("paths", []):
         checked_path(repository, path)
     command = git_command(
-        operation, arguments, repository, executable=executable,
-        author_name=request["author_name"], author_email=request["author_email"],
+        operation,
+        arguments,
+        repository,
+        executable=executable,
+        author_name=request["author_name"],
+        author_email=request["author_email"],
     )
     # Explicit environment removes inherited config, credentials, askpass, editors,
     # shell helpers, replacement object refs, and global/system configuration.
     environment = {
-        "PATH": str(Path(executable).parent), "HOME": str(workspace), "LANG": "C.UTF-8",
-        "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_SYSTEM": os.devnull,
-        "GIT_CONFIG_GLOBAL": os.devnull, "GIT_TERMINAL_PROMPT": "0",
-        "GIT_ATTR_NOSYSTEM": "1", "GIT_NO_REPLACE_OBJECTS": "1",
-        "GIT_ALLOW_PROTOCOL": "", "GIT_LFS_SKIP_SMUDGE": "1",
-        "GIT_AUTHOR_NAME": request["author_name"], "GIT_AUTHOR_EMAIL": request["author_email"],
+        "PATH": str(Path(executable).parent),
+        "HOME": str(workspace),
+        "LANG": "C.UTF-8",
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_CONFIG_SYSTEM": os.devnull,
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_TERMINAL_PROMPT": "0",
+        "GIT_ATTR_NOSYSTEM": "1",
+        "GIT_NO_REPLACE_OBJECTS": "1",
+        "GIT_ALLOW_PROTOCOL": "",
+        "GIT_LFS_SKIP_SMUDGE": "1",
+        "GIT_AUTHOR_NAME": request["author_name"],
+        "GIT_AUTHOR_EMAIL": request["author_email"],
         "GIT_COMMITTER_NAME": request["author_name"],
         "GIT_COMMITTER_EMAIL": request["author_email"],
     }
@@ -208,8 +307,12 @@ def run(request: dict[str, Any], workspace: Path, *, executable: str = "/usr/bin
         environment["SYSTEMROOT"] = os.environ.get("SYSTEMROOT", r"C:\Windows")
     try:
         result = subprocess.run(
-            command, cwd=repository, env=environment, stdin=subprocess.DEVNULL,
-            timeout=request["timeout_seconds"], check=False,
+            command,
+            cwd=repository,
+            env=environment,
+            stdin=subprocess.DEVNULL,
+            timeout=request["timeout_seconds"],
+            check=False,
         )
     except subprocess.TimeoutExpired:
         print("Git command timed out; inspect repository before retrying", file=sys.stderr)
@@ -221,6 +324,8 @@ if __name__ == "__main__":
     try:
         sys.exit(run(json.loads(sys.argv[1]), Path("/workspace")))
     except (ValueError, OSError, configparser.Error):
-        print("Git operation rejected: invalid path or unsupported repository configuration",
-              file=sys.stderr)
+        print(
+            "Git operation rejected: invalid path or unsupported repository configuration",
+            file=sys.stderr,
+        )
         sys.exit(2)

@@ -2,13 +2,8 @@
   {
     "id": "pcb.erc",
     "description": "Run KiCad electrical rule checks and save JSON, including violations.",
-    "categories": [
-      "hardware",
-      "pcb"
-    ],
-    "capabilities": [
-      "pcb.erc"
-    ],
+    "categories": ["hardware", "pcb"],
+    "capabilities": ["pcb.erc"],
     "transport": "pcb",
     "input_schema": {
       "type": "object",
@@ -25,23 +20,15 @@
           "maxLength": 500
         }
       },
-      "required": [
-        "input",
-        "output"
-      ]
+      "required": ["input", "output"]
     },
     "output_schema": {
       "type": "object"
     },
     "enabled": false,
     "configured": false,
-    "required_scopes": [
-      "jobs:write"
-    ],
-    "environment_capabilities": [
-      "python",
-      "pcb"
-    ],
+    "required_scopes": ["jobs:write"],
+    "environment_capabilities": ["python", "pcb"],
     "side_effect": true,
     "action_policy": "write",
     "endpoint": null,
@@ -51,13 +38,8 @@
   {
     "id": "pcb.drc",
     "description": "Check PCB design rules and schematic parity; save JSON including violations.",
-    "categories": [
-      "hardware",
-      "pcb"
-    ],
-    "capabilities": [
-      "pcb.drc"
-    ],
+    "categories": ["hardware", "pcb"],
+    "capabilities": ["pcb.drc"],
     "transport": "pcb",
     "input_schema": {
       "type": "object",
@@ -74,23 +56,15 @@
           "maxLength": 500
         }
       },
-      "required": [
-        "input",
-        "output"
-      ]
+      "required": ["input", "output"]
     },
     "output_schema": {
       "type": "object"
     },
     "enabled": false,
     "configured": false,
-    "required_scopes": [
-      "jobs:write"
-    ],
-    "environment_capabilities": [
-      "python",
-      "pcb"
-    ],
+    "required_scopes": ["jobs:write"],
+    "environment_capabilities": ["python", "pcb"],
     "side_effect": true,
     "action_policy": "write",
     "endpoint": null,
@@ -100,13 +74,8 @@
   {
     "id": "pcb.schematic_pdf",
     "description": "Export a KiCad schematic to a reviewable PDF.",
-    "categories": [
-      "hardware",
-      "pcb"
-    ],
-    "capabilities": [
-      "pcb.schematic_pdf"
-    ],
+    "categories": ["hardware", "pcb"],
+    "capabilities": ["pcb.schematic_pdf"],
     "transport": "pcb",
     "input_schema": {
       "type": "object",
@@ -123,23 +92,15 @@
           "maxLength": 500
         }
       },
-      "required": [
-        "input",
-        "output"
-      ]
+      "required": ["input", "output"]
     },
     "output_schema": {
       "type": "object"
     },
     "enabled": false,
     "configured": false,
-    "required_scopes": [
-      "jobs:write"
-    ],
-    "environment_capabilities": [
-      "python",
-      "pcb"
-    ],
+    "required_scopes": ["jobs:write"],
+    "environment_capabilities": ["python", "pcb"],
     "side_effect": true,
     "action_policy": "write",
     "endpoint": null,
@@ -149,13 +110,8 @@
   {
     "id": "pcb.netlist",
     "description": "Export KiCad schematic connectivity as XML netlist.",
-    "categories": [
-      "hardware",
-      "pcb"
-    ],
-    "capabilities": [
-      "pcb.netlist"
-    ],
+    "categories": ["hardware", "pcb"],
+    "capabilities": ["pcb.netlist"],
     "transport": "pcb",
     "input_schema": {
       "type": "object",
@@ -172,23 +128,15 @@
           "maxLength": 500
         }
       },
-      "required": [
-        "input",
-        "output"
-      ]
+      "required": ["input", "output"]
     },
     "output_schema": {
       "type": "object"
     },
     "enabled": false,
     "configured": false,
-    "required_scopes": [
-      "jobs:write"
-    ],
-    "environment_capabilities": [
-      "python",
-      "pcb"
-    ],
+    "required_scopes": ["jobs:write"],
+    "environment_capabilities": ["python", "pcb"],
     "side_effect": true,
     "action_policy": "write",
     "endpoint": null,
@@ -198,13 +146,8 @@
   {
     "id": "pcb.bom",
     "description": "Export schematic references, values, footprints and quantities as CSV.",
-    "categories": [
-      "hardware",
-      "pcb"
-    ],
-    "capabilities": [
-      "pcb.bom"
-    ],
+    "categories": ["hardware", "pcb"],
+    "capabilities": ["pcb.bom"],
     "transport": "pcb",
     "input_schema": {
       "type": "object",
@@ -221,23 +164,15 @@
           "maxLength": 500
         }
       },
-      "required": [
-        "input",
-        "output"
-      ]
+      "required": ["input", "output"]
     },
     "output_schema": {
       "type": "object"
     },
     "enabled": false,
     "configured": false,
-    "required_scopes": [
-      "jobs:write"
-    ],
-    "environment_capabilities": [
-      "python",
-      "pcb"
-    ],
+    "required_scopes": ["jobs:write"],
+    "environment_capabilities": ["python", "pcb"],
     "side_effect": true,
     "action_policy": "write",
     "endpoint": null,
@@ -247,13 +182,8 @@
   {
     "id": "pcb.board_svg",
     "description": "Export PCB top copper, silkscreen and board outline as SVG.",
-    "categories": [
-      "hardware",
-      "pcb"
-    ],
-    "capabilities": [
-      "pcb.board_svg"
-    ],
+    "categories": ["hardware", "pcb"],
+    "capabilities": ["pcb.board_svg"],
     "transport": "pcb",
     "input_schema": {
       "type": "object",
@@ -270,23 +200,15 @@
           "maxLength": 500
         }
       },
-      "required": [
-        "input",
-        "output"
-      ]
+      "required": ["input", "output"]
     },
     "output_schema": {
       "type": "object"
     },
     "enabled": false,
     "configured": false,
-    "required_scopes": [
-      "jobs:write"
-    ],
-    "environment_capabilities": [
-      "python",
-      "pcb"
-    ],
+    "required_scopes": ["jobs:write"],
+    "environment_capabilities": ["python", "pcb"],
     "side_effect": true,
     "action_policy": "write",
     "endpoint": null,
@@ -296,13 +218,8 @@
   {
     "id": "pcb.gerbers",
     "description": "Export Gerber layers and Excellon drills into a ZIP for review.",
-    "categories": [
-      "hardware",
-      "pcb"
-    ],
-    "capabilities": [
-      "pcb.gerbers"
-    ],
+    "categories": ["hardware", "pcb"],
+    "capabilities": ["pcb.gerbers"],
     "transport": "pcb",
     "input_schema": {
       "type": "object",
@@ -319,23 +236,15 @@
           "maxLength": 500
         }
       },
-      "required": [
-        "input",
-        "output"
-      ]
+      "required": ["input", "output"]
     },
     "output_schema": {
       "type": "object"
     },
     "enabled": false,
     "configured": false,
-    "required_scopes": [
-      "jobs:write"
-    ],
-    "environment_capabilities": [
-      "python",
-      "pcb"
-    ],
+    "required_scopes": ["jobs:write"],
+    "environment_capabilities": ["python", "pcb"],
     "side_effect": true,
     "action_policy": "write",
     "endpoint": null,

@@ -85,7 +85,11 @@ returned relative filename in their subsequent tools.
 A tool-using worker can finish with:
 
 ```json
-{"type":"final","output":"Created the deliverables.","artifacts":["report.csv","src/main.py"]}
+{
+  "type": "final",
+  "output": "Created the deliverables.",
+  "artifacts": ["report.csv", "src/main.py"]
+}
 ```
 
 The dispatcher stops the owned container before collecting files. One file is
@@ -96,9 +100,11 @@ total artifact limit including ZIP metadata. Paths outside the workspace,
 filesystem redirects, repository internals and common credential files are rejected.
 File collection from remote machine runners is not implemented.
 
-The reviewer receives predecessors' final text. It does not yet automatically
-receive their full working directories or native file bundles; review findings
-must state which evidence was actually available.
+The reviewer receives predecessors' final text and verified native deliverables in
+its Docker workspace, with exact source references saved on the run. Full working
+directories are not transferred. Workers without Docker receive references marked
+as unavailable locally. Review findings must identify the files actually inspected;
+see [dependency artifact handoff](agent-execution.md#dependency-artifact-handoff).
 
 ## Start the dispatcher
 
@@ -127,23 +133,23 @@ as completed.
 
 Implemented adapters include:
 
-| Integration | Available behavior |
-| --- | --- |
-| Native files | Managed/project read, edit, move, folders, ZIP operations |
-| Native Google | Account selection; Drive/Gmail/Calendar reads; linked project file/Docs/Sheets operations |
-| Git | Local status/diff/log/branches/init/branch/switch/add/commit inside Docker |
-| Python | Bounded computation, source edits and installed tests inside Docker |
-| Documents/media | PDF extraction, conversion, OCR and bounded FFmpeg operations |
-| Browser | Static allowlisted HTTPS reads/screenshots; offline HTML previews |
-| GitHub | Repository, issue and pull-request reads; create issues and draft PRs |
-| WebDAV | Root-scoped listing/read and conditional create/update |
-| Dropbox | Root-scoped listing/search/metadata/read and revision-checked upload |
-| Box | Folder-scoped listing, metadata and file reads |
-| OneDrive/SharePoint | Graph drive/folder-scoped listing, metadata and file reads |
-| Image generation | One PNG per request using an explicitly configured OpenAI model |
-| Audio transcription | Bounded PCM WAV transcription to a workspace text artifact |
-| HTTP JSON | Operator-configured fixed endpoint and validated tool schema |
-| MCP | Fixed remote tool calls over Streamable HTTP, pinned protocol 2025-11-25 |
+| Integration         | Available behavior                                                                        |
+| ------------------- | ----------------------------------------------------------------------------------------- |
+| Native files        | Managed/project read, edit, move, folders, ZIP operations                                 |
+| Native Google       | Account selection; Drive/Gmail/Calendar reads; linked project file/Docs/Sheets operations |
+| Git                 | Local status/diff/log/branches/init/branch/switch/add/commit inside Docker                |
+| Python              | Bounded computation, source edits and installed tests inside Docker                       |
+| Documents/media     | PDF extraction, conversion, OCR and bounded FFmpeg operations                             |
+| Browser             | Static allowlisted HTTPS reads/screenshots; offline HTML previews                         |
+| GitHub              | Repository, issue and pull-request reads; create issues and draft PRs                     |
+| WebDAV              | Root-scoped listing/read and conditional create/update                                    |
+| Dropbox             | Root-scoped listing/search/metadata/read and revision-checked upload                      |
+| Box                 | Folder-scoped listing, metadata and file reads                                            |
+| OneDrive/SharePoint | Graph drive/folder-scoped listing, metadata and file reads                                |
+| Image generation    | One PNG per request using an explicitly configured OpenAI model                           |
+| Audio transcription | Bounded PCM WAV transcription to a workspace text artifact                                |
+| HTTP JSON           | Operator-configured fixed endpoint and validated tool schema                              |
+| MCP                 | Fixed remote tool calls over Streamable HTTP, pinned protocol 2025-11-25                  |
 
 Native Google/file access is scoped to the acting account. Tools are explicitly
 granted to profiles; catalog entries do not grant account permissions. Local-only

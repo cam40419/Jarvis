@@ -60,7 +60,8 @@ def _store(settings: Settings, concurrency: int) -> PostgresStore:
     from simon.adapters.postgres import PostgresStore
 
     return PostgresStore(
-        settings.database_url.get_secret_value(), pool_size=min(32, max(4, concurrency + 2)),
+        settings.database_url.get_secret_value(),
+        pool_size=min(32, max(4, concurrency + 2)),
     )
 
 
@@ -100,16 +101,25 @@ def _shutdown_signals(stop: Event) -> Iterator[None]:
 
 
 def _serve(
-    dispatcher: AgentDispatcher, *, concurrency: int, poll_seconds: float, stop: Event,
+    dispatcher: AgentDispatcher,
+    *,
+    concurrency: int,
+    poll_seconds: float,
+    stop: Event,
     stop_file: Path | None = None,
     project_tick: Callable[[], int] | None = None,
 ) -> None:
     """Bound run futures independently of the dispatcher's durable agent-slot claims."""
     active: set[Future[AgentRun | None]] = set()
     executor = ThreadPoolExecutor(max_workers=concurrency, thread_name_prefix="agent-dispatch")
-    project_executor = ThreadPoolExecutor(
-        max_workers=1, thread_name_prefix="project-coordinate",
-    ) if project_tick is not None else None
+    project_executor = (
+        ThreadPoolExecutor(
+            max_workers=1,
+            thread_name_prefix="project-coordinate",
+        )
+        if project_tick is not None
+        else None
+    )
     project_future: Future[int] | None = None
 
     def finish_project(future: Future[int]) -> None:
@@ -165,17 +175,30 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     modes = parser.add_mutually_exclusive_group()
     modes.add_argument("--once", action="store_true", help="Execute one queued run, then exit")
-    modes.add_argument("--recover-run", type=UUID, metavar="UUID", help=(
-        "Operator recovery of an interrupted run after stopping its original dispatcher"
-    ))
+    modes.add_argument(
+        "--recover-run",
+        type=UUID,
+        metavar="UUID",
+        help=("Operator recovery of an interrupted run after stopping its original dispatcher"),
+    )
     parser.add_argument("--expected-version", type=int, help="Required version for recovery")
-    parser.add_argument("--worker-stopped", action="store_true", help=(
-        "Acknowledge the original dispatcher and its workers have stopped; required for recovery"
-    ))
+    parser.add_argument(
+        "--worker-stopped",
+        action="store_true",
+        help=(
+            "Acknowledge the original dispatcher and its workers have stopped; "
+            "required for recovery"
+        ),
+    )
     parser.add_argument("--poll-seconds", type=float, default=1, help="Polling interval, 0.2 to 10")
-    parser.add_argument("--stop-file", type=Path, help=(
-        "Watch an operator-owned request file for graceful shutdown; existing requests are honored"
-    ))
+    parser.add_argument(
+        "--stop-file",
+        type=Path,
+        help=(
+            "Watch an operator-owned request file for graceful shutdown; "
+            "existing requests are honored"
+        ),
+    )
     args = parser.parse_args(argv)
     if not 0.2 <= args.poll_seconds <= 10:
         parser.error("poll-seconds must be between 0.2 and 10")
@@ -204,43 +227,58 @@ def main(argv: Sequence[str] | None = None) -> None:
     logging.basicConfig(level=logging.INFO)
     try:
         connected = ConnectedService(
-            store, AuditService(store), settings, IdentityService(store, settings),
+            store,
+            AuditService(store),
+            settings,
+            IdentityService(store, settings),
         )
         manifest = with_native_tools(manifest, connected)
         external_actions = external_action_service(settings, store)
         platform = AgentPlatformService(
-            store, manifest, state_dir=settings.agent_state_dir,
+            store,
+            manifest,
+            state_dir=settings.agent_state_dir,
             available_transports=INSTALLED_TRANSPORTS,
         )
         runs = AgentRunService(platform, enabled=settings.agent_execution_enabled)
         platform.tool_availability = lambda actor, tool_id: (
-            native_tool_status(connected, actor, tool_id) if tool_id.startswith("native.")
+            native_tool_status(connected, actor, tool_id)
+            if tool_id.startswith("native.")
             else external_tool_status(external_actions, actor, tool_id)
         )
         if args.recover_run is not None:
             assert args.expected_version is not None
             recovered = runs.recover_interrupted(
-                args.recover_run, args.expected_version,
+                args.recover_run,
+                args.expected_version,
                 operator_actor_id=settings.account_admin_actor_id,
             )
             _print_run(recovered)
             return
         project_work = ProjectWorkService(
-            store, project_resolver=AssistantTaskService(store, connected.identity).project,
+            store,
+            project_resolver=AssistantTaskService(store, connected.identity).project,
         )
         boards = project_board_service(settings, store, project_work)
         coordinator = ProjectCoordinator(
-            project_work, runs, external_actions=external_actions, boards=boards,
+            project_work,
+            runs,
+            external_actions=external_actions,
+            boards=boards,
         )
         project_work.team_validator = coordinator.validate_team
         autonomy = ProjectAutonomyService(project_work, coordinator, enabled=True)
+
         def project_tick() -> int:
             return boards.tick() + autonomy.tick()
 
-        dispatcher = AgentDispatcher(runs, transport_factory=external_transport_factory(
-            project_transport_factory(native_transport_factory(connected), project_work, runs),
-            external_actions,
-        ))
+        dispatcher = AgentDispatcher(
+            runs,
+            transport_factory=external_transport_factory(
+                project_transport_factory(native_transport_factory(connected), project_work, runs),
+                external_actions,
+            ),
+        )
         stop = Event()
         with _shutdown_signals(stop):
             if args.once:
@@ -253,9 +291,14 @@ def main(argv: Sequence[str] | None = None) -> None:
                     print(json.dumps({"status": "idle"}), flush=True)
             else:
                 logger.info("Simon agent dispatcher started")
-                _serve(dispatcher, concurrency=manifest.max_parallel,
-                       poll_seconds=args.poll_seconds, stop=stop, stop_file=args.stop_file,
-                       project_tick=project_tick)
+                _serve(
+                    dispatcher,
+                    concurrency=manifest.max_parallel,
+                    poll_seconds=args.poll_seconds,
+                    stop=stop,
+                    stop_file=args.stop_file,
+                    project_tick=project_tick,
+                )
                 logger.info("Simon agent dispatcher stopped")
     except KeyboardInterrupt:
         # Signal handlers normally request graceful draining; keep direct

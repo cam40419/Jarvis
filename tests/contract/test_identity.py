@@ -44,12 +44,17 @@ def login(browser):
 def test_password_sign_in_and_change(browser, identity_app):
     headers = login(browser)
     assert browser.get("/auth/password").json() == {"username": None}
-    assert browser.post(
-        "/auth/password", headers=headers,
-        json={"username": "owner", "password": "short"},
-    ).status_code == 422
+    assert (
+        browser.post(
+            "/auth/password",
+            headers=headers,
+            json={"username": "owner", "password": "short"},
+        ).status_code
+        == 422
+    )
     response = browser.post(
-        "/auth/password", headers=headers,
+        "/auth/password",
+        headers=headers,
         json={"username": "Owner", "password": "a private phrase with 18 words"},
     )
     assert response.status_code == 200, response.text
@@ -61,59 +66,86 @@ def test_password_sign_in_and_change(browser, identity_app):
 
     assert browser.post("/auth/logout", headers=headers).status_code == 204
     wrong = browser.post(
-        "/auth/password/login", headers={"Origin": ORIGIN},
+        "/auth/password/login",
+        headers={"Origin": ORIGIN},
         json={"username": "owner", "password": "incorrect password"},
     )
     unknown = browser.post(
-        "/auth/password/login", headers={"Origin": ORIGIN},
+        "/auth/password/login",
+        headers={"Origin": ORIGIN},
         json={"username": "other", "password": "incorrect password"},
     )
     assert wrong.status_code == unknown.status_code == 401
     assert wrong.json() == unknown.json()
     signed_in = browser.post(
-        "/auth/password/login", headers={"Origin": ORIGIN},
+        "/auth/password/login",
+        headers={"Origin": ORIGIN},
         json={"username": "OWNER", "password": "a private phrase with 18 words"},
     )
     assert signed_in.status_code == 200, signed_in.text
     assert signed_in.json()["method"] == "password"
     assert browser.get("/v1/threads").status_code == 200
     password_headers = {"Origin": ORIGIN, "X-CSRF-Token": signed_in.json()["csrf_token"]}
-    assert browser.post(
-        "/auth/password", headers=password_headers,
-        json={"username": "owner", "password": "a new long private phrase"},
-    ).status_code == 401
-    assert browser.post(
-        "/auth/password", headers=password_headers,
-        json={"username": "owner", "password": "a new long private phrase",
-              "current_password": "a private phrase with 18 words"},
-    ).status_code == 200
+    assert (
+        browser.post(
+            "/auth/password",
+            headers=password_headers,
+            json={"username": "owner", "password": "a new long private phrase"},
+        ).status_code
+        == 401
+    )
+    assert (
+        browser.post(
+            "/auth/password",
+            headers=password_headers,
+            json={
+                "username": "owner",
+                "password": "a new long private phrase",
+                "current_password": "a private phrase with 18 words",
+            },
+        ).status_code
+        == 200
+    )
     assert browser.post("/auth/logout", headers=password_headers).status_code == 204
-    assert browser.post(
-        "/auth/password/login", headers={"Origin": ORIGIN},
-        json={"username": "owner", "password": "a new long private phrase"},
-    ).status_code == 200
+    assert (
+        browser.post(
+            "/auth/password/login",
+            headers={"Origin": ORIGIN},
+            json={"username": "owner", "password": "a new long private phrase"},
+        ).status_code
+        == 200
+    )
 
 
 def test_password_sign_in_throttles_and_requires_origin(browser, identity_app):
     headers = login(browser)
-    assert browser.post(
-        "/auth/password", headers=headers,
-        json={"username": "owner", "password": "a different long private phrase"},
-    ).status_code == 200
+    assert (
+        browser.post(
+            "/auth/password",
+            headers=headers,
+            json={"username": "owner", "password": "a different long private phrase"},
+        ).status_code
+        == 200
+    )
     assert browser.post("/auth/logout", headers=headers).status_code == 204
     body = {"username": "owner", "password": "wrong password"}
     assert browser.post("/auth/password/login", json=body).status_code == 403
     for _ in range(5):
-        assert browser.post(
-            "/auth/password/login", headers={"Origin": ORIGIN}, json=body
-        ).status_code == 401
+        assert (
+            browser.post("/auth/password/login", headers={"Origin": ORIGIN}, json=body).status_code
+            == 401
+        )
     credential = identity_app.store.password_for_actor(DEV_ACTOR_ID)
     assert credential is not None and credential.failed_attempts == 5
     assert credential.locked_until is not None
-    assert browser.post(
-        "/auth/password/login", headers={"Origin": ORIGIN},
-        json={"username": "owner", "password": "a different long private phrase"},
-    ).status_code == 401
+    assert (
+        browser.post(
+            "/auth/password/login",
+            headers={"Origin": ORIGIN},
+            json={"username": "owner", "password": "a different long private phrase"},
+        ).status_code
+        == 401
+    )
 
 
 def test_enrollment_token_can_register_password_instead_of_passkey(browser, identity_app):
@@ -124,27 +156,30 @@ def test_enrollment_token_can_register_password_instead_of_passkey(browser, iden
         "password": "a long account password phrase",
     }
     assert browser.post("/auth/password/register", json=body).status_code == 403
-    response = browser.post(
-        "/auth/password/register", headers={"Origin": ORIGIN}, json=body
-    )
+    response = browser.post("/auth/password/register", headers={"Origin": ORIGIN}, json=body)
     assert response.status_code == 200, response.text
     assert response.json()["method"] == "password"
     assert browser.get("/auth/password").json() == {"username": "first.user"}
-    assert browser.post(
-        "/auth/password/register", headers={"Origin": ORIGIN}, json=body
-    ).status_code == 401
+    assert (
+        browser.post("/auth/password/register", headers={"Origin": ORIGIN}, json=body).status_code
+        == 401
+    )
 
 
 def test_password_routes_are_disabled_for_remote_origin():
     remote = "https://simon.example"
     settings = Settings(
-        environment="test", storage_backend="memory", public_origin=remote,
-        rp_id="simon.example", model_provider="local",
+        environment="test",
+        storage_backend="memory",
+        public_origin=remote,
+        rp_id="simon.example",
+        model_provider="local",
     )
     with TestClient(create_app(AppContainer(settings=settings)), base_url=remote) as client:
         assert client.get("/auth/config").json()["password_enabled"] is False
         response = client.post(
-            "/auth/password/login", headers={"Origin": remote},
+            "/auth/password/login",
+            headers={"Origin": remote},
             json={"username": "owner", "password": "a long password phrase"},
         )
         assert response.status_code == 403

@@ -47,11 +47,11 @@ Production configuration rejects development login, HTTP origins, and memory sto
 
 ## Initial role mapping
 
-| Role | Scopes |
-| --- | --- |
-| Owner | `system:read`, `jobs:read`, `jobs:write`, `identity:manage` |
-| Member | `system:read`, `jobs:read`, `jobs:write` |
-| Guest | `system:read` |
+| Role   | Scopes                                                      |
+| ------ | ----------------------------------------------------------- |
+| Owner  | `system:read`, `jobs:read`, `jobs:write`, `identity:manage` |
+| Member | `system:read`, `jobs:read`, `jobs:write`                    |
+| Guest  | `system:read`                                               |
 
 `identity:manage` reserves future authenticated administration. Current membership, enrollment,
 and recovery commands require local operator/database access. Unknown roles are rejected by

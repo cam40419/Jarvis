@@ -6,10 +6,15 @@ from tests.unit.test_clickup import TOKEN, adapter, connection
 
 
 def project(client, headers):
-    response = client.post("/v1/projects", headers=headers, json={
-        "name": "Clothing launch", "description": "Build a small collection",
-        "idempotency_key": "company-board-project",
-    })
+    response = client.post(
+        "/v1/projects",
+        headers=headers,
+        json={
+            "name": "Clothing launch",
+            "description": "Build a small collection",
+            "idempotency_key": "company-board-project",
+        },
+    )
     assert response.status_code in {200, 201}, response.text
     return response.json()["id"]
 
@@ -36,9 +41,14 @@ def test_board_connect_preview_import_and_optimistic_binding(client, container, 
     assert choices.json()[0]["available"]
     assert TOKEN not in choices.text and "credential_env" not in choices.text
     assert not requests
-    body = {"expected_version": 0, "binding": {
-        "connection_id": "company", "list_id": "456", "sync_progress": False,
-    }}
+    body = {
+        "expected_version": 0,
+        "binding": {
+            "connection_id": "company",
+            "list_id": "456",
+            "sync_progress": False,
+        },
+    }
     assert client.patch(url, json=body).status_code == 403
     assert not requests
     bound = client.patch(url, json=body, headers=auth_headers)
@@ -47,10 +57,15 @@ def test_board_connect_preview_import_and_optimistic_binding(client, container, 
     assert client.patch(url, json=body, headers=auth_headers).status_code == 409
     preview = client.get(url + "/preview").json()
     assert preview["tasks"][0]["name"] == "Human task name"
-    imported = client.post(url + "/import", headers=auth_headers, json={
-        "task_ids": ["task1"], "expected_version": bound.json()["state"]["version"],
-        "idempotency_key": "company-selected-import",
-    })
+    imported = client.post(
+        url + "/import",
+        headers=auth_headers,
+        json={
+            "task_ids": ["task1"],
+            "expected_version": bound.json()["state"]["version"],
+            "idempotency_key": "company-selected-import",
+        },
+    )
     assert imported.status_code == 200, imported.text
     mapping = imported.json()["state"]["mappings"][0]
     assert mapping["remote_id"] == "task1"
@@ -58,7 +73,8 @@ def test_board_connect_preview_import_and_optimistic_binding(client, container, 
     todo = tasks["todos"][0]
     assert todo["title"] == "Human task name"
     rejected = client.patch(
-        f"/v1/projects/{identifier}/todos/{todo['id']}", headers=auth_headers,
+        f"/v1/projects/{identifier}/todos/{todo['id']}",
+        headers=auth_headers,
         json={"expected_version": tasks["version"], "todo": {**todo, "title": "Local overwrite"}},
     )
     assert rejected.status_code in {400, 422}, rejected.text

@@ -26,15 +26,15 @@ Authenticate through the browser or `/auth/dev-login` as documented in the ident
 Keep the session cookie; POSTs also need the exact Origin and session CSRF header.
 The interactive request schemas are available at http://localhost:8000/docs.
 
-| Endpoint | Request / result |
-| --- | --- |
-| POST `/v1/threads` | `{ "title": "Test", "idempotency_key": "thread-test-001" }` |
-| GET `/v1/threads?offset=0&limit=50` | Current household threads, ordered by creation time and ID |
-| GET `/v1/threads/{id}` | One scoped thread |
-| POST `/v1/threads/{id}/runs` | `{ "text": "Hello", "idempotency_key": "run-test-001" }` |
-| GET `/v1/threads/{id}/messages?after=0&limit=100` | Messages with sequence greater than `after` |
-| GET `/v1/runs/{id}` | Recorded context sources, input/output IDs, configuration and outcome |
-| GET `/v1/runs/{id}/events` | Four persisted SSE events, numbered 1 through 4 |
+| Endpoint                                          | Request / result                                                      |
+| ------------------------------------------------- | --------------------------------------------------------------------- |
+| POST `/v1/threads`                                | `{ "title": "Test", "idempotency_key": "thread-test-001" }`           |
+| GET `/v1/threads?offset=0&limit=50`               | Current household threads, ordered by creation time and ID            |
+| GET `/v1/threads/{id}`                            | One scoped thread                                                     |
+| POST `/v1/threads/{id}/runs`                      | `{ "text": "Hello", "idempotency_key": "run-test-001" }`              |
+| GET `/v1/threads/{id}/messages?after=0&limit=100` | Messages with sequence greater than `after`                           |
+| GET `/v1/runs/{id}`                               | Recorded context sources, input/output IDs, configuration and outcome |
+| GET `/v1/runs/{id}/events`                        | Four persisted SSE events, numbered 1 through 4                       |
 
 Repeat the same POST and key: the IDs and records remain identical. Reuse that key with changed
 content: expect 409. Keys are scoped to actor and household, and run keys also to the thread.

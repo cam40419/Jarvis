@@ -31,18 +31,34 @@ def deployment(tmp_path, monkeypatch):
     credentials = tmp_path / "private-tunnel.json"
     tunnel_id = str(uuid4())
     credentials.write_text(json.dumps({"TunnelID": tunnel_id, "TunnelSecret": "synthetic"}))
-    plan = https_plan("https://simon.example.com", provider="cloudflare", public_path="/simon",
-                      tunnel_id=tunnel_id, credentials_file=credentials)
+    plan = https_plan(
+        "https://simon.example.com",
+        provider="cloudflare",
+        public_path="/simon",
+        tunnel_id=tunnel_id,
+        credentials_file=credentials,
+    )
     return tmp_path, plan
 
 
-@pytest.mark.parametrize("origin", [
-    "http://simon.example.com", "https://localhost", "https://127.0.0.1",
-    "https://[::1]", "https://simon.local", "https://simon.example.com/",
-    "https://simon.example.com:443", "https://user@simon.example.com",
-    "https://simon.example.com?x=1", "https://simon.example.com#x",
-    "https://Simon.example.com", "https://foo..example.com", "https://-foo.example.com",
-])
+@pytest.mark.parametrize(
+    "origin",
+    [
+        "http://simon.example.com",
+        "https://localhost",
+        "https://127.0.0.1",
+        "https://[::1]",
+        "https://simon.local",
+        "https://simon.example.com/",
+        "https://simon.example.com:443",
+        "https://user@simon.example.com",
+        "https://simon.example.com?x=1",
+        "https://simon.example.com#x",
+        "https://Simon.example.com",
+        "https://foo..example.com",
+        "https://-foo.example.com",
+    ],
+)
 def test_https_origin_is_exact_dns_origin(origin):
     with pytest.raises(ValueError):
         https_plan(origin, provider="tailscale")
@@ -51,9 +67,15 @@ def test_https_origin_is_exact_dns_origin(origin):
 def test_cloudflare_plan_keeps_proxy_loopback_and_host_path_consistent(deployment):
     _, plan = deployment
     ingress = plan["cloudflared_config"]["ingress"]
-    assert ingress == [{"hostname": "simon.example.com", "service": "http://127.0.0.1:8000",
-                        "originRequest": {"httpHostHeader": "simon.example.com"},
-                        "path": "^/simon(?:/.*)?$"}, {"service": "http_status:404"}]
+    assert ingress == [
+        {
+            "hostname": "simon.example.com",
+            "service": "http://127.0.0.1:8000",
+            "originRequest": {"httpHostHeader": "simon.example.com"},
+            "path": "^/simon(?:/.*)?$",
+        },
+        {"service": "http_status:404"},
+    ]
     assert plan["google_callback_url"] == "https://simon.example.com/simon/auth/google/callback"
     assert plan["local_health_url"] == "http://127.0.0.1:8000/simon/health/live"
     assert "synthetic" not in json.dumps(plan)
@@ -61,8 +83,13 @@ def test_cloudflare_plan_keeps_proxy_loopback_and_host_path_consistent(deploymen
 
 def test_tailscale_plan_uses_private_serve_and_requires_device_hostname():
     plan = https_plan("https://simon.example.ts.net", provider="tailscale")
-    assert plan["serve_argv"] == ["tailscale", "serve", "--bg", "--https=443",
-                                  "http://127.0.0.1:8000"]
+    assert plan["serve_argv"] == [
+        "tailscale",
+        "serve",
+        "--bg",
+        "--https=443",
+        "http://127.0.0.1:8000",
+    ]
     assert "cloudflared_config" not in plan
     with pytest.raises(ValueError):
         https_plan("https://simon.example.com", provider="tailscale")
@@ -105,18 +132,26 @@ def test_apply_refuses_unsafe_configuration_without_modifying_env(deployment, pr
 
 
 def test_configured_https_headers_and_redirect_ignore_forwarded_origin():
-    settings = Settings(environment="test", storage_backend="memory", model_provider="local",
-                        public_origin="https://simon.example.com", rp_id="simon.example.com")
-    with TestClient(create_app(AppContainer(settings=settings)),
-                    base_url="http://simon.example.com") as client:
+    settings = Settings(
+        environment="test",
+        storage_backend="memory",
+        model_provider="local",
+        public_origin="https://simon.example.com",
+        rp_id="simon.example.com",
+    )
+    with TestClient(
+        create_app(AppContainer(settings=settings)), base_url="http://simon.example.com"
+    ) as client:
         response = client.get("/login", headers={"X-Forwarded-Proto": "http"})
         assert response.status_code == 200
         assert response.headers["Strict-Transport-Security"] == "max-age=31536000"
-        redirect = client.get("/login/", follow_redirects=False,
-                              headers={"X-Forwarded-Host": "attacker.example"})
+        redirect = client.get(
+            "/login/", follow_redirects=False, headers={"X-Forwarded-Host": "attacker.example"}
+        )
         assert redirect.headers["location"] == "https://simon.example.com/login"
-        redirected_port = client.get("/login/", follow_redirects=False,
-                                     headers={"Host": "simon.example.com:1234"})
+        redirected_port = client.get(
+            "/login/", follow_redirects=False, headers={"Host": "simon.example.com:1234"}
+        )
         assert redirected_port.headers["location"] == "https://simon.example.com/login"
         for malformed in ("simon.example.com:abc", "simon.example.com:80@attacker.example", "["):
             assert client.get("/login/", headers={"Host": malformed}).status_code == 400
@@ -128,11 +163,17 @@ def test_localhost_does_not_receive_hsts(client):
 
 
 def test_https_prefix_redirect_and_unmatched_paths_are_protected():
-    settings = Settings(environment="test", storage_backend="memory", model_provider="local",
-                        public_origin="https://simon.example.com", rp_id="simon.example.com",
-                        public_path="/simon")
-    with TestClient(create_app(AppContainer(settings=settings)),
-                    base_url="http://simon.example.com") as client:
+    settings = Settings(
+        environment="test",
+        storage_backend="memory",
+        model_provider="local",
+        public_origin="https://simon.example.com",
+        rp_id="simon.example.com",
+        public_path="/simon",
+    )
+    with TestClient(
+        create_app(AppContainer(settings=settings)), base_url="http://simon.example.com"
+    ) as client:
         redirect = client.get("/simon", follow_redirects=False)
         assert redirect.headers["location"] == "https://simon.example.com/simon/"
         assert "strict-transport-security" in redirect.headers

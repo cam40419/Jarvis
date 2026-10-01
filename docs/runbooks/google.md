@@ -23,6 +23,7 @@ own Google OAuth connection. Credentials configured in Codex or ChatGPT are not 
    `SIMON_GOOGLE_CLIENT_SECRET`, and a generated `SIMON_GOOGLE_TOKEN_KEY`. It prints no secrets.
    Re-running with an existing valid token key preserves it. Keep this file private and backed up;
    losing the key means you must reconnect Google, even if the database backup is intact.
+
 5. Restart Simon using `scripts/start-dev.ps1`. It applies migration **0007**, which adds encrypted
    connection storage, short-lived OAuth state, and durable action previews.
 6. Open **Connections**, acknowledge that chats are shared with your household, then click
@@ -119,7 +120,6 @@ requirements. Migration 0007 is applied locally. Backup/restore verified all 26 
 `.local/backups/simon_20260914T173639Z_2deb48f6.dump` and its JSON report. Desktop/mobile screenshots
 are in `.local/screenshots/simon-action-preview-{desktop,mobile}.png`.
 
-
 ## Work projects and live Drive files
 
 Work projects automatically get a `Simon - <project name>` folder in the connected account's My Drive.
@@ -168,7 +168,6 @@ uncertain native creation must be inspected in Drive before a fresh request.
 Migration `0023_project_drive.sql` adds folder bindings and durable file operation receipts. Project
 files use the API process for syncing, so keep Simon's API running alongside the task worker.
 
-
 ## Multiple Google accounts
 
 Connections now supports any number of Google accounts per Simon user. Click **Add another
@@ -199,7 +198,6 @@ Simon cannot approve Google's consent screen. If the OAuth app is still in Testi
 new account to its test users in Google Cloud. Workspace policies may also restrict consent.
 Google documents the `consent select_account` prompts in its
 [OAuth web-server guide](https://developers.google.com/identity/protocols/oauth2/web-server).
-
 
 ## Browsing, project locations, unlinking and trash
 

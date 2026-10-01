@@ -359,8 +359,11 @@ def test_project_files_full_run_history_and_sessions_navigation(project_ui, tmp_
     pending_execution = page.locator("#pc-history-panel .pc-run-row").filter(
         has_text="Team execution"
     )
-    pending_execution.locator("summary").click()
-    expect(pending_execution).to_contain_text("No output was saved")
+    pending_execution.get_by_text("View results & files", exact=True).click()
+    expect(pending_execution).to_contain_text("Output will appear when this task finishes")
+    expect(
+        pending_execution.get_by_role("region", name="Activity for lead-summary")
+    ).to_be_visible()
     dispatcher.tick()
     scheduler.tick()
     page.get_by_role("button", name="Refresh run history", exact=True).click()
@@ -383,7 +386,7 @@ def test_project_files_full_run_history_and_sessions_navigation(project_ui, tmp_
     page.get_by_role("button", name="Load earlier runs", exact=True).click()
     expect(page.locator("#pc-history-panel .pc-run-row")).to_have_count(22)
     execution = page.locator("#pc-history-panel .pc-run-row").filter(has_text="Team execution")
-    execution.locator("summary").click()
+    execution.get_by_text("View results & files", exact=True).click()
     expect(execution).to_contain_text("saved launch brief")
     with page.expect_download() as old_output:
         execution.get_by_role("link", name="answer.txt", exact=True).first.click()

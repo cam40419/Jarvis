@@ -271,8 +271,10 @@ class ProjectDriveAPI:
                 item.get("textRun", {}).get("content", "") for item in paragraph.get("elements", [])
             )
             for row in element.get("table", {}).get("tableRows", []):
-                for cell in row.get("tableCells", []):
-                    parts.append(ProjectDriveAPI.doc_text(cell.get("content", [])))
+                parts.extend(
+                    ProjectDriveAPI.doc_text(cell.get("content", []))
+                    for cell in row.get("tableCells", [])
+                )
         return "".join(parts)
 
     def read(self, token: str, metadata: dict[str, Any]) -> dict[str, Any]:

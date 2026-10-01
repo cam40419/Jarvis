@@ -1,12 +1,16 @@
 # Simon configurable multi agent platform plan
 
-Prepared September 30, 2026. Status: target architecture and implementation backlog.
-The first [implementation foundation](../runbooks/agent-platform.md) now provides configuration,
-persisted team planning, tool contracts/transports, isolated execution interfaces and model routing.
-A first bounded dispatcher now adds configurable agent prompts, concurrent dependency execution,
-tool loops, cancellation, per-run model-cost reservations and text/JSON artifacts; see
-[agent execution](../runbooks/agent-execution.md). Distributed recovery, application integrations,
-broader artifact workflows and the company/team UI remain future work.
+> Target design and original implementation backlog. The [current roadmap](../next-phases.md)
+> owns delivery priority and reconciles the implemented features with remaining work.
+
+Prepared September 30, 2026. Status: target architecture and original design backlog.
+The [Work platform](../runbooks/work-platform.md) now documents implemented project teams,
+concurrent execution, tool adapters, native file publication, and verified dependency-file
+transfer for Docker workers. Owner-reported checks and versioned acceptance are implemented.
+Automated file-review evidence, repair, broader recovery, and shared spending controls remain
+roadmap work.
+The implementation snapshot and delivery sequence below preserve the planning context;
+use the linked runbooks and current roadmap to determine what remains unimplemented.
 
 Build Simon into the owner-facing coordinator for configurable workers, teams and tools. Support individual tasks, personal or shared projects, research programs, creative and engineering work, and persistent companies such as the clothing brand. Keep goals, permissions, deliverables, decisions, and operating visibility in Simon. Execute assignments through interchangeable worker runtimes, with durable scheduling and isolated working environments.
 
@@ -32,16 +36,16 @@ Use one consistent Simon voice for owner communication. Specialists return struc
 
 Separate the place work belongs, the team configuration, the execution attempt, and the tools it uses. These should be independently configurable rather than baked into a fixed company hierarchy.
 
-| Concept | Responsibility | Examples |
-| --- | --- | --- |
-| Workspace | Human membership, access boundary, defaults and shared resources | Personal workspace or shared business workspace |
-| Company | Optional persistent organization, records, policies, teams and portfolio | Clothing brand; another independent business |
-| Project | Related goals, files, knowledge and work over time | Clothing launch, research study, PCB design, house research project |
-| Goal or task | Requested result, dependencies, inputs, output contract and budget | Compare materials, create an illustration, design an enclosure, prepare a report |
-| Worker profile | Versioned instructions, model routing, capabilities and environment requirements | Researcher, writer, general maker, CAD specialist, reviewer |
-| Team template | Reusable roles, delegation graph, review rules and resource policy | Research pair, parallel software team, media studio, product development team |
-| Team assignment | A template instantiated for a particular scope | Temporary team for one task, project team, persistent brand team |
-| Execution attempt | One bounded run with a leased workspace and current task authority | Produce a draft, run CAD validation, inspect a rendered result |
+| Concept           | Responsibility                                                                   | Examples                                                                         |
+| ----------------- | -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Workspace         | Human membership, access boundary, defaults and shared resources                 | Personal workspace or shared business workspace                                  |
+| Company           | Optional persistent organization, records, policies, teams and portfolio         | Clothing brand; another independent business                                     |
+| Project           | Related goals, files, knowledge and work over time                               | Clothing launch, research study, PCB design, house research project              |
+| Goal or task      | Requested result, dependencies, inputs, output contract and budget               | Compare materials, create an illustration, design an enclosure, prepare a report |
+| Worker profile    | Versioned instructions, model routing, capabilities and environment requirements | Researcher, writer, general maker, CAD specialist, reviewer                      |
+| Team template     | Reusable roles, delegation graph, review rules and resource policy               | Research pair, parallel software team, media studio, product development team    |
+| Team assignment   | A template instantiated for a particular scope                                   | Temporary team for one task, project team, persistent brand team                 |
+| Execution attempt | One bounded run with a leased workspace and current task authority               | Produce a draft, run CAD validation, inspect a rendered result                   |
 
 A standalone task needs a workspace and owner, but no project or company. A project can be personal or belong to a company. A company can contain projects and recurring tasks without assigning every worker permanently to a department. The same worker profile or team template can be reused across all three levels; its live context, credentials and memory remain scoped to each assignment.
 
@@ -61,17 +65,17 @@ For example, the same product-development template could serve a one-off enclosu
 
 These are observations from the current source, including the home extraction changes already in the working tree.
 
-| Existing component | Reuse | Gap to close |
-| --- | --- | --- |
-| Chat, voice, streaming, accounts and projects | Keep Simon as the front door | Add goal, team, dependency, review and capacity views |
-| [Assistant tasks](../../src/simon/services/tasks.py) and [work sessions](../../src/simon/services/work_sessions.py) | Persisted jobs, priority, pause/cancel/steer, optimistic versions and recovery | No specialist identity, parent goal, dependency graph, delegated grant or independent task budget |
-| [Assistant worker](../../src/simon/assistant_worker.py) | Separate background process | Hardcoded two session threads and one task thread; these are per-process limits, not system-wide concurrency controls |
-| [Job contracts](../../src/simon/domain/models.py) and [PostgreSQL adapter](../../src/simon/adapters/postgres.py) | Transactions, version checks, audit and outbox | SQL has lease columns, but the runtime does not implement explicit worker leases, heartbeats or stale-owner fencing |
-| [OpenAI model adapter](../../src/simon/adapters/openai_model.py) | Bounded model/tool execution | Tools run serially with `parallel_tool_calls=False`; bounded rounds and roughly 90–120 second tool-enabled runs do not provide hours-long execution |
-| [Task artifacts](../../src/simon/domain/tasks.py) | IDs, checksums, project/task association | Task-generated artifacts are small text outputs, capped at 512 KiB per file; no general media catalog or immutable revision graph |
-| [Project files](../../src/simon/services/project_files.py) and [local files](../../src/simon/services/local_files.py) | Drive integration, mutation receipts, file checks and backups | Add isolated task workspaces and publication into a shared library |
-| [Connected tools](../../src/simon/services/connected.py) and [policy](../../src/simon/services/policy.py) | Existing scope checks and action records | Workers inherit human role authority; tool enforcement is split across paths; generic hard-write confirmation verification remains unfinished |
-| [External home client](../../src/simon/adapters/home_client.py) | Existing external-service boundary | Keep home grants optional and separate from business-worker defaults |
+| Existing component                                                                                                    | Reuse                                                                          | Gap to close                                                                                                                                        |
+| --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Chat, voice, streaming, accounts and projects                                                                         | Keep Simon as the front door                                                   | Add goal, team, dependency, review and capacity views                                                                                               |
+| [Assistant tasks](../../src/simon/services/tasks.py) and [work sessions](../../src/simon/services/work_sessions.py)   | Persisted jobs, priority, pause/cancel/steer, optimistic versions and recovery | No specialist identity, parent goal, dependency graph, delegated grant or independent task budget                                                   |
+| [Assistant worker](../../src/simon/assistant_worker.py)                                                               | Separate background process                                                    | Hardcoded two session threads and one task thread; these are per-process limits, not system-wide concurrency controls                               |
+| [Job contracts](../../src/simon/domain/models.py) and [PostgreSQL adapter](../../src/simon/adapters/postgres.py)      | Transactions, version checks, audit and outbox                                 | SQL has lease columns, but the runtime does not implement explicit worker leases, heartbeats or stale-owner fencing                                 |
+| [OpenAI model adapter](../../src/simon/adapters/openai_model.py)                                                      | Bounded model/tool execution                                                   | Tools run serially with `parallel_tool_calls=False`; bounded rounds and roughly 90–120 second tool-enabled runs do not provide hours-long execution |
+| [Task artifacts](../../src/simon/domain/tasks.py)                                                                     | IDs, checksums, project/task association                                       | Task-generated artifacts are small text outputs, capped at 512 KiB per file; no general media catalog or immutable revision graph                   |
+| [Project files](../../src/simon/services/project_files.py) and [local files](../../src/simon/services/local_files.py) | Drive integration, mutation receipts, file checks and backups                  | Add isolated task workspaces and publication into a shared library                                                                                  |
+| [Connected tools](../../src/simon/services/connected.py) and [policy](../../src/simon/services/policy.py)             | Existing scope checks and action records                                       | Workers inherit human role authority; tool enforcement is split across paths; generic hard-write confirmation verification remains unfinished       |
+| [External home client](../../src/simon/adapters/home_client.py)                                                       | Existing external-service boundary                                             | Keep home grants optional and separate from business-worker defaults                                                                                |
 
 There is no existing general coding shell, browser automation pool, desktop seat manager, or dynamic MCP worker platform in this source. Those are implementation work. Current model-visible task creation is a useful delegation entry point, but it creates generic tasks under the user rather than independently scoped specialists.
 
@@ -103,33 +107,33 @@ flowchart TB
 
 Start with modules and separate worker processes in the existing repository. This is a separation of responsibility; it does not require ten new microservices. Keep the control service and database available when a worker container fails. Move execution to additional hosts when resource measurements justify it.
 
-| Information or operation | Authoritative owner in the recommended design |
-| --- | --- |
-| Human conversation, goals, task specifications, grants and approval policy | Simon |
-| Optional companies, projects, worker profiles and team templates | Simon work platform; independent of RobbinsHome |
-| Assignment state and readiness for simple tasks | Simon scheduler and PostgreSQL |
-| A multi-day process after adopting Temporal | Temporal workflow history; Simon exposes a projection and sends commands/signals |
-| Model/tool loop state within a bounded assignment | Selected worker runtime, indexed by Simon attempt ID |
-| External action intent, authorization and receipts | Tool gateway/action ledger |
-| File identity, immutable revision and approved pointer | Artifact service |
-| Canonical bytes | Configured object/file service |
-| Physical device state and home command receipts | RobbinsHome |
+| Information or operation                                                   | Authoritative owner in the recommended design                                    |
+| -------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Human conversation, goals, task specifications, grants and approval policy | Simon                                                                            |
+| Optional companies, projects, worker profiles and team templates           | Simon work platform; independent of RobbinsHome                                  |
+| Assignment state and readiness for simple tasks                            | Simon scheduler and PostgreSQL                                                   |
+| A multi-day process after adopting Temporal                                | Temporal workflow history; Simon exposes a projection and sends commands/signals |
+| Model/tool loop state within a bounded assignment                          | Selected worker runtime, indexed by Simon attempt ID                             |
+| External action intent, authorization and receipts                         | Tool gateway/action ledger                                                       |
+| File identity, immutable revision and approved pointer                     | Artifact service                                                                 |
+| Canonical bytes                                                            | Configured object/file service                                                   |
+| Physical device state and home command receipts                            | RobbinsHome                                                                      |
 
 A runtime may store private checkpoints, but it cannot independently change company approvals or publish an accepted result. Simon must be able to reconstruct what matters from task records, artifacts and receipts if that runtime is replaced.
 
 ## Orchestration patterns
 
-| Pattern | Where it helps | Decision for Simon |
-| --- | --- | --- |
-| One agent with tools | Small requests with little independent work | Keep as the default for ordinary conversation and simple actions |
-| Manager calling specialists | Research, code, design and synthesis with one owner-facing answer | Primary interaction pattern; Simon retains ownership |
-| Dependency graph with parallel branches | Several deliverables with shared inputs and explicit joins | Primary execution pattern; scheduler enforces the graph |
-| Hierarchical teams | Large projects with distinct departments | Add after flat teams work; initially limit delegation depth to two |
-| Specialist handoff | A specialist should temporarily own a user interaction | Optional, explicit UI behavior, not the default company workflow |
-| Shared task board | Asynchronous workers discover or receive assignments | Use durable records with atomic claims; avoid unowned shared documents |
-| Peer debate or autonomous swarm | Narrow critique or multiple hypotheses | Bounded experiment only; fixed participants, rounds and cost |
-| Deterministic business workflow with agent steps | Quotations, approvals, samples, invoices and release processes | Required for dependable long waits and external commitments |
-| Independent redundant attempts | Difficult decisions where comparison improves quality | Selectively use two approaches and a reviewer; charge all attempts to one budget |
+| Pattern                                          | Where it helps                                                    | Decision for Simon                                                               |
+| ------------------------------------------------ | ----------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| One agent with tools                             | Small requests with little independent work                       | Keep as the default for ordinary conversation and simple actions                 |
+| Manager calling specialists                      | Research, code, design and synthesis with one owner-facing answer | Primary interaction pattern; Simon retains ownership                             |
+| Dependency graph with parallel branches          | Several deliverables with shared inputs and explicit joins        | Primary execution pattern; scheduler enforces the graph                          |
+| Hierarchical teams                               | Large projects with distinct departments                          | Add after flat teams work; initially limit delegation depth to two               |
+| Specialist handoff                               | A specialist should temporarily own a user interaction            | Optional, explicit UI behavior, not the default company workflow                 |
+| Shared task board                                | Asynchronous workers discover or receive assignments              | Use durable records with atomic claims; avoid unowned shared documents           |
+| Peer debate or autonomous swarm                  | Narrow critique or multiple hypotheses                            | Bounded experiment only; fixed participants, rounds and cost                     |
+| Deterministic business workflow with agent steps | Quotations, approvals, samples, invoices and release processes    | Required for dependable long waits and external commitments                      |
+| Independent redundant attempts                   | Difficult decisions where comparison improves quality             | Selectively use two approaches and a reviewer; charge all attempts to one budget |
 
 OpenAI documents the distinction between manager-owned specialist calls and handoffs that transfer conversational ownership. The former matches the requested Simon experience. A synchronous specialist tool call is still only a local orchestration primitive: long tasks must return an assignment ID and continue through durable execution. [OpenAI orchestration and handoffs](https://developers.openai.com/api/docs/guides/agents/orchestration)
 
@@ -139,17 +143,17 @@ The planning model proposes the graph. Ordinary application code validates permi
 
 The following fit assessments are architectural judgments, not benchmark results. These products occupy different layers; using a worker SDK does not eliminate the need for a task system and shared-output model.
 
-| Option | How Simon stays primary | Advantages | Costs and limits | Selection guidance |
-| --- | --- | --- | --- | --- |
-| Extend the current Simon loop | Simon owns all product and coordination state | Least migration; existing tools and controls remain useful | Must build robust execution contracts, scheduling, recovery and context isolation | Default control layer; retain for simple bounded work |
-| OpenAI Agents SDK | Run SDK specialists behind a worker adapter | Typed tools, manager/specialist composition, sessions and integrations | Application still owns deployment, storage and business policy | Candidate default for general specialists |
-| Codex SDK | Delegate repository tasks to a coding worker and surface progress/results in Simon | Existing coding harness rather than a new shell agent implementation | Requires sandbox, workspace, auth, version and lifecycle integration | First coding-specialist candidate |
-| OpenAI Agents API | Simon submits assignments and receives events/results from a managed harness | Managed session/harness; hosted, self-hosted or no execution environment | Provider dependency; verify access, retention, event recovery and economics | Managed-runtime candidate when reducing harness operations matters |
-| LangGraph with optional [Deep Agents](https://docs.langchain.com/oss/python/deepagents/overview) | Simon owns business records; graph workers own bounded execution checkpoints | Explicit branching, checkpoints, interrupts; richer harness available | Hosting, grants, action reconciliation and artifact publication remain ours | Strong candidate for custom graph-heavy specialists |
-| Paperclip with Hermes | Simon becomes the conversation/interface layer over Paperclip's canonical company tasks | Existing goals, issues, budgets, approvals, artifacts and runtime adapters | Second stack, identity mapping, event reconciliation and product overlap | Best alternative when speed to a company dashboard wins |
-| Agno AgentOS | Separate agent/team execution API behind Simon | Python/FastAPI alignment, persistence and runtime operations | Overlaps Simon's API, identity, sessions and schedules | Evaluate if SDK integration leaves too much service infrastructure to build |
-| [Claude Agent SDK](https://code.claude.com/docs/en/agent-sdk/overview) | Another isolated specialist adapter | Alternative coding/tool harness and model ecosystem | Separate terms, credentials, runtime and recovery validation | Evaluate on the same tasks when model diversity has value |
-| [Claude Managed Agents](https://platform.claude.com/docs/en/managed-agents/overview) | Managed asynchronous harness behind the worker interface | Alternative to operating the agent harness ourselves | Currently beta; validate access, retention, recovery, sandbox and usage controls | Compare with other managed runtimes if operational simplicity is a priority |
+| Option                                                                                           | How Simon stays primary                                                                 | Advantages                                                                 | Costs and limits                                                                  | Selection guidance                                                          |
+| ------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Extend the current Simon loop                                                                    | Simon owns all product and coordination state                                           | Least migration; existing tools and controls remain useful                 | Must build robust execution contracts, scheduling, recovery and context isolation | Default control layer; retain for simple bounded work                       |
+| OpenAI Agents SDK                                                                                | Run SDK specialists behind a worker adapter                                             | Typed tools, manager/specialist composition, sessions and integrations     | Application still owns deployment, storage and business policy                    | Candidate default for general specialists                                   |
+| Codex SDK                                                                                        | Delegate repository tasks to a coding worker and surface progress/results in Simon      | Existing coding harness rather than a new shell agent implementation       | Requires sandbox, workspace, auth, version and lifecycle integration              | First coding-specialist candidate                                           |
+| OpenAI Agents API                                                                                | Simon submits assignments and receives events/results from a managed harness            | Managed session/harness; hosted, self-hosted or no execution environment   | Provider dependency; verify access, retention, event recovery and economics       | Managed-runtime candidate when reducing harness operations matters          |
+| LangGraph with optional [Deep Agents](https://docs.langchain.com/oss/python/deepagents/overview) | Simon owns business records; graph workers own bounded execution checkpoints            | Explicit branching, checkpoints, interrupts; richer harness available      | Hosting, grants, action reconciliation and artifact publication remain ours       | Strong candidate for custom graph-heavy specialists                         |
+| Paperclip with Hermes                                                                            | Simon becomes the conversation/interface layer over Paperclip's canonical company tasks | Existing goals, issues, budgets, approvals, artifacts and runtime adapters | Second stack, identity mapping, event reconciliation and product overlap          | Best alternative when speed to a company dashboard wins                     |
+| Agno AgentOS                                                                                     | Separate agent/team execution API behind Simon                                          | Python/FastAPI alignment, persistence and runtime operations               | Overlaps Simon's API, identity, sessions and schedules                            | Evaluate if SDK integration leaves too much service infrastructure to build |
+| [Claude Agent SDK](https://code.claude.com/docs/en/agent-sdk/overview)                           | Another isolated specialist adapter                                                     | Alternative coding/tool harness and model ecosystem                        | Separate terms, credentials, runtime and recovery validation                      | Evaluate on the same tasks when model diversity has value                   |
+| [Claude Managed Agents](https://platform.claude.com/docs/en/managed-agents/overview)             | Managed asynchronous harness behind the worker interface                                | Alternative to operating the agent harness ourselves                       | Currently beta; validate access, retention, recovery, sandbox and usage controls  | Compare with other managed runtimes if operational simplicity is a priority |
 
 The OpenAI options above are distinct: the Agents SDK runs in the application, the Agents API supplies a managed harness, and Responses exposes lower-level model interaction. Simon can preserve its business contracts across them. The current Codex SDK documentation provides Python and TypeScript integration; for a Python repository, a Node service is not inherently required. Prefer SDK integration for jobs; the App Server documentation currently labels its WebSocket transport experimental and unsupported, so do not make an exposed WebSocket server the production foundation. [OpenAI runtime comparison](https://developers.openai.com/api/docs/guides/agents), [Agents API architecture](https://developers.openai.com/api/docs/guides/agents-api/architecture), [Codex SDK](https://developers.openai.com/codex/sdk), [Codex App Server](https://developers.openai.com/codex/app-server)
 
@@ -161,18 +165,18 @@ The recovery distinctions matter. LangGraph can retain successful branch writes 
 
 Other credible options deserve a defined place rather than a default installation:
 
-| Option | Appropriate use | Why it is not the initial foundation |
-| --- | --- | --- |
-| [CrewAI](https://docs.crewai.com/en/concepts/flows) | A bounded research, marketing or reporting crew | Role composition does not settle company storage, approvals or effect reconciliation |
-| [Microsoft Agent Framework](https://learn.microsoft.com/en-us/agent-framework/overview/) | Typed workflows and Microsoft-oriented integrations | Adopt if that ecosystem materially reduces integration work |
-| [Google ADK](https://adk.dev/agents/workflow-agents/parallel-agents/) | Google-oriented specialists and parallel branch execution | Requires explicit state coordination and the same company controls |
-| [OpenClaw](https://docs.openclaw.ai/concepts/multi-agent) | Messaging channels and persistent agent identities | Overlaps Simon's interface; use behind it only for a demonstrated capability |
-| [Agent Zero](https://github.com/agent0ai/agent-zero) | Evaluate a Linux desktop/browser/office worker | Desktop tooling still needs leases, output verification and business controls |
-| [Letta Code](https://github.com/letta-ai/letta-code) | A specialist with persistent working memory | Keep approved company facts outside a harness-specific memory system |
-| [n8n](https://github.com/n8n-io/n8n-docs/blob/main/docs/deploy/host-n8n/configure-n8n/scaling/enable-queue-mode.md) | SaaS glue, webhook processing and deterministic integration jobs | Its queue/workflows must have a distinct owner; some operating features have separate entitlements |
-| [Dify](https://github.com/langgenius/dify) or [AutoGPT Platform](https://github.com/Significant-Gravitas/AutoGPT) | Business users who need an external visual builder | Additional application and licensing model; less direct fit for extending Simon |
-| [AWS AgentCore](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-long-run.html) or [Google managed agent platform](https://docs.cloud.google.com/gemini-enterprise-agent-platform/overview) | Managed execution, future cloud scale or recovery | Evaluate hosting and account requirements; company semantics remain an application concern |
-| Kubernetes | Multiple execution hosts, resource scheduling and deployment operations | Four to eight workers alone do not justify a cluster; it is not an agent framework |
+| Option                                                                                                                                                                                                           | Appropriate use                                                         | Why it is not the initial foundation                                                               |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| [CrewAI](https://docs.crewai.com/en/concepts/flows)                                                                                                                                                              | A bounded research, marketing or reporting crew                         | Role composition does not settle company storage, approvals or effect reconciliation               |
+| [Microsoft Agent Framework](https://learn.microsoft.com/en-us/agent-framework/overview/)                                                                                                                         | Typed workflows and Microsoft-oriented integrations                     | Adopt if that ecosystem materially reduces integration work                                        |
+| [Google ADK](https://adk.dev/agents/workflow-agents/parallel-agents/)                                                                                                                                            | Google-oriented specialists and parallel branch execution               | Requires explicit state coordination and the same company controls                                 |
+| [OpenClaw](https://docs.openclaw.ai/concepts/multi-agent)                                                                                                                                                        | Messaging channels and persistent agent identities                      | Overlaps Simon's interface; use behind it only for a demonstrated capability                       |
+| [Agent Zero](https://github.com/agent0ai/agent-zero)                                                                                                                                                             | Evaluate a Linux desktop/browser/office worker                          | Desktop tooling still needs leases, output verification and business controls                      |
+| [Letta Code](https://github.com/letta-ai/letta-code)                                                                                                                                                             | A specialist with persistent working memory                             | Keep approved company facts outside a harness-specific memory system                               |
+| [n8n](https://github.com/n8n-io/n8n-docs/blob/main/docs/deploy/host-n8n/configure-n8n/scaling/enable-queue-mode.md)                                                                                              | SaaS glue, webhook processing and deterministic integration jobs        | Its queue/workflows must have a distinct owner; some operating features have separate entitlements |
+| [Dify](https://github.com/langgenius/dify) or [AutoGPT Platform](https://github.com/Significant-Gravitas/AutoGPT)                                                                                                | Business users who need an external visual builder                      | Additional application and licensing model; less direct fit for extending Simon                    |
+| [AWS AgentCore](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-long-run.html) or [Google managed agent platform](https://docs.cloud.google.com/gemini-enterprise-agent-platform/overview) | Managed execution, future cloud scale or recovery                       | Evaluate hosting and account requirements; company semantics remain an application concern         |
+| Kubernetes                                                                                                                                                                                                       | Multiple execution hosts, resource scheduling and deployment operations | Four to eight workers alone do not justify a cluster; it is not an agent framework                 |
 
 The research also lists Flowise. Its repository is archived; exclude it from a new core shortlist unless a maintained successor is evaluated. Check exact licenses, versions and commercial entitlements before choosing any runtime or hosted service. This plan makes no claim that a framework installation includes desktop software, paid connectors or model access. [Flowise repository](https://github.com/FlowiseAI/Flowise)
 
@@ -182,16 +186,16 @@ Run a short comparison using the same research-to-report and repository-change t
 
 Define five separate quantities: persistent roles, ready assignments, leased executions, in-flight model calls, and scarce resources such as desktop seats. Ten roles can have hundreds of waiting tasks while only four executions run. Model inference, browser use and CPU-heavy builds need different limits.
 
-| Control | Pilot proposal | Target proposal |
-| --- | --- | --- |
-| Persistent role definitions | Simon plus researcher, maker and reviewer | Simon plus nine specialists |
-| Total execution slots | 4 | 8 after load and recovery tests |
-| Interactive reservation | 1 within the total | 1 within the total; reserve model quota too |
-| Background maximum | 3 | 7; reviewer gets scheduling priority |
-| Simultaneously controlled GUI/browser seats | 1 initially, then 2 | 2 initially at target load; increase to 4 when justified |
-| Delegation depth | 1 | At most 2 by default |
-| Children per decomposition | 3 | At most 6 by default |
-| Review/rework cycles | 1 | At most 2 before owner escalation |
+| Control                                     | Pilot proposal                            | Target proposal                                          |
+| ------------------------------------------- | ----------------------------------------- | -------------------------------------------------------- |
+| Persistent role definitions                 | Simon plus researcher, maker and reviewer | Simon plus nine specialists                              |
+| Total execution slots                       | 4                                         | 8 after load and recovery tests                          |
+| Interactive reservation                     | 1 within the total                        | 1 within the total; reserve model quota too              |
+| Background maximum                          | 3                                         | 7; reviewer gets scheduling priority                     |
+| Simultaneously controlled GUI/browser seats | 1 initially, then 2                       | 2 initially at target load; increase to 4 when justified |
+| Delegation depth                            | 1                                         | At most 2 by default                                     |
+| Children per decomposition                  | 3                                         | At most 6 by default                                     |
+| Review/rework cycles                        | 1                                         | At most 2 before owner escalation                        |
 
 These are proposed starting policies, not measured capacity. A browser/desktop seat is held by one of the active workers and is not added to the worker count. Headless browser contexts may be cheaper than full desktops, but still have independently controlled account sessions. Assign expensive CPU, GPU and media work to their own resource pools.
 
@@ -227,13 +231,13 @@ Publication should stage bytes, verify their checksum and format, then commit an
 
 Each worker edits a working copy based on a named revision. Publishing includes that expected revision. Concurrent changes create a conflict or separate candidate revisions; they never silently overwrite an approved file. Binary sources need exclusive edit leases or separate candidates. Code uses isolated Git worktrees and branches, followed by a serialized integration queue that runs checks against the current target commit. A worktree separates files; a container/VM and scoped credentials provide the execution boundary.
 
-| Storage option | Strength | Tradeoff | Proposed use |
-| --- | --- | --- | --- |
-| Existing Google Drive integration | Smallest change; useful browser sharing | External account/API dependency; revision/promotion semantics still needed | Lowest-effort pilot when existing Drive use is acceptable |
-| Nextcloud through WebDAV/API | Locally controlled company library and human clients | Additional service, database, backups and synchronization | Preferred local-drive option when local file ownership is required |
-| Object storage plus Simon library | Clear immutable blob and metadata design; media-friendly | Must build human search, previews and editing workflows | Artifact backend as output volume grows |
-| NAS/SMB filesystem | Familiar shared files and bulk capacity | Direct edits can bypass metadata and revision checks | Bulk storage behind supported publication interfaces |
-| Git | Code and text history, branches and review | Poor fit for arbitrary binary collaboration | Code sources and text configuration |
+| Storage option                    | Strength                                                 | Tradeoff                                                                   | Proposed use                                                       |
+| --------------------------------- | -------------------------------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Existing Google Drive integration | Smallest change; useful browser sharing                  | External account/API dependency; revision/promotion semantics still needed | Lowest-effort pilot when existing Drive use is acceptable          |
+| Nextcloud through WebDAV/API      | Locally controlled company library and human clients     | Additional service, database, backups and synchronization                  | Preferred local-drive option when local file ownership is required |
+| Object storage plus Simon library | Clear immutable blob and metadata design; media-friendly | Must build human search, previews and editing workflows                    | Artifact backend as output volume grows                            |
+| NAS/SMB filesystem                | Familiar shared files and bulk capacity                  | Direct edits can bypass metadata and revision checks                       | Bulk storage behind supported publication interfaces               |
+| Git                               | Code and text history, branches and review               | Poor fit for arbitrary binary collaboration                                | Code sources and text configuration                                |
 
 Choose one canonical location per artifact; other destinations are exports or synchronized projections. Use supported Nextcloud interfaces rather than modifying its private data directory. Its transactional file locking does not prevent multiple people from editing their own copies, so application-level revision checks are still necessary. [Nextcloud WebDAV](https://docs.nextcloud.com/server/stable/user_manual/en/files/access_webdav.html), [Nextcloud file locking](https://docs.nextcloud.com/server/stable/admin_manual/configuration_files/files_locking_transactional.html)
 
@@ -249,20 +253,20 @@ Make broad tool access a first-class platform feature. Provide an extensible cap
 
 Distinguish a capability from its provider and execution method. For example, `image.generate`, `video.compose`, `cad.model`, `pcb.validate`, `render.submit`, `document.write`, `data.query` and `storage.publish` are proposed capability names. Each can have one or more implementations with different quality, cost, location and environment requirements. A task selects an output contract and capability requirements; the scheduler selects an eligible implementation or uses the configured preference.
 
-| Tool family | Capabilities to support | Execution options | Deliverables and checks |
-| --- | --- | --- | --- |
-| Research and web | Search, browsing, extraction, downloads, citation capture and monitoring | Search/API connectors, HTTP tools, browser automation, desktop browser | Evidence manifest, source snapshots, retrieval dates and checked references |
-| Writing and documents | Reports, long-form writing, presentations, spreadsheets, document conversion and templates | Model tools, document libraries, office APIs, desktop office applications | Editable sources plus DOCX/PDF/slides/sheets; openability, layout and calculation checks |
-| Images and graphic design | Image generation/editing, vector design, typography, compositing, branding and print preparation | Generation APIs/local models, graphics scripts, application plugins, desktop tools | Source layers/SVG/native files plus exports, dimensions, color profile, font and asset dependencies |
-| Video and audio | Generation, storyboards, editing, compositing, captions, voice/audio work and encoding | Hosted or local generation, media CLI jobs, editing application APIs/desktops | Source clips, timeline or reproducible assembly recipe, audio/subtitles and final exports |
-| 3D design and rendering | Scene construction, modeling, materials, lighting, animation, simulation and batch rendering | Native scripting, headless application workers, GPU/render services, desktop control | Native scene, textures/dependencies, preview, interchange files, render settings and final media |
-| CAD and mechanical design | Parametric geometry, assemblies, drawings, dimensions and manufacturing exports | CAD APIs/macros, supported headless jobs, licensed desktop sessions | Native parametric model, constraints, units/tolerances, drawings and STEP/STL or other specified exports |
-| PCB and electronics | Component research, schematic/board editing, libraries, rule checking, BOM and manufacturing output | EDA CLI, application API/IPC, scripts, dedicated desktop sessions | Native project, libraries, ERC/DRC reports, BOM, Gerbers/drills and previews; additional functional checks as specified |
-| Software and computation | Code, builds, tests, notebooks, numerical work and simulations | Isolated containers, worktrees, job runners, remote compute | Source, environment/dependency manifest, reproducible commands, tests and result artifacts |
-| Files and storage | Create, organize, revise, convert, search, transfer, synchronize and archive | Local workspaces, drives, NAS, object storage and storage APIs | Stable artifact IDs, checksums, revision history, previews and retrievable native bytes |
-| Data management | Database queries, imports, transformations, cataloging, analytics, structured records and pipelines | Scoped SQL/data APIs, notebooks, ETL jobs and storage connectors | Schema/data versions, lineage, transformation recipe, validation results and controlled updates |
-| Business services | Mail, calendar, supplier records, website/CMS, inventory, commerce and accounting integrations | Typed APIs, MCP adapters, integration jobs and browser workflows | Structured records, documents, previews and external action receipts |
-| Connected systems | Home status and controls, and other independently operated services | External service adapters such as RobbinsHome | Service-owned state and receipts linked to the Simon task |
+| Tool family               | Capabilities to support                                                                             | Execution options                                                                    | Deliverables and checks                                                                                                 |
+| ------------------------- | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| Research and web          | Search, browsing, extraction, downloads, citation capture and monitoring                            | Search/API connectors, HTTP tools, browser automation, desktop browser               | Evidence manifest, source snapshots, retrieval dates and checked references                                             |
+| Writing and documents     | Reports, long-form writing, presentations, spreadsheets, document conversion and templates          | Model tools, document libraries, office APIs, desktop office applications            | Editable sources plus DOCX/PDF/slides/sheets; openability, layout and calculation checks                                |
+| Images and graphic design | Image generation/editing, vector design, typography, compositing, branding and print preparation    | Generation APIs/local models, graphics scripts, application plugins, desktop tools   | Source layers/SVG/native files plus exports, dimensions, color profile, font and asset dependencies                     |
+| Video and audio           | Generation, storyboards, editing, compositing, captions, voice/audio work and encoding              | Hosted or local generation, media CLI jobs, editing application APIs/desktops        | Source clips, timeline or reproducible assembly recipe, audio/subtitles and final exports                               |
+| 3D design and rendering   | Scene construction, modeling, materials, lighting, animation, simulation and batch rendering        | Native scripting, headless application workers, GPU/render services, desktop control | Native scene, textures/dependencies, preview, interchange files, render settings and final media                        |
+| CAD and mechanical design | Parametric geometry, assemblies, drawings, dimensions and manufacturing exports                     | CAD APIs/macros, supported headless jobs, licensed desktop sessions                  | Native parametric model, constraints, units/tolerances, drawings and STEP/STL or other specified exports                |
+| PCB and electronics       | Component research, schematic/board editing, libraries, rule checking, BOM and manufacturing output | EDA CLI, application API/IPC, scripts, dedicated desktop sessions                    | Native project, libraries, ERC/DRC reports, BOM, Gerbers/drills and previews; additional functional checks as specified |
+| Software and computation  | Code, builds, tests, notebooks, numerical work and simulations                                      | Isolated containers, worktrees, job runners, remote compute                          | Source, environment/dependency manifest, reproducible commands, tests and result artifacts                              |
+| Files and storage         | Create, organize, revise, convert, search, transfer, synchronize and archive                        | Local workspaces, drives, NAS, object storage and storage APIs                       | Stable artifact IDs, checksums, revision history, previews and retrievable native bytes                                 |
+| Data management           | Database queries, imports, transformations, cataloging, analytics, structured records and pipelines | Scoped SQL/data APIs, notebooks, ETL jobs and storage connectors                     | Schema/data versions, lineage, transformation recipe, validation results and controlled updates                         |
+| Business services         | Mail, calendar, supplier records, website/CMS, inventory, commerce and accounting integrations      | Typed APIs, MCP adapters, integration jobs and browser workflows                     | Structured records, documents, previews and external action receipts                                                    |
+| Connected systems         | Home status and controls, and other independently operated services                                 | External service adapters such as RobbinsHome                                        | Service-owned state and receipts linked to the Simon task                                                               |
 
 These are integration targets, not a claim that the current repository already supports them. A catalog entry must distinguish known, installed, configured, authorized, healthy and temporarily busy. Show missing credentials, applications, licenses, storage or hardware explicitly. A task can wait for provisioning or choose an allowed alternative; it must not report unsupported work as completed.
 
@@ -332,14 +336,14 @@ Monthly API estimates should derive from measured input, cached input, output, r
 
 ## Hosting and local inference options
 
-| Deployment | Best fit | Main limitation |
-| --- | --- | --- |
-| Existing Windows development machine, hosted models | Fast initial implementation and tests | Shared workstation availability and desktop interference; separate workers from the owner's active desktop |
-| Dedicated Linux host, containers, hosted models | Recommended initial operational deployment | Internet/API dependency; still needs backups and an operator |
-| Local control/storage with cloud workers | Bursty builds, coding and occasional large jobs | Transfer, secrets and private-network design |
-| Cloud control and execution | Remote availability and managed operations | Recurring cost, data location and connectivity to local tools |
-| Hybrid local inference | High-volume workloads that pass local quality tests | Adds model serving, routing and accelerator operations |
-| Fully local inference and tools | Strong offline or data-locality requirements | Must replace external search/services as well as model calls; quality and throughput need proof |
+| Deployment                                          | Best fit                                            | Main limitation                                                                                            |
+| --------------------------------------------------- | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Existing Windows development machine, hosted models | Fast initial implementation and tests               | Shared workstation availability and desktop interference; separate workers from the owner's active desktop |
+| Dedicated Linux host, containers, hosted models     | Recommended initial operational deployment          | Internet/API dependency; still needs backups and an operator                                               |
+| Local control/storage with cloud workers            | Bursty builds, coding and occasional large jobs     | Transfer, secrets and private-network design                                                               |
+| Cloud control and execution                         | Remote availability and managed operations          | Recurring cost, data location and connectivity to local tools                                              |
+| Hybrid local inference                              | High-volume workloads that pass local quality tests | Adds model serving, routing and accelerator operations                                                     |
+| Fully local inference and tools                     | Strong offline or data-locality requirements        | Must replace external search/services as well as model calls; quality and throughput need proof            |
 
 Begin with existing hardware and measure the pilot. The document's proposed 12–16 core, 128 GB RAM dedicated host is a planning allowance for services, workers and a small desktop pool, not a minimum for ten role definitions. A smaller API/headless pilot may fit substantially less. Four heavy native desktops can justify a separate execution host or more RAM. Benchmark before buying.
 
@@ -353,18 +357,18 @@ A local route should earn its place through quality and full task-cost results. 
 
 The following names are proposed; they are not existing APIs or an instruction to create all modules at once.
 
-| Area | Proposed change |
-| --- | --- |
-| Domain | Add neutral workspace/company/project associations, worker profiles, versioned team templates/assignments, resolved configuration, goals, delegation, artifacts and execution contracts |
-| Store ports | Atomic claims, lease renewal, fenced completion, dependency readiness, resource/budget reservations and event reads |
-| Services | Goal planner/validator, team/configuration resolver, dispatcher, worker/capability registry, grant resolver, artifact publisher, review coordinator and reconciliation |
-| Runtime adapters | Wrap current model loop; add one specialist runtime; add versioned tool adapters and application/API/container/desktop/GPU execution backends |
-| Workers | Separate dispatcher and bounded executors; explicitly size pools and shared quotas; preserve short interactive runs |
-| API | Proposed `/v1/goals`, `/v1/agents`, `/v1/team-templates`, `/v1/team-assignments`, `/v1/capabilities`, `/v1/environments`, tool jobs, dependencies, artifact revisions and execution events |
-| UI | Extend Work with optional company/project organization, a team/template editor, tool catalog and setup state, environment capacity, dependencies, native/output previews, costs and decisions |
-| Event delivery | Durable monotonically ordered IDs, cursor-based reconnect, outbox deduplication; SSE/WebSocket UI connection is not execution ownership |
-| Migrations | Additive schemas and indexes; compatibility projection for existing jobs/artifacts; preserve old histories and home separation |
-| Operations | Worker health, lease age, queue latency, unknown actions, cost and output metrics; tested backup/restore and rollout |
+| Area             | Proposed change                                                                                                                                                                               |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Domain           | Add neutral workspace/company/project associations, worker profiles, versioned team templates/assignments, resolved configuration, goals, delegation, artifacts and execution contracts       |
+| Store ports      | Atomic claims, lease renewal, fenced completion, dependency readiness, resource/budget reservations and event reads                                                                           |
+| Services         | Goal planner/validator, team/configuration resolver, dispatcher, worker/capability registry, grant resolver, artifact publisher, review coordinator and reconciliation                        |
+| Runtime adapters | Wrap current model loop; add one specialist runtime; add versioned tool adapters and application/API/container/desktop/GPU execution backends                                                 |
+| Workers          | Separate dispatcher and bounded executors; explicitly size pools and shared quotas; preserve short interactive runs                                                                           |
+| API              | Proposed `/v1/goals`, `/v1/agents`, `/v1/team-templates`, `/v1/team-assignments`, `/v1/capabilities`, `/v1/environments`, tool jobs, dependencies, artifact revisions and execution events    |
+| UI               | Extend Work with optional company/project organization, a team/template editor, tool catalog and setup state, environment capacity, dependencies, native/output previews, costs and decisions |
+| Event delivery   | Durable monotonically ordered IDs, cursor-based reconnect, outbox deduplication; SSE/WebSocket UI connection is not execution ownership                                                       |
+| Migrations       | Additive schemas and indexes; compatibility projection for existing jobs/artifacts; preserve old histories and home separation                                                                |
+| Operations       | Worker health, lease age, queue latency, unknown actions, cost and output metrics; tested backup/restore and rollout                                                                          |
 
 Core records include workspace/company/project associations, agent profiles, team-template versions and assignments, resolved configurations, capability/provider manifests, execution environments, goals, task specifications, dependencies, execution attempts, asynchronous tool jobs, checkpoints, resource leases, delegation grants, budget reservations, action intents/receipts, artifact bundles/revisions, reviews and durable events. Avoid putting the whole state model into one growing task JSON document; use indexed records for relationships that scheduling and authorization query.
 
@@ -374,15 +378,15 @@ Use a neutral workspace identity in new domain contracts. The existing `househol
 
 The estimates below are planning allowances for an experienced engineer with regular owner feedback. They are not benchmarked commitments. A narrow usable pilot is plausibly three to five engineer-weeks; a hardened first platform is roughly ten to sixteen engineer-weeks before broad native-desktop and business-specific integrations. The expanded image/video/CAD/PCB/application catalog is a continuing set of integration projects, not something covered completely by that platform estimate. Estimate each adapter after probing its automation surface and output-validation requirements. Calendar time grows with integration problems, decisions, production support and limited engineering availability.
 
-| Milestone | Scope | Exit evidence |
-| --- | --- | --- |
-| 0. Baseline and decisions | Select first two workflows, classify allowed actions, inventory tools/data, capture single-agent quality/latency/cost, run runtime comparison | Written acceptance rubric, known quota/capability limits, selected default runtime and canonical task owner |
-| 1. Durable execution foundation | Neutral work scopes, team templates and resolved settings; explicit attempts, leases, fencing, atomic claims, dependencies, cancellation, quotas and budget reservations | Four concurrent synthetic tasks; standalone work needs no company/home setup; stale workers rejected; reusable teams stay isolated |
-| 2. First useful agent team | Simon plus researcher, maker and reviewer; bounded delegation, scoped grants, isolated task workspaces, immutable candidate outputs, one specialist adapter and goal progress UI | Research-to-report and repository-change workflows complete through Simon with actual artifacts and review evidence; runtime tools/children cannot bypass authority or admission limits |
-| 3. Shared output and broad tool foundation | Artifact revisions/bundles, canonical file backend, capability manifests/discovery, asynchronous tool jobs, environment registry and action enforcement | Add representative image/media and scriptable design adapters without scheduler changes; outputs reopen with dependencies; long jobs recover without duplicate submission |
-| 4. Real long-duration process | Supplier/reply or comparable workflow, external events, deadlines, approvals, reconciliation; adopt Temporal if those requirements apply | Multi-day wait makes no model polling calls, survives restart, resumes on correct event, and does not repeat uncertain actions |
-| 5. Scale and operations | Eight-worker admission, two then four seats when justified, fair scheduling, load tests, traces, restore drills, versioned releases | Quality/latency/cost gates met at target load; host recovery and workflow upgrade exercises pass |
-| 6. Expand the configured tool catalog | Image/video providers, graphics, 3D/CAD/PCB applications, rendering, data pipelines, office tools and business connectors; local inference and extra hosts when useful | Each adapter passes declared capability, version, recovery and native-output tests; teams combine tools without domain-specific scheduler changes |
+| Milestone                                  | Scope                                                                                                                                                                            | Exit evidence                                                                                                                                                                           |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0. Baseline and decisions                  | Select first two workflows, classify allowed actions, inventory tools/data, capture single-agent quality/latency/cost, run runtime comparison                                    | Written acceptance rubric, known quota/capability limits, selected default runtime and canonical task owner                                                                             |
+| 1. Durable execution foundation            | Neutral work scopes, team templates and resolved settings; explicit attempts, leases, fencing, atomic claims, dependencies, cancellation, quotas and budget reservations         | Four concurrent synthetic tasks; standalone work needs no company/home setup; stale workers rejected; reusable teams stay isolated                                                      |
+| 2. First useful agent team                 | Simon plus researcher, maker and reviewer; bounded delegation, scoped grants, isolated task workspaces, immutable candidate outputs, one specialist adapter and goal progress UI | Research-to-report and repository-change workflows complete through Simon with actual artifacts and review evidence; runtime tools/children cannot bypass authority or admission limits |
+| 3. Shared output and broad tool foundation | Artifact revisions/bundles, canonical file backend, capability manifests/discovery, asynchronous tool jobs, environment registry and action enforcement                          | Add representative image/media and scriptable design adapters without scheduler changes; outputs reopen with dependencies; long jobs recover without duplicate submission               |
+| 4. Real long-duration process              | Supplier/reply or comparable workflow, external events, deadlines, approvals, reconciliation; adopt Temporal if those requirements apply                                         | Multi-day wait makes no model polling calls, survives restart, resumes on correct event, and does not repeat uncertain actions                                                          |
+| 5. Scale and operations                    | Eight-worker admission, two then four seats when justified, fair scheduling, load tests, traces, restore drills, versioned releases                                              | Quality/latency/cost gates met at target load; host recovery and workflow upgrade exercises pass                                                                                        |
+| 6. Expand the configured tool catalog      | Image/video providers, graphics, 3D/CAD/PCB applications, rendering, data pipelines, office tools and business connectors; local inference and extra hosts when useful           | Each adapter passes declared capability, version, recovery and native-output tests; teams combine tools without domain-specific scheduler changes                                       |
 
 Foundation and first-team work can overlap after contracts stabilize. Minimum delegated grants, workspace isolation and immutable candidates must exist before the first richer or coding runtime executes. Rich previews, alternative storage backends and broader business integrations can arrive later. Desktop automation should not delay research and coding value.
 
@@ -402,31 +406,31 @@ For research and operations, independent workers gather scoped evidence, extract
 
 ## Required validation before broader autonomy
 
-| Exercise | Required result |
-| --- | --- |
-| Run standalone research with company/project/home configuration absent | Task, workers, artifacts and storage operate independently |
-| Disable RobbinsHome during business/creative work | Only home tools become unavailable; general execution and outputs continue |
-| Reuse one team template in two companies and a personal project | Separate data/credentials/accounting; explicit shared references only |
-| Override a project model/tool preference and change a template | Resolved settings follow documented precedence; grants remain bounded; running attempts retain pinned versions |
-| Combine image generation, a CAD job and a render backend | Capability/environment matching works without modifying scheduler code |
-| Restart while a long render or media job is running | Reattach/reconcile the recorded job instead of submitting and paying twice |
-| Reopen an artifact bundle on another eligible execution host | Native sources and referenced dependencies resolve; outputs match the recorded validation contract |
-| Run the same representative tasks with one, four and eight slots | Measure accepted output, p50/p95 duration, queue delay, cost and owner repair; do not infer linear speedup |
-| Fill the background pool and submit a Simon question | Interactive admission remains available; initial proposed targets are under two seconds to acknowledge and under ten seconds to useful progress, subject to provider latency |
-| Have all parents wait for children | Parents release slots and the graph makes progress |
-| Kill a worker during execution | Attempt remains visible, lease expires, and safe continuation/reconciliation occurs |
-| Reconnect a stale worker after reassignment | Its publication and action requests fail fencing checks |
-| Crash after external dispatch but before receipt persistence | Action becomes unknown; provider reconciliation precedes any retry |
-| Redeliver a queue/event message | One intended business transition; duplicate delivery is recognized |
-| Publish two changes from the same source revision | Preserve a conflict/candidate branch, not an overwrite |
-| Change an approved payload or attachment | Prior approval no longer authorizes the changed action |
-| Revoke access during a run | Subsequent reads/actions/publication obey the new permissions |
-| Inject instructions into retrieved content | Content does not alter grants, destinations, budgets or tool policy |
-| Exhaust a shared budget with concurrent requests | Atomic reservations stop further dispatch; partial artifacts and costs remain visible |
-| Lose browser credentials or GUI state | Task blocks explicitly; no uncontrolled retry/input loop |
-| Disconnect storage or fill scratch disk | No false completed artifact; recoverable reconciliation record |
-| Restore the whole system from backup | Metadata/bytes and pending actions reconcile before dispatch resumes |
-| Upgrade code while old workflows are waiting | Version-compatible continuation or explicit migration succeeds |
+| Exercise                                                               | Required result                                                                                                                                                              |
+| ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Run standalone research with company/project/home configuration absent | Task, workers, artifacts and storage operate independently                                                                                                                   |
+| Disable RobbinsHome during business/creative work                      | Only home tools become unavailable; general execution and outputs continue                                                                                                   |
+| Reuse one team template in two companies and a personal project        | Separate data/credentials/accounting; explicit shared references only                                                                                                        |
+| Override a project model/tool preference and change a template         | Resolved settings follow documented precedence; grants remain bounded; running attempts retain pinned versions                                                               |
+| Combine image generation, a CAD job and a render backend               | Capability/environment matching works without modifying scheduler code                                                                                                       |
+| Restart while a long render or media job is running                    | Reattach/reconcile the recorded job instead of submitting and paying twice                                                                                                   |
+| Reopen an artifact bundle on another eligible execution host           | Native sources and referenced dependencies resolve; outputs match the recorded validation contract                                                                           |
+| Run the same representative tasks with one, four and eight slots       | Measure accepted output, p50/p95 duration, queue delay, cost and owner repair; do not infer linear speedup                                                                   |
+| Fill the background pool and submit a Simon question                   | Interactive admission remains available; initial proposed targets are under two seconds to acknowledge and under ten seconds to useful progress, subject to provider latency |
+| Have all parents wait for children                                     | Parents release slots and the graph makes progress                                                                                                                           |
+| Kill a worker during execution                                         | Attempt remains visible, lease expires, and safe continuation/reconciliation occurs                                                                                          |
+| Reconnect a stale worker after reassignment                            | Its publication and action requests fail fencing checks                                                                                                                      |
+| Crash after external dispatch but before receipt persistence           | Action becomes unknown; provider reconciliation precedes any retry                                                                                                           |
+| Redeliver a queue/event message                                        | One intended business transition; duplicate delivery is recognized                                                                                                           |
+| Publish two changes from the same source revision                      | Preserve a conflict/candidate branch, not an overwrite                                                                                                                       |
+| Change an approved payload or attachment                               | Prior approval no longer authorizes the changed action                                                                                                                       |
+| Revoke access during a run                                             | Subsequent reads/actions/publication obey the new permissions                                                                                                                |
+| Inject instructions into retrieved content                             | Content does not alter grants, destinations, budgets or tool policy                                                                                                          |
+| Exhaust a shared budget with concurrent requests                       | Atomic reservations stop further dispatch; partial artifacts and costs remain visible                                                                                        |
+| Lose browser credentials or GUI state                                  | Task blocks explicitly; no uncontrolled retry/input loop                                                                                                                     |
+| Disconnect storage or fill scratch disk                                | No false completed artifact; recoverable reconciliation record                                                                                                               |
+| Restore the whole system from backup                                   | Metadata/bytes and pending actions reconcile before dispatch resumes                                                                                                         |
+| Upgrade code while old workflows are waiting                           | Version-compatible continuation or explicit migration succeeds                                                                                                               |
 
 Use at least twenty representative tasks across research, coding, documents, structured data and one browser flow, with repeated important cases. Include human review of the rubric and of accepted outputs; an agent-generated score alone is insufficient. Establish a single-agent baseline before claiming improvement.
 

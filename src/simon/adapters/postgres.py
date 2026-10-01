@@ -1,3 +1,5 @@
+"""PostgreSQL persistence with scoped transactions and optimistic state transitions."""
+
 from __future__ import annotations
 
 from collections.abc import Callable, Iterator
@@ -141,31 +143,6 @@ class PostgresStore(InMemoryStore):
             )
             return output, False
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     def save_project_artifact(self, artifact: ProjectArtifact, content: bytes) -> None:
         with self.transaction():
             cursor = self.connection.execute(
@@ -222,12 +199,6 @@ class PostgresStore(InMemoryStore):
                 (household_id, actor_id, project_id, project_id, limit, offset),
             ).fetchall()
             return tuple(ProjectArtifact.model_validate(row) for row in rows)
-
-
-
-
-
-
 
     def managed_accounts(self) -> tuple[ManagedAccount, ...]:
         with self.transaction():
@@ -289,10 +260,6 @@ class PostgresStore(InMemoryStore):
                     Jsonb(session.model_dump(mode="json")),
                 ),
             )
-
-
-
-
 
     def response_preferences(
         self, household_id: UUID, actor_id: UUID
@@ -673,8 +640,12 @@ class PostgresStore(InMemoryStore):
             return tuple(self._job(row) for row in rows)
 
     def project_run_jobs(
-        self, household_id: UUID, actor_id: UUID, project_id: UUID,
-        before: tuple[datetime, UUID] | None, limit: int,
+        self,
+        household_id: UUID,
+        actor_id: UUID,
+        project_id: UUID,
+        before: tuple[datetime, UUID] | None,
+        limit: int,
     ) -> tuple[Job, ...]:
         cursor_clause = " AND (r.created_at,r.id) < (%s,%s)" if before else ""
         parameters: tuple[Any, ...] = (household_id, actor_id, str(project_id))
@@ -687,7 +658,8 @@ class PostgresStore(InMemoryStore):
                 "AND r.input->>'plan_id'=p.id::text "
                 "WHERE p.household_id=%s AND p.created_by=%s "
                 "AND p.kind='platform.plan' AND r.kind='platform.run' "
-                "AND p.input->'plan'->>'project_id'=%s" + cursor_clause
+                "AND p.input->'plan'->>'project_id'=%s"
+                + cursor_clause
                 + " ORDER BY r.created_at DESC,r.id DESC LIMIT %s",
                 (*parameters, limit),
             ).fetchall()
@@ -1009,7 +981,6 @@ class PostgresStore(InMemoryStore):
             self.connection.execute(
                 "DELETE FROM auth_passkeys WHERE credential_id = %s", (credential_id,)
             )
-
 
     def password_for_actor(self, actor_id: UUID) -> PasswordCredential | None:
         with self.transaction():

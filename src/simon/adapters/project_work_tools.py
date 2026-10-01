@@ -135,19 +135,24 @@ class ProjectWorkToolTransport:
             if arguments:
                 raise ValidationError("Project snapshot takes no arguments")
             state = self.work.get(actor, plan.project_id)
-            pending = [todo for todo in state.todos
-                       if todo.status not in {"done", "cancelled", "archived"}]
+            pending = [
+                todo for todo in state.todos if todo.status not in {"done", "cancelled", "archived"}
+            ]
             recent = [todo for todo in state.todos if todo.status in {"done", "cancelled"}]
             selected = (pending[:20] + recent[-5:])[:25]
             activity = self.work.list_activity(actor, plan.project_id, limit=10)
-            activity["items"] = [
-                {**item, "text": item["text"][:800]} for item in activity["items"]
-            ]
+            activity["items"] = [{**item, "text": item["text"][:800]} for item in activity["items"]]
             return {
                 "project_id": str(plan.project_id),
                 "team": state.team.model_dump(mode="json") if state.team else None,
-                "todos": [{**todo.model_dump(mode="json"), "objective": todo.objective[:500],
-                           "result": todo.result[:500]} for todo in selected],
+                "todos": [
+                    {
+                        **todo.model_dump(mode="json"),
+                        "objective": todo.objective[:500],
+                        "result": todo.result[:500],
+                    }
+                    for todo in selected
+                ],
                 "omitted_todos": len(state.todos) - len(selected),
                 "activity": activity,
             }

@@ -22,7 +22,9 @@ def _posix_descriptor(path: Path) -> int:
             os.close(ancestor)
             ancestor = child
         return os.open(
-            path.name, os.O_RDONLY | nofollow | getattr(os, "O_NONBLOCK", 0), dir_fd=ancestor,
+            path.name,
+            os.O_RDONLY | nofollow | getattr(os, "O_NONBLOCK", 0),
+            dir_fd=ancestor,
         )
     finally:
         os.close(ancestor)
@@ -37,15 +39,28 @@ def _windows_descriptor(path: Path) -> int:
         _fields_ = [("attributes", wintypes.DWORD), ("tag", wintypes.DWORD)]
 
     kernel = ctypes.WinDLL("kernel32", use_last_error=True)
-    kernel.CreateFileW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD,
-                                  wintypes.LPVOID, wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE]
+    kernel.CreateFileW.argtypes = [
+        wintypes.LPCWSTR,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.LPVOID,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.HANDLE,
+    ]
     kernel.CreateFileW.restype = wintypes.HANDLE
     kernel.GetFileInformationByHandleEx.argtypes = [
-        wintypes.HANDLE, ctypes.c_int, wintypes.LPVOID, wintypes.DWORD,
+        wintypes.HANDLE,
+        ctypes.c_int,
+        wintypes.LPVOID,
+        wintypes.DWORD,
     ]
     kernel.GetFileInformationByHandleEx.restype = wintypes.BOOL
     kernel.GetFinalPathNameByHandleW.argtypes = [
-        wintypes.HANDLE, wintypes.LPWSTR, wintypes.DWORD, wintypes.DWORD,
+        wintypes.HANDLE,
+        wintypes.LPWSTR,
+        wintypes.DWORD,
+        wintypes.DWORD,
     ]
     kernel.GetFinalPathNameByHandleW.restype = wintypes.DWORD
     kernel.CloseHandle.argtypes = [wintypes.HANDLE]
@@ -58,7 +73,10 @@ def _windows_descriptor(path: Path) -> int:
     try:
         info = AttributeTag()
         if not kernel.GetFileInformationByHandleEx(
-            handle, 9, ctypes.byref(info), ctypes.sizeof(info),
+            handle,
+            9,
+            ctypes.byref(info),
+            ctypes.sizeof(info),
         ) or info.attributes & (0x400 | 0x10):
             raise OSError("Local file is a filesystem redirect or directory")
         result = ctypes.create_unicode_buffer(32768)
@@ -81,8 +99,7 @@ def _windows_descriptor(path: Path) -> int:
 def open_regular_nofollow(path: Path) -> BinaryIO:
     """Return an owned binary stream; errors never expose unvalidated content."""
     absolute = Path(os.path.abspath(path))  # Lexical normalization, never resolve links.
-    descriptor = (_windows_descriptor(absolute) if os.name == "nt"
-                  else _posix_descriptor(absolute))
+    descriptor = _windows_descriptor(absolute) if os.name == "nt" else _posix_descriptor(absolute)
     try:
         if not stat.S_ISREG(os.fstat(descriptor).st_mode):
             raise OSError("Local file is not a regular file")

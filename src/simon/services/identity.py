@@ -49,10 +49,17 @@ IDENTITY_LOCK = UUID("00000000-0000-4000-8000-000000000001")
 PASSWORD_HASHER = PasswordHasher(time_cost=2, memory_cost=19456, parallelism=1)
 UNKNOWN_PASSWORD_HASH = PASSWORD_HASHER.hash("unknown-account-password-placeholder")
 USERNAME_PATTERN = re.compile(r"^[a-z0-9][a-z0-9._-]{2,31}$")
-COMMON_PASSWORDS = frozenset({
-    "passwordpassword", "password123456789", "123456789012345", "qwertyuiopasdfgh",
-    "correcthorsebatterystaple", "letmeinletmeinletmein", "simonpassword123",
-})
+COMMON_PASSWORDS = frozenset(
+    {
+        "passwordpassword",
+        "password123456789",
+        "123456789012345",
+        "qwertyuiopasdfgh",
+        "correcthorsebatterystaple",
+        "letmeinletmeinletmein",
+        "simonpassword123",
+    }
+)
 NONEXPIRING_SESSION = datetime.max.replace(tzinfo=UTC)
 ROLE_SCOPES = {
     "owner": frozenset(
@@ -239,7 +246,10 @@ class IdentityService:
             )
 
     def reset_password(
-        self, enrollment_token: str, username: str, password: str,
+        self,
+        enrollment_token: str,
+        username: str,
+        password: str,
         previous_token: str | None,
     ) -> tuple[str, Session]:
         with self.store.transaction(IDENTITY_LOCK):
@@ -313,15 +323,23 @@ class IdentityService:
                                 )
                             )
                             issued = self._issue(
-                                credential.actor_id, memberships[0].household_id,
-                                "password", previous_token,
+                                credential.actor_id,
+                                memberships[0].household_id,
+                                "password",
+                                previous_token,
                             )
                 if not valid:
                     attempts = credential.failed_attempts + 1
-                    self.store.save_password(credential.model_copy(update={
-                        "failed_attempts": attempts,
-                        "locked_until": utc_now() + timedelta(minutes=5) if attempts >= 5 else None,
-                    }))
+                    self.store.save_password(
+                        credential.model_copy(
+                            update={
+                                "failed_attempts": attempts,
+                                "locked_until": utc_now() + timedelta(minutes=5)
+                                if attempts >= 5
+                                else None,
+                            }
+                        )
+                    )
             elif credential is None:
                 with suppress(VerificationError, InvalidHashError):
                     PASSWORD_HASHER.verify(UNKNOWN_PASSWORD_HASH, password)

@@ -21,21 +21,42 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def command(*args: str) -> list[str]:
     return [
-        "docker", "compose", "-f", str(ROOT / "deploy/compose/compose.yaml"),
-        "exec", "-T", "postgres", *args,
+        "docker",
+        "compose",
+        "-f",
+        str(ROOT / "deploy/compose/compose.yaml"),
+        "exec",
+        "-T",
+        "postgres",
+        *args,
     ]
 
 
 def dump_database(database: str, target: Path) -> None:
     with target.open("xb") as output:
         subprocess.run(
-            command("pg_dump", "-U", "jarvis", "-d", database, "--format=custom",
-                    "--no-owner", "--no-privileges"),
-            stdout=output, stderr=subprocess.PIPE, check=True,
+            command(
+                "pg_dump",
+                "-U",
+                "jarvis",
+                "-d",
+                database,
+                "--format=custom",
+                "--no-owner",
+                "--no-privileges",
+            ),
+            stdout=output,
+            stderr=subprocess.PIPE,
+            check=True,
         )
     with target.open("rb") as source:
-        subprocess.run(command("pg_restore", "--list"), stdin=source,
-                       stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, check=True)
+        subprocess.run(
+            command("pg_restore", "--list"),
+            stdin=source,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            check=True,
+        )
 
 
 def verify_database(bundle: Path) -> None:
@@ -45,9 +66,20 @@ def verify_database(bundle: Path) -> None:
     try:
         with (bundle / "database.dump").open("rb") as source:
             subprocess.run(
-                command("pg_restore", "-U", "jarvis", "-d", temporary, "--exit-on-error",
-                        "--no-owner", "--no-privileges"),
-                stdin=source, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, check=True,
+                command(
+                    "pg_restore",
+                    "-U",
+                    "jarvis",
+                    "-d",
+                    temporary,
+                    "--exit-on-error",
+                    "--no-owner",
+                    "--no-privileges",
+                ),
+                stdin=source,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+                check=True,
             )
         if snapshot(temporary) != manifest.database_tables:
             raise ValueError("Restored database differs from the recorded table hashes")
@@ -64,8 +96,11 @@ def main() -> None:
     create.add_argument("destination", type=Path)
     create.add_argument("--writers-stopped", action="store_true", required=True)
     create.add_argument("--database", default="jarvis", help="Compose database name")
-    create.add_argument("--include-secrets", action="store_true",
-                        help="Include .env in this PRIVATE, UNENCRYPTED bundle")
+    create.add_argument(
+        "--include-secrets",
+        action="store_true",
+        help="Include .env in this PRIVATE, UNENCRYPTED bundle",
+    )
     verify = commands.add_parser("verify")
     verify.add_argument("bundle", type=Path)
     verify.add_argument("--database", action="store_true", help="Also perform a database restore")
@@ -89,7 +124,8 @@ def main() -> None:
         result = create_bundle(
             args.destination,
             roots={"files": settings.local_files_dir, "agents": settings.agent_state_dir},
-            configuration=configuration, includes_secrets=args.include_secrets,
+            configuration=configuration,
+            includes_secrets=args.include_secrets,
             dump_database=lambda target: dump_database(args.database, target),
             database_snapshot=lambda: snapshot(args.database),
         )

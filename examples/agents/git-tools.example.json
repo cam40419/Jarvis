@@ -2,13 +2,8 @@
   {
     "id": "git.branches",
     "description": "List local branches in a leased repository.",
-    "categories": [
-      "git",
-      "software"
-    ],
-    "capabilities": [
-      "git.branches"
-    ],
+    "categories": ["git", "software"],
+    "capabilities": ["git.branches"],
     "transport": "git",
     "input_schema": {
       "type": "object",
@@ -39,22 +34,12 @@
           "type": "boolean"
         }
       },
-      "required": [
-        "exit_code",
-        "stdout",
-        "stderr",
-        "truncated"
-      ]
+      "required": ["exit_code", "stdout", "stderr", "truncated"]
     },
     "enabled": false,
     "configured": false,
-    "required_scopes": [
-      "jobs:read"
-    ],
-    "environment_capabilities": [
-      "git",
-      "python"
-    ],
+    "required_scopes": ["jobs:read"],
+    "environment_capabilities": ["git", "python"],
     "side_effect": false,
     "action_policy": "read",
     "endpoint": null,
@@ -67,13 +52,8 @@
   {
     "id": "git.diff",
     "description": "Read a bounded staged or unstaged patch; paths are literal relative paths.",
-    "categories": [
-      "git",
-      "software"
-    ],
-    "capabilities": [
-      "git.diff"
-    ],
+    "categories": ["git", "software"],
+    "capabilities": ["git.diff"],
     "transport": "git",
     "input_schema": {
       "type": "object",
@@ -116,22 +96,12 @@
           "type": "boolean"
         }
       },
-      "required": [
-        "exit_code",
-        "stdout",
-        "stderr",
-        "truncated"
-      ]
+      "required": ["exit_code", "stdout", "stderr", "truncated"]
     },
     "enabled": false,
     "configured": false,
-    "required_scopes": [
-      "jobs:read"
-    ],
-    "environment_capabilities": [
-      "git",
-      "python"
-    ],
+    "required_scopes": ["jobs:read"],
+    "environment_capabilities": ["git", "python"],
     "side_effect": false,
     "action_policy": "read",
     "endpoint": null,
@@ -144,13 +114,8 @@
   {
     "id": "git.log",
     "description": "Read up to 100 recent commits from the current local branch.",
-    "categories": [
-      "git",
-      "software"
-    ],
-    "capabilities": [
-      "git.log"
-    ],
+    "categories": ["git", "software"],
+    "capabilities": ["git.log"],
     "transport": "git",
     "input_schema": {
       "type": "object",
@@ -186,22 +151,12 @@
           "type": "boolean"
         }
       },
-      "required": [
-        "exit_code",
-        "stdout",
-        "stderr",
-        "truncated"
-      ]
+      "required": ["exit_code", "stdout", "stderr", "truncated"]
     },
     "enabled": false,
     "configured": false,
-    "required_scopes": [
-      "jobs:read"
-    ],
-    "environment_capabilities": [
-      "git",
-      "python"
-    ],
+    "required_scopes": ["jobs:read"],
+    "environment_capabilities": ["git", "python"],
     "side_effect": false,
     "action_policy": "read",
     "endpoint": null,
@@ -214,13 +169,8 @@
   {
     "id": "git.status",
     "description": "Inspect branch and working-tree changes in a leased local repository.",
-    "categories": [
-      "git",
-      "software"
-    ],
-    "capabilities": [
-      "git.status"
-    ],
+    "categories": ["git", "software"],
+    "capabilities": ["git.status"],
     "transport": "git",
     "input_schema": {
       "type": "object",
@@ -251,22 +201,12 @@
           "type": "boolean"
         }
       },
-      "required": [
-        "exit_code",
-        "stdout",
-        "stderr",
-        "truncated"
-      ]
+      "required": ["exit_code", "stdout", "stderr", "truncated"]
     },
     "enabled": false,
     "configured": false,
-    "required_scopes": [
-      "jobs:read"
-    ],
-    "environment_capabilities": [
-      "git",
-      "python"
-    ],
+    "required_scopes": ["jobs:read"],
+    "environment_capabilities": ["git", "python"],
     "side_effect": false,
     "action_policy": "read",
     "endpoint": null,
@@ -279,13 +219,8 @@
   {
     "id": "git.init",
     "description": "Create a local repository without replacing existing Git metadata.",
-    "categories": [
-      "git",
-      "software"
-    ],
-    "capabilities": [
-      "git.init"
-    ],
+    "categories": ["git", "software"],
+    "capabilities": ["git.init"],
     "transport": "git",
     "input_schema": {
       "type": "object",
@@ -320,22 +255,12 @@
           "type": "boolean"
         }
       },
-      "required": [
-        "exit_code",
-        "stdout",
-        "stderr",
-        "truncated"
-      ]
+      "required": ["exit_code", "stdout", "stderr", "truncated"]
     },
     "enabled": false,
     "configured": false,
-    "required_scopes": [
-      "jobs:write"
-    ],
-    "environment_capabilities": [
-      "git",
-      "python"
-    ],
+    "required_scopes": ["jobs:write"],
+    "environment_capabilities": ["git", "python"],
     "side_effect": true,
     "action_policy": "write",
     "endpoint": null,
@@ -348,13 +273,8 @@
   {
     "id": "git.branch",
     "description": "Create a local branch without switching or replacing an existing branch.",
-    "categories": [
-      "git",
-      "software"
-    ],
-    "capabilities": [
-      "git.branch"
-    ],
+    "categories": ["git", "software"],
+    "capabilities": ["git.branch"],
     "transport": "git",
     "input_schema": {
       "type": "object",
@@ -370,9 +290,7 @@
           "maxLength": 100
         }
       },
-      "required": [
-        "name"
-      ]
+      "required": ["name"]
     },
     "output_schema": {
       "type": "object",
@@ -391,22 +309,12 @@
           "type": "boolean"
         }
       },
-      "required": [
-        "exit_code",
-        "stdout",
-        "stderr",
-        "truncated"
-      ]
+      "required": ["exit_code", "stdout", "stderr", "truncated"]
     },
     "enabled": false,
     "configured": false,
-    "required_scopes": [
-      "jobs:write"
-    ],
-    "environment_capabilities": [
-      "git",
-      "python"
-    ],
+    "required_scopes": ["jobs:write"],
+    "environment_capabilities": ["git", "python"],
     "side_effect": true,
     "action_policy": "write",
     "endpoint": null,
@@ -419,13 +327,8 @@
   {
     "id": "git.switch",
     "description": "Switch to an existing local branch; uncommitted conflicts are preserved.",
-    "categories": [
-      "git",
-      "software"
-    ],
-    "capabilities": [
-      "git.switch"
-    ],
+    "categories": ["git", "software"],
+    "capabilities": ["git.switch"],
     "transport": "git",
     "input_schema": {
       "type": "object",
@@ -441,9 +344,7 @@
           "maxLength": 100
         }
       },
-      "required": [
-        "name"
-      ]
+      "required": ["name"]
     },
     "output_schema": {
       "type": "object",
@@ -462,22 +363,12 @@
           "type": "boolean"
         }
       },
-      "required": [
-        "exit_code",
-        "stdout",
-        "stderr",
-        "truncated"
-      ]
+      "required": ["exit_code", "stdout", "stderr", "truncated"]
     },
     "enabled": false,
     "configured": false,
-    "required_scopes": [
-      "jobs:write"
-    ],
-    "environment_capabilities": [
-      "git",
-      "python"
-    ],
+    "required_scopes": ["jobs:write"],
+    "environment_capabilities": ["git", "python"],
     "side_effect": true,
     "action_policy": "write",
     "endpoint": null,
@@ -490,13 +381,8 @@
   {
     "id": "git.add",
     "description": "Stage explicit relative paths in the leased local repository.",
-    "categories": [
-      "git",
-      "software"
-    ],
-    "capabilities": [
-      "git.add"
-    ],
+    "categories": ["git", "software"],
+    "capabilities": ["git.add"],
     "transport": "git",
     "input_schema": {
       "type": "object",
@@ -518,9 +404,7 @@
           "minItems": 1
         }
       },
-      "required": [
-        "paths"
-      ]
+      "required": ["paths"]
     },
     "output_schema": {
       "type": "object",
@@ -539,22 +423,12 @@
           "type": "boolean"
         }
       },
-      "required": [
-        "exit_code",
-        "stdout",
-        "stderr",
-        "truncated"
-      ]
+      "required": ["exit_code", "stdout", "stderr", "truncated"]
     },
     "enabled": false,
     "configured": false,
-    "required_scopes": [
-      "jobs:write"
-    ],
-    "environment_capabilities": [
-      "git",
-      "python"
-    ],
+    "required_scopes": ["jobs:write"],
+    "environment_capabilities": ["git", "python"],
     "side_effect": true,
     "action_policy": "write",
     "endpoint": null,
@@ -567,13 +441,8 @@
   {
     "id": "git.commit",
     "description": "Commit staged changes locally under the configured agent identity.",
-    "categories": [
-      "git",
-      "software"
-    ],
-    "capabilities": [
-      "git.commit"
-    ],
+    "categories": ["git", "software"],
+    "capabilities": ["git.commit"],
     "transport": "git",
     "input_schema": {
       "type": "object",
@@ -590,9 +459,7 @@
           "maxLength": 4000
         }
       },
-      "required": [
-        "message"
-      ]
+      "required": ["message"]
     },
     "output_schema": {
       "type": "object",
@@ -611,22 +478,12 @@
           "type": "boolean"
         }
       },
-      "required": [
-        "exit_code",
-        "stdout",
-        "stderr",
-        "truncated"
-      ]
+      "required": ["exit_code", "stdout", "stderr", "truncated"]
     },
     "enabled": false,
     "configured": false,
-    "required_scopes": [
-      "jobs:write"
-    ],
-    "environment_capabilities": [
-      "git",
-      "python"
-    ],
+    "required_scopes": ["jobs:write"],
+    "environment_capabilities": ["git", "python"],
     "side_effect": true,
     "action_policy": "write",
     "endpoint": null,

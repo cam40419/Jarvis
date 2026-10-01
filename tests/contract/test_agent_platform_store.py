@@ -13,17 +13,28 @@ from simon.services.agent_platform import AgentPlatformService
 
 def test_compiled_plan_round_trips_across_store_implementations(store, tmp_path):
     actor = ActorContext(
-        actor_id=DEV_ACTOR_ID, household_id=DEV_HOUSEHOLD_ID, channel=Channel.API,
+        actor_id=DEV_ACTOR_ID,
+        household_id=DEV_HOUSEHOLD_ID,
+        channel=Channel.API,
         scopes=frozenset({"jobs:read", "jobs:write"}),
     )
     manifest = PlatformManifest(
         agents=(AgentProfile(id="writer", instructions="Create a draft."),),
         teams=(TeamTemplate(id="solo", name="Solo", agent_ids=("writer",)),),
-        models=(ModelEndpoint(id="local", provider="openai_compatible", model="test",
-                              base_url="http://localhost:11434/v1", local=True, tier="economy"),),
+        models=(
+            ModelEndpoint(
+                id="local",
+                provider="openai_compatible",
+                model="test",
+                base_url="http://localhost:11434/v1",
+                local=True,
+                tier="economy",
+            ),
+        ),
     )
     request = PlanTeamRequest(
-        team_id="solo", idempotency_key="store-contract-plan",
+        team_id="solo",
+        idempotency_key="store-contract-plan",
         tasks=(AgentTaskSpec(id="draft", agent_id="writer", objective="Draft an outline"),),
     )
     original = AgentPlatformService(store, manifest, state_dir=tmp_path, environ={})

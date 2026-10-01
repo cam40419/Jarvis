@@ -5,16 +5,19 @@ from tests.passkey_helper import SoftwarePasskey
 
 def test_invited_account_can_start_with_username_and_password(client, auth_headers):
     invited = client.post(
-        "/v1/accounts/invite", headers=auth_headers,
+        "/v1/accounts/invite",
+        headers=auth_headers,
         json={"display_name": "Password User", "idempotency_key": str(uuid4())},
     )
     assert invited.status_code == 200, invited.text
     token = invited.json()["enrollment_token"]
     client.cookies.clear()
     registered = client.post(
-        "/auth/password/register", headers={"Origin": "http://localhost:8000"},
+        "/auth/password/register",
+        headers={"Origin": "http://localhost:8000"},
         json={
-            "token": token, "username": "password.user",
+            "token": token,
+            "username": "password.user",
             "password": "a private account phrase with many words",
         },
     )
@@ -27,23 +30,26 @@ def test_invited_account_can_start_with_username_and_password(client, auth_heade
 def test_password_recovery_code_resets_password_and_revokes_sessions(client, auth_headers):
     admin_cookie = client.cookies.get("simon_session")
     invited = client.post(
-        "/v1/accounts/invite", headers=auth_headers,
+        "/v1/accounts/invite",
+        headers=auth_headers,
         json={"display_name": "Recovering User", "idempotency_key": str(uuid4())},
     ).json()
     identifier = invited["account"]["actor_id"]
     client.cookies.clear()
     registered = client.post(
-        "/auth/password/register", headers={"Origin": "http://localhost:8000"},
-        json={"token": invited["enrollment_token"], "username": "recover.user",
-              "password": "an initial private password phrase"},
+        "/auth/password/register",
+        headers={"Origin": "http://localhost:8000"},
+        json={
+            "token": invited["enrollment_token"],
+            "username": "recover.user",
+            "password": "an initial private password phrase",
+        },
     )
     assert registered.status_code == 200
     old_cookie = client.cookies.get("simon_session")
     client.cookies.clear()
     client.cookies.set("simon_session", admin_cookie)
-    assert client.post(
-        f"/v1/accounts/{identifier}/password-recovery", json={}
-    ).status_code == 403
+    assert client.post(f"/v1/accounts/{identifier}/password-recovery", json={}).status_code == 403
     issued = client.post(
         f"/v1/accounts/{identifier}/password-recovery", headers=auth_headers, json={}
     )
@@ -51,15 +57,23 @@ def test_password_recovery_code_resets_password_and_revokes_sessions(client, aut
     code = issued.json()["enrollment_token"]
     client.cookies.clear()
     bad = client.post(
-        "/auth/password/reset", headers={"Origin": "http://localhost:8000"},
-        json={"token": code, "username": "other.user",
-              "password": "a different secure password phrase"},
+        "/auth/password/reset",
+        headers={"Origin": "http://localhost:8000"},
+        json={
+            "token": code,
+            "username": "other.user",
+            "password": "a different secure password phrase",
+        },
     )
     assert bad.status_code == 401
     reset = client.post(
-        "/auth/password/reset", headers={"Origin": "http://localhost:8000"},
-        json={"token": code, "username": "recover.user",
-              "password": "a different secure password phrase"},
+        "/auth/password/reset",
+        headers={"Origin": "http://localhost:8000"},
+        json={
+            "token": code,
+            "username": "recover.user",
+            "password": "a different secure password phrase",
+        },
     )
     assert reset.status_code == 200
     assert reset.json()["method"] == "password"
@@ -68,19 +82,34 @@ def test_password_recovery_code_resets_password_and_revokes_sessions(client, aut
     client.cookies.set("simon_session", old_cookie)
     assert client.get("/auth/session").status_code == 401
     client.cookies.clear()
-    assert client.post(
-        "/auth/password/reset", headers={"Origin": "http://localhost:8000"},
-        json={"token": code, "username": "recover.user",
-              "password": "another different password phrase"},
-    ).status_code == 401
-    assert client.post(
-        "/auth/password/login", headers={"Origin": "http://localhost:8000"},
-        json={"username": "recover.user", "password": "an initial private password phrase"},
-    ).status_code == 401
-    assert client.post(
-        "/auth/password/login", headers={"Origin": "http://localhost:8000"},
-        json={"username": "recover.user", "password": "a different secure password phrase"},
-    ).status_code == 200
+    assert (
+        client.post(
+            "/auth/password/reset",
+            headers={"Origin": "http://localhost:8000"},
+            json={
+                "token": code,
+                "username": "recover.user",
+                "password": "another different password phrase",
+            },
+        ).status_code
+        == 401
+    )
+    assert (
+        client.post(
+            "/auth/password/login",
+            headers={"Origin": "http://localhost:8000"},
+            json={"username": "recover.user", "password": "an initial private password phrase"},
+        ).status_code
+        == 401
+    )
+    assert (
+        client.post(
+            "/auth/password/login",
+            headers={"Origin": "http://localhost:8000"},
+            json={"username": "recover.user", "password": "a different secure password phrase"},
+        ).status_code
+        == 200
+    )
 
 
 def test_account_api_invite_isolation_and_revocation(client, container, auth_headers):

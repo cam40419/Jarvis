@@ -1,0 +1,58 @@
+{
+  "tools": [
+    {
+      "id": "cad.blender_script",
+      "description": "Run a workspace Python script with the full Blender API in an offline container. Save the resulting scene to a new editable .blend file.",
+      "categories": ["cad", "3d"],
+      "capabilities": ["cad.blender_script"],
+      "transport": "cad",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "input": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "output": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          }
+        },
+        "required": ["input", "output"]
+      },
+      "output_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "exit_code": {
+            "type": "integer"
+          },
+          "stdout": {
+            "type": "string"
+          },
+          "stderr": {
+            "type": "string"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": ["exit_code", "stdout", "stderr", "truncated"]
+      },
+      "enabled": false,
+      "configured": false,
+      "required_scopes": ["jobs:write"],
+      "environment_capabilities": ["blender.script", "cad", "python"],
+      "side_effect": true,
+      "action_policy": "write",
+      "endpoint": null,
+      "credential_env": null,
+      "settings": {
+        "network": false
+      }
+    }
+  ]
+}

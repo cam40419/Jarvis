@@ -54,13 +54,13 @@ class ProjectWorkService:
         )
         self.actor_resolver, self.clock = actor_resolver or self._resolve_actor, clock
         self.cycle_recovery_validator = cycle_recovery_validator
-        self.role_capture: Callable[
-            [ActorContext, str, str, str, tuple[str, ...], int], dict[str, Any]
-        ] | None = None
+        self.role_capture: (
+            Callable[[ActorContext, str, str, str, tuple[str, ...], int], dict[str, Any]] | None
+        ) = None
         self.role_resolver: Callable[[ActorContext, dict[str, Any]], AgentProfile] | None = None
-        self.todo_edit_validator: Callable[
-            [ActorContext, UUID, ProjectTodo, ProjectTodo], None
-        ] | None = None
+        self.todo_edit_validator: (
+            Callable[[ActorContext, UUID, ProjectTodo, ProjectTodo], None] | None
+        ) = None
 
     @staticmethod
     def authorize(actor: ActorContext, *, write: bool = False) -> None:
@@ -192,7 +192,9 @@ class ProjectWorkService:
         return self.view(self.store.save_job(updated, job.version))
 
     def _member_records(
-        self, actor: ActorContext, project_id: UUID,
+        self,
+        actor: ActorContext,
+        project_id: UUID,
     ) -> dict[str, tuple[AgentProfile | None, tuple[str, ...]]]:
         self.authorize(actor)
         job = self._job(actor, project_id)
@@ -227,26 +229,39 @@ class ProjectWorkService:
         return records
 
     def member_profiles(
-        self, actor: ActorContext, project_id: UUID,
+        self,
+        actor: ActorContext,
+        project_id: UUID,
     ) -> dict[str, AgentProfile | None]:
         # Keep blocked IDs in the mapping: they must never fall back to a stock
         # or globally saved profile with broader permissions under the same ID.
-        return {identifier: row[0]
-                for identifier, row in self._member_records(actor, project_id).items()}
+        return {
+            identifier: row[0]
+            for identifier, row in self._member_records(actor, project_id).items()
+        }
 
     def member_profile_statuses(
-        self, actor: ActorContext, project_id: UUID,
+        self,
+        actor: ActorContext,
+        project_id: UUID,
     ) -> list[dict[str, Any]]:
         return [
-            {"agent_id": identifier, "state": "configured" if profile else "blocked",
-             "profile": profile.model_dump(mode="json") if profile else None,
-             "blocked_reasons": list(reasons)}
+            {
+                "agent_id": identifier,
+                "state": "configured" if profile else "blocked",
+                "profile": profile.model_dump(mode="json") if profile else None,
+                "blocked_reasons": list(reasons),
+            }
             for identifier, (profile, reasons) in self._member_records(actor, project_id).items()
         ]
 
     def _capture_members(
-        self, actor: ActorContext, project_id: UUID, old: ProjectTeam | None,
-        team: ProjectTeam, saved: Any,
+        self,
+        actor: ActorContext,
+        project_id: UUID,
+        old: ProjectTeam | None,
+        team: ProjectTeam,
+        saved: Any,
     ) -> dict[str, Any]:
         if not isinstance(saved, dict):
             raise ValidationError("Saved project member permissions are invalid")
@@ -262,8 +277,12 @@ class ProjectWorkService:
             snapshots[identifier] = {
                 "project_id": str(project_id),
                 "role": self.role_capture(
-                    actor, identifier, definition.name, definition.description,
-                    definition.skill_ids, team.revision,
+                    actor,
+                    identifier,
+                    definition.name,
+                    definition.description,
+                    definition.skill_ids,
+                    team.revision,
                 ),
             }
         return snapshots
@@ -330,10 +349,15 @@ class ProjectWorkService:
                     raise ValidationError("Project team validation is not configured")
                 proposed = body.team
                 if team is not None and "members" not in body.team.model_fields_set:
-                    proposed = proposed.model_copy(update={
-                        "members": {key: value for key, value in team.members.items()
-                                    if key in proposed.agent_ids},
-                    })
+                    proposed = proposed.model_copy(
+                        update={
+                            "members": {
+                                key: value
+                                for key, value in team.members.items()
+                                if key in proposed.agent_ids
+                            },
+                        }
+                    )
                 changed = team is None or (
                     team.model_dump(exclude={"revision"})
                     != proposed.model_dump(exclude={"revision"})
@@ -392,7 +416,10 @@ class ProjectWorkService:
             assert job is not None
             if body.team is not None and team is not None:
                 snapshots = self._capture_members(
-                    actor, project_id, current.team, team,
+                    actor,
+                    project_id,
+                    current.team,
+                    team,
                     existing_job.input.get("member_snapshots", {}) if existing_job else {},
                 )
                 job = job.model_copy(update={"input": {**job.input, "member_snapshots": snapshots}})

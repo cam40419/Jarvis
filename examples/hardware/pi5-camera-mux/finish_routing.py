@@ -24,9 +24,14 @@ def add_planes(board):
     # The external rail carries all camera current before the load switch.
     # Keep it short and wider than the default low-current control routing.
     supply = footprints["J7"].FindPadByNumber("1")
-    supply_path = [supply.GetPosition(), point(37, 98), point(39.1, 95.9),
-                   point(41, 95.9), point(41.85, 95.05),
-                   footprints["U5"].FindPadByNumber("1").GetPosition()]
+    supply_path = [
+        supply.GetPosition(),
+        point(37, 98),
+        point(39.1, 95.9),
+        point(41, 95.9),
+        point(41.85, 95.05),
+        footprints["U5"].FindPadByNumber("1").GetPosition(),
+    ]
     for start, end in pairwise(supply_path):
         trace = pcbnew.PCB_TRACK(board)
         trace.SetStart(start)
@@ -52,9 +57,12 @@ def add_planes(board):
     # Short local camera-power connections reach a dedicated inner plane. Their
     # copper geometry and plated vias still need the chosen fabricator's review.
     for reference, pin, dx, dy in (
-        ("J2", "15", -2.0, 0), ("J3", "15", -2.0, 0),
-        ("J4", "15", -2.0, 0), ("J5", "15", -2.0, 0),
-        ("C6", "1", 0, 1.5), ("U5", "6", 2.0, 0),
+        ("J2", "15", -2.0, 0),
+        ("J3", "15", -2.0, 0),
+        ("J4", "15", -2.0, 0),
+        ("J5", "15", -2.0, 0),
+        ("C6", "1", 0, 1.5),
+        ("U5", "6", 2.0, 0),
     ):
         pad = footprints[reference].FindPadByNumber(pin)
         if pad.GetNetname() != "/CAM_3V3":
@@ -91,6 +99,8 @@ def add_planes(board):
             via.SetNet(pad.GetNet())
             via.SetLocked(True)
             board.Add(via)
+
+
 def finish():
     board = pcbnew.LoadBoard(str(ROOT / (NAME + ".kicad_pcb")))
     if not pcbnew.ImportSpecctraSES(board, str(ROOT / (NAME + ".ses"))):
@@ -99,16 +109,22 @@ def finish():
     # segment, leaving 0.1987 mm clearance to clock+. Match its two adjacent
     # ground fanouts' 0.15 mm width; keep the project clearance rule unchanged.
     for track in board.GetTracks():
-        if (not isinstance(track, pcbnew.PCB_VIA) and track.GetNetname() == "/GND"
-                and pcbnew.ToMM(track.GetLength()) < 0.05
-                and 115.4 < pcbnew.ToMM(track.GetStart().x) < 115.6
-                and 66.3 < pcbnew.ToMM(track.GetStart().y) < 66.5):
+        if (
+            not isinstance(track, pcbnew.PCB_VIA)
+            and track.GetNetname() == "/GND"
+            and pcbnew.ToMM(track.GetLength()) < 0.05
+            and 115.4 < pcbnew.ToMM(track.GetStart().x) < 115.6
+            and 66.3 < pcbnew.ToMM(track.GetStart().y) < 66.5
+        ):
             track.SetWidth(pcbnew.FromMM(0.15))
-    labels = [("HOST / TOP CONTACT", 4, 65), ("1", 3.5, 59.25),
-              ("GPIO: GND 4 17 18", 4, 96), ("J7: 1=3V3 2=GND", 28, 105)]
+    labels = [
+        ("HOST / TOP CONTACT", 4, 65),
+        ("1", 3.5, 59.25),
+        ("GPIO: GND 4 17 18", 4, 96),
+        ("J7: 1=3V3 2=GND", 28, 105),
+    ]
     for index, name in enumerate(("A", "B", "C", "D")):
-        labels.extend(((f"CAM {name} / TOP", 112, 28 + 26 * index),
-                       ("1", 111.5, 22 + 26 * index)))
+        labels.extend(((f"CAM {name} / TOP", 112, 28 + 26 * index), ("1", 111.5, 22 + 26 * index)))
     for value, x, y in labels:
         text = pcbnew.PCB_TEXT(board)
         text.SetText(value)

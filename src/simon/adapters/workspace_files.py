@@ -21,43 +21,64 @@ class ImportFile(StrictModel):
 
 def workspace_file_definition() -> ToolDefinition:
     return ToolDefinition(
-        id="workspace.import_local", transport="workspace_files", configured=True,
+        id="workspace.import_local",
+        transport="workspace_files",
+        configured=True,
         description=(
             "Copy a local workspace or project file into this task's Docker workspace. "
             "Returns the assigned input filename and hash; use that filename in Python/Git/media "
             "tools. Original files are never changed. Files are limited to 50 MiB."
-        ), categories=frozenset({"files"}), capabilities=frozenset({"workspace.import"}),
+        ),
+        categories=frozenset({"files"}),
+        capabilities=frozenset({"workspace.import"}),
         required_scopes=frozenset({"jobs:read", "jobs:write"}),
         environment_capabilities=frozenset({"workspace.write"}),
-        side_effect=True, action_policy="write", input_schema=ImportFile.model_json_schema(),
+        side_effect=True,
+        action_policy="write",
+        input_schema=ImportFile.model_json_schema(),
     )
 
 
 class WorkspaceFileTransport:
     def __init__(
-        self, files: LocalFileService, lease: EnvironmentLease, *, actor: ActorContext,
-        run_id: UUID, revalidate: Callable[[], ActorContext],
+        self,
+        files: LocalFileService,
+        lease: EnvironmentLease,
+        *,
+        actor: ActorContext,
+        run_id: UUID,
+        revalidate: Callable[[], ActorContext],
     ) -> None:
         self.files, self.lease, self.actor = files, lease.model_copy(deep=True), actor
         self.run_id, self.revalidate = run_id, revalidate
 
     def __call__(
-        self, definition: ToolDefinition, arguments: dict[str, Any], context: ToolExecutionContext,
+        self,
+        definition: ToolDefinition,
+        arguments: dict[str, Any],
+        context: ToolExecutionContext,
     ) -> dict[str, Any]:
         canonical = workspace_file_definition()
         owner = self.lease.plan.request
         if (
-            context.actor_id != self.actor.actor_id or context.household_id != owner.workspace_id
+            context.actor_id != self.actor.actor_id
+            or context.household_id != owner.workspace_id
             or context.household_id != self.actor.household_id
-            or context.run_id != self.run_id or context.agent_id != owner.agent_id
+            or context.run_id != self.run_id
+            or context.agent_id != owner.agent_id
             or not context.scopes >= canonical.required_scopes
-            or context.authorized_action != "write" or definition.id not in context.allowed_tool_ids
+            or context.authorized_action != "write"
+            or definition.id not in context.allowed_tool_ids
         ):
             raise AuthorizationError("Workspace import is outside this assignment's grant")
         if (
-            definition.id != canonical.id or definition.transport != canonical.transport
-            or not definition.enabled or not definition.configured or not definition.side_effect
-            or definition.action_policy != "write" or self.lease.status != "active"
+            definition.id != canonical.id
+            or definition.transport != canonical.transport
+            or not definition.enabled
+            or not definition.configured
+            or not definition.side_effect
+            or definition.action_policy != "write"
+            or self.lease.status != "active"
             or self.lease.definition.kind != "docker"
             or not context.environment_capabilities >= canonical.environment_capabilities
             or not self.lease.definition.capabilities >= canonical.environment_capabilities
@@ -67,9 +88,11 @@ class WorkspaceFileTransport:
         actor = self.revalidate()
         if (actor.actor_id, actor.household_id) != (self.actor.actor_id, self.actor.household_id):
             raise AuthorizationError("Workspace import account changed")
-        actor = actor.model_copy(update={
-            "scopes": actor.scopes & self.actor.scopes & context.scopes,
-        })
+        actor = actor.model_copy(
+            update={
+                "scopes": actor.scopes & self.actor.scopes & context.scopes,
+            }
+        )
         self.files.authorize(actor, write=True)
         source = self.files.path(actor, request.root, request.path)
         data = self.files.blob(source)
@@ -85,9 +108,11 @@ class WorkspaceFileTransport:
         current = self.revalidate()
         if (current.actor_id, current.household_id) != (actor.actor_id, actor.household_id):
             raise AuthorizationError("Workspace import account changed")
-        current = current.model_copy(update={
-            "scopes": current.scopes & self.actor.scopes & context.scopes,
-        })
+        current = current.model_copy(
+            update={
+                "scopes": current.scopes & self.actor.scopes & context.scopes,
+            }
+        )
         self.files.authorize(current, write=True)
         if self.files.path(current, request.root, request.path) != source:
             raise AuthorizationError("Workspace import source changed")
@@ -98,5 +123,10 @@ class WorkspaceFileTransport:
             raise ValidationError(
                 "This import already has a workspace file; inspect it first",
             ) from None
-        return {"path": destination.name, "size": len(data), "sha256": digest,
-                "source_root": request.root, "source_path": request.path}
+        return {
+            "path": destination.name,
+            "size": len(data),
+            "sha256": digest,
+            "source_root": request.root,
+            "source_path": request.path,
+        }

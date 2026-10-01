@@ -18,6 +18,7 @@ from simon.domain.agent_platform import (
     TeamTemplate,
 )
 from simon.domain.agent_runs import StartAgentRun
+from simon.domain.artifact_reviews import AcceptArtifactReview, FileCheck, RecordArtifactReview
 from simon.domain.errors import IdempotencyConflictError
 from simon.domain.execution import EnvironmentLease
 from simon.domain.identity import DEV_ACTOR_ID, DEV_HOUSEHOLD_ID
@@ -33,6 +34,7 @@ from simon.services.agent_dispatcher import AgentDispatcher
 from simon.services.agent_platform import AgentPlatformService
 from simon.services.agent_runs import AgentRunService
 from simon.services.agent_worker import AgentWorker
+from simon.services.artifact_reviews import ArtifactReviewService
 from simon.services.artifacts import ArtifactStore
 
 
@@ -53,8 +55,11 @@ class RecordingModel:
         if self.block and not self.release.wait(timeout=10):
             raise RuntimeError("Contract test did not release its controlled model call")
         return TextGenerationResult(
-            endpoint_id=decision.endpoint_id, model=decision.model,
-            text="A completed brand outline.", input_tokens=32, output_tokens=11,
+            endpoint_id=decision.endpoint_id,
+            model=decision.model,
+            text="A completed brand outline.",
+            input_tokens=32,
+            output_tokens=11,
         )
 
 
@@ -69,15 +74,22 @@ class RunFixture:
 
     def reconstruct(self) -> AgentRunService:
         platform = AgentPlatformService(
-            self.platform.store, self.manifest, state_dir=self.state_dir, environ={},
+            self.platform.store,
+            self.manifest,
+            state_dir=self.state_dir,
+            environ={},
         )
         return AgentRunService(
-            platform, enabled=True, actor_resolver=lambda _actor, _workspace: self.actor,
+            platform,
+            enabled=True,
+            actor_resolver=lambda _actor, _workspace: self.actor,
         )
 
     def dispatcher(self, runs: AgentRunService, model: RecordingModel) -> AgentDispatcher:
         def worker_factory(
-            profile: AgentProfile, lease: EnvironmentLease | None, actor: ActorContext,
+            profile: AgentProfile,
+            lease: EnvironmentLease | None,
+            actor: ActorContext,
             run_id: UUID,
         ) -> AgentWorker:
             assert profile.id == "writer"
@@ -86,7 +98,8 @@ class RunFixture:
             return AgentWorker(model, runs.platform.tools, TransportRegistry())
 
         return AgentDispatcher(
-            runs, artifacts=ArtifactStore(self.state_dir / "artifacts"),
+            runs,
+            artifacts=ArtifactStore(self.state_dir / "artifacts"),
             worker_factory=worker_factory,
         )
 
@@ -94,29 +107,48 @@ class RunFixture:
 @pytest.fixture
 def run_fixture(store: Store, tmp_path: Path) -> RunFixture:
     actor = ActorContext(
-        actor_id=DEV_ACTOR_ID, household_id=DEV_HOUSEHOLD_ID, channel=Channel.API,
+        actor_id=DEV_ACTOR_ID,
+        household_id=DEV_HOUSEHOLD_ID,
+        channel=Channel.API,
         scopes=frozenset({"jobs:read", "jobs:write"}),
     )
     manifest = PlatformManifest(
         max_parallel=2,
-        agents=(AgentProfile(
-            id="writer", instructions="Write the brand outline using the supplied brief.",
-            output_instructions="Return a concise finished draft.",
-        ),),
+        agents=(
+            AgentProfile(
+                id="writer",
+                instructions="Write the brand outline using the supplied brief.",
+                output_instructions="Return a concise finished draft.",
+            ),
+        ),
         teams=(TeamTemplate(id="solo", name="Solo writer", agent_ids=("writer",)),),
-        models=(ModelEndpoint(
-            id="local", provider="openai_compatible", model="contract-model",
-            base_url="http://localhost:11434/v1", local=True, tier="economy",
-        ),),
+        models=(
+            ModelEndpoint(
+                id="local",
+                provider="openai_compatible",
+                model="contract-model",
+                base_url="http://localhost:11434/v1",
+                local=True,
+                tier="economy",
+            ),
+        ),
     )
     platform = AgentPlatformService(store, manifest, state_dir=tmp_path, environ={})
     runs = AgentRunService(
-        platform, enabled=True, actor_resolver=lambda _actor, _workspace: actor,
+        platform,
+        enabled=True,
+        actor_resolver=lambda _actor, _workspace: actor,
     )
-    plan = platform.plan(actor, PlanTeamRequest(
-        team_id="solo", idempotency_key="contract-plan",
-        tasks=(AgentTaskSpec(id="draft", agent_id="writer", objective="Draft a brand outline"),),
-    ))
+    plan = platform.plan(
+        actor,
+        PlanTeamRequest(
+            team_id="solo",
+            idempotency_key="contract-plan",
+            tasks=(
+                AgentTaskSpec(id="draft", agent_id="writer", objective="Draft a brand outline"),
+            ),
+        ),
+    )
     assert plan.state == "planned"
     return RunFixture(actor, manifest, platform, runs, plan, tmp_path)
 
@@ -124,7 +156,9 @@ def run_fixture(store: Store, tmp_path: Path) -> RunFixture:
 def test_queued_agent_run_survives_service_reconstruction(run_fixture: RunFixture) -> None:
     fixture = run_fixture
     queued = fixture.runs.start(
-        fixture.actor, fixture.plan.id, StartAgentRun(idempotency_key="durable-queue"),
+        fixture.actor,
+        fixture.plan.id,
+        StartAgentRun(idempotency_key="durable-queue"),
     )
     raw = fixture.platform.store.get_job(queued.id)
     assert raw is not None
@@ -137,12 +171,56 @@ def test_queued_agent_run_survives_service_reconstruction(run_fixture: RunFixtur
     assert queued.tasks[0].status == "queued"
 
 
+def test_review_acceptance_roundtrip_and_replacement(run_fixture: RunFixture) -> None:
+    fixture = run_fixture
+    service = ArtifactReviewService(fixture.runs)
+    accepted = None
+    for version in range(2):
+        queued = fixture.runs.start(
+            fixture.actor,
+            fixture.plan.id,
+            StartAgentRun(idempotency_key=f"review-roundtrip-{version}"),
+        )
+        completed = fixture.dispatcher(fixture.runs, RecordingModel()).execute(queued.id)
+        assert completed is not None
+        artifact = completed.tasks[0].artifacts[0]
+        review = service.record(
+            fixture.actor,
+            completed.id,
+            RecordArtifactReview(
+                idempotency_key="review-evidence",
+                artifact_id=artifact.id,
+                expected_sha256=artifact.sha256,
+                delivery_key="report",
+                inspected=True,
+                verdict="passed",
+                checks=(
+                    FileCheck(
+                        format="text",
+                        procedure="Read report",
+                        observed="Outline complete",
+                        passed=True,
+                    ),
+                ),
+            ),
+        )
+        accepted = service.accept(
+            fixture.actor, review.id, AcceptArtifactReview(expected_version=version)
+        )
+        reconstructed = ArtifactReviewService(fixture.reconstruct())
+        assert reconstructed.list(fixture.actor, completed.id) == (review,)
+        assert reconstructed.acceptance(fixture.actor, review.id) == accepted
+    assert len(accepted.revisions) == 2
+
+
 def test_dispatch_result_and_artifact_roundtrip_after_reconstruction(
     run_fixture: RunFixture,
 ) -> None:
     fixture = run_fixture
     queued = fixture.runs.start(
-        fixture.actor, fixture.plan.id, StartAgentRun(idempotency_key="durable-result"),
+        fixture.actor,
+        fixture.plan.id,
+        StartAgentRun(idempotency_key="durable-result"),
     )
     reconstructed = fixture.reconstruct()
     model = RecordingModel()
@@ -186,9 +264,15 @@ def test_duplicate_start_returns_original_run_before_and_after_execution(
     assert completed is not None
     assert fixture.runs.start(fixture.actor, fixture.plan.id, request) == completed
     with pytest.raises(IdempotencyConflictError):
-        fixture.runs.start(fixture.actor, fixture.plan.id, request.model_copy(update={
-            "model_budget_usd": 1.0,
-        }))
+        fixture.runs.start(
+            fixture.actor,
+            fixture.plan.id,
+            request.model_copy(
+                update={
+                    "model_budget_usd": 1.0,
+                }
+            ),
+        )
     assert len(fixture.runs.list(fixture.actor)) == 1
     assert len(model.calls) == 1
 
@@ -196,7 +280,9 @@ def test_duplicate_start_returns_original_run_before_and_after_execution(
 def test_simultaneous_claims_have_exactly_one_owner(run_fixture: RunFixture) -> None:
     fixture = run_fixture
     queued = fixture.runs.start(
-        fixture.actor, fixture.plan.id, StartAgentRun(idempotency_key="concurrent-claim"),
+        fixture.actor,
+        fixture.plan.id,
+        StartAgentRun(idempotency_key="concurrent-claim"),
     )
     contenders = [fixture.reconstruct(), fixture.reconstruct()]
     barrier = Barrier(2, timeout=10)
@@ -220,7 +306,9 @@ def test_competing_dispatchers_do_not_repeat_an_inflight_model_call(
 ) -> None:
     fixture = run_fixture
     queued = fixture.runs.start(
-        fixture.actor, fixture.plan.id, StartAgentRun(idempotency_key="concurrent-dispatch"),
+        fixture.actor,
+        fixture.plan.id,
+        StartAgentRun(idempotency_key="concurrent-dispatch"),
     )
     model = RecordingModel(block=True)
     first = fixture.dispatcher(fixture.reconstruct(), model)

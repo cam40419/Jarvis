@@ -32,7 +32,7 @@
   --blue-strong: var(--accent-hover);
   --blue-soft: var(--hover);
 }
-:root[data-theme="dark"] {
+:root[data-theme='dark'] {
   color-scheme: dark;
   --bg: #171717;
   --side: #131313;
@@ -53,48 +53,98 @@
   --danger: #e8a5a5;
   --shadow: 0 18px 64px #00000055;
 }
-body.chat-page, body.login-page, body.dashboard-page {
+body.chat-page,
+body.login-page,
+body.dashboard-page {
   background: var(--bg);
   color: var(--ink);
-  font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  font-family: 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 body :is(button, a, summary, input, textarea, select) {
-  transition: background-color .14s ease, border-color .14s ease, color .14s ease;
+  transition:
+    background-color 0.14s ease,
+    border-color 0.14s ease,
+    color 0.14s ease;
   -webkit-tap-highlight-color: transparent;
 }
 body :is(button, a, summary, input, textarea, select):focus-visible {
   outline: 2px solid var(--accent-text);
   outline-offset: 3px;
 }
-body :is(input, textarea, select) { accent-color: var(--accent); }
-body :is(h1, h2, h3) { text-wrap: balance; }
-body :is(p, li) { overflow-wrap: anywhere; }
-::selection { background: var(--accent); color: var(--on-accent); }
-.chat-page :is(h1, h2), .login-page h1, .dashboard-page :is(h1, h2) {
-  font-family: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
-  font-weight: 600;
-  letter-spacing: -.035em;
+body :is(input, textarea, select) {
+  accent-color: var(--accent);
 }
-.eyebrow { color: var(--muted); }
+body :is(h1, h2, h3) {
+  text-wrap: balance;
+}
+body :is(p, li) {
+  overflow-wrap: anywhere;
+}
+::selection {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.chat-page :is(h1, h2),
+.login-page h1,
+.dashboard-page :is(h1, h2) {
+  font-family: 'Segoe UI Variable Display', 'Segoe UI', system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.035em;
+}
+.eyebrow {
+  color: var(--muted);
+}
 
 /* Navigation stays quiet so the current conversation or project takes priority. */
-.chat-page #sidebar { background: var(--side); border-color: var(--line); padding-top: 25px; }
-.chat-page .brand { padding-bottom: 25px; letter-spacing: .1em; }
-.chat-page .brand img, .login-page header img { filter: none; }
-.chat-page .brand-sub { color: var(--muted); }
-.chat-page .new-chat { background: var(--surface); border-color: var(--line); box-shadow: none; }
-.chat-page .new-chat:hover { background: var(--hover); }
-.chat-page .thread-button[aria-current="true"] {
+.chat-page #sidebar {
+  background: var(--side);
+  border-color: var(--line);
+  padding-top: 25px;
+}
+.chat-page .brand {
+  padding-bottom: 25px;
+  letter-spacing: 0.1em;
+}
+.chat-page .brand img,
+.login-page header img {
+  filter: none;
+}
+.chat-page .brand-sub {
+  color: var(--muted);
+}
+.chat-page .new-chat {
+  background: var(--surface);
+  border-color: var(--line);
+  box-shadow: none;
+}
+.chat-page .new-chat:hover {
+  background: var(--hover);
+}
+.chat-page .thread-button[aria-current='true'] {
   background: var(--hover);
   color: var(--ink);
   box-shadow: inset 2px 0 var(--accent-text);
 }
-.chat-page .avatar { background: var(--hover); color: var(--ink); }
-.chat-page .topbar { background: var(--bg); border-color: var(--line); box-shadow: none; }
-.chat-page .workspace { background: var(--bg); }
-.chat-page .connection i { background: var(--success); box-shadow: none; }
-.chat-page .welcome { max-width: 740px; }
+.chat-page .avatar {
+  background: var(--hover);
+  color: var(--ink);
+}
+.chat-page .topbar {
+  background: var(--bg);
+  border-color: var(--line);
+  box-shadow: none;
+}
+.chat-page .workspace {
+  background: var(--bg);
+}
+.chat-page .connection i {
+  background: var(--success);
+  box-shadow: none;
+}
+.chat-page .welcome {
+  max-width: 740px;
+}
 .chat-page .welcome-mark {
   width: 62px;
   height: 62px;
@@ -104,10 +154,21 @@ body :is(p, li) { overflow-wrap: anywhere; }
   transform: none;
   box-shadow: none;
 }
-.chat-page .welcome-mark img { width: 42px; height: 42px; transform: none; }
-.chat-page .welcome h1 { font-size: clamp(30px, 3.3vw, 44px); }
-.chat-page .welcome-text { line-height: 1.75; }
-.chat-page .suggestions { gap: 12px; margin-top: 30px; }
+.chat-page .welcome-mark img {
+  width: 42px;
+  height: 42px;
+  transform: none;
+}
+.chat-page .welcome h1 {
+  font-size: clamp(30px, 3.3vw, 44px);
+}
+.chat-page .welcome-text {
+  line-height: 1.75;
+}
+.chat-page .suggestions {
+  gap: 12px;
+  margin-top: 30px;
+}
 .chat-page .suggestions button {
   border-radius: var(--radius);
   background: transparent;
@@ -118,43 +179,85 @@ body :is(p, li) { overflow-wrap: anywhere; }
   background: var(--surface);
   border-color: var(--line-strong);
 }
-.chat-page .suggestion-icon { color: var(--muted); }
-.chat-page .suggestions strong { font-size: 13px; }
-.chat-page .suggestions button > span:not(.suggestion-icon) { font-size: 11px; }
-.chat-page .message.user .message-body { background: var(--user); border: 0; color: var(--ink); }
-.chat-page .composer-area { background: var(--bg); }
+.chat-page .suggestion-icon {
+  color: var(--muted);
+}
+.chat-page .suggestions strong {
+  font-size: 13px;
+}
+.chat-page .suggestions button > span:not(.suggestion-icon) {
+  font-size: 11px;
+}
+.chat-page .message.user .message-body {
+  background: var(--user);
+  border: 0;
+  color: var(--ink);
+}
+.chat-page .composer-area {
+  background: var(--bg);
+}
 .chat-page .composer {
   background: var(--surface);
   border: 1px solid var(--line-strong);
   border-radius: 14px;
   box-shadow: none;
 }
-.chat-page .composer:focus-within { border-color: var(--accent-text); box-shadow: none; }
-.chat-page .response-settings summary { background: var(--hover); color: var(--ink); }
-.chat-page .send-button, .chat-page .primary,
-.login-page .primary, .login-page .primary-link {
+.chat-page .composer:focus-within {
+  border-color: var(--accent-text);
+  box-shadow: none;
+}
+.chat-page .response-settings summary {
+  background: var(--hover);
+  color: var(--ink);
+}
+.chat-page .send-button,
+.chat-page .primary,
+.login-page .primary,
+.login-page .primary-link {
   background: var(--accent);
   color: var(--on-accent);
   border-color: transparent;
   box-shadow: none;
 }
-.chat-page .send-button:hover, .chat-page .primary:hover,
-.login-page .primary:hover, .login-page .primary-link:hover {
+.chat-page .send-button:hover,
+.chat-page .primary:hover,
+.login-page .primary:hover,
+.login-page .primary-link:hover {
   background: var(--accent-hover);
   color: var(--on-accent);
 }
-.chat-page dialog { border-color: var(--line-strong); border-radius: 12px; }
-.chat-page dialog::backdrop, .login-page dialog::backdrop { background: #00000088; backdrop-filter: blur(3px); }
-.chat-page .side-panel { border-radius: 0; }
-.chat-page .memory-card, .chat-page .action-card, .chat-page .home-card {
+.chat-page dialog {
+  border-color: var(--line-strong);
+  border-radius: 12px;
+}
+.chat-page dialog::backdrop,
+.login-page dialog::backdrop {
+  background: #00000088;
+  backdrop-filter: blur(3px);
+}
+.chat-page .side-panel {
+  border-radius: 0;
+}
+.chat-page .memory-card,
+.chat-page .action-card,
+.chat-page .home-card {
   background: transparent;
   border-color: var(--line);
   border-radius: 8px;
   box-shadow: none;
 }
-.chat-page .memory-card { padding: 16px 0; border: 0; border-bottom: 1px solid var(--line); }
-.chat-page .home-notice { background: var(--hover); color: var(--ink) !important; }
-.chat-page :is(#status.error, #work-status.error, .task-error) { color: var(--danger) !important; }
+.chat-page .memory-card {
+  padding: 16px 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+}
+.chat-page .home-notice {
+  background: var(--hover);
+  color: var(--ink) !important;
+}
+.chat-page :is(#status.error, #work-status.error, .task-error) {
+  color: var(--danger) !important;
+}
 
 /* Work pages use headings and dividers, with a single surface per section. */
 .chat-page .work-hero {
@@ -166,27 +269,75 @@ body :is(p, li) { overflow-wrap: anywhere; }
   padding: 5px 0 28px;
   box-shadow: none;
 }
-.chat-page .work-hero .eyebrow, .chat-page .work-hero p:not(.eyebrow) { color: var(--muted); }
+.chat-page .work-hero .eyebrow,
+.chat-page .work-hero p:not(.eyebrow) {
+  color: var(--muted);
+}
 .chat-page .work-hero-actions button:not(.primary) {
   background: var(--surface);
   border-color: var(--line);
   color: var(--ink);
 }
-.chat-page .work-hero-actions button:not(.primary):hover { background: var(--hover); }
-.chat-page .work-card { background: var(--surface); border-radius: 12px; box-shadow: none; }
-.chat-page .work-item { background: transparent; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; padding: 16px 0; }
-.chat-page .work-card :is(input, select, textarea) { background: var(--bg); border-color: var(--line); }
-.chat-page .work-worker { border-radius: 6px; background: var(--hover); }
-.chat-page .work-worker.online { color: var(--ink); }
-.chat-page .task-badge { background: var(--hover); color: var(--muted); border-radius: 5px; }
-.chat-page .task-badge.running { color: var(--accent-text); }
-.chat-page .task-badge.succeeded { color: var(--success); }
-.chat-page .task-badge.failed, .chat-page .task-badge.cancelled { color: var(--danger); }
-.local-file-image { display: block; max-width: 100%; max-height: 380px; margin-top: 14px; border: 1px solid var(--line); border-radius: 8px; object-fit: contain; background: #fff; }
-.local-file-image[hidden] { display: none; }
+.chat-page .work-hero-actions button:not(.primary):hover {
+  background: var(--hover);
+}
+.chat-page .work-card {
+  background: var(--surface);
+  border-radius: 12px;
+  box-shadow: none;
+}
+.chat-page .work-item {
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  padding: 16px 0;
+}
+.chat-page .work-card :is(input, select, textarea) {
+  background: var(--bg);
+  border-color: var(--line);
+}
+.chat-page .work-worker {
+  border-radius: 6px;
+  background: var(--hover);
+}
+.chat-page .work-worker.online {
+  color: var(--ink);
+}
+.chat-page .task-badge {
+  background: var(--hover);
+  color: var(--muted);
+  border-radius: 5px;
+}
+.chat-page .task-badge.running {
+  color: var(--accent-text);
+}
+.chat-page .task-badge.succeeded {
+  color: var(--success);
+}
+.chat-page .task-badge.failed,
+.chat-page .task-badge.cancelled {
+  color: var(--danger);
+}
+.local-file-image {
+  display: block;
+  max-width: 100%;
+  max-height: 380px;
+  margin-top: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  object-fit: contain;
+  background: #fff;
+}
+.local-file-image[hidden] {
+  display: none;
+}
 
 /* Account pages follow the same surfaces and type as the signed-in workspace. */
-.login-page { min-height: 100dvh; padding: 24px; }
+.login-page {
+  min-height: 100dvh;
+  padding: 24px;
+}
 .login-page main {
   max-width: 570px;
   margin: clamp(18px, 7vh, 80px) auto;
@@ -197,49 +348,165 @@ body :is(p, li) { overflow-wrap: anywhere; }
   border-radius: 14px;
   box-shadow: none;
 }
-.login-page main::before { content: none; }
-.login-page header img { width: 36px; height: 36px; }
-.login-page :is(.badge, .eyebrow, .lede, details p, #permissions, footer, .separator) { color: var(--muted); }
-.login-page h1 { font-size: clamp(30px, 4vw, 38px); line-height: 1.2; }
-.login-page :is(button, input, select) { border-color: var(--line); border-radius: 8px; background: var(--bg); color: var(--ink); }
-.login-page input:focus, .login-page select:focus { border-color: var(--accent-text); outline: 2px solid var(--accent-text); outline-offset: 2px; }
-.login-page button:hover { background: var(--hover); filter: none; }
-.login-page a { color: var(--accent-text); }
-.login-page .primary-link { color: var(--on-accent); }
-.login-page :is(details, footer, .managed-account) { border-color: var(--line); }
-.login-page #status.error { color: var(--danger); }
+.login-page main::before {
+  content: none;
+}
+.login-page header img {
+  width: 36px;
+  height: 36px;
+}
+.login-page :is(.badge, .eyebrow, .lede, details p, #permissions, footer, .separator) {
+  color: var(--muted);
+}
+.login-page h1 {
+  font-size: clamp(30px, 4vw, 38px);
+  line-height: 1.2;
+}
+.login-page :is(button, input, select) {
+  border-color: var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--ink);
+}
+.login-page input:focus,
+.login-page select:focus {
+  border-color: var(--accent-text);
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+}
+.login-page button:hover {
+  background: var(--hover);
+  filter: none;
+}
+.login-page a {
+  color: var(--accent-text);
+}
+.login-page .primary-link {
+  color: var(--on-accent);
+}
+.login-page :is(details, footer, .managed-account) {
+  border-color: var(--line);
+}
+.login-page #status.error {
+  color: var(--danger);
+}
 
 /* Kept for the home dashboard when enabled by a deployment. */
-:root .dashboard-page :is(.site-header, .hero, .metric, .dashboard-section, .insight-card, .device-card, .device-card.light-on) {
+:root
+  .dashboard-page
+  :is(
+    .site-header,
+    .hero,
+    .metric,
+    .dashboard-section,
+    .insight-card,
+    .device-card,
+    .device-card.light-on
+  ) {
   background: var(--surface);
   color: var(--ink);
   border-color: var(--line);
   box-shadow: none;
 }
-:root .dashboard-page .hero { border-radius: 0; border: 0; border-bottom: 1px solid var(--line); background: transparent; }
-:root .dashboard-page .hero::after, :root .dashboard-page .metric::before { content: none; }
-:root .dashboard-page :is(.brand, .hero h1, .metric strong, .device-card h4, .mini-row strong) { color: var(--ink); }
-:root .dashboard-page :is(.clock, .hero p, .metric-label, .metric small, .device-meta, .provider, .device-note, .eyebrow) { color: var(--muted); }
-:root .dashboard-page :is(.outline-button, .subtle-button, .status-button, .room-filters button, .room-actions button, .power-toggle, .device-settings button, .device-icon, .insight-glyph) {
+:root .dashboard-page .hero {
+  border-radius: 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+}
+:root .dashboard-page .hero::after,
+:root .dashboard-page .metric::before {
+  content: none;
+}
+:root .dashboard-page :is(.brand, .hero h1, .metric strong, .device-card h4, .mini-row strong) {
+  color: var(--ink);
+}
+:root
+  .dashboard-page
+  :is(
+    .clock,
+    .hero p,
+    .metric-label,
+    .metric small,
+    .device-meta,
+    .provider,
+    .device-note,
+    .eyebrow
+  ) {
+  color: var(--muted);
+}
+:root
+  .dashboard-page
+  :is(
+    .outline-button,
+    .subtle-button,
+    .status-button,
+    .room-filters button,
+    .room-actions button,
+    .power-toggle,
+    .device-settings button,
+    .device-icon,
+    .insight-glyph
+  ) {
   background: var(--hover);
   color: var(--ink);
   border-color: var(--line);
   box-shadow: none;
 }
-:root .dashboard-page :is(.accent-button, .power-toggle.on) { background: var(--accent); color: var(--on-accent); border-color: var(--accent); box-shadow: none; }
-:root .dashboard-page :is(.primary-nav a[aria-current="page"], .room-filters button[aria-pressed="true"]) { background: var(--hover); color: var(--accent-text); box-shadow: none; }
-:root .dashboard-page :is(.device-card:hover, .accent-button:hover) { transform: none; box-shadow: none; }
-:root .dashboard-page :is(input, select, .power-history svg, .empty-state) { background: var(--bg); color: var(--ink); border-color: var(--line); }
-:root .dashboard-page .brand img { filter: none; }
-:root .dashboard-page .device-state::before { box-shadow: none; }
+:root .dashboard-page :is(.accent-button, .power-toggle.on) {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: var(--accent);
+  box-shadow: none;
+}
+:root
+  .dashboard-page
+  :is(.primary-nav a[aria-current='page'], .room-filters button[aria-pressed='true']) {
+  background: var(--hover);
+  color: var(--accent-text);
+  box-shadow: none;
+}
+:root .dashboard-page :is(.device-card:hover, .accent-button:hover) {
+  transform: none;
+  box-shadow: none;
+}
+:root .dashboard-page :is(input, select, .power-history svg, .empty-state) {
+  background: var(--bg);
+  color: var(--ink);
+  border-color: var(--line);
+}
+:root .dashboard-page .brand img {
+  filter: none;
+}
+:root .dashboard-page .device-state::before {
+  box-shadow: none;
+}
 
 @media (max-width: 760px) {
-  .chat-page .work-hero { padding: 0 0 23px; }
-  .chat-page .welcome-mark { width: 56px; height: 56px; }
-  .chat-page .welcome h1 { font-size: 32px; }
-  .login-page { padding: 12px; }
-  .login-page main { margin: 12px auto; padding: 25px; }
+  .chat-page .work-hero {
+    padding: 0 0 23px;
+  }
+  .chat-page .welcome-mark {
+    width: 56px;
+    height: 56px;
+  }
+  .chat-page .welcome h1 {
+    font-size: 32px;
+  }
+  .login-page {
+    padding: 12px;
+  }
+  .login-page main {
+    margin: 12px auto;
+    padding: 25px;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
-  body *, body *::before, body *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+  body *,
+  body *::before,
+  body *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
 }

@@ -64,7 +64,8 @@ class HomeClient:
             # No automatic retry, proxy inheritance, or redirects, especially for writes.
             with httpx.Client(  # noqa: SIM117
                 timeout=8 if path.endswith("/commands") else 60,
-                trust_env=False, follow_redirects=False,
+                trust_env=False,
+                follow_redirects=False,
             ) as client:
                 with client.stream(
                     "POST",

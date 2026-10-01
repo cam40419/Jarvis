@@ -58,8 +58,11 @@ class ArtifactStore:
 
     def _directory(self, artifact: Artifact) -> Path:
         path = self.root.joinpath(
-            str(artifact.workspace_id), str(artifact.actor_id), str(artifact.run_id),
-            str(artifact.task_id), str(artifact.id),
+            str(artifact.workspace_id),
+            str(artifact.actor_id),
+            str(artifact.run_id),
+            str(artifact.task_id),
+            str(artifact.id),
         )
         self._check_path(path)
         return path
@@ -137,13 +140,24 @@ class ArtifactStore:
         except (AttributeError, UnicodeError):
             raise ArtifactError("Artifact text must be valid UTF-8") from None
         return self.publish_bytes(
-            workspace_id=workspace_id, actor_id=actor_id, run_id=run_id, task_id=task_id,
-            content=content, name=name, media_type=media_type,
+            workspace_id=workspace_id,
+            actor_id=actor_id,
+            run_id=run_id,
+            task_id=task_id,
+            content=content,
+            name=name,
+            media_type=media_type,
         )
 
     def publish_workspace_files(
-        self, *, workspace: Path, paths: tuple[str, ...], workspace_id: UUID,
-        actor_id: UUID, run_id: UUID, task_id: UUID,
+        self,
+        *,
+        workspace: Path,
+        paths: tuple[str, ...],
+        workspace_id: UUID,
+        actor_id: UUID,
+        run_id: UUID,
+        task_id: UUID,
     ) -> tuple[Artifact, ...]:
         """Collect explicit deliverables after the owned container has been stopped.
 
@@ -159,19 +173,21 @@ class ArtifactStore:
             raise ArtifactError("Deliverables must contain up to sixteen distinct files")
         workspace = workspace.absolute()
         reject_links(workspace)
+        # All inputs share one bounded, no-follow reader rooted at the leased workspace.
+        source = ArtifactStore(workspace, max_bytes=self.max_bytes)
         contents: dict[str, bytes] = {}
+        names: set[str] = set()
         total = 0
         for relative in paths:
             components = parts(relative)
             if not components:
                 raise ArtifactError("Deliverables must name a file")
             name = "/".join(components)
-            if name.casefold() in {value.casefold() for value in contents}:
+            if name.casefold() in names:
                 raise ArtifactError("Deliverable paths collide")
+            names.add(name.casefold())
             path = workspace.joinpath(*components)
             reject_links(path)
-            # Reuse the bounded, no-follow reader with this workspace as its root.
-            source = ArtifactStore(workspace, max_bytes=self.max_bytes)
             data = source._read_file(path, self.max_bytes - total)
             total += len(data)
             if total > self.max_bytes:
@@ -182,27 +198,57 @@ class ArtifactStore:
             filename = name.rsplit("/", 1)[-1]
             media_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
         else:
-            if "simon-deliverables.json" in {name.casefold() for name in contents}:
+            if "simon-deliverables.json" in names:
                 raise ArtifactError("Deliverable name is reserved for the bundle manifest")
+            # Stable order and ZIP timestamps make identical collections idempotent.
+            # The artifact metadata records publication time separately.
+            contents = dict(sorted(contents.items()))
             buffer = io.BytesIO()
             with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_STORED) as archive:
                 for name, content in contents.items():
-                    archive.writestr(name, content)
-                archive.writestr("simon-deliverables.json", json.dumps({
-                    "version": 1, "run_id": str(run_id), "task_id": str(task_id),
-                    "files": [{"path": name, "size": len(content),
-                               "sha256": hashlib.sha256(content).hexdigest()}
-                              for name, content in contents.items()],
-                }, indent=2))
+                    archive.writestr(zipfile.ZipInfo(name), content)
+                archive.writestr(
+                    zipfile.ZipInfo("simon-deliverables.json"),
+                    json.dumps(
+                        {
+                            "version": 1,
+                            "run_id": str(run_id),
+                            "task_id": str(task_id),
+                            "files": [
+                                {
+                                    "path": name,
+                                    "size": len(content),
+                                    "sha256": hashlib.sha256(content).hexdigest(),
+                                }
+                                for name, content in contents.items()
+                            ],
+                        },
+                        indent=2,
+                    ),
+                )
             data, filename, media_type = buffer.getvalue(), "deliverables.zip", "application/zip"
-        return (self.publish_bytes(
-            workspace_id=workspace_id, actor_id=actor_id, run_id=run_id, task_id=task_id,
-            content=data, name=filename, media_type=media_type,
-        ),)
+        return (
+            self.publish_bytes(
+                workspace_id=workspace_id,
+                actor_id=actor_id,
+                run_id=run_id,
+                task_id=task_id,
+                content=data,
+                name=filename,
+                media_type=media_type,
+            ),
+        )
 
     def publish_bytes(
-        self, *, workspace_id: UUID, actor_id: UUID, run_id: UUID, task_id: UUID,
-        content: bytes, name: str, media_type: str = "application/octet-stream",
+        self,
+        *,
+        workspace_id: UUID,
+        actor_id: UUID,
+        run_id: UUID,
+        task_id: UUID,
+        content: bytes,
+        name: str,
+        media_type: str = "application/octet-stream",
     ) -> Artifact:
         if not isinstance(content, bytes):
             raise ArtifactError("Artifact content must be bytes")
@@ -211,9 +257,16 @@ class ArtifactStore:
         digest = hashlib.sha256(content).hexdigest()
         try:
             artifact = Artifact(
-                id=self._identity(task_id, digest, name, media_type), workspace_id=workspace_id,
-                actor_id=actor_id, run_id=run_id, task_id=task_id, name=name,
-                media_type=media_type, size=len(content), sha256=digest, created_at=utc_now(),
+                id=self._identity(task_id, digest, name, media_type),
+                workspace_id=workspace_id,
+                actor_id=actor_id,
+                run_id=run_id,
+                task_id=task_id,
+                name=name,
+                media_type=media_type,
+                size=len(content),
+                sha256=digest,
+                created_at=utc_now(),
             )
         except (ValidationError, TypeError, AttributeError):
             raise ArtifactError("Artifact metadata is invalid") from None

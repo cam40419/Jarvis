@@ -39,12 +39,12 @@ The example UUIDs are development identifiers; use the actual authenticated work
 
 Use the normal login session. POST requests require the existing Origin/CSRF checks.
 
-| Endpoint | Behavior |
-| --- | --- |
-| `GET /v1/agent-platform/catalog` | Visible teams/profiles, model and environment summaries, available HTTP tool configurations and disabled capability templates |
-| `POST /v1/agent-platform/plans` | Validate and persist the request and resolved plan; returns 201 |
-| `GET /v1/agent-platform/plans` | List the current actor's visible plans |
-| `GET /v1/agent-platform/plans/{id}` | Retrieve one plan with current ownership/context checks |
+| Endpoint                            | Behavior                                                                                                                      |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `GET /v1/agent-platform/catalog`    | Visible teams/profiles, model and environment summaries, available HTTP tool configurations and disabled capability templates |
+| `POST /v1/agent-platform/plans`     | Validate and persist the request and resolved plan; returns 201                                                               |
+| `GET /v1/agent-platform/plans`      | List the current actor's visible plans                                                                                        |
+| `GET /v1/agent-platform/plans/{id}` | Retrieve one plan with current ownership/context checks                                                                       |
 
 The request format is demonstrated in `examples/agents/research-request.example.json`. Tasks have IDs, assigned profiles, objectives, dependency IDs, optional tool/environment subsets, depth/importance, privacy, a model override and estimated token/budget requirements. Dependency cycles and missing references are rejected. Effective parallelism is the minimum of task-request, team and platform caps. Preview waves respect dependency order and each environment's configured capacity.
 
@@ -56,11 +56,11 @@ The saved plan captures the selected configuration and model explanation. Dispat
 
 Depth and importance each range from 1 to 5. The higher value sets the minimum declared quality tier:
 
-| Demand | Minimum tier | Default selection |
-| --- | --- | --- |
-| 1–2 | economy | Prefer a suitable local economy model |
-| 3 | standard | Use a suitable standard model, local when configured |
-| 4–5 | frontier | Require a configured frontier endpoint; do not silently downgrade |
+| Demand | Minimum tier | Default selection                                                 |
+| ------ | ------------ | ----------------------------------------------------------------- |
+| 1–2    | economy      | Prefer a suitable local economy model                             |
+| 3      | standard     | Use a suitable standard model, local when configured              |
+| 4–5    | frontier     | Require a configured frontier endpoint; do not silently downgrade |
 
 Manual endpoint overrides retain capability, privacy, context, credential, budget and quality checks. `local_only` cannot fall back to a cloud endpoint. Routing does not identify difficulty from the prompt or benchmark a model: it uses task metadata and profile defaults. Model tiers and capabilities are administrator declarations to validate against real workloads. Arbitrary model IDs let the inventory adopt newer models without source changes.
 
@@ -83,6 +83,12 @@ The catalog's string-based capability/category/transport names are extensible. T
 
 Docker allocation and command execution are implemented. The machine client protocol is implemented, but the remote runner daemon, VM/cloud provisioning and application installation are not included. A Windows/macOS/Linux machine must already run a service implementing the documented lease and enforcement contract. See [agent environments](agent-environments.md) for exact examples and prerequisites.
 
-## Next integration boundary
+## Current implementation and next work
 
-The dispatcher, worker loops and text/JSON artifact delivery are implemented; [execution setup](agent-execution.md) describes their current operational limits. Next are chat/Work team controls, richer source-file artifacts and review, native media/CAD/PCB/desktop integrations, provider-native multimodal/tool loops, remote runner provisioning, and organization-wide resource/cost policy. Existing chat and assistant tasks continue through their current runtime until connected to this platform.
+The [Work platform](work-platform.md) documents implemented team controls, source-file
+publication, and concrete media/CAD/PCB adapters. Existing chat and assistant tasks
+continue through their own runtime. Use the [current roadmap](../next-phases.md) for
+priority: verified artifact handoff and review, recoverable execution, a unified project
+experience, shared spending controls, and event-driven ongoing work. Provider-native
+multimodal loops, remote runner provisioning, and broader desktop integrations remain
+separate extensions.

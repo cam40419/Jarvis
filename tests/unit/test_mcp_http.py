@@ -12,22 +12,33 @@ from simon.domain.tool_catalog import ToolExecutionError as ExecutionError
 
 
 def definition(*, write=False, **changes):
-    values = dict(
-        id="storage.search", description="Search a configured storage account", transport="mcp",
-        endpoint="https://mcp.example.test/mcp", configured=True,
-        required_scopes=frozenset({"jobs:write" if write else "jobs:read"}),
-        credential_env="MCP_KEY", side_effect=write, action_policy="write" if write else "read",
-        settings={"tool_name": "search_files", "protocol_version": PROTOCOL_VERSION},
-        input_schema={"type": "object", "properties": {"query": {"type": "string"}},
-                      "additionalProperties": False},
-    )
+    values = {
+        "id": "storage.search",
+        "description": "Search a configured storage account",
+        "transport": "mcp",
+        "endpoint": "https://mcp.example.test/mcp",
+        "configured": True,
+        "required_scopes": frozenset({"jobs:write" if write else "jobs:read"}),
+        "credential_env": "MCP_KEY",
+        "side_effect": write,
+        "action_policy": "write" if write else "read",
+        "settings": {"tool_name": "search_files", "protocol_version": PROTOCOL_VERSION},
+        "input_schema": {
+            "type": "object",
+            "properties": {"query": {"type": "string"}},
+            "additionalProperties": False,
+        },
+    }
     values.update(changes)
     return ToolDefinition(**values)
 
 
 def context(*, write=False):
     return ToolExecutionContext(
-        actor_id=uuid4(), household_id=uuid4(), run_id=uuid4(), agent_id="worker",
+        actor_id=uuid4(),
+        household_id=uuid4(),
+        run_id=uuid4(),
+        agent_id="worker",
         scopes=frozenset({"jobs:read", "jobs:write"}),
         allowed_tool_ids=frozenset({"storage.search"}),
         authorized_action="write" if write else "read",
@@ -49,8 +60,11 @@ def server(operate=None, *, initialize=None, notify=None, cleanup=None, session=
         body = json.loads(request.content)
         if body["method"] == "initialize":
             assert "MCP-Session-Id" not in request.headers
-            result = {"protocolVersion": PROTOCOL_VERSION, "capabilities": {"tools": {}},
-                      "instructions": "Untrusted server instructions"}
+            result = {
+                "protocolVersion": PROTOCOL_VERSION,
+                "capabilities": {"tools": {}},
+                "instructions": "Untrusted server instructions",
+            }
             response = initialize(body) if initialize else json_response(body, result)
             if session is not None:
                 response.headers["MCP-Session-Id"] = session
@@ -61,9 +75,17 @@ def server(operate=None, *, initialize=None, notify=None, cleanup=None, session=
         if body["method"] == "notifications/initialized":
             return notify(body) if notify else httpx.Response(202)
         assert body["method"] == "tools/call"
-        return operate(request, body) if operate else json_response(body, {
-            "content": [{"type": "text", "text": "A file"}], "isError": False,
-        })
+        return (
+            operate(request, body)
+            if operate
+            else json_response(
+                body,
+                {
+                    "content": [{"type": "text", "text": "A file"}],
+                    "isError": False,
+                },
+            )
+        )
 
     return requests, httpx.MockTransport(respond)
 
@@ -112,18 +134,39 @@ class Chunked(httpx.SyncByteStream):
 @pytest.mark.parametrize("newline", ["\n", "\r\n", "\r"])
 def test_sse_multiline_utf8_split_chunks_notifications_and_early_result(newline):
     def operate(request, body):
-        note = json.dumps({"jsonrpc": "2.0", "method": "notifications/progress",
-                           "params": {"progress": 1}})
-        result = json.dumps({"jsonrpc": "2.0", "id": body["id"], "result": {
-            "content": [{"type": "text", "text": "Résumé"}], "structuredContent": {"count": 1},
-        }}, ensure_ascii=False, indent=2)
+        note = json.dumps(
+            {"jsonrpc": "2.0", "method": "notifications/progress", "params": {"progress": 1}}
+        )
+        result = json.dumps(
+            {
+                "jsonrpc": "2.0",
+                "id": body["id"],
+                "result": {
+                    "content": [{"type": "text", "text": "Résumé"}],
+                    "structuredContent": {"count": 1},
+                },
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
         content = (
-            "id: first" + newline + "data:" + newline * 2
-            + ": heartbeat" + newline + "data: " + note + newline * 2
-            + newline.join("data: " + line for line in result.splitlines()) + newline * 2
+            "id: first"
+            + newline
+            + "data:"
+            + newline * 2
+            + ": heartbeat"
+            + newline
+            + "data: "
+            + note
+            + newline * 2
+            + newline.join("data: " + line for line in result.splitlines())
+            + newline * 2
         ).encode()
-        return httpx.Response(200, headers={"Content-Type": "text/event-stream; charset=utf-8"},
-                              stream=Chunked([bytes([byte]) for byte in content]))
+        return httpx.Response(
+            200,
+            headers={"Content-Type": "text/event-stream; charset=utf-8"},
+            stream=Chunked([bytes([byte]) for byte in content]),
+        )
 
     _, backend = server(operate)
     result = client(backend)(definition(), {}, context())
@@ -133,9 +176,12 @@ def test_sse_multiline_utf8_split_chunks_notifications_and_early_result(newline)
 
 @pytest.mark.parametrize("status,unknown", [(401, False), (404, False), (500, True), (302, True)])
 def test_http_failures_never_retry_writes_and_cleanup(status, unknown):
-    seen, backend = server(lambda request, body: httpx.Response(
-        status, headers={"Location": "https://other.example.test/steal"},
-    ))
+    seen, backend = server(
+        lambda request, body: httpx.Response(
+            status,
+            headers={"Location": "https://other.example.test/steal"},
+        )
+    )
     with pytest.raises(ExecutionError) as raised:
         client(backend)(definition(write=True), {}, context(write=True))
     assert raised.value.unknown is unknown
@@ -145,10 +191,16 @@ def test_http_failures_never_retry_writes_and_cleanup(status, unknown):
 
 @pytest.mark.parametrize("code,unknown", [(-32601, False), (-32602, False), (-32603, True)])
 def test_rpc_errors_redact_server_data_and_classify_unknown(code, unknown):
-    seen, backend = server(lambda request, body: httpx.Response(200, json={
-        "jsonrpc": "2.0", "id": body["id"],
-        "error": {"code": code, "message": "secret credentials", "data": "secret"},
-    }))
+    seen, backend = server(
+        lambda request, body: httpx.Response(
+            200,
+            json={
+                "jsonrpc": "2.0",
+                "id": body["id"],
+                "error": {"code": code, "message": "secret credentials", "data": "secret"},
+            },
+        )
+    )
     with pytest.raises(ExecutionError) as raised:
         client(backend)(definition(write=True), {}, context(write=True))
     assert raised.value.unknown is unknown and "secret" not in str(raised.value)
@@ -167,10 +219,13 @@ def test_network_loss_after_call_is_unknown_only_for_side_effects(write):
     assert len(seen) == 4
 
 
-@pytest.mark.parametrize("result", [
-    {"protocolVersion": "2026-07-28", "capabilities": {"tools": {}}},
-    {"protocolVersion": PROTOCOL_VERSION, "capabilities": {}},
-])
+@pytest.mark.parametrize(
+    "result",
+    [
+        {"protocolVersion": "2026-07-28", "capabilities": {"tools": {}}},
+        {"protocolVersion": PROTOCOL_VERSION, "capabilities": {}},
+    ],
+)
 def test_bad_handshake_never_dispatches_tool(result):
     seen, backend = server(initialize=lambda body: json_response(body, result))
     with pytest.raises(ExecutionError) as raised:
@@ -198,12 +253,15 @@ def test_cancel_after_handshake_prevents_call_and_closes_session():
     assert len(seen) == 3 and seen[-1].method == "DELETE"
 
 
-@pytest.mark.parametrize("payload", [
-    lambda identifier: {"jsonrpc": "2.0", "id": "wrong", "result": {"content": []}},
-    lambda identifier: {"jsonrpc": "2.0", "id": identifier, "result": []},
-    lambda identifier: {"jsonrpc": "2.0", "id": identifier, "result": {}},
-    lambda identifier: {"jsonrpc": "2.0", "id": 17, "method": "sampling/createMessage"},
-])
+@pytest.mark.parametrize(
+    "payload",
+    [
+        lambda identifier: {"jsonrpc": "2.0", "id": "wrong", "result": {"content": []}},
+        lambda identifier: {"jsonrpc": "2.0", "id": identifier, "result": []},
+        lambda identifier: {"jsonrpc": "2.0", "id": identifier, "result": {}},
+        lambda identifier: {"jsonrpc": "2.0", "id": 17, "method": "sampling/createMessage"},
+    ],
+)
 def test_bad_responses_and_server_requests_cannot_dispatch_other_actions(payload):
     seen, backend = server(lambda request, body: httpx.Response(200, json=payload(body["id"])))
     with pytest.raises(ExecutionError) as raised:
@@ -235,11 +293,16 @@ def test_cleanup_failure_does_not_erase_success():
     assert client(backend)(definition(write=True), {}, context(write=True))["isError"] is False
 
 
-@pytest.mark.parametrize("changes", [
-    {"endpoint": None}, {"settings": {}}, {"settings": {"tool_name": "bad\nname"}},
-    {"settings": {"tool_name": "search", "protocol_version": "unsupported"}},
-    {"credential_env": "UNSET_KEY"},
-])
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"endpoint": None},
+        {"settings": {}},
+        {"settings": {"tool_name": "bad\nname"}},
+        {"settings": {"tool_name": "search", "protocol_version": "unsupported"}},
+        {"credential_env": "UNSET_KEY"},
+    ],
+)
 def test_invalid_configuration_rejected_before_network(changes):
     seen, backend = server()
     with pytest.raises(ToolCatalogError):

@@ -86,7 +86,6 @@ class Settings(BaseSettings):
     def empty_manifest(cls, value: object) -> object:
         return None if value == "" else value
 
-
     @model_validator(mode="after")
     def validate_google(self) -> "Settings":
         if self.google_token_key:

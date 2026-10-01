@@ -26,4 +26,3 @@ def test_audit_events_form_a_hash_chain() -> None:
     assert first.previous_hash == "0" * 64
     assert second.previous_hash == first.event_hash
     assert second.sequence == 2
-

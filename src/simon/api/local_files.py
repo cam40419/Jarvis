@@ -43,7 +43,10 @@ def local_file_router(
     router = APIRouter(prefix="/v1/local-files", tags=["local files"])
 
     def read_authorized(
-        actor: ActorContext, request: Request, root: str, path: str,
+        actor: ActorContext,
+        request: Request,
+        root: str,
+        path: str,
     ) -> tuple[Path, bytes]:
         values = LocalPath(root=root, path=path)
         target = service.path(actor, values.root, values.path)
@@ -109,15 +112,21 @@ def local_file_router(
         path: Annotated[str, Query(max_length=1000)],
     ) -> Response:
         target, raw = read_authorized(actor, request, root, path)
-        return Response(raw, media_type=preview_media_type(raw), headers={
-            "Content-Disposition": "inline; filename*=UTF-8''" + quote(target.name, safe=""),
-            "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
-            "Content-Security-Policy": (
-                "sandbox; default-src 'none'; base-uri 'none'; form-action 'none'; "
-                "frame-ancestors 'none'"
-            ),
-            "Referrer-Policy": "no-referrer", "Cross-Origin-Resource-Policy": "same-origin",
-        })
+        return Response(
+            raw,
+            media_type=preview_media_type(raw),
+            headers={
+                "Content-Disposition": "inline; filename*=UTF-8''" + quote(target.name, safe=""),
+                "Cache-Control": "no-store",
+                "X-Content-Type-Options": "nosniff",
+                "Content-Security-Policy": (
+                    "sandbox; default-src 'none'; base-uri 'none'; form-action 'none'; "
+                    "frame-ancestors 'none'"
+                ),
+                "Referrer-Policy": "no-referrer",
+                "Cross-Origin-Resource-Policy": "same-origin",
+            },
+        )
 
     @router.post("/action")
     def action(

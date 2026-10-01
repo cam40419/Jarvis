@@ -11,11 +11,11 @@
   "required_scopes": ["jobs:read"],
   "input_schema": {
     "type": "object",
-    "properties": {"query": {"type": "string", "maxLength": 500}},
+    "properties": { "query": { "type": "string", "maxLength": 500 } },
     "required": ["query"],
     "additionalProperties": false
   },
-  "output_schema": {"type": "object"},
+  "output_schema": { "type": "object" },
   "side_effect": false,
   "action_policy": "read",
   "settings": {

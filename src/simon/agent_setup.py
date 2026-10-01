@@ -130,15 +130,20 @@ def starter_manifest(settings: Settings) -> PlatformManifest:
     )
     profiles = (
         AgentProfile(
-            id="business-operator", name="Bookings and operations", instructions=(
+            id="business-operator",
+            name="Bookings and operations",
+            instructions=(
                 "Prepare requested purchases, bookings, reservations and outbound phone messages. "
                 "Inspect configured providers first and obtain a current quote when supported. "
                 "Never invent a quote or availability. Save exact proposed details for user "
                 "review and return the action ID. Proposing is not placing an order or calling. "
                 "Check the saved provider receipt before reporting success. Phone tools send "
                 "a prerecorded message; they do not negotiate or conduct a live conversation."
-            ), tool_ids=tuple(tool.id for tool in external_tools), max_action="write",
-            tool_scopes=frozenset({"jobs:read", "jobs:write"}), max_steps=12,
+            ),
+            tool_ids=tuple(tool.id for tool in external_tools),
+            max_action="write",
+            tool_scopes=frozenset({"jobs:read", "jobs:write"}),
+            max_steps=12,
         ),
         AgentProfile(
             id="project-lead",

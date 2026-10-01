@@ -6,11 +6,11 @@ server or add an interactive OAuth connection to the browser interface.
 
 ## Implemented operations
 
-| Provider | Tool IDs | Write support |
-| --- | --- | --- |
-| Dropbox | `dropbox.list`, `dropbox.search`, `dropbox.metadata`, `dropbox.read`, `dropbox.upload` | Create or update a file up to 256 KiB with revision conflict protection |
-| Box | `box.list`, `box.metadata`, `box.read` | Read only |
-| OneDrive / SharePoint document libraries | `onedrive.list`, `onedrive.metadata`, `onedrive.read` | Read only |
+| Provider                                 | Tool IDs                                                                               | Write support                                                           |
+| ---------------------------------------- | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Dropbox                                  | `dropbox.list`, `dropbox.search`, `dropbox.metadata`, `dropbox.read`, `dropbox.upload` | Create or update a file up to 256 KiB with revision conflict protection |
+| Box                                      | `box.list`, `box.metadata`, `box.read`                                                 | Read only                                                               |
+| OneDrive / SharePoint document libraries | `onedrive.list`, `onedrive.metadata`, `onedrive.read`                                  | Read only                                                               |
 
 Dropbox search searches filenames inside the configured root or a requested subfolder.
 Box and Microsoft support folder enumeration and direct reads; they do not expose global
@@ -96,7 +96,12 @@ renamed copy. To update, first read the file's `rev` and supply that exact value
 and [commit conflict options](https://dropbox-sdk-python.readthedocs.io/en/latest/api/files.html#dropbox.files.CommitInfo).
 
 ```json
-{"path":"reports/summary.md","content":"New report","expected_revision":"","encoding":"text"}
+{
+  "path": "reports/summary.md",
+  "content": "New report",
+  "expected_revision": "",
+  "encoding": "text"
+}
 ```
 
 Box task arguments use item IDs. Before returning metadata or downloading a file, the adapter

@@ -30,8 +30,12 @@ def _validate_tunnel_credentials(configuration: dict[str, Any]) -> None:
         if len(content) > 16384:
             raise ValueError
         data = json.loads(content)
-        if (not isinstance(data, dict) or data.get("TunnelID") != configuration["tunnel"]
-                or not isinstance(data.get("TunnelSecret"), str) or not data["TunnelSecret"]):
+        if (
+            not isinstance(data, dict)
+            or data.get("TunnelID") != configuration["tunnel"]
+            or not isinstance(data.get("TunnelSecret"), str)
+            or not data["TunnelSecret"]
+        ):
             raise ValueError
     except (OSError, ValueError, TypeError):
         raise ValueError(
@@ -40,18 +44,30 @@ def _validate_tunnel_credentials(configuration: dict[str, Any]) -> None:
 
 
 def https_plan(
-    origin: str, *, provider: Literal["cloudflare", "tailscale"], public_path: str = "",
-    tunnel_id: str | None = None, credentials_file: Path | None = None,
+    origin: str,
+    *,
+    provider: Literal["cloudflare", "tailscale"],
+    public_path: str = "",
+    tunnel_id: str | None = None,
+    credentials_file: Path | None = None,
 ) -> dict[str, Any]:
     parsed = urlsplit(origin)
     hostname = parsed.hostname or ""
     if (
-        parsed.scheme != "https" or parsed.netloc != hostname or parsed.path
-        or parsed.query or parsed.fragment or parsed.username or parsed.password
-        or len(hostname) > 253 or "." not in hostname
+        parsed.scheme != "https"
+        or parsed.netloc != hostname
+        or parsed.path
+        or parsed.query
+        or parsed.fragment
+        or parsed.username
+        or parsed.password
+        or len(hostname) > 253
+        or "." not in hostname
         or re.fullmatch(r"[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?", hostname) is None
-        or any(not label or len(label) > 63 or label.startswith("-") or label.endswith("-")
-               for label in hostname.split("."))
+        or any(
+            not label or len(label) > 63 or label.startswith("-") or label.endswith("-")
+            for label in hostname.split(".")
+        )
         or hostname.endswith((".localhost", ".local"))
         or re.fullmatch(r"[0-9.]+", hostname)
     ):
@@ -61,12 +77,17 @@ def https_plan(
     if provider not in {"cloudflare", "tailscale"}:
         raise ValueError("Unsupported HTTPS provider")
     settings = {
-        "SIMON_ENVIRONMENT": "production", "SIMON_PUBLIC_ORIGIN": origin,
-        "SIMON_PUBLIC_PATH": public_path, "SIMON_RP_ID": hostname,
-        "SIMON_STORAGE_BACKEND": "postgres", "SIMON_DEV_LOGIN_ENABLED": "false",
+        "SIMON_ENVIRONMENT": "production",
+        "SIMON_PUBLIC_ORIGIN": origin,
+        "SIMON_PUBLIC_PATH": public_path,
+        "SIMON_RP_ID": hostname,
+        "SIMON_STORAGE_BACKEND": "postgres",
+        "SIMON_DEV_LOGIN_ENABLED": "false",
     }
     plan: dict[str, Any] = {
-        "version": 1, "provider": provider, "environment_updates": settings,
+        "version": 1,
+        "provider": provider,
+        "environment_updates": settings,
         "login_url": origin + public_path + "/login",
         "google_callback_url": origin + public_path + "/auth/google/callback",
         "local_health_url": "http://127.0.0.1:8000" + public_path + "/health/live",
@@ -75,21 +96,23 @@ def https_plan(
     if provider == "tailscale":
         if not hostname.endswith(".ts.net") or tunnel_id or credentials_file:
             raise ValueError("Use the authenticated device's exact Tailscale HTTPS hostname")
-        plan["serve_argv"] = ["tailscale", "serve", "--bg", "--https=443",
-                              "http://127.0.0.1:8000"]
+        plan["serve_argv"] = ["tailscale", "serve", "--bg", "--https=443", "http://127.0.0.1:8000"]
     else:
         if tunnel_id is None or credentials_file is None:
             raise ValueError("Cloudflare requires an existing tunnel ID and credentials file")
         tunnel = str(UUID(tunnel_id))
         ingress: dict[str, Any] = {
-            "hostname": hostname, "service": "http://127.0.0.1:8000",
+            "hostname": hostname,
+            "service": "http://127.0.0.1:8000",
             "originRequest": {"httpHostHeader": hostname},
         }
         if public_path:
             ingress["path"] = "^" + re.escape(public_path) + "(?:/.*)?$"
         plan["cloudflared_config"] = {
-            "tunnel": tunnel, "credentials-file": str(credentials_file.absolute()),
-            "edge-ip-version": "4", "metrics": "127.0.0.1:20242",
+            "tunnel": tunnel,
+            "credentials-file": str(credentials_file.absolute()),
+            "edge-ip-version": "4",
+            "metrics": "127.0.0.1:20242",
             "ingress": [ingress, {"service": "http_status:404"}],
         }
     return plan
@@ -114,7 +137,8 @@ def apply_https_plan(root: Path, plan: dict[str, Any]) -> Path:
     configuration = plan.get("cloudflared_config")
     # Rebuild the plan rather than trusting serialized executable/configuration fields.
     checked = https_plan(
-        updates["SIMON_PUBLIC_ORIGIN"], provider=plan["provider"],
+        updates["SIMON_PUBLIC_ORIGIN"],
+        provider=plan["provider"],
         public_path=updates["SIMON_PUBLIC_PATH"],
         tunnel_id=configuration["tunnel"] if configuration else None,
         credentials_file=Path(configuration["credentials-file"]) if configuration else None,
@@ -126,9 +150,14 @@ def apply_https_plan(root: Path, plan: dict[str, Any]) -> Path:
     # Validate all existing configuration, retaining SecretStr values internally.
     current = Settings(_env_file=env)  # type: ignore[call-arg]
     values = current.model_dump(mode="python")
-    values.update(environment="production", public_origin=updates["SIMON_PUBLIC_ORIGIN"],
-                  public_path=updates["SIMON_PUBLIC_PATH"], rp_id=updates["SIMON_RP_ID"],
-                  storage_backend="postgres", dev_login_enabled=False)
+    values.update(
+        environment="production",
+        public_origin=updates["SIMON_PUBLIC_ORIGIN"],
+        public_path=updates["SIMON_PUBLIC_PATH"],
+        rp_id=updates["SIMON_RP_ID"],
+        storage_backend="postgres",
+        dev_login_enabled=False,
+    )
     Settings(**values)
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid4().hex[:8]
     backup = local / "https-backups" / stamp
@@ -181,7 +210,8 @@ def validate_applied_https(root: Path) -> dict[str, Any]:
     updates = plan["environment_updates"]
     configuration = plan.get("cloudflared_config")
     checked = https_plan(
-        updates["SIMON_PUBLIC_ORIGIN"], provider=plan["provider"],
+        updates["SIMON_PUBLIC_ORIGIN"],
+        provider=plan["provider"],
         public_path=updates["SIMON_PUBLIC_PATH"],
         tunnel_id=configuration["tunnel"] if configuration else None,
         credentials_file=Path(configuration["credentials-file"]) if configuration else None,
@@ -223,8 +253,13 @@ def main() -> None:
             return
         if not args.provider or not args.origin:
             raise ValueError("Provider and origin are required when generating a plan")
-        plan = https_plan(args.origin, provider=args.provider, public_path=args.public_path,
-                          tunnel_id=args.tunnel_id, credentials_file=args.credentials_file)
+        plan = https_plan(
+            args.origin,
+            provider=args.provider,
+            public_path=args.public_path,
+            tunnel_id=args.tunnel_id,
+            credentials_file=args.credentials_file,
+        )
         if args.apply:
             backup = apply_https_plan(args.root, plan)
             print(f"HTTPS configuration saved. Private rollback files: {backup}")
@@ -234,7 +269,8 @@ def main() -> None:
     except Exception:
         # Configuration/credential parsing errors can contain secrets; never echo them.
         parser.exit(
-            2, "HTTPS setup failed. Check origin, tunnel, settings and maintenance state.\n",
+            2,
+            "HTTPS setup failed. Check origin, tunnel, settings and maintenance state.\n",
         )
 
 

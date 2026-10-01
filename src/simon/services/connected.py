@@ -1,3 +1,5 @@
+"""Account-bound connected tools, provider credentials, and durable action receipts."""
+
 import base64
 import hashlib
 import json

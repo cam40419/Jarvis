@@ -2,13 +2,8 @@
   "tools": [
     {
       "action_policy": "read",
-      "capabilities": [
-        "local_files_roots",
-        "file.read"
-      ],
-      "categories": [
-        "files"
-      ],
+      "capabilities": ["local_files_roots", "file.read"],
+      "categories": ["files"],
       "configured": false,
       "credential_env": null,
       "description": "List this account's accessible folders on Simon's server. Resolve roots first. Agent access is limited to workspace and authorized project roots.",
@@ -24,9 +19,7 @@
       "output_schema": {
         "type": "object"
       },
-      "required_scopes": [
-        "jobs:read"
-      ],
+      "required_scopes": ["jobs:read"],
       "settings": {
         "network": false
       },
@@ -35,13 +28,8 @@
     },
     {
       "action_policy": "read",
-      "capabilities": [
-        "local_files_list",
-        "file.read"
-      ],
-      "categories": [
-        "files"
-      ],
+      "capabilities": ["local_files_list", "file.read"],
+      "categories": ["files"],
       "configured": false,
       "credential_env": null,
       "description": "List files in a local folder, 100 at a time; use next_offset for more. Agent access is limited to workspace and authorized project roots.",
@@ -73,18 +61,14 @@
             "type": "string"
           }
         },
-        "required": [
-          "root"
-        ],
+        "required": ["root"],
         "title": "LocalList",
         "type": "object"
       },
       "output_schema": {
         "type": "object"
       },
-      "required_scopes": [
-        "jobs:read"
-      ],
+      "required_scopes": ["jobs:read"],
       "settings": {
         "network": false
       },
@@ -93,13 +77,8 @@
     },
     {
       "action_policy": "read",
-      "capabilities": [
-        "local_files_search",
-        "file.read"
-      ],
-      "categories": [
-        "files"
-      ],
+      "capabilities": ["local_files_search", "file.read"],
+      "categories": ["files"],
       "configured": false,
       "credential_env": null,
       "description": "Find files/folders by name recursively under a local root/path; bounded search. Agent access is limited to workspace and authorized project roots.",
@@ -130,19 +109,14 @@
             "type": "string"
           }
         },
-        "required": [
-          "root",
-          "query"
-        ],
+        "required": ["root", "query"],
         "title": "LocalSearch",
         "type": "object"
       },
       "output_schema": {
         "type": "object"
       },
-      "required_scopes": [
-        "jobs:read"
-      ],
+      "required_scopes": ["jobs:read"],
       "settings": {
         "network": false
       },
@@ -151,13 +125,8 @@
     },
     {
       "action_policy": "read",
-      "capabilities": [
-        "file.read",
-        "local_file_read"
-      ],
-      "categories": [
-        "files"
-      ],
+      "capabilities": ["file.read", "local_file_read"],
+      "categories": ["files"],
       "configured": false,
       "credential_env": null,
       "description": "Read a page of UTF-8 text/code from a local file, with revision for editing. Agent access is limited to workspace and authorized project roots.",
@@ -196,18 +165,14 @@
             "type": "string"
           }
         },
-        "required": [
-          "root"
-        ],
+        "required": ["root"],
         "title": "LocalRead",
         "type": "object"
       },
       "output_schema": {
         "type": "object"
       },
-      "required_scopes": [
-        "jobs:read"
-      ],
+      "required_scopes": ["jobs:read"],
       "settings": {
         "network": false
       },
@@ -216,13 +181,8 @@
     },
     {
       "action_policy": "write",
-      "capabilities": [
-        "local_file_write",
-        "file.write"
-      ],
-      "categories": [
-        "files"
-      ],
+      "capabilities": ["local_file_write", "file.write"],
+      "categories": ["files"],
       "configured": false,
       "credential_env": null,
       "description": "Create UTF-8 text/code, or replace after reading its revision. Empty revision means create only. Agent access is limited to workspace and authorized project roots.",
@@ -258,20 +218,14 @@
             "type": "string"
           }
         },
-        "required": [
-          "root",
-          "content"
-        ],
+        "required": ["root", "content"],
         "title": "LocalWrite",
         "type": "object"
       },
       "output_schema": {
         "type": "object"
       },
-      "required_scopes": [
-        "jobs:write",
-        "jobs:read"
-      ],
+      "required_scopes": ["jobs:write", "jobs:read"],
       "settings": {
         "network": false
       },
@@ -280,13 +234,8 @@
     },
     {
       "action_policy": "write",
-      "capabilities": [
-        "local_file_edit",
-        "file.write"
-      ],
-      "categories": [
-        "files"
-      ],
+      "capabilities": ["local_file_edit", "file.write"],
+      "categories": ["files"],
       "configured": false,
       "credential_env": null,
       "description": "Replace one exact old_text occurrence using a freshly read revision; preserves other content. Agent access is limited to workspace and authorized project roots.",
@@ -328,22 +277,14 @@
             "type": "string"
           }
         },
-        "required": [
-          "root",
-          "revision",
-          "old_text",
-          "new_text"
-        ],
+        "required": ["root", "revision", "old_text", "new_text"],
         "title": "LocalEdit",
         "type": "object"
       },
       "output_schema": {
         "type": "object"
       },
-      "required_scopes": [
-        "jobs:write",
-        "jobs:read"
-      ],
+      "required_scopes": ["jobs:write", "jobs:read"],
       "settings": {
         "network": false
       },
@@ -352,13 +293,8 @@
     },
     {
       "action_policy": "write",
-      "capabilities": [
-        "local_file_move",
-        "file.write"
-      ],
-      "categories": [
-        "files"
-      ],
+      "capabilities": ["local_file_move", "file.write"],
+      "categories": ["files"],
       "configured": false,
       "credential_env": null,
       "description": "Move or rename a local file with its current revision. Never overwrites the destination. Agent access is limited to workspace and authorized project roots.",
@@ -402,22 +338,14 @@
             "type": "string"
           }
         },
-        "required": [
-          "root",
-          "destination_root",
-          "destination_path",
-          "revision"
-        ],
+        "required": ["root", "destination_root", "destination_path", "revision"],
         "title": "LocalMove",
         "type": "object"
       },
       "output_schema": {
         "type": "object"
       },
-      "required_scopes": [
-        "jobs:write",
-        "jobs:read"
-      ],
+      "required_scopes": ["jobs:write", "jobs:read"],
       "settings": {
         "network": false
       },
@@ -426,13 +354,8 @@
     },
     {
       "action_policy": "write",
-      "capabilities": [
-        "file.write",
-        "local_folder_create"
-      ],
-      "categories": [
-        "files"
-      ],
+      "capabilities": ["file.write", "local_folder_create"],
+      "categories": ["files"],
       "configured": false,
       "credential_env": null,
       "description": "Create a local folder, including parent folders. Agent access is limited to workspace and authorized project roots.",
@@ -457,19 +380,14 @@
             "type": "string"
           }
         },
-        "required": [
-          "root"
-        ],
+        "required": ["root"],
         "title": "LocalPath",
         "type": "object"
       },
       "output_schema": {
         "type": "object"
       },
-      "required_scopes": [
-        "jobs:write",
-        "jobs:read"
-      ],
+      "required_scopes": ["jobs:write", "jobs:read"],
       "settings": {
         "network": false
       },
@@ -478,13 +396,8 @@
     },
     {
       "action_policy": "read",
-      "capabilities": [
-        "local_zip_inspect",
-        "file.read"
-      ],
-      "categories": [
-        "files"
-      ],
+      "capabilities": ["local_zip_inspect", "file.read"],
+      "categories": ["files"],
       "configured": false,
       "credential_env": null,
       "description": "Inspect ZIP member names and sizes without extraction, paginated 100 members. Agent access is limited to workspace and authorized project roots.",
@@ -516,18 +429,14 @@
             "type": "string"
           }
         },
-        "required": [
-          "root"
-        ],
+        "required": ["root"],
         "title": "LocalList",
         "type": "object"
       },
       "output_schema": {
         "type": "object"
       },
-      "required_scopes": [
-        "jobs:read"
-      ],
+      "required_scopes": ["jobs:read"],
       "settings": {
         "network": false
       },
@@ -536,13 +445,8 @@
     },
     {
       "action_policy": "write",
-      "capabilities": [
-        "file.write",
-        "local_zip_extract"
-      ],
-      "categories": [
-        "files"
-      ],
+      "capabilities": ["file.write", "local_zip_extract"],
+      "categories": ["files"],
       "configured": false,
       "credential_env": null,
       "description": "Extract a ZIP into a NEW local folder. Preserves nested paths; rejects unsafe/oversized archives. No confirmation card. Agent access is limited to workspace and authorized project roots.",
@@ -580,21 +484,14 @@
             "type": "string"
           }
         },
-        "required": [
-          "root",
-          "destination_root",
-          "destination_path"
-        ],
+        "required": ["root", "destination_root", "destination_path"],
         "title": "LocalExtract",
         "type": "object"
       },
       "output_schema": {
         "type": "object"
       },
-      "required_scopes": [
-        "jobs:write",
-        "jobs:read"
-      ],
+      "required_scopes": ["jobs:write", "jobs:read"],
       "settings": {
         "network": false
       },
@@ -603,13 +500,8 @@
     },
     {
       "action_policy": "write",
-      "capabilities": [
-        "file.write",
-        "local_zip_create"
-      ],
-      "categories": [
-        "files"
-      ],
+      "capabilities": ["file.write", "local_zip_create"],
+      "categories": ["files"],
       "configured": false,
       "credential_env": null,
       "description": "Package a local file/folder into a NEW ZIP at destination_root/destination_path. Agent access is limited to workspace and authorized project roots.",
@@ -647,21 +539,14 @@
             "type": "string"
           }
         },
-        "required": [
-          "root",
-          "destination_root",
-          "destination_path"
-        ],
+        "required": ["root", "destination_root", "destination_path"],
         "title": "LocalZip",
         "type": "object"
       },
       "output_schema": {
         "type": "object"
       },
-      "required_scopes": [
-        "jobs:write",
-        "jobs:read"
-      ],
+      "required_scopes": ["jobs:write", "jobs:read"],
       "settings": {
         "network": false
       },
@@ -670,13 +555,8 @@
     },
     {
       "action_policy": "read",
-      "capabilities": [
-        "project_list",
-        "file.read"
-      ],
-      "categories": [
-        "projects"
-      ],
+      "capabilities": ["project_list", "file.read"],
+      "categories": ["projects"],
       "configured": false,
       "credential_env": null,
       "description": "List Work projects and Drive state/version. Local folders use root project:<id>.",
@@ -692,10 +572,7 @@
       "output_schema": {
         "type": "object"
       },
-      "required_scopes": [
-        "jobs:read",
-        "memories:read"
-      ],
+      "required_scopes": ["jobs:read", "memories:read"],
       "settings": {
         "network": false
       },
@@ -704,13 +581,8 @@
     },
     {
       "action_policy": "read",
-      "capabilities": [
-        "file.read",
-        "project_files_list"
-      ],
-      "categories": [
-        "projects"
-      ],
+      "capabilities": ["file.read", "project_files_list"],
+      "categories": ["projects"],
       "configured": false,
       "credential_env": null,
       "description": "List live project folder files; null folder_id means project root. Page with next_page_token.",
@@ -753,19 +625,14 @@
             "type": "string"
           }
         },
-        "required": [
-          "project_id"
-        ],
+        "required": ["project_id"],
         "title": "ProjectFiles",
         "type": "object"
       },
       "output_schema": {
         "type": "object"
       },
-      "required_scopes": [
-        "jobs:read",
-        "memories:read"
-      ],
+      "required_scopes": ["jobs:read", "memories:read"],
       "settings": {
         "network": true
       },
@@ -774,13 +641,8 @@
     },
     {
       "action_policy": "read",
-      "capabilities": [
-        "project_file_read",
-        "file.read"
-      ],
-      "categories": [
-        "projects"
-      ],
+      "capabilities": ["project_file_read", "file.read"],
+      "categories": ["projects"],
       "configured": false,
       "credential_env": null,
       "description": "Read live text/code or Google Docs with revision and tab IDs; inspect other file metadata.",
@@ -804,20 +666,14 @@
             "type": "string"
           }
         },
-        "required": [
-          "project_id",
-          "file_id"
-        ],
+        "required": ["project_id", "file_id"],
         "title": "ProjectFile",
         "type": "object"
       },
       "output_schema": {
         "type": "object"
       },
-      "required_scopes": [
-        "jobs:read",
-        "memories:read"
-      ],
+      "required_scopes": ["jobs:read", "memories:read"],
       "settings": {
         "network": true
       },
@@ -826,13 +682,8 @@
     },
     {
       "action_policy": "read",
-      "capabilities": [
-        "file.read",
-        "project_sheet_read"
-      ],
-      "categories": [
-        "projects"
-      ],
+      "capabilities": ["file.read", "project_sheet_read"],
+      "categories": ["projects"],
       "configured": false,
       "credential_env": null,
       "description": "Read a bounded A1 cell range and its revision, at most 100 rows / 2000 cells.",
@@ -862,21 +713,14 @@
             "type": "string"
           }
         },
-        "required": [
-          "project_id",
-          "file_id",
-          "range"
-        ],
+        "required": ["project_id", "file_id", "range"],
         "title": "ProjectSheetRead",
         "type": "object"
       },
       "output_schema": {
         "type": "object"
       },
-      "required_scopes": [
-        "jobs:read",
-        "memories:read"
-      ],
+      "required_scopes": ["jobs:read", "memories:read"],
       "settings": {
         "network": true
       },
@@ -885,13 +729,8 @@
     },
     {
       "action_policy": "write",
-      "capabilities": [
-        "file.write",
-        "project_file_create"
-      ],
-      "categories": [
-        "projects"
-      ],
+      "capabilities": ["file.write", "project_file_create"],
+      "categories": ["projects"],
       "configured": false,
       "credential_env": null,
       "description": "Create text/code, Google Doc, Google Sheet (CSV content), or folder in the project. No confirmation needed.",
@@ -924,12 +763,7 @@
           },
           "format": {
             "default": "text",
-            "enum": [
-              "text",
-              "google_doc",
-              "google_sheet",
-              "folder"
-            ],
+            "enum": ["text", "google_doc", "google_sheet", "folder"],
             "title": "Format",
             "type": "string"
           },
@@ -946,21 +780,14 @@
             "type": "string"
           }
         },
-        "required": [
-          "project_id",
-          "name"
-        ],
+        "required": ["project_id", "name"],
         "title": "ProjectFileCreate",
         "type": "object"
       },
       "output_schema": {
         "type": "object"
       },
-      "required_scopes": [
-        "jobs:write",
-        "jobs:read",
-        "memories:read"
-      ],
+      "required_scopes": ["jobs:write", "jobs:read", "memories:read"],
       "settings": {
         "network": true
       },
@@ -969,13 +796,8 @@
     },
     {
       "action_policy": "write",
-      "capabilities": [
-        "project_file_edit",
-        "file.write"
-      ],
-      "categories": [
-        "projects"
-      ],
+      "capabilities": ["project_file_edit", "file.write"],
+      "categories": ["projects"],
       "configured": false,
       "credential_env": null,
       "description": "Edit a file using its freshly read revision. Replace exactly one old_text occurrence, or append with empty old_text. Use tab_id for Docs. No confirmation needed.",
@@ -1030,23 +852,14 @@
             "title": "Tab Id"
           }
         },
-        "required": [
-          "project_id",
-          "file_id",
-          "revision",
-          "new_text"
-        ],
+        "required": ["project_id", "file_id", "revision", "new_text"],
         "title": "ProjectFileEdit",
         "type": "object"
       },
       "output_schema": {
         "type": "object"
       },
-      "required_scopes": [
-        "jobs:write",
-        "jobs:read",
-        "memories:read"
-      ],
+      "required_scopes": ["jobs:write", "jobs:read", "memories:read"],
       "settings": {
         "network": true
       },
@@ -1055,13 +868,8 @@
     },
     {
       "action_policy": "write",
-      "capabilities": [
-        "project_sheet_write",
-        "file.write"
-      ],
-      "categories": [
-        "projects"
-      ],
+      "capabilities": ["project_sheet_write", "file.write"],
+      "categories": ["projects"],
       "configured": false,
       "credential_env": null,
       "description": "Write literal values in an explicit bounded A1 range using its last read revision. Concurrent changes are checked before writing. No confirmation needed.",
@@ -1125,24 +933,14 @@
             "type": "array"
           }
         },
-        "required": [
-          "project_id",
-          "file_id",
-          "range",
-          "revision",
-          "values"
-        ],
+        "required": ["project_id", "file_id", "range", "revision", "values"],
         "title": "ProjectSheetWrite",
         "type": "object"
       },
       "output_schema": {
         "type": "object"
       },
-      "required_scopes": [
-        "jobs:write",
-        "jobs:read",
-        "memories:read"
-      ],
+      "required_scopes": ["jobs:write", "jobs:read", "memories:read"],
       "settings": {
         "network": true
       },
@@ -1151,13 +949,8 @@
     },
     {
       "action_policy": "write",
-      "capabilities": [
-        "file.write",
-        "project_file_rename"
-      ],
-      "categories": [
-        "projects"
-      ],
+      "capabilities": ["file.write", "project_file_rename"],
+      "categories": ["projects"],
       "configured": false,
       "credential_env": null,
       "description": "Rename using the current Drive version from file listing as revision.",
@@ -1194,23 +987,14 @@
             "type": "string"
           }
         },
-        "required": [
-          "project_id",
-          "file_id",
-          "name",
-          "revision"
-        ],
+        "required": ["project_id", "file_id", "name", "revision"],
         "title": "ProjectFileRename",
         "type": "object"
       },
       "output_schema": {
         "type": "object"
       },
-      "required_scopes": [
-        "jobs:write",
-        "jobs:read",
-        "memories:read"
-      ],
+      "required_scopes": ["jobs:write", "jobs:read", "memories:read"],
       "settings": {
         "network": true
       },
@@ -1219,12 +1003,8 @@
     },
     {
       "action_policy": "read",
-      "capabilities": [
-        "google_accounts_list"
-      ],
-      "categories": [
-        "google"
-      ],
+      "capabilities": ["google_accounts_list"],
+      "categories": ["google"],
       "configured": false,
       "credential_env": null,
       "description": "List this account's connected Google accounts and permissions.",
@@ -1240,10 +1020,7 @@
       "output_schema": {
         "type": "object"
       },
-      "required_scopes": [
-        "jobs:read",
-        "threads:read"
-      ],
+      "required_scopes": ["jobs:read", "threads:read"],
       "settings": {
         "network": true
       },
@@ -1252,12 +1029,8 @@
     },
     {
       "action_policy": "read",
-      "capabilities": [
-        "drive_search_files"
-      ],
-      "categories": [
-        "google"
-      ],
+      "capabilities": ["drive_search_files"],
+      "categories": ["google"],
       "configured": false,
       "credential_env": null,
       "description": "Search Drive files in a connected account, with bounded pagination.",
@@ -1300,10 +1073,7 @@
       "output_schema": {
         "type": "object"
       },
-      "required_scopes": [
-        "jobs:read",
-        "threads:read"
-      ],
+      "required_scopes": ["jobs:read", "threads:read"],
       "settings": {
         "network": true
       },
@@ -1312,12 +1082,8 @@
     },
     {
       "action_policy": "read",
-      "capabilities": [
-        "drive_read_file"
-      ],
-      "categories": [
-        "google"
-      ],
+      "capabilities": ["drive_read_file"],
+      "categories": ["google"],
       "configured": false,
       "credential_env": null,
       "description": "Read Drive text or export a Google document, with explicit size limits.",
@@ -1342,19 +1108,14 @@
             "type": "string"
           }
         },
-        "required": [
-          "id"
-        ],
+        "required": ["id"],
         "title": "GoogleItem",
         "type": "object"
       },
       "output_schema": {
         "type": "object"
       },
-      "required_scopes": [
-        "jobs:read",
-        "threads:read"
-      ],
+      "required_scopes": ["jobs:read", "threads:read"],
       "settings": {
         "network": true
       },
@@ -1363,12 +1124,8 @@
     },
     {
       "action_policy": "read",
-      "capabilities": [
-        "drive_list_folder"
-      ],
-      "categories": [
-        "google"
-      ],
+      "capabilities": ["drive_list_folder"],
+      "categories": ["google"],
       "configured": false,
       "credential_env": null,
       "description": "Browse a connected account's Drive folder, with pagination.",
@@ -1422,10 +1179,7 @@
       "output_schema": {
         "type": "object"
       },
-      "required_scopes": [
-        "jobs:read",
-        "threads:read"
-      ],
+      "required_scopes": ["jobs:read", "threads:read"],
       "settings": {
         "network": true
       },
@@ -1434,12 +1188,8 @@
     },
     {
       "action_policy": "read",
-      "capabilities": [
-        "gmail_search_messages"
-      ],
-      "categories": [
-        "google"
-      ],
+      "capabilities": ["gmail_search_messages"],
+      "categories": ["google"],
       "configured": false,
       "credential_env": null,
       "description": "Search messages in a connected Gmail account; read only.",
@@ -1482,10 +1232,7 @@
       "output_schema": {
         "type": "object"
       },
-      "required_scopes": [
-        "jobs:read",
-        "threads:read"
-      ],
+      "required_scopes": ["jobs:read", "threads:read"],
       "settings": {
         "network": true
       },
@@ -1494,12 +1241,8 @@
     },
     {
       "action_policy": "read",
-      "capabilities": [
-        "gmail_read_message"
-      ],
-      "categories": [
-        "google"
-      ],
+      "capabilities": ["gmail_read_message"],
+      "categories": ["google"],
       "configured": false,
       "credential_env": null,
       "description": "Read a connected Gmail message without downloading attachments.",
@@ -1524,19 +1267,14 @@
             "type": "string"
           }
         },
-        "required": [
-          "id"
-        ],
+        "required": ["id"],
         "title": "GoogleItem",
         "type": "object"
       },
       "output_schema": {
         "type": "object"
       },
-      "required_scopes": [
-        "jobs:read",
-        "threads:read"
-      ],
+      "required_scopes": ["jobs:read", "threads:read"],
       "settings": {
         "network": true
       },
@@ -1545,12 +1283,8 @@
     },
     {
       "action_policy": "read",
-      "capabilities": [
-        "calendar_list_events"
-      ],
-      "categories": [
-        "google"
-      ],
+      "capabilities": ["calendar_list_events"],
+      "categories": ["google"],
       "configured": false,
       "credential_env": null,
       "description": "Read calendar events in a bounded window of at most 31 days.",
@@ -1578,20 +1312,14 @@
             "type": "string"
           }
         },
-        "required": [
-          "start",
-          "end"
-        ],
+        "required": ["start", "end"],
         "title": "CalendarQuery",
         "type": "object"
       },
       "output_schema": {
         "type": "object"
       },
-      "required_scopes": [
-        "jobs:read",
-        "threads:read"
-      ],
+      "required_scopes": ["jobs:read", "threads:read"],
       "settings": {
         "network": true
       },

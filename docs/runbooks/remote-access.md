@@ -4,8 +4,8 @@ The server keeps PostgreSQL, managed files and agent workspaces locally. Remote
 browsers use the same authenticated Simon pages and APIs, including uploads,
 previews, artifact downloads and run progress. Cloud storage is optional.
 
-Use one HTTPS origin for the UI and API first. The older split-frontend proposal
-in the voice runbook is historical and is not required for this deployment.
+Use one HTTPS origin for the UI and API. See the [voice runbook](remote-voice.md)
+for browser microphone behavior and call recovery.
 
 ## Private access from your devices
 

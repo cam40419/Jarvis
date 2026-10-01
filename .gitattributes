@@ -1,0 +1,22 @@
+# Keep authored text consistent across Windows and CI. Generated evidence and
+# applied migrations retain their existing checkout behavior.
+*.py text eol=lf
+*.ps1 text eol=lf
+*.js text eol=lf
+*.mjs text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.md text eol=lf
+*.toml text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+/package*.json text eol=lf
+/.prettierrc.json text eol=lf
+/.editorconfig text eol=lf
+/.gitattributes text eol=lf
+/.gitignore text eol=lf
+/.prettierignore text eol=lf
+/examples/agents/*.json text eol=lf
+/deploy/**/*.json text eol=lf
+/examples/hardware/** -text
+/examples/hardware/**/*.py text eol=lf

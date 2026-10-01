@@ -42,44 +42,77 @@ class RecordingManager:
 
 
 def setup() -> tuple[
-    RecordingManager, EnvironmentLease, ToolDefinition, ToolExecutionContext,
+    RecordingManager,
+    EnvironmentLease,
+    ToolDefinition,
+    ToolExecutionContext,
     EnvironmentCommandTransport,
 ]:
     definition = EnvironmentDefinition(
-        id="design", kind="docker", container_image="design:latest", enabled=True,
+        id="design",
+        kind="docker",
+        container_image="design:latest",
+        enabled=True,
         capabilities=frozenset({"render"}),
     )
     request = EnvironmentRequest(
-        workspace_id=uuid4(), agent_id="artist", task_id=uuid4(), attempt_id=uuid4(),
+        workspace_id=uuid4(),
+        agent_id="artist",
+        task_id=uuid4(),
+        attempt_id=uuid4(),
         capabilities=frozenset({"render"}),
     )
     lease = EnvironmentLease(
-        id=uuid4(), plan=EnvironmentPlan(
-            environment_id=definition.id, kind=definition.kind, request=request,
-            workspace_path=Path("unused"), network="none", cpu_limit=2, memory_mb=2048,
+        id=uuid4(),
+        plan=EnvironmentPlan(
+            environment_id=definition.id,
+            kind=definition.kind,
+            request=request,
+            workspace_path=Path("unused"),
+            network="none",
+            cpu_limit=2,
+            memory_mb=2048,
             gpu_devices=(),
-        ), definition=definition, fencing_token=7, status="active", resource_handle="owned",
-        created_at=utc_now(), heartbeat_at=utc_now(),
+        ),
+        definition=definition,
+        fencing_token=7,
+        status="active",
+        resource_handle="owned",
+        created_at=utc_now(),
+        heartbeat_at=utc_now(),
     )
     tool = ToolDefinition(
-        id="design.render", description="Render an approved scene", transport="environment",
-        configured=True, side_effect=True, action_policy="write",
+        id="design.render",
+        description="Render an approved scene",
+        transport="environment",
+        configured=True,
+        side_effect=True,
+        action_policy="write",
         required_scopes=frozenset({"design:write"}),
         environment_capabilities=frozenset({"render"}),
         settings={"argv_prefix": ["/usr/bin/renderer", "--background"]},
         input_schema={
-            "type": "object", "additionalProperties": False,
+            "type": "object",
+            "additionalProperties": False,
             "properties": {"args": {"type": "array", "items": {"type": "string"}}},
         },
     )
     context = ToolExecutionContext(
-        actor_id=uuid4(), household_id=request.workspace_id, run_id=uuid4(), agent_id="artist",
-        allowed_tool_ids=frozenset({tool.id}), scopes=frozenset({"design:write"}),
-        environment_capabilities=frozenset({"render"}), authorized_action="write",
+        actor_id=uuid4(),
+        household_id=request.workspace_id,
+        run_id=uuid4(),
+        agent_id="artist",
+        allowed_tool_ids=frozenset({tool.id}),
+        scopes=frozenset({"design:write"}),
+        environment_capabilities=frozenset({"render"}),
+        authorized_action="write",
     )
     manager = RecordingManager()
     transport = EnvironmentCommandTransport(
-        manager, lease, actor_id=context.actor_id, run_id=context.run_id,
+        manager,
+        lease,
+        actor_id=context.actor_id,
+        run_id=context.run_id,
     )
     return manager, lease, tool, context, transport
 
@@ -90,7 +123,10 @@ def test_bound_transport_uses_only_lease_with_fixed_executable() -> None:
     registry.register("environment", transport)
     result = registry.execute(tool, {"args": ["scene.blend", "literal; text"]}, context)
     assert result.output == {
-        "exit_code": 0, "stdout": "rendered", "stderr": "", "truncated": False,
+        "exit_code": 0,
+        "stdout": "rendered",
+        "stderr": "",
+        "truncated": False,
     }
     assert len(manager.calls) == 1
     lease_id, command, attempt_id, fence = manager.calls[0]
@@ -98,7 +134,10 @@ def test_bound_transport_uses_only_lease_with_fixed_executable() -> None:
     assert attempt_id == lease.plan.request.attempt_id
     assert fence == lease.fencing_token
     assert command.argv == (
-        "/usr/bin/renderer", "--background", "scene.blend", "literal; text",
+        "/usr/bin/renderer",
+        "--background",
+        "scene.blend",
+        "literal; text",
     )
 
 
@@ -114,7 +153,8 @@ def test_cross_assignment_context_is_rejected(field: str) -> None:
 @pytest.mark.parametrize(
     "update",
     [
-        {"scopes": frozenset()}, {"allowed_tool_ids": frozenset()},
+        {"scopes": frozenset()},
+        {"allowed_tool_ids": frozenset()},
         {"authorized_action": "read"},
     ],
 )
@@ -128,8 +168,9 @@ def test_missing_command_authorization_rejected(update: dict[str, Any]) -> None:
 def test_command_tool_must_explicitly_declare_write() -> None:
     manager, _, tool, context, transport = setup()
     with pytest.raises(ToolCatalogError, match="configured write"):
-        transport(tool.model_copy(update={"side_effect": False, "action_policy": "read"}),
-                  {}, context)
+        transport(
+            tool.model_copy(update={"side_effect": False, "action_policy": "read"}), {}, context
+        )
     assert manager.calls == []
 
 
@@ -143,8 +184,8 @@ def test_environment_capabilities_checked_against_actual_lease() -> None:
 
 
 @pytest.mark.parametrize(
-    "arguments", [{"argv": ["arbitrary"]}, {"args": "raw command"}, {"args": [1]},
-                  {"args": ["bad\x00arg"]}],
+    "arguments",
+    [{"argv": ["arbitrary"]}, {"args": "raw command"}, {"args": [1]}, {"args": ["bad\x00arg"]}],
 )
 def test_model_cannot_replace_executable_or_supply_invalid_args(arguments: dict[str, Any]) -> None:
     manager, _, tool, context, transport = setup()
@@ -185,6 +226,8 @@ def test_released_lease_cannot_be_bound() -> None:
     manager, lease, _, context, _ = setup()
     with pytest.raises(ToolCatalogError, match="active lease"):
         EnvironmentCommandTransport(
-            manager, lease.model_copy(update={"status": "released"}),
-            actor_id=context.actor_id, run_id=context.run_id,
+            manager,
+            lease.model_copy(update={"status": "released"}),
+            actor_id=context.actor_id,
+            run_id=context.run_id,
         )

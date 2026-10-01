@@ -15,7 +15,9 @@ SPEC.loader.exec_module(local)
 
 @pytest.mark.parametrize("existing_request", [False, True])
 def test_graceful_stop_closes_listeners_and_preserves_request_for_supervisor(
-    tmp_path, monkeypatch, existing_request,
+    tmp_path,
+    monkeypatch,
+    existing_request,
 ):
     marker = tmp_path / "simon-stop.request"
     if existing_request:
@@ -58,15 +60,33 @@ def test_graceful_stop_closes_listeners_and_preserves_request_for_supervisor(
             raise AssertionError("Server did not receive its stop request")
 
     monkeypatch.setattr(local, "STOP_REQUEST", marker)
-    monkeypatch.setattr(local, "socket", SimpleNamespace(
-        **{name: getattr(socket, name) for name in (
-            "AF_INET", "AF_INET6", "SOCK_STREAM", "SOL_SOCKET", "SO_REUSEADDR",
-            "IPPROTO_IPV6", "IPV6_V6ONLY",
-        )}, socket=Listener,
-    ))
-    monkeypatch.setattr(local, "uvicorn", SimpleNamespace(
-        Server=Server, Config=lambda *args, **kwargs: kwargs,
-    ))
+    monkeypatch.setattr(
+        local,
+        "socket",
+        SimpleNamespace(
+            **{
+                name: getattr(socket, name)
+                for name in (
+                    "AF_INET",
+                    "AF_INET6",
+                    "SOCK_STREAM",
+                    "SOL_SOCKET",
+                    "SO_REUSEADDR",
+                    "IPPROTO_IPV6",
+                    "IPV6_V6ONLY",
+                )
+            },
+            socket=Listener,
+        ),
+    )
+    monkeypatch.setattr(
+        local,
+        "uvicorn",
+        SimpleNamespace(
+            Server=Server,
+            Config=lambda *args, **kwargs: kwargs,
+        ),
+    )
     assert asyncio.run(local.main()) == 0
     assert marker.exists() and len(listeners) == 2
     assert all(listener.closed for listener in listeners)

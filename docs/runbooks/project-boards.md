@@ -7,12 +7,12 @@ specialist agents, execution history, findings, and local artifacts.
 
 ## Product choice
 
-| Product | Best fit here | Integration approach |
-| --- | --- | --- |
-| ClickUp | A small project growing into departments and company-wide operations | Implemented REST adapter; explicitly granted lists and selected tasks |
-| OpenProject | An organization that also wants its project board hosted locally | Future API v3 adapter; deploy and pin a supported server version first |
-| Asana | Cross-functional teams that already run their work in Asana | Future adapter for tasks and dependencies; portfolio features depend on plan |
-| Linear | A software or product team already using Linear | Future GraphQL adapter; narrower fit for broad company operations |
+| Product     | Best fit here                                                        | Integration approach                                                         |
+| ----------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| ClickUp     | A small project growing into departments and company-wide operations | Implemented REST adapter; explicitly granted lists and selected tasks        |
+| OpenProject | An organization that also wants its project board hosted locally     | Future API v3 adapter; deploy and pin a supported server version first       |
+| Asana       | Cross-functional teams that already run their work in Asana          | Future adapter for tasks and dependencies; portfolio features depend on plan |
+| Linear      | A software or product team already using Linear                      | Future GraphQL adapter; narrower fit for broad company operations            |
 
 ClickUp is the initial choice, not a requirement to move an existing organization.
 Its [hierarchy](https://help.clickup.com/hc/en-us/articles/13856392825367-Intro-to-the-Hierarchy)

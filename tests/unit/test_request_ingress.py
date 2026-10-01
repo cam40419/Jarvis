@@ -8,14 +8,24 @@ from simon.api.request_ingress import RequestIngressMiddleware, SourceRateLimite
 
 
 def scope(path="/v1/example", *, method="POST", client="192.0.2.1", headers=(), root_path=""):
-    return {"type": "http", "method": method, "path": path, "root_path": root_path,
-            "headers": list(headers), "client": (client, 1234) if client else None,
-            "scheme": "https", "query_string": b"", "http_version": "1.1"}
+    return {
+        "type": "http",
+        "method": method,
+        "path": path,
+        "root_path": root_path,
+        "headers": list(headers),
+        "client": (client, 1234) if client else None,
+        "scheme": "https",
+        "query_string": b"",
+        "http_version": "1.1",
+    }
 
 
 def run(middleware, request=None, chunks=(b"hello",)):
-    messages = deque({"type": "http.request", "body": chunk, "more_body": i < len(chunks) - 1}
-                     for i, chunk in enumerate(chunks))
+    messages = deque(
+        {"type": "http.request", "body": chunk, "more_body": i < len(chunks) - 1}
+        for i, chunk in enumerate(chunks)
+    )
     sent = []
 
     async def receive():
@@ -49,8 +59,11 @@ def app():
 def test_chunked_overflow_never_reaches_a_mutating_handler(app):
     application, bodies = app
     middleware = RequestIngressMiddleware(application, default_max_body_bytes=8)
-    sent = run(middleware, scope(headers=[(b"transfer-encoding", b"chunked")]),
-               chunks=(b"1234", b"5678", b"9"))
+    sent = run(
+        middleware,
+        scope(headers=[(b"transfer-encoding", b"chunked")]),
+        chunks=(b"1234", b"5678", b"9"),
+    )
     assert sent[0]["status"] == 413 and not bodies
 
 
@@ -58,17 +71,25 @@ def test_dishonest_content_length_is_checked_against_received_bytes(app):
     application, bodies = app
     middleware = RequestIngressMiddleware(application, default_max_body_bytes=8)
     for content, status in ((b"123456789", 413), (b"1234", 400), (b"12", 400)):
-        assert run(middleware, scope(headers=[(b"content-length", b"3")]),
-                   chunks=(content,))[0]["status"] == status
+        assert (
+            run(middleware, scope(headers=[(b"content-length", b"3")]), chunks=(content,))[0][
+                "status"
+            ]
+            == status
+        )
     assert not bodies
 
 
-@pytest.mark.parametrize("headers", [
-    [(b"content-length", b"-1")], [(b"content-length", b"nonsense")],
-    [(b"content-length", b"2"), (b"content-length", b"3")],
-    [(b"content-length", b"2"), (b"transfer-encoding", b"chunked")],
-    [(b"content-length", b"9" * 100)],
-])
+@pytest.mark.parametrize(
+    "headers",
+    [
+        [(b"content-length", b"-1")],
+        [(b"content-length", b"nonsense")],
+        [(b"content-length", b"2"), (b"content-length", b"3")],
+        [(b"content-length", b"2"), (b"transfer-encoding", b"chunked")],
+        [(b"content-length", b"9" * 100)],
+    ],
+)
 def test_bad_framing_rejected_before_body_consumption(app, headers):
     application, bodies = app
     middleware = RequestIngressMiddleware(application)
@@ -84,10 +105,15 @@ def test_boundary_body_replays_exact_bytes_and_spools_large_requests(app, monkey
     assert bodies == [b"123456789012"]
 
 
-@pytest.mark.parametrize(("path", "root"), [
-    ("/simon/auth/password/login", ""), ("/simon/auth/password/login", "/simon"),
-    ("/auth/password/login", "/simon"), ("/simon/auth/password/login/", ""),
-])
+@pytest.mark.parametrize(
+    ("path", "root"),
+    [
+        ("/simon/auth/password/login", ""),
+        ("/simon/auth/password/login", "/simon"),
+        ("/auth/password/login", "/simon"),
+        ("/simon/auth/password/login/", ""),
+    ],
+)
 def test_public_prefix_and_mount_root_do_not_bypass_auth_cap(app, path, root):
     application, bodies = app
     middleware = RequestIngressMiddleware(application, public_path="/simon", auth_max_body_bytes=4)
@@ -104,21 +130,38 @@ def test_route_caps_preserve_existing_uploads_large_editor_and_bulk_plans(app):
     assert middleware.limit_for("/v1/local-files/action") == 32 * 1024 * 1024
     assert middleware.limit_for("/v1/agent-platform/plans") == 32 * 1024 * 1024
     assert middleware.limit_for("/v1/unrelated/upload") == 2 * 1024 * 1024
-    assert run(middleware, scope("/v1/local-files/upload", headers=[
-        (b"content-length", str(50 * 1024 * 1024 + 1).encode()),
-    ]))[0]["status"] == 413
+    assert (
+        run(
+            middleware,
+            scope(
+                "/v1/local-files/upload",
+                headers=[
+                    (b"content-length", str(50 * 1024 * 1024 + 1).encode()),
+                ],
+            ),
+        )[0]["status"]
+        == 413
+    )
 
 
 def test_auth_limiter_ignores_spoofed_forwarding_and_keeps_other_peers_independent(app):
     middleware = RequestIngressMiddleware(app[0], auth_rate_limit=1, auth_rate_window_seconds=60)
     path = "/auth/passkeys/login/options"
-    assert run(middleware, scope(path, headers=[(b"x-forwarded-for", b"198.51.100.1")]))[0][
-        "status"
-    ] == 200
-    denied = run(middleware, scope(path, headers=[
-        (b"x-forwarded-for", b"198.51.100.2"), (b"cf-connecting-ip", b"198.51.100.3"),
-        (b"forwarded", b"for=198.51.100.4"),
-    ]))
+    assert (
+        run(middleware, scope(path, headers=[(b"x-forwarded-for", b"198.51.100.1")]))[0]["status"]
+        == 200
+    )
+    denied = run(
+        middleware,
+        scope(
+            path,
+            headers=[
+                (b"x-forwarded-for", b"198.51.100.2"),
+                (b"cf-connecting-ip", b"198.51.100.3"),
+                (b"forwarded", b"for=198.51.100.4"),
+            ],
+        ),
+    )
     assert denied[0]["status"] == 429
     assert dict(denied[0]["headers"])[b"retry-after"] == b"60"
     assert run(middleware, scope(path, client="192.0.2.2"))[0]["status"] == 200

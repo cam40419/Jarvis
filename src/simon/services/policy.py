@@ -1,3 +1,5 @@
+"""Generic capability authorization; specialized action review has its own service."""
+
 from simon.domain.errors import AuthorizationError, ConfirmationRequiredError
 from simon.domain.models import ActorContext, CapabilityDefinition, RiskClass
 
@@ -18,6 +20,6 @@ class PolicyEngine:
         if capability.risk in {RiskClass.WRITE_HARD, RiskClass.DANGEROUS}:
             if not confirmation_token:
                 raise ConfirmationRequiredError("a signed, action-bound confirmation is required")
-            # Token verification will live behind a ConfirmationVerifier port.
-            # Until it exists, hard actions are intentionally impossible.
+            # The generic broker has no action-bound token verifier. Specialized
+            # external-action services enforce their own review contracts.
             raise AuthorizationError("hard-write confirmation verification is not configured")

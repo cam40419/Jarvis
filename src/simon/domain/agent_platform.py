@@ -80,9 +80,9 @@ class AgentProfile(StrictModel):
             raise ValueError("Prompt template contains an invalid placeholder; use ${name} or $$")
         unknown = set(template.get_identifiers()) - PROMPT_BUILTINS - self.prompt_defaults.keys()
         if unknown:
-            raise ValueError("Prompt template contains undeclared variables: " + ", ".join(
-                sorted(unknown)
-            ))
+            raise ValueError(
+                "Prompt template contains undeclared variables: " + ", ".join(sorted(unknown))
+            )
         return self
 
 
@@ -108,7 +108,12 @@ class PlatformManifest(StrictModel):
     @model_validator(mode="after")
     def validate_references(self) -> "PlatformManifest":
         for records in (
-            self.agents, self.teams, self.models, self.environments, self.tools, self.contexts
+            self.agents,
+            self.teams,
+            self.models,
+            self.environments,
+            self.tools,
+            self.contexts,
         ):
             identifiers = [item.id for item in records]
             if len(identifiers) != len(set(identifiers)):
@@ -174,7 +179,8 @@ class PlanTeamRequest(StrictModel):
             if not ready:
                 raise ValueError("Task dependencies must not contain cycles")
             remaining = {
-                key: dependencies - ready for key, dependencies in remaining.items()
+                key: dependencies - ready
+                for key, dependencies in remaining.items()
                 if key not in ready
             }
         return self

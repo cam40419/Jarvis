@@ -33,10 +33,13 @@ def test_gmail_search_pagination_and_multipart_read(monkeypatch):
             "mimeType": "multipart/mixed",
             "headers": [{"name": "Subject", "value": "Hello"}],
             "parts": [
-                {"mimeType": "multipart/alternative", "parts": [
-                    part("text/html", "<p>Duplicate HTML</p>"),
-                    part("text/plain", "Actual body"),
-                ]},
+                {
+                    "mimeType": "multipart/alternative",
+                    "parts": [
+                        part("text/html", "<p>Duplicate HTML</p>"),
+                        part("text/plain", "Actual body"),
+                    ],
+                },
                 part("text/plain", "Private attachment", filename="secret.txt"),
             ],
         }
@@ -71,10 +74,14 @@ def test_drive_search_escapes_query_and_keeps_pagination(monkeypatch):
         assert request.url.params["q"] == "trashed = false and fullText contains 'Bob\\'s'"
         assert request.url.params["pageToken"] == "next"
         assert request.url.params["includeItemsFromAllDrives"] == "true"
-        return httpx.Response(200, json={
-            "files": [{"id": "file_1", "name": "Bob's notes", "mimeType": "text/plain"}],
-            "nextPageToken": "last", "incompleteSearch": True,
-        })
+        return httpx.Response(
+            200,
+            json={
+                "files": [{"id": "file_1", "name": "Bob's notes", "mimeType": "text/plain"}],
+                "nextPageToken": "last",
+                "incompleteSearch": True,
+            },
+        )
 
     result = adapter(monkeypatch, respond).drive_search(
         "a", GoogleSearch(query="Bob's", page_token="next")
@@ -83,13 +90,16 @@ def test_drive_search_escapes_query_and_keeps_pagination(monkeypatch):
     assert result["files"][0]["url"] == "https://drive.google.com/file/d/file_1/view"
 
 
-@pytest.mark.parametrize("mime,export", [
-    ("application/vnd.google-apps.document", "text/plain"),
-    ("application/vnd.google-apps.presentation", "text/plain"),
-    ("application/vnd.google-apps.spreadsheet", "text/csv"),
-    ("text/plain", None),
-    ("application/pdf", False),
-])
+@pytest.mark.parametrize(
+    "mime,export",
+    [
+        ("application/vnd.google-apps.document", "text/plain"),
+        ("application/vnd.google-apps.presentation", "text/plain"),
+        ("application/vnd.google-apps.spreadsheet", "text/csv"),
+        ("text/plain", None),
+        ("application/pdf", False),
+    ],
+)
 def test_drive_read_exports_or_returns_explicit_limit(monkeypatch, mime, export):
     calls = []
 
@@ -131,7 +141,12 @@ def test_read_inputs_and_tool_schemas():
             GoogleItem(id=invalid)
     with pytest.raises(ValidationError):
         GoogleSearch(limit=21)
-    schemas = definitions((
-        "gmail_search_messages", "gmail_read_message", "drive_search_files", "drive_read_file",
-    ))
+    schemas = definitions(
+        (
+            "gmail_search_messages",
+            "gmail_read_message",
+            "drive_search_files",
+            "drive_read_file",
+        )
+    )
     assert len(schemas) == 4 and all(schema["strict"] for schema in schemas)

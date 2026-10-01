@@ -28,15 +28,15 @@ agent profile. Writes require `max_action: "write"` or stronger. The actor also
 needs the corresponding scope. Definitions can be generated using
 `simon.adapters.processing_tools.processing_tool_definitions(enabled=True)`.
 
-| Tool | Required application capability | Arguments and result |
-| --- | --- | --- |
-| `document.extract_pdf` | `pdf` | `input`, optional `max_pages` (20 default, 100 maximum); PDF text on stdout |
-| `document.convert` | `documents` | `input`, `output`; Markdown/text/DOCX to a new Markdown/text/DOCX file |
-| `image.ocr` | `ocr` | PNG/JPEG/TIFF `input`; English text on stdout |
-| `media.inspect` | `media` | `input`; JSON stream metadata on stdout |
-| `media.thumbnail` | `media` | `input`, PNG `output`, optional `seconds` and `width`; one video frame |
-| `media.extract_audio` | `media` | `input`, WAV `output`, optional `duration_seconds`; mono 16 kHz PCM |
-| `media.transcode` | `media` | `input`, MP4 `output`, optional `duration_seconds` and `width`; H.264/AAC video |
+| Tool                   | Required application capability | Arguments and result                                                            |
+| ---------------------- | ------------------------------- | ------------------------------------------------------------------------------- |
+| `document.extract_pdf` | `pdf`                           | `input`, optional `max_pages` (20 default, 100 maximum); PDF text on stdout     |
+| `document.convert`     | `documents`                     | `input`, `output`; Markdown/text/DOCX to a new Markdown/text/DOCX file          |
+| `image.ocr`            | `ocr`                           | PNG/JPEG/TIFF `input`; English text on stdout                                   |
+| `media.inspect`        | `media`                         | `input`; JSON stream metadata on stdout                                         |
+| `media.thumbnail`      | `media`                         | `input`, PNG `output`, optional `seconds` and `width`; one video frame          |
+| `media.extract_audio`  | `media`                         | `input`, WAV `output`, optional `duration_seconds`; mono 16 kHz PCM             |
+| `media.transcode`      | `media`                         | `input`, MP4 `output`, optional `duration_seconds` and `width`; H.264/AAC video |
 
 Inputs must be regular files inside the current lease workspace and at most
 100 MiB. Paths cannot contain traversal, symlinks, or Git metadata. MP4, MOV, M4A,

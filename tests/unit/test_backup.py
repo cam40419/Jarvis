@@ -21,8 +21,12 @@ def dump(path: Path) -> None:
 
 def test_bundle_roundtrip_and_existing_destination(tmp_path: Path) -> None:
     roots = sources(tmp_path)
-    bundle = create_bundle(tmp_path / "backup", roots=roots, dump_database=dump,
-                           database_snapshot=lambda: {"jobs": "hash"})
+    bundle = create_bundle(
+        tmp_path / "backup",
+        roots=roots,
+        dump_database=dump,
+        database_snapshot=lambda: {"jobs": "hash"},
+    )
     manifest = verify_bundle(bundle)
     assert manifest.database_tables == {"jobs": "hash"}
     assert not manifest.includes_secrets
@@ -38,8 +42,12 @@ def test_bundle_roundtrip_and_existing_destination(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize("change", ["modified", "missing", "extra"])
 def test_corrupt_bundle_never_restores(tmp_path: Path, change: str) -> None:
-    bundle = create_bundle(tmp_path / "backup", roots=sources(tmp_path),
-                           dump_database=dump, database_snapshot=lambda: {})
+    bundle = create_bundle(
+        tmp_path / "backup",
+        roots=sources(tmp_path),
+        dump_database=dump,
+        database_snapshot=lambda: {},
+    )
     file = bundle / "files/report.txt"
     if change == "modified":
         file.write_bytes(b"corrupt")
@@ -60,25 +68,35 @@ def test_source_mutation_and_database_mutation_block_publication(tmp_path: Path)
         (roots["files"] / "report.txt").write_bytes(b"concurrent edit")
 
     with pytest.raises(ValueError, match="changed"):
-        create_bundle(tmp_path / "backup", roots=roots, dump_database=mutating_dump,
-                      database_snapshot=lambda: {})
+        create_bundle(
+            tmp_path / "backup",
+            roots=roots,
+            dump_database=mutating_dump,
+            database_snapshot=lambda: {},
+        )
     assert not (tmp_path / "backup").exists()
     snapshots = iter([{"jobs": "old"}, {"jobs": "new"}])
     with pytest.raises(ValueError, match="Database changed"):
-        create_bundle(tmp_path / "backup2", roots=roots, dump_database=dump,
-                      database_snapshot=lambda: next(snapshots))
+        create_bundle(
+            tmp_path / "backup2",
+            roots=roots,
+            dump_database=dump,
+            database_snapshot=lambda: next(snapshots),
+        )
     assert not (tmp_path / "backup2").exists()
 
 
 def test_missing_and_overlapping_roots_fail(tmp_path: Path) -> None:
     roots = sources(tmp_path)
     with pytest.raises(ValueError, match="overlaps"):
-        create_bundle(roots["files"] / "backup", roots=roots, dump_database=dump,
-                      database_snapshot=lambda: {})
+        create_bundle(
+            roots["files"] / "backup", roots=roots, dump_database=dump, database_snapshot=lambda: {}
+        )
     roots["agents"] = tmp_path / "missing"
     with pytest.raises(ValueError, match="missing"):
-        create_bundle(tmp_path / "backup", roots=roots, dump_database=dump,
-                      database_snapshot=lambda: {})
+        create_bundle(
+            tmp_path / "backup", roots=roots, dump_database=dump, database_snapshot=lambda: {}
+        )
 
 
 def test_configuration_and_secret_opt_in(tmp_path: Path) -> None:
@@ -86,11 +104,21 @@ def test_configuration_and_secret_opt_in(tmp_path: Path) -> None:
     env = tmp_path / "secret.env"
     env.write_text("SYNTHETIC_SECRET=example", encoding="utf-8")
     with pytest.raises(ValueError, match="explicit"):
-        create_bundle(tmp_path / "rejected", roots=roots, dump_database=dump,
-                      database_snapshot=lambda: {}, configuration={"server.env": env})
-    bundle = create_bundle(tmp_path / "backup", roots=roots, dump_database=dump,
-                           database_snapshot=lambda: {}, configuration={"server.env": env},
-                           includes_secrets=True)
+        create_bundle(
+            tmp_path / "rejected",
+            roots=roots,
+            dump_database=dump,
+            database_snapshot=lambda: {},
+            configuration={"server.env": env},
+        )
+    bundle = create_bundle(
+        tmp_path / "backup",
+        roots=roots,
+        dump_database=dump,
+        database_snapshot=lambda: {},
+        configuration={"server.env": env},
+        includes_secrets=True,
+    )
     assert verify_bundle(bundle).includes_secrets
     assert (bundle / "configuration/server.env").read_bytes() == env.read_bytes()
 
@@ -102,5 +130,6 @@ def test_symlink_is_rejected(tmp_path: Path) -> None:
     except OSError:
         pytest.skip("Host does not permit symlink creation")
     with pytest.raises(ValueError, match="redirects"):
-        create_bundle(tmp_path / "backup", roots=roots, dump_database=dump,
-                      database_snapshot=lambda: {})
+        create_bundle(
+            tmp_path / "backup", roots=roots, dump_database=dump, database_snapshot=lambda: {}
+        )

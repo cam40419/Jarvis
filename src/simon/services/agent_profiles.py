@@ -132,6 +132,7 @@ def _tool_category(tool: ToolDefinition) -> str:
         return "Google" if operation.startswith("google_") else "Projects"
     return {
         "environment": "Code and workspace",
+        "application": "Desktop and creative applications",
         "workspace_files": "Code and workspace",
         "git": "Git",
         "github": "GitHub",

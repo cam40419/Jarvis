@@ -41,3 +41,11 @@ class Artifact(StrictModel):
         ):
             raise ValueError("Artifact names must be plain filenames")
         return value
+
+
+class DependencyArtifact(StrictModel):
+    """An exact predecessor revision and its optional task-local copy."""
+
+    dependency_id: str
+    artifact: Artifact
+    workspace_path: str | None = None

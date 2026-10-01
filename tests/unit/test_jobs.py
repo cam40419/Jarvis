@@ -38,12 +38,8 @@ def test_job_key_conflict_is_rejected() -> None:
 
 def test_job_transitions_use_optimistic_versioning_and_terminal_states() -> None:
     service, _, actor = setup()
-    job, _ = service.submit(
-        actor, kind="test.job", input={"a": 1}, idempotency_key="job-key-123"
-    )
-    running = service.transition(
-        actor, job.id, expected_version=1, status=JobStatus.RUNNING
-    )
+    job, _ = service.submit(actor, kind="test.job", input={"a": 1}, idempotency_key="job-key-123")
+    running = service.transition(actor, job.id, expected_version=1, status=JobStatus.RUNNING)
     assert running.version == 2
 
     with pytest.raises(InvalidTransitionError):
@@ -60,4 +56,3 @@ def test_job_transitions_use_optimistic_versioning_and_terminal_states() -> None
 
     with pytest.raises(InvalidTransitionError):
         service.transition(actor, job.id, expected_version=3, status=JobStatus.RUNNING)
-
