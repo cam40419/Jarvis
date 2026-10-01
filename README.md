@@ -13,6 +13,7 @@ within saved cadence, cycle and model-budget limits. Todos, findings, activity a
 remain attached to the project.
 
 - [Project teams, planning and ongoing work](docs/runbooks/project-teams.md)
+- [Current roadmap, response waits and team/agent schedules](docs/project-roadmap.md)
 - [ClickUp project boards and company work management](docs/runbooks/project-boards.md)
 - [Installed tools and setup](docs/runbooks/work-platform.md)
 - [Bookings, orders, reservations and phone messages](docs/runbooks/external-actions.md)

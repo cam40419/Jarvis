@@ -106,6 +106,25 @@ directories are not transferred. Workers without Docker receive references marke
 as unavailable locally. Review findings must identify the files actually inspected;
 see [dependency artifact handoff](agent-execution.md#dependency-artifact-handoff).
 
+Within a project, explicitly granted `project.outputs` and
+`project.output_read` tools list saved outputs and read bounded UTF-8 text from successful
+tasks. `workspace.import_artifact` copies an authorized output into the current Docker
+workspace for binary/large-file processing, returning a relative path and verified hash.
+ZIP bundles are imported without extraction. These explicit tools also support
+outputs from earlier runs beyond the automatic dependency handoff.
+
+Use **Project → Files → Generated outputs → Save to project** to make an editable local
+copy. The immutable original remains available, with a receipt linking the copy to its
+run and source hash. Existing different files require their current revision before
+replacement. The `project.output_save` skill provides the same operation to authorized
+agents. **Use in next task** adds the saved file reference to the lead's draft instruction;
+the user still submits that task. Previous runs remain accessible after profile changes.
+
+For existing installations, add the canonical tool definitions and chosen grants to the
+manifest and restart API/dispatcher together. Existing individually configured project
+members and custom profiles retain their saved grants; select the new skills explicitly
+where needed. A skill being installed does not grant it to every agent.
+
 ## Start the dispatcher
 
 ```powershell

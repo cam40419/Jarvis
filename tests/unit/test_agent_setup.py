@@ -85,14 +85,17 @@ def test_combined_document_profiles_can_research_and_save_without_unrelated_gran
 
     # These complete workflows must not gain Gmail, Calendar, purchasing, shell or
     # other provider grants as the catalog grows.
-    assert set(profile.tool_ids) == {f"native.{name}" for name in required_tools}
-    assert len(profile.tool_ids) == len(required_tools)
+    output_tools = {"project.outputs", "project.output_read"}
+    if profile_id == "file-writer":
+        output_tools.add("project.output_save")
+    assert set(profile.tool_ids) == {f"native.{name}" for name in required_tools} | output_tools
+    assert len(profile.tool_ids) == len(required_tools) + len(output_tools)
     assert profile.tool_scopes == required_scopes
     assert profile.environment_ids == ()
     assert any(not tools[key].side_effect for key in profile.tool_ids)
     assert any(tools[key].side_effect for key in profile.tool_ids)
     assert profile.max_action == "write"
-    assert profile.version == 2
+    assert profile.version == 3
     assert profile.description
     assert profile.max_steps == 16
     assert profile.max_tool_calls == 32
@@ -151,11 +154,15 @@ def test_default_document_teams_use_complete_deliverable_owners():
         assert teams[team_id].version == 2
 
     lead = next(agent for agent in manifest.agents if agent.id == "project-lead")
-    assert lead.version == 2
+    assert lead.version == 3
     assert set(lead.tool_ids) == {
         "project.snapshot",
         "project.record_finding",
         "project.add_todo",
+        "project.knowledge_read",
+        "project.history_search",
+        "project.outputs",
+        "project.output_read",
     }
 
 

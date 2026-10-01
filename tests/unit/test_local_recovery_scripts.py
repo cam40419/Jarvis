@@ -1,4 +1,5 @@
 import json
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -233,3 +234,51 @@ def test_compatibility_worker_propagates_launcher_failure(tmp_path):
         check=False,
     )
     assert result.returncode != 0 and "Install the project environment" in result.stderr
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows native pipeline regression")
+def test_recovery_drains_native_docker_output_before_checking_exit_status(tmp_path):
+    scripts = tmp_path / "scripts"
+    scripts.mkdir()
+    copied = scripts / "recover-local.ps1"
+    shutil.copyfile(ROOT / "scripts" / copied.name, copied)
+    # Use a real native command, not a PowerShell function: only the native pipeline
+    # reproduces Select-Object -First prematurely terminating a healthy probe.
+    (tmp_path / "docker.cmd").write_text(
+        '@echo off\nif "%1"=="compose" (\n echo fixture-container\n'
+        " ping -n 2 127.0.0.1 >nul\n) else (\n echo healthy\n)"
+        "\nexit /b 0\n",
+        encoding="ascii",
+    )
+    wrapper = tmp_path / "run.ps1"
+    wrapper.write_text(
+        "param([string]$RecoveryPath)\n$ErrorActionPreference = 'Stop'\n"
+        "$started = New-Object 'System.Collections.Generic.List[string]'\n"
+        "function Get-ScheduledTask { param($TaskName, $ErrorAction)\n"
+        "  if ($TaskName -in @('Simon-Workflow','Simon-Agents')) {\n"
+        "    [pscustomobject]@{ State = 'Ready' }\n  }\n}\n"
+        "function Start-ScheduledTask { param($TaskName) $started.Add($TaskName) }\n"
+        "function Invoke-WebRequest { [pscustomobject]@{ StatusCode = 200 } }\n"
+        "& $RecoveryPath\nConvertTo-Json -InputObject @($started.ToArray()) -Compress\n",
+        encoding="utf-8",
+    )
+    environment = os.environ | {"PATH": str(tmp_path) + os.pathsep + os.environ["PATH"]}
+    result = subprocess.run(
+        [
+            "powershell",
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            str(wrapper),
+            str(copied),
+        ],
+        env=environment,
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=True,
+    )
+    assert set(json.loads(result.stdout)) == {"Simon-Workflow", "Simon-Agents"}

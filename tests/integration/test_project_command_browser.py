@@ -249,7 +249,7 @@ def test_lead_delegation_review_results_and_return(project_ui, tmp_path):
     with page.expect_download() as downloaded:
         page.locator("#pc-panel-content").get_by_role("link", name="answer.txt").first.click()
     assert "saved launch brief" in Path(downloaded.value.path()).read_text(encoding="utf-8")
-    page.locator("#pc-tab-findings").click()
+    page.locator("#pc-tab-knowledge").click()
     expect(page.locator("#pc-panel-content")).to_contain_text("saved launch brief")
     page.reload()
     expect(page.locator("#pc-project-title")).to_have_text("Launch studio")
@@ -518,7 +518,7 @@ def test_backlog_notes_settings_and_pause_are_durable(project_ui):
     page.get_by_label("Result or handoff notes (optional)").fill("Customer wants a simple launch.")
     page.get_by_role("button", name="Save task", exact=True).click()
     expect(page.locator("#pc-panel-content .pc-status.done")).to_have_count(1)
-    page.locator("#pc-tab-findings").click()
+    page.locator("#pc-tab-knowledge").click()
     page.get_by_role("button", name="Add entry", exact=True).click()
     page.get_by_label("Project note", exact=True).fill(
         "Keep the first release small. <script>bad()</script>"

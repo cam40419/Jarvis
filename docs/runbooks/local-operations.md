@@ -48,7 +48,7 @@ records remain untouched.
 
 For a controlled API shutdown, run `./scripts/stop-local.ps1`. It requests Uvicorn shutdown and waits
 for the FastAPI cleanup handlers to finish. Its `.local/simon-stop.request` marker persists so
-recovery leaves the API stopped. Restart with `Start-ScheduledTask -TaskName Simon-Local`.
+recovery leaves the API stopped. Resume with `.\scripts\resume-local.ps1 -Service api`.
 Logs are under
 `.local/logs/simon.log`, `postgres.log`, and `backup.log`; Task Scheduler's `LastTaskResult` is `0`
 after a completed successful task and `267009` while the long-running app task is active.
@@ -67,6 +67,31 @@ fails at startup rather than running an idle worker. The compatibility `start-wo
 launcher still delegates to this script. Operational logs are in `.local/logs/assistant-worker.log`
 (5 MiB with three rotated backups). Command-line credentials and exception details are not logged.
 
+Both assistant and agent launchers wait up to five minutes for their configured PostgreSQL
+database before applying migrations. A delayed Docker startup is retried every two seconds;
+explicit authentication/configuration rejections and migration failures stop startup with a
+nonzero exit code. Stop and maintenance requests are honored during the wait and around
+migrations. Persistent logs identify the readiness, migration, or worker phase without writing
+database URLs or raw exception content. The agent log is `.local/logs/agent-dispatcher.log`
+with the same rotation limits as the assistant log. Scheduled recovery can retry failed startup;
+it never replays an interrupted run or clears an intentional stop request.
+
+Worker migrations use a five-second lock timeout and a thirty-second timeout for each SQL
+statement. A blocked migration fails instead of hanging startup indefinitely; partial changes
+roll back transactionally. These are per-operation bounds, not a total migration deadline.
+
+Registered API/worker tasks pass `-Supervised`. Logon, automatic retries and recovery preserve
+deliberate stop markers. To explicitly resume registered services after a stop, use
+`.\scripts\resume-local.ps1` (all installed, enabled services), or select `-Service api`,
+`-Service assistant`, or `-Service agents`. Running services are left alone; a service still
+draining a stop request must finish first. Maintenance blocks resume without clearing markers.
+Direct non-supervised launcher invocations remain an explicit resume. Re-run the task installers
+when upgrading older registrations so scheduled launches include the new flag.
+
+The recovery probe drains Docker's output before checking its exit code. Selecting the first
+line inside a native PowerShell pipeline can stop Docker early and report `-1`, incorrectly
+classifying a healthy database as unavailable and leaving workers stopped.
+
 Use `.\scripts\stop-assistant-worker.ps1` to leave a persistent
 `.local/assistant-worker-stop.request` marker. It waits up to 60 seconds by default; a timeout
 leaves the request active and does not terminate in-flight work. The worker stops claiming tasks,
@@ -80,7 +105,7 @@ For maintenance across all configured launchers and the recovery supervisor, cre
 does not itself stop running processes. Configured-server, assistant and agent checks remain
 available; the legacy `start-local.ps1 -Check` is blocked because it starts Docker and migrates.
 Remove the marker when maintenance is
-finished, then explicitly start the desired tasks. Agent worker installation and its separate
+finished, then use `resume-local.ps1` for the desired services. Agent worker installation and its separate
 `.local/agent-dispatcher-stop.request` marker are described in
 [dispatcher lifecycle](dispatcher-lifecycle.md). Recovery supervises `Simon-Agents` only when it
 is installed and ready; it never registers the task or replays interrupted runs.
@@ -105,7 +130,7 @@ Disable-ScheduledTask -TaskName Simon-Recovery
 .\scripts\stop-local.ps1
 .\venv\Scripts\python.exe scripts/verify_restore.py
 Enable-ScheduledTask -TaskName Simon-Recovery
-Start-ScheduledTask -TaskName Simon-Local
+.\scripts\resume-local.ps1 -Service api
 ```
 
 The September 16 drill restored and compared **37 tables** successfully. Its archive and report are

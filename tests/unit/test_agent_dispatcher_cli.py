@@ -57,7 +57,10 @@ def runtime(monkeypatch, tmp_path):
         records.state_dir = state_dir
         records.available_transports = available_transports
         return SimpleNamespace(
-            store=store, manifest=configured, agent_profiles=AgentProfileService(store, configured)
+            store=store,
+            manifest=configured,
+            state_dir=state_dir,
+            agent_profiles=AgentProfileService(store, configured),
         )
 
     monkeypatch.setattr(cli, "AgentPlatformService", platform)
@@ -66,6 +69,7 @@ def runtime(monkeypatch, tmp_path):
         def __init__(self, platform, *, enabled):
             records.enabled = enabled
             self.platform = platform
+            self.store = platform.store
 
         def recover_interrupted(self, identifier, version, *, operator_actor_id):
             records.recovered.append((identifier, version, operator_actor_id))
@@ -387,3 +391,15 @@ def test_slow_board_poll_does_not_block_other_runs_and_is_drained():
         release.set()
         thread.join(5)
     assert not thread.is_alive() and len(coordination_calls) == 1
+
+
+def test_dispatcher_writes_failure_to_rotating_log_without_secrets(runtime, tmp_path):
+    runtime.result = RuntimeError("postgresql://private-secret@private-host")
+    log = tmp_path / "dispatcher.log"
+    with pytest.raises(SystemExit) as failure:
+        cli.main(["--once", "--log-file", str(log)])
+    assert failure.value.code == 1 and runtime.closed
+    text = log.read_text()
+    assert "Agent dispatcher failed (RuntimeError)" in text
+    assert "private-secret" not in text
+    assert not cli.logger.handlers

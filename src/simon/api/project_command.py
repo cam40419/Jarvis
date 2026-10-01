@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from pydantic import Field
 
 from simon.api.project_boards import board_blockers
+from simon.api.project_knowledge import project_knowledge_router
 from simon.domain.errors import DomainError, ValidationError
 from simon.domain.models import ActorContext, StrictModel
 from simon.domain.project_work import (
@@ -47,6 +48,7 @@ def project_command_router(
 ) -> APIRouter:
     router = APIRouter(prefix="/v1/projects/{project_id}", tags=["project work"])
     work, runs = coordinator.work, coordinator.runs
+    router.include_router(project_knowledge_router(work, authenticate))
     history = ProjectHistoryService(work, runs)
 
     @router.get("/runs")

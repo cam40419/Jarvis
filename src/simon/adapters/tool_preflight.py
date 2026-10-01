@@ -32,6 +32,7 @@ INSTALLED_TRANSPORTS = (
     "pcb",
     "project_work",
     "external_actions",
+    "project_outputs",
 )
 
 
@@ -63,6 +64,16 @@ def integration_status(
 ) -> tuple[str, tuple[str, ...]]:
     if tool.transport == "application" and (reason := application_configuration_reason(tool)):
         return "unconfigured", (reason,)
+    if tool.transport == "project_outputs":
+        from simon.adapters.project_output_tools import project_output_configuration_reason
+
+        if reason := project_output_configuration_reason(tool):
+            return "unconfigured", (reason,)
+    if tool.transport == "workspace_files":
+        from simon.adapters.workspace_files import workspace_file_configuration_reason
+
+        if reason := workspace_file_configuration_reason(tool):
+            return "unconfigured", (reason,)
     if tool.transport == "external_actions":
         from simon.adapters.external_action_tools import external_action_configuration_reason
 

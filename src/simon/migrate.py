@@ -16,7 +16,18 @@ def migration_directory() -> Path:
     return packaged if packaged.is_dir() else Path(__file__).parents[2] / "db" / "migrations"
 
 
-def migrate(database_url: str, directory: Path | None = None) -> list[str]:
+def migrate(
+    database_url: str,
+    directory: Path | None = None,
+    *,
+    lock_timeout_ms: int | None = None,
+    statement_timeout_ms: int | None = None,
+) -> list[str]:
+    # Manual migration callers retain their existing behavior. Supervised startup
+    # supplies finite limits so an abandoned lock cannot pin the task indefinitely.
+    for value in (lock_timeout_ms, statement_timeout_ms):
+        if value is not None and (type(value) is not int or not 1 <= value <= 600_000):
+            raise ValueError("Migration timeouts must be integers between 1 and 600000 ms")
     directory = directory or migration_directory()
     files = sorted(p for p in directory.glob("*.sql") if not p.name.endswith(".down.sql"))
     if not files:
@@ -26,6 +37,12 @@ def migrate(database_url: str, directory: Path | None = None) -> list[str]:
         psycopg.connect(database_url, autocommit=True, connect_timeout=5) as connection,
         connection.transaction(),
     ):
+        for setting, timeout in (
+            ("lock_timeout", lock_timeout_ms),
+            ("statement_timeout", statement_timeout_ms),
+        ):
+            if timeout is not None:
+                connection.execute("SELECT set_config(%s,%s,true)", (setting, f"{timeout}ms"))
         connection.execute("SELECT pg_advisory_xact_lock(741982001)")
         connection.execute(
             "CREATE TABLE IF NOT EXISTS schema_migrations ("

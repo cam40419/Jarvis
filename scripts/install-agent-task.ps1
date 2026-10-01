@@ -14,7 +14,7 @@ foreach ($requiredScript in @($launcher, $dispatcher, (Join-Path $PSScriptRoot '
 $user = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
 $principal = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Limited
 $action = New-ScheduledTaskAction -Execute $pythonw `
-    -Argument "`"$launcher`" `"$dispatcher`"" -WorkingDirectory $repoRoot
+    -Argument "`"$launcher`" `"$dispatcher`" -Supervised" -WorkingDirectory $repoRoot
 $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -Hidden `
     -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew `
     -ExecutionTimeLimit ([timespan]::Zero) -RestartCount 3 `
@@ -23,5 +23,5 @@ Register-ScheduledTask -TaskName 'Simon-Agents' -Action $action `
     -Trigger (New-ScheduledTaskTrigger -AtLogOn -User $user) -Settings $settings `
     -Principal $principal -Description 'Execute explicitly queued Simon agent team runs.' `
     -Force | Out-Null
-if ($Start) { Start-ScheduledTask -TaskName 'Simon-Agents' }
+if ($Start) { & (Join-Path $PSScriptRoot 'resume-local.ps1') -Service agents }
 Write-Host 'Registered Simon-Agents. This user must sign in before the task can run.'

@@ -665,6 +665,46 @@ class PostgresStore(InMemoryStore):
             ).fetchall()
             return tuple(self._job(row) for row in rows)
 
+    def project_activity_jobs(
+        self,
+        household_id: UUID,
+        actor_id: UUID,
+        project_id: UUID,
+        query: str,
+        activity_kind: str | None,
+        before_sequence: int | None,
+        limit: int,
+    ) -> tuple[Job, ...]:
+        clauses = [
+            "household_id=%s",
+            "created_by=%s",
+            "kind=%s",
+            "kind LIKE 'platform.project_activity.%%'",
+        ]
+        parameters: list[Any] = [
+            household_id,
+            actor_id,
+            "platform.project_activity." + project_id.hex,
+        ]
+        if query:
+            # strpos uses a literal substring: '%' and '_' never become wildcards.
+            clauses.append("strpos(lower(input->'initial_state'->>'text'),lower(%s)) > 0")
+            parameters.append(query)
+        if activity_kind is not None:
+            clauses.append("input->'initial_state'->>'kind'=%s")
+            parameters.append(activity_kind)
+        if before_sequence is not None:
+            clauses.append("(input->'initial_state'->>'sequence')::bigint < %s")
+            parameters.append(before_sequence)
+        with self.transaction():
+            rows = self.connection.execute(
+                "SELECT * FROM jobs WHERE "
+                + " AND ".join(clauses)
+                + " ORDER BY (input->'initial_state'->>'sequence')::bigint DESC LIMIT %s",
+                (*parameters, limit),
+            ).fetchall()
+            return tuple(self._job(row) for row in rows)
+
     def jobs_all(self, kind: str, limit: int, status: str = "queued") -> tuple[Job, ...]:
         with self.transaction():
             rows = self.connection.execute(

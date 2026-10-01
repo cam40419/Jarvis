@@ -34,6 +34,7 @@ from simon.adapters.native_tools import (
     with_native_tools,
 )
 from simon.adapters.project_board_binding import project_board_service
+from simon.adapters.project_output_tools import project_output_transport_factory
 from simon.adapters.project_work_tools import project_transport_factory
 from simon.adapters.tool_preflight import INSTALLED_TRANSPORTS
 from simon.api.agent_platform import agent_platform_router
@@ -44,6 +45,7 @@ from simon.api.model_stream import model_stream
 from simon.api.project_boards import project_boards_router
 from simon.api.project_command import project_command_router
 from simon.api.project_files import project_router
+from simon.api.project_outputs import project_outputs_router
 from simon.api.request_ingress import RequestIngressMiddleware
 from simon.api.tasks import task_router
 from simon.api.work_sessions import session_router
@@ -85,6 +87,7 @@ from simon.services.model_conversations import ModelConversationService
 from simon.services.policy import PolicyEngine
 from simon.services.project_autonomy import ProjectAutonomyService
 from simon.services.project_coordinator import ProjectCoordinator
+from simon.services.project_outputs import ProjectOutputService
 from simon.services.project_work import ProjectWorkService
 from simon.services.tasks import AssistantTaskService
 from simon.services.voice import VoiceService
@@ -185,6 +188,11 @@ class AppContainer:
         self.agent_runs = AgentRunService(
             self.agent_platform,
             enabled=self.settings.agent_execution_enabled,
+        )
+        self.project_outputs = ProjectOutputService(self.agent_runs, self.connected.local_files)
+        self.agent_transport_factory = project_output_transport_factory(
+            self.agent_transport_factory,
+            self.project_outputs,
         )
         self.project_work = ProjectWorkService(
             self.store,
@@ -383,6 +391,7 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
     )
     app.include_router(project_router(services.connected.projects, checked_actor))
     app.include_router(project_command_router(services.project_coordinator, checked_actor))
+    app.include_router(project_outputs_router(services.project_outputs, checked_actor))
     app.include_router(external_actions_router(services.external_actions, checked_actor))
     app.include_router(project_boards_router(services.project_boards, checked_actor))
     if services.tasks.conversations:

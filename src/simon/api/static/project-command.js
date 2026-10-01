@@ -424,7 +424,7 @@
     ['files', 'Files'],
     ['history', 'Run history'],
     ['board', 'Board'],
-    ['findings', 'Findings'],
+    ['knowledge', 'Knowledge'],
     ['activity', 'Activity'],
     ['sessions', 'Sessions'],
     ['team', 'Team'],
@@ -438,7 +438,7 @@
       item.setAttribute('role', 'tab');
       item.setAttribute(
         'aria-controls',
-        ['tasks', 'findings', 'activity'].includes(id) ? 'pc-panel' : 'pc-' + id + '-panel',
+        ['tasks', 'knowledge', 'activity'].includes(id) ? 'pc-panel' : 'pc-' + id + '-panel',
       );
       item.setAttribute('aria-selected', String(id === tab));
       item.tabIndex = id === tab ? 0 : -1;
@@ -488,6 +488,9 @@
   const overviewLinks = node('div', undefined, 'pc-overview-links');
   overviewLinks.id = 'pc-overview-links';
   $('pc-metrics').after(overviewLinks);
+  const knowledgeSummary = node('section');
+  knowledgeSummary.id = 'pc-knowledge-summary';
+  overviewLinks.after(knowledgeSummary);
   const panelAction = button('Add task', () => openTodo());
   panelAction.id = 'pc-panel-action';
   $('pc-task-filter').after(panelAction);
@@ -779,6 +782,7 @@
     nextArchiveOffset = null;
     savedRuns.clear();
     ++generation;
+    window.dispatchEvent(new CustomEvent('simon-project-changing', { detail: { projectId: id } }));
     $('pc-project-body').dataset.fingerprint = '';
     $('pc-panel-content').dataset.fingerprint = '';
     if (updateUrl && window.SimonWork) {
@@ -1123,7 +1127,7 @@
     }
   }
   function setTab(value) {
-    tab = value;
+    tab = value === 'findings' ? 'knowledge' : value;
     root.querySelectorAll('[data-pc-tab]').forEach((item) => {
       const current = item.dataset.pcTab === tab;
       item.setAttribute('aria-selected', String(current));
@@ -1132,7 +1136,10 @@
     $('pc-panel').setAttribute('aria-labelledby', 'pc-tab-' + tab);
     renderPanel();
     renderSections();
-    if (tab === 'files') loadResources(true);
+    if (tab === 'files') {
+      loadResources(true);
+      window.SimonProjectOutputs?.refresh();
+    }
     if (tab === 'history' && !historyPage) loadHistory();
     if (tab === 'sessions') window.SimonWork?.openProject(selected);
   }
@@ -1143,7 +1150,7 @@
       item.tabIndex = current ? 0 : -1;
     });
     overviewPanel.hidden = tab !== 'overview';
-    $('pc-panel').hidden = !['overview', 'tasks', 'findings', 'activity'].includes(tab);
+    $('pc-panel').hidden = !['overview', 'tasks', 'knowledge', 'activity'].includes(tab);
     $('pc-panel').setAttribute(
       'aria-labelledby',
       'pc-tab-' + (tab === 'overview' ? 'overview' : tab),
@@ -1278,7 +1285,9 @@
       sectionHeading(
         'Project files',
         'Files on your server, linked Drive documents, and generated outputs.',
-        button('Refresh project files', () => loadResources(true)),
+        button('Refresh project files', () =>
+          Promise.all([loadResources(true), window.SimonProjectOutputs?.refresh()]),
+        ),
       ),
     );
     if (resourceError) target.append(node('p', resourceError, 'pc-notice error'));
@@ -1389,13 +1398,17 @@
         ),
       );
     target.append(drive);
+    const generated = node('div');
+    generated.id = 'pc-generated-files';
+    target.append(generated);
+    window.SimonProjectOutputs?.mount(generated, selected);
     const outputs = node('section', undefined, 'pc-file-section');
-    outputs.id = 'pc-generated-files';
+    outputs.id = 'pc-background-files';
     outputs.append(
       sectionHeading(
-        'Generated outputs',
-        'Background files and outputs from the current cycle or runs you have opened. Browse run history for earlier files.',
-        button('Browse run outputs', () => setTab('history')),
+        'Background work files',
+        'Files created by the project’s background tasks.',
+        button('Browse background work', () => setTab('sessions')),
       ),
     );
     for (const artifact of resourceProject?.artifacts || []) {
@@ -1406,41 +1419,7 @@
       link.download = artifact.name;
       outputs.append(fileRow(artifact.name, fileSize(artifact.byte_count), [link]));
     }
-    const runs = new Map(
-      [...savedRuns.values(), ...(detail?.runs || [])].map((run) => [run.id, run]),
-    );
-    let outputCount = 0;
-    for (const run of runs.values())
-      for (const task of run.tasks || [])
-        for (const artifact of task.artifacts || []) {
-          const link = node('a', 'Download', 'pc-file-link');
-          link.href = appPath(
-            '/v1/agent-platform/runs/' +
-              encodeURIComponent(run.id) +
-              '/artifacts/' +
-              encodeURIComponent(artifact.id),
-          );
-          link.download = artifact.name;
-          outputs.append(
-            fileRow(
-              artifact.name,
-              [profileName(task.agent_id), human(task.id), date(run.finished_at || run.started_at)]
-                .filter(Boolean)
-                .join(' · '),
-              [link],
-            ),
-          );
-          outputCount++;
-        }
-    if (!outputCount && !resourceProject?.artifacts?.length)
-      outputs.append(
-        node(
-          'p',
-          'No outputs are loaded yet. Run history includes files from every earlier run.',
-          'pc-section-empty',
-        ),
-      );
-    target.append(outputs);
+    if (resourceProject?.artifacts?.length) target.append(outputs);
     if (resourceProject?.activity?.length) {
       const activity = node('details', undefined, 'pc-file-section');
       activity.append(node('summary', 'Recent file activity'));
@@ -1615,6 +1594,12 @@
         );
         link.download = artifact.name;
         files.append(link);
+        if (
+          task.status === 'succeeded' &&
+          session?.scopes?.includes('jobs:write') &&
+          window.SimonProjectOutputs
+        )
+          files.append(window.SimonProjectOutputs.saveButton(selected, run.id, artifact));
       }
       section.append(files);
       target.append(section);
@@ -1662,6 +1647,11 @@
     $('pc-task-summary').textContent = '';
     panelAction.textContent = taskView ? 'Add task' : 'Add entry';
     panelAction.onclick = () => (taskView ? openTodo() : openNote());
+    panelAction.hidden = tab === 'knowledge' && !session?.scopes?.includes('jobs:write');
+    if (tab === 'knowledge') {
+      window.SimonProjectKnowledge?.mount(target, selected);
+      return;
+    }
     if (taskView) {
       const filter = $('pc-task-filter').value;
       if (filter === 'archived') {
@@ -1849,6 +1839,12 @@
       );
       link.download = artifact.name;
       actions.append(link);
+      if (
+        output.status === 'succeeded' &&
+        session?.scopes?.includes('jobs:write') &&
+        window.SimonProjectOutputs
+      )
+        actions.append(window.SimonProjectOutputs.saveButton(selected, run.id, artifact));
     }
     if (task.run_id && !run)
       actions.append(
@@ -2367,7 +2363,7 @@
   function openNote() {
     if (!detail) return;
     noteDialog.dataset.project = selected;
-    $('pc-note-kind').value = tab === 'findings' ? 'finding' : 'note';
+    $('pc-note-kind').value = tab === 'knowledge' ? 'finding' : 'note';
     $('pc-note-error').hidden = true;
     noteDialog.showModal();
     $('pc-note-text').focus();
@@ -2659,6 +2655,9 @@
       $('pc-project-body').dataset.fingerprint = '';
     }
   });
+  window.addEventListener('simon-project-output-saved', (event) => {
+    if (event.detail.projectId === selected) loadResources(true);
+  });
   document.addEventListener('visibilitychange', () => {
     if (visible()) refresh(true);
     else clearTimeout(timer);
@@ -2667,10 +2666,23 @@
     if (visible()) refresh(true);
     else clearTimeout(timer);
   }).observe($('work-view'), { attributes: true, attributeFilter: ['hidden'] });
+  function reuseFile(projectId, path) {
+    if (projectId !== selected) return;
+    setTab('overview');
+    const field = $('pc-command');
+    const reference = 'Use the saved project file "' + path + '" in the next task.';
+    field.value = field.value.trim()
+      ? field.value.trimEnd() + '\n\n' + reference
+      : reference + '\n';
+    drafts.set(selected, field.value);
+    field.focus();
+    field.scrollIntoView({ block: 'center' });
+  }
   window.SimonProjectCommand = {
     refresh,
     open: selectProject,
     navigate: setTab,
+    reuseFile,
     getSnapshot: () => (selected && detail ? { projectId: selected, detail } : null),
   };
 })();

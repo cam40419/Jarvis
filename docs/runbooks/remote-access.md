@@ -43,9 +43,7 @@ contain secrets and need the same protection as `.env`.
 .\scripts\install-https-tasks.ps1
 # End maintenance only after checking settings, then restart the existing tasks.
 Remove-Item -LiteralPath .local/maintenance.request
-Start-ScheduledTask -TaskName Simon-Local
-Start-ScheduledTask -TaskName Simon-Workflow
-Start-ScheduledTask -TaskName Simon-Agents
+.\scripts\resume-local.ps1
 # For Tailscale, after install/login/HTTPS enablement, in an administrator terminal:
 tailscale serve --bg --https=443 http://127.0.0.1:8000
 tailscale serve status

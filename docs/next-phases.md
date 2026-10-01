@@ -4,6 +4,9 @@ Updated October 1, 2026. This is the authoritative delivery order for Simon. Det
 architecture documents explain design choices; runbooks describe implemented behavior.
 The remaining subsystem plans provide design context and do not define the current backlog.
 
+The [project continuity roadmap](project-roadmap.md) details durable response waits
+and schedules for teams or individual agents within this delivery direction.
+
 Simon is a local workspace for delegating outcomes to configurable teams. The next
 milestone is **reviewed project delivery**: submit a brief, receive validated files,
 request a revision, recover an interruption, and inspect the accumulated cost through

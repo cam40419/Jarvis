@@ -30,7 +30,9 @@ const pageGlobals = {
   'local-files.js': ['api', 'autosize', 'session'],
   'personality.js': ['api', 'el', 'preferences', 'ready'],
   'project-board.js': ['api'],
-  'project-command.js': ['api', 'SimonMarkdown'],
+  'project-command.js': ['api', 'session', 'SimonMarkdown'],
+  'project-knowledge.js': ['api', 'session', 'SimonMarkdown'],
+  'project-outputs.js': ['api', 'session'],
   'voice.js': ['api', 'el', 'make', 'ready', 'session'],
   'work.js': [
     'activeThread',

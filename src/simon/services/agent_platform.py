@@ -358,8 +358,19 @@ class AgentPlatformService:
         if profile.privacy == "local_only" and task.privacy == "allow_cloud":
             raise AuthorizationError("Task cannot widen the agent's local-only policy")
         definitions = {tool.id: tool for tool in self.manifest.tools}
+        project_output_tools = {
+            key
+            for key, tool in definitions.items()
+            if tool.transport == "project_outputs" or key == "workspace.import_artifact"
+        }
+        if project_id is None and task.tool_ids is None:
+            # Optional project context is absent from standalone runs. Do not make
+            # otherwise useful document/developer presets depend on a project.
+            selected_tools = tuple(key for key in selected_tools if key not in project_output_tools)
         for key in selected_tools:
             tool = definitions[key]
+            if key in project_output_tools and project_id is None:
+                blocked.append("Project output tools require a project-assigned plan")
             if tool.transport == "project_work" and project_id is None:
                 blocked.append("Project reporting tools require a project-assigned plan")
             state, reasons = integration_status(tool, actor, self._environ)

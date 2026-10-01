@@ -43,11 +43,11 @@ if (-not $OnlyWorkflow) {
         -ExtraArguments '-DatabaseOnly' -Trigger $startup -Limit (New-TimeSpan -Minutes 10) `
         -Description 'Start Simon PostgreSQL in Docker Desktop at user logon.'
     Register-SimonTask -Name 'Simon-Local' -Script 'start-local.ps1' `
-        -ExtraArguments '' -Trigger $startup -Limit ([timespan]::Zero) `
+        -ExtraArguments '-Supervised' -Trigger $startup -Limit ([timespan]::Zero) `
         -Description 'Run the local Simon API without a reload watcher.'
 }
 Register-SimonTask -Name 'Simon-Workflow' -Script 'start-workflow-worker.ps1' `
-    -ExtraArguments '' -Trigger $startup -Limit ([timespan]::Zero) `
+    -ExtraArguments '-Supervised' -Trigger $startup -Limit ([timespan]::Zero) `
     -Description 'Run Simon assistant tasks and work sessions.'
 if (-not $OnlyWorkflow) {
     Register-SimonTask -Name 'Simon-Backup' -Script 'backup-local.ps1' `

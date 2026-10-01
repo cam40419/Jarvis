@@ -21,7 +21,7 @@ Open **Work**, select a project, and use its workspace tabs:
 | Files           | Project files on the local server, configured Google Drive folder and generated outputs                                 |
 | Run history     | All saved project runs, including earlier planning and execution cycles, with expandable results and artifact downloads |
 | Board           | Primary ClickUp board connection, import/publish review, synchronization and uncertain update recovery                  |
-| Findings        | Saved conclusions, research and project notes                                                                           |
+| Knowledge       | Project brief, pinned decisions, searchable findings and project history                                                |
 | Activity        | Continuing project updates and older activity pages                                                                     |
 | Sessions        | Project conversations and background tasks                                                                              |
 | Team            | Team membership, responsibilities, lead and autonomy settings                                                           |
@@ -240,6 +240,46 @@ history created before this endpoint. No backfill or global capped job scan is n
 Completed history remains readable after agents or execution configuration change,
 while current project/context access is still required. Starting new work continues
 to validate the current team and configuration.
+
+## Project knowledge and reusable outputs
+
+The **Knowledge** tab holds the project brief and up to 20 pinned decisions. Edit the brief
+from the overview or Knowledge; pin a saved finding to retain a link to its original entry.
+Search across all saved activity, filter by entry type, and load earlier entries without
+losing older findings behind a recent-history limit. Unpinning a decision preserves its
+source entry and the saved knowledge revision. Concurrent edits use a separate record
+version; a conflict preserves the draft and requires reloading the latest record.
+
+The lead's planning context and delegated execution/review context include bounded brief
+and decision summaries. A lead explicitly granted `project.knowledge_read` and
+`project.history_search` can retrieve the full brief, individual decisions, and older
+findings. Saved content is reference data; it never grants permissions or authorizes an
+external action. Original entries and every brief/decision revision remain in PostgreSQL.
+
+**Files → Generated outputs** lists immutable deliverables from current and previous
+project runs. **Save to project** creates an editable local copy with source provenance.
+**Use in next task** adds that copy's reference to the lead's task draft. Output read/import
+skills let suitably configured team members reuse those files during later runs. Access
+is rechecked against the project, run owner, task success and current permissions; a file
+from another project cannot be imported merely by guessing its identifier.
+
+Additional APIs under `/v1/projects/{project_id}`:
+
+| Endpoint                                       | Purpose                                                      |
+| ---------------------------------------------- | ------------------------------------------------------------ |
+| `GET /knowledge`                               | Brief, pinned decisions and independent record version       |
+| `PATCH /knowledge`                             | Save with `expected_version` and `idempotency_key`           |
+| `GET /knowledge/history`                       | Scoped keyset search with `query`, `kind`, `limit`, `cursor` |
+| `GET /knowledge/history/{activity_id}`         | Read a full source entry                                     |
+| `GET /outputs`                                 | Paginated run outputs and saved-copy receipts                |
+| `POST /outputs/{run_id}/{artifact_id}/promote` | Save a local copy; optional path/revision                    |
+
+Migration `0026_project_knowledge_history.sql` indexes existing activity; no finding
+backfill is required. Knowledge, activity and output receipts are owner-scoped alongside
+the existing project access model. Company-wide shared editing is a separate future feature.
+
+See the [current roadmap](../project-roadmap.md) for durable response waits, expanded
+team/single-agent scheduling, provider configuration and deployment follow-ups.
 
 ## Verification
 
