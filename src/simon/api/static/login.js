@@ -20,50 +20,26 @@ async function api(path, body) {
   if (!response.ok) throw new Error(value.error?.message || 'Request failed. Please try again.');
   return value;
 }
-function decode(value) {
-  return Uint8Array.from(atob(value.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
-}
-function encode(buffer) {
-  return btoa(String.fromCharCode(...new Uint8Array(buffer)))
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=/g, '');
-}
-function credentialJSON(credential) {
-  const response = { clientDataJSON: encode(credential.response.clientDataJSON) };
-  for (const field of ['attestationObject', 'authenticatorData', 'signature', 'userHandle']) {
-    if (credential.response[field]) response[field] = encode(credential.response[field]);
-  }
-  if (credential.response.getTransports) response.transports = credential.response.getTransports();
-  return {
-    id: credential.id,
-    rawId: encode(credential.rawId),
-    type: credential.type,
-    response,
-    clientExtensionResults: credential.getClientExtensionResults(),
-  };
-}
 function showSession(value) {
   session = value;
   window.dispatchEvent(new Event('simon-session-change'));
   $('signed-in').hidden = !value;
   $('signed-out').hidden = !!value;
   if (!value) return;
-  const member = value.memberships.find((m) => m.household_id === value.household_id);
+  const member = value.memberships.find((m) => m.workspace_id === value.workspace_id);
   $('welcome').textContent = `Hello, ${member.display_name}.`;
   const methods = {
-    passkey: 'a passkey',
     password: 'a password',
     development: 'development access',
   };
   $('account').textContent = `Signed in with ${methods[value.method] || value.method}.`;
   $('permissions').textContent = `Permissions: ${value.scopes.join(', ')}`;
-  $('households').replaceChildren(
+  $('workspaces').replaceChildren(
     ...value.memberships.map((m) => {
       const option = document.createElement('option');
-      option.value = m.household_id;
-      option.textContent = m.household_name;
-      option.selected = m.household_id === value.household_id;
+      option.value = m.workspace_id;
+      option.textContent = m.workspace_name;
+      option.selected = m.workspace_id === value.workspace_id;
       return option;
     }),
   );
@@ -72,6 +48,13 @@ async function loadPasswordStatus() {
   if (!passwordEnabled) return;
   const result = await api('/auth/password');
   $('set-username').value = result.username || '';
+  const email = await api('/auth/email');
+  $('recovery-email').value = email.email || '';
+  $('recovery-email-status').textContent = email.email
+    ? 'Verified recovery email: ' + email.email
+    : email.configured
+      ? 'Verify your email to enable password recovery.'
+      : 'Your administrator needs to set up email delivery before you can verify your address.';
 }
 async function action(callback) {
   document.querySelectorAll('button').forEach((button) => (button.disabled = true));
@@ -79,43 +62,11 @@ async function action(callback) {
   try {
     await callback();
   } catch (error) {
-    status(
-      error.name === 'NotAllowedError'
-        ? 'Passkey request cancelled or unavailable. Try again.'
-        : error.message,
-      true,
-    );
+    status(error.message, true);
   } finally {
     document.querySelectorAll('button').forEach((button) => (button.disabled = false));
   }
 }
-async function passkey(register) {
-  if (!window.PublicKeyCredential || !navigator.credentials)
-    throw new Error('Passkeys require a supported browser and a secure connection.');
-  const base = `/auth/passkeys/${register ? 'register' : 'login'}`;
-  const flow = await api(`${base}/options`, register ? { token: $('enrollment').value } : {});
-  const options = flow.options;
-  options.challenge = decode(options.challenge);
-  if (register) options.user.id = decode(options.user.id);
-  for (const field of ['allowCredentials', 'excludeCredentials']) {
-    if (options[field])
-      options[field] = options[field].map((item) => ({ ...item, id: decode(item.id) }));
-  }
-  const credential = register
-    ? await navigator.credentials.create({ publicKey: options })
-    : await navigator.credentials.get({ publicKey: options });
-  if (!credential) throw new Error('No passkey was returned. Please try again.');
-  showSession(
-    await api(`${base}/verify`, {
-      ceremony_id: flow.ceremony_id,
-      credential: credentialJSON(credential),
-    }),
-  );
-  await loadPasswordStatus();
-  $('enrollment').value = '';
-  status(register ? "Passkey created. You're signed in." : "You're signed in.");
-}
-$('sign-in').onclick = () => action(() => passkey(false));
 $('password-login-form').onsubmit = (event) => {
   event.preventDefault();
   action(async () => {
@@ -144,25 +95,58 @@ $('password-set-form').onsubmit = (event) => {
     status('Username and password saved.');
   });
 };
+let emailChallenge = null;
+$('forgot-password-form').onsubmit = (event) => {
+  event.preventDefault();
+  action(async () => {
+    const result = await api('/auth/password/forgot', { email: $('forgot-email').value.trim() });
+    $('password-reset-form').hidden = false;
+    status(result.message);
+    $('reset-code').focus();
+  });
+};
 $('password-reset-form').onsubmit = (event) => {
   event.preventDefault();
   action(async () => {
-    showSession(
-      await api('/auth/password/reset', {
-        token: $('reset-token').value,
-        username: $('reset-username').value,
-        password: $('reset-password').value,
-      }),
-    );
-    $('reset-token').value = '';
-    $('reset-password').value = '';
-    await loadPasswordStatus();
-    status("Password reset. You're signed in.");
+    if ($('reset-password').value !== $('reset-confirm').value)
+      throw new Error('The new passwords do not match.');
+    await api('/auth/password/reset-email', {
+      email: $('forgot-email').value.trim(),
+      code: $('reset-code').value.trim(),
+      password: $('reset-password').value,
+      confirm_password: $('reset-confirm').value,
+    });
+    $('password-reset-form').reset();
+    $('password-reset-form').hidden = true;
+    $('password-reset-panel').open = false;
+    $('login-password').focus();
+    status('Password reset. Sign in with your new password.');
   });
 };
-$('enroll-form').onsubmit = (event) => {
+$('recovery-email-form').onsubmit = (event) => {
   event.preventDefault();
-  action(() => passkey(true));
+  action(async () => {
+    const result = await api('/auth/email/start', {
+      email: $('recovery-email').value.trim(),
+      current_password: $('email-current-password').value,
+    });
+    emailChallenge = result.challenge_id;
+    $('email-current-password').value = '';
+    $('email-code-form').hidden = false;
+    $('email-code').focus();
+    status('Verification code sent. Check your email. The code expires in 10 minutes.');
+  });
+};
+$('email-code-form').onsubmit = (event) => {
+  event.preventDefault();
+  action(async () => {
+    await api('/auth/email/verify', { challenge_id: emailChallenge, code: $('email-code').value });
+    emailChallenge = null;
+    $('email-code-form').reset();
+    $('email-code-form').hidden = true;
+    await loadPasswordStatus();
+    status('Recovery email verified.');
+  });
 };
 $('password-register-form').onsubmit = (event) => {
   event.preventDefault();
@@ -195,10 +179,10 @@ $('logout').onclick = () =>
     showSession(null);
     status('Signed out.');
   });
-$('households').onchange = () =>
+$('workspaces').onchange = () =>
   action(async () => {
     try {
-      showSession(await api('/auth/household', { household_id: $('households').value }));
+      showSession(await api('/auth/workspace', { workspace_id: $('workspaces').value }));
     } catch (error) {
       showSession(session);
       throw error;
@@ -222,9 +206,6 @@ $('echo').onclick = () =>
     $('password-register-panel').hidden = !config.password_enabled;
     $('password-reset-panel').hidden = !config.password_enabled;
     $('password-set-panel').hidden = !config.password_enabled;
-    $('password-separator').hidden = !config.password_enabled;
-    if (!config.password_enabled)
-      $('login-lede').textContent = 'Use your passkey to open your workspace.';
   } catch (error) {
     status(error.message, true);
   }

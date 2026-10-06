@@ -17,6 +17,33 @@ window.SimonMarkdown = (() => {
       button.textContent = 'Copy unavailable';
     }
   }
+  function linkUrl(value) {
+    // Some model answers prefix an existing app download with "sandbox:".
+    // Only this authenticated route is an alias; filesystem paths stay text.
+    if (value.startsWith('sandbox:/v1/local-files/download?')) value = value.slice(8);
+    // Browser URL parsing silently repairs some malformed URLs. Reject those
+    // forms before resolving app links so they cannot escape the mounted app.
+    if (/[\\\u0000-\u0020\u007f]/.test(value) || /%(?:0[0-9a-f]|1[0-9a-f]|7f|5c)/i.test(value))
+      throw Error('Unsafe link');
+    if (value.startsWith('/')) {
+      const pathname = value.split(/[?#]/, 1)[0];
+      if (
+        value.startsWith('//') ||
+        /%2f/i.test(pathname) ||
+        pathname.split('/').some((part) => ['.', '..'].includes(decodeURIComponent(part)))
+      )
+        throw Error('Unsafe link');
+      const base = (document.querySelector('meta[name="simon-base"]')?.content || '').replace(
+        /\/+$/,
+        '',
+      );
+      if (base && pathname !== base && !pathname.startsWith(base + '/')) return base + value;
+      return value;
+    }
+    const url = new URL(value);
+    if (!['https:', 'http:'].includes(url.protocol)) throw Error('Unsafe link');
+    return url.href;
+  }
   function inline(parent, text) {
     const pattern = /(`[^`\n]+`|\*\*[^*\n]+\*\*|\*[^*\n]+\*|\[[^\]\n]+\]\([^\s)]+\))/g;
     let last = 0;
@@ -29,10 +56,9 @@ window.SimonMarkdown = (() => {
       else {
         const parts = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(value);
         try {
-          const url = new URL(parts[2]);
-          if (!['https:', 'http:'].includes(url.protocol)) throw Error('Unsafe link');
+          const href = linkUrl(parts[2]);
           const link = node('a', parts[1]);
-          link.href = url.href;
+          link.href = href;
           link.target = '_blank';
           link.rel = 'noopener noreferrer';
           parent.append(link);

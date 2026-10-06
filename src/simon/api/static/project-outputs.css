@@ -7,6 +7,10 @@
   border-bottom: 0;
   padding-bottom: 10px;
 }
+.po-output > .sr-artifact {
+  border: 0;
+  padding: 0;
+}
 .po-saved-copy {
   border-left: 2px solid var(--line);
   padding: 4px 0 4px 15px;
@@ -56,4 +60,29 @@
   .po-output .pc-resource-actions {
     gap: 12px;
   }
+}
+.po-output-status {
+  display: inline-block;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 8px;
+}
+.po-output-status.partial {
+  color: var(--warning);
+}
+.po-output-status.draft {
+  font-style: italic;
+}
+
+.po-history {
+  margin: 0 0 12px;
+}
+.po-document-download {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 11px;
+  font-weight: 600;
+}
+.po-document-download:hover {
+  background: var(--hover);
 }

@@ -33,10 +33,10 @@ class CapabilityBroker:
                 "capability": invocation.capability,
                 "arguments": invocation.arguments,
                 "actor_id": str(actor.actor_id),
-                "household_id": str(actor.household_id),
+                "workspace_id": str(actor.workspace_id),
             }
         )
-        namespace = f"{actor.household_id}:{invocation.capability}"
+        namespace = f"{actor.workspace_id}:{invocation.capability}"
         try:
             validated = input_model.model_validate(invocation.arguments)
         except PydanticValidationError as exc:
@@ -53,7 +53,7 @@ class CapabilityBroker:
             )
             return result.model_dump(mode="json")
 
-        with self._invocations.transaction(actor.household_id):
+        with self._invocations.transaction(actor.workspace_id):
             saved, replayed = self._invocations.execute_once(
                 namespace,
                 invocation.idempotency_key,

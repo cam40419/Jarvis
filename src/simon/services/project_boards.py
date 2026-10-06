@@ -2,7 +2,7 @@
 
 from collections.abc import Callable
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID, uuid4, uuid5
 
 from simon.adapters.clickup import ClickUpAdapter, board_configuration_reasons, task_marker
@@ -29,6 +29,7 @@ from simon.domain.project_boards import BoardConnection, BoardList, BoardTask, B
 from simon.domain.project_work import ProjectActivityDraft, ProjectCycle, ProjectTodo
 from simon.domain.tool_catalog import ToolExecutionError
 from simon.services.canonical import digest
+from simon.services.integrations import IntegrationService
 from simon.services.project_work import ProjectWorkService
 
 BOARD_KIND = "platform.project_board"
@@ -46,9 +47,11 @@ class ProjectBoardService:
         *,
         clock: Callable[[], datetime] = utc_now,
         sync_interval_seconds: int = 120,
+        integrations: IntegrationService | None = None,
     ) -> None:
         if not 60 <= sync_interval_seconds <= 3600:
             raise ValueError("Board polling interval must be between 60 and 3600 seconds")
+        self.integrations = integrations
         self.store, self.work, self.adapter = store, work, adapter
         self.configured_connections, self.clock = connections, clock
         self.sync_interval_seconds = sync_interval_seconds
@@ -65,7 +68,7 @@ class ProjectBoardService:
 
     @staticmethod
     def _id(actor: ActorContext, project_id: UUID) -> UUID:
-        return uuid5(project_id, f"board:{actor.household_id}:{actor.actor_id}")
+        return uuid5(project_id, f"board:{actor.workspace_id}:{actor.actor_id}")
 
     @staticmethod
     def _op_kind(project_id: UUID) -> str:
@@ -86,7 +89,7 @@ class ProjectBoardService:
         if job and (
             job.kind != BOARD_KIND
             or job.created_by != actor.actor_id
-            or job.household_id != actor.household_id
+            or job.workspace_id != actor.workspace_id
         ):
             raise NotFoundError("Project board not found")
         if job is None and create:
@@ -94,7 +97,7 @@ class ProjectBoardService:
             job, _ = self.store.create_job(
                 Job(
                     id=identifier,
-                    household_id=actor.household_id,
+                    workspace_id=actor.workspace_id,
                     created_by=actor.actor_id,
                     kind=BOARD_KIND,
                     idempotency_key=identifier.hex,
@@ -116,7 +119,7 @@ class ProjectBoardService:
             if job
             else ProjectBoardState(
                 project_id=project_id,
-                workspace_id=actor.household_id,
+                workspace_id=actor.workspace_id,
                 actor_id=actor.actor_id,
                 updated_at=self.clock(),
             )
@@ -154,12 +157,17 @@ class ProjectBoardService:
 
     def _connection(self, actor: ActorContext, identifier: str) -> BoardConnection:
         self.work.authorize(actor)
+        managed = (
+            self.integrations.board_connection(actor, identifier) if self.integrations else None
+        )
+        if managed is not None:
+            return managed
         connection = next(
             (
                 item
                 for item in self.configured_connections
                 if item.id == identifier
-                and item.household_id == actor.household_id
+                and item.workspace_id == actor.workspace_id
                 and actor.actor_id in item.actor_ids
             ),
             None,
@@ -176,11 +184,15 @@ class ProjectBoardService:
                 "name": item.name,
                 "provider": item.provider,
                 "list_ids": sorted(item.list_ids),
+                "discover_lists": item.discover_lists,
                 "available": not board_configuration_reasons(item, self.adapter.http.environ),
                 "blocked_reasons": board_configuration_reasons(item, self.adapter.http.environ),
             }
-            for item in self.configured_connections
-            if item.household_id == actor.household_id and actor.actor_id in item.actor_ids
+            for item in (
+                *self.configured_connections,
+                *(self.integrations.board_connections(actor) if self.integrations else ()),
+            )
+            if item.workspace_id == actor.workspace_id and actor.actor_id in item.actor_ids
         ]
 
     def boards(self, actor: ActorContext, connection_id: str) -> tuple[BoardList, ...]:
@@ -193,7 +205,7 @@ class ProjectBoardService:
         if state.binding is None:
             raise ValidationError("Connect this project to a board first")
         connection = self._connection(actor, state.binding.connection_id)
-        if state.binding.list_id not in connection.list_ids:
+        if not connection.discover_lists and state.binding.list_id not in connection.list_ids:
             raise AuthorizationError("The bound list is no longer authorized")
         return state, connection
 
@@ -208,7 +220,7 @@ class ProjectBoardService:
         board = self.adapter.list_metadata(connection, actor, request.binding.list_id)
         if not set(request.binding.status_map.values()) <= {item.status for item in board.statuses}:
             raise ValidationError("Choose statuses that exist on the selected board")
-        with self.store.transaction(actor.household_id):
+        with self.store.transaction(actor.workspace_id):
             current = self.get(actor, project_id)
             self._expected(current, request.expected_version)
             if current.pending_operation_ids or self.work.get(actor, project_id).active_cycle:
@@ -241,6 +253,21 @@ class ProjectBoardService:
         state, connection = self._bound(actor, project_id)
         assert state.binding
         return self.adapter.tasks(connection, actor, state.binding.list_id, page=page)
+
+    def task(self, actor: ActorContext, project_id: UUID, task_id: str) -> BoardTask:
+        """Read only a task whose current home list is this project's authorized list."""
+        state, connection = self._bound(actor, project_id)
+        assert state.binding
+        result = self.adapter.get_task(connection, actor, task_id, list_id=state.binding.list_id)
+        if (result.list_id, result.workspace_id) != (
+            state.binding.list_id,
+            connection.clickup_workspace_id,
+        ):
+            raise AuthorizationError("ClickUp task is outside the bound project list")
+        current, current_connection = self._bound(actor, project_id)
+        if self._signature(state, connection) != self._signature(current, current_connection):
+            raise InvalidTransitionError("Project board changed during task read")
+        return result
 
     @staticmethod
     def _fingerprint(task: BoardTask) -> str:
@@ -392,6 +419,8 @@ class ProjectBoardService:
         actor: ActorContext,
         project_id: UUID,
         request: ImportBoardTasks,
+        *,
+        before_dispatch: Callable[[], ActorContext] | None = None,
     ) -> ProjectBoardState:
         self._access(actor, project_id, write=True)
         state, connection = self._bound(actor, project_id)
@@ -399,9 +428,11 @@ class ProjectBoardService:
         tasks = self.adapter.get_tasks(
             connection, actor, tuple(dict.fromkeys(request.task_ids)), list_id=state.binding.list_id
         )
-        with self.store.transaction(actor.household_id):
+        with self.store.transaction(actor.workspace_id):
 
             def operation() -> dict[str, Any]:
+                if before_dispatch is not None:
+                    before_dispatch()
                 current = self.get(actor, project_id)
                 self._expected(current, request.expected_version)
                 if current.binding != state.binding:
@@ -432,7 +463,7 @@ class ProjectBoardService:
         return tuple(
             self._op_view(job)
             for job in self.store.jobs(
-                actor.household_id,
+                actor.workspace_id,
                 actor.actor_id,
                 self._op_kind(project_id),
                 0,
@@ -452,10 +483,11 @@ class ProjectBoardService:
         send: Callable[[str], tuple[dict[str, Any], BoardTask | None]],
         expected_binding: str,
         cycle_id: UUID | None = None,
+        before_dispatch: Callable[[], ActorContext] | None = None,
     ) -> BoardOperation:
         identifier = uuid5(self._id(actor, project_id), "operation:" + key)
         fingerprint = digest({"kind": kind, "todo_id": todo_id, "payload": payload})
-        with self.store.transaction(actor.household_id):
+        with self.store.transaction(actor.workspace_id):
             self._access(actor, project_id, write=True)
             existing = self.store.get_job(identifier)
             if existing:
@@ -501,7 +533,7 @@ class ProjectBoardService:
             self.store.create_job(
                 Job(
                     id=identifier,
-                    household_id=actor.household_id,
+                    workspace_id=actor.workspace_id,
                     created_by=actor.actor_id,
                     kind=self._op_kind(project_id),
                     idempotency_key=identifier.hex,
@@ -523,6 +555,8 @@ class ProjectBoardService:
             self._write_fence(
                 live_actor, self.get(live_actor, project_id), expected_binding, cycle_id
             )
+            if before_dispatch is not None:
+                before_dispatch()
             receipt, task = send(operation.marker)
             operation = operation.model_copy(
                 update={
@@ -543,7 +577,7 @@ class ProjectBoardService:
                     else "Board write was rejected or its precondition changed; review it.",
                 }
             )
-        with self.store.transaction(actor.household_id):
+        with self.store.transaction(actor.workspace_id):
             row = self.store.get_job(identifier)
             # Recording a receipt remains necessary even if access was revoked during
             # the provider call. These identifiers were owner-checked before dispatch.
@@ -619,12 +653,13 @@ class ProjectBoardService:
         request: PublishBoardTasks,
         *,
         _cycle_id: UUID | None = None,
+        before_dispatch: Callable[[], ActorContext] | None = None,
     ) -> ProjectBoardState:
         self._access(actor, project_id, write=True)
         state, connection = self._bound(actor, project_id)
         assert state.binding and state.board
         # Save admission once, so retries of a partially completed publish keep their identity.
-        with self.store.transaction(actor.household_id):
+        with self.store.transaction(actor.workspace_id):
 
             def admit() -> dict[str, Any]:
                 current = self.get(actor, project_id)
@@ -701,6 +736,7 @@ class ProjectBoardService:
                 send=create,
                 expected_binding=self._signature(state, connection),
                 cycle_id=_cycle_id,
+                before_dispatch=before_dispatch,
             )
             state = self.get(actor, project_id)
             mapped = {item.todo_id: item for item in state.mappings}
@@ -760,6 +796,7 @@ class ProjectBoardService:
                     send=relate,
                     expected_binding=self._signature(state, connection),
                     cycle_id=_cycle_id,
+                    before_dispatch=before_dispatch,
                 )
         return self.get(actor, project_id)
 
@@ -785,9 +822,9 @@ class ProjectBoardService:
         connection = self._connection(actor, state.binding.connection_id)
         if self._signature(state, connection) != expected_binding:
             raise InvalidTransitionError("Board binding or connection changed before dispatch")
-        if state.binding.list_id not in connection.list_ids or board_configuration_reasons(
-            connection, self.adapter.http.environ
-        ):
+        if (
+            not connection.discover_lists and state.binding.list_id not in connection.list_ids
+        ) or board_configuration_reasons(connection, self.adapter.http.environ):
             raise AuthorizationError("Board connection is no longer available")
         work = self.work.get(actor, state.project_id)
         if cycle_id is not None and (
@@ -800,7 +837,7 @@ class ProjectBoardService:
             raise InvalidTransitionError("Project cycle changed or paused before board dispatch")
 
     def _set_error(self, job: Job, message: str, *, retry_read: bool = False) -> None:
-        with self.store.transaction(job.household_id):
+        with self.store.transaction(job.workspace_id):
             current = self.store.get_job(job.id)
             if current is not None:
                 state = self._view(current)
@@ -824,6 +861,7 @@ class ProjectBoardService:
         *,
         expected_version: int | None = None,
         allow_starting: bool = False,
+        before_dispatch: Callable[[], ActorContext] | None = None,
     ) -> ProjectBoardState:
         self._access(actor, project_id, write=True)
         state, connection = self._bound(actor, project_id)
@@ -851,7 +889,9 @@ class ProjectBoardService:
             if chosen
             else ()
         )
-        with self.store.transaction(actor.household_id):
+        with self.store.transaction(actor.workspace_id):
+            if before_dispatch is not None:
+                before_dispatch()
             current = self.get(actor, project_id)
             self._expected(current, state.version)
             if current.pending_operation_ids:
@@ -878,14 +918,17 @@ class ProjectBoardService:
         project_id: UUID,
         *,
         expected_version: int | None = None,
+        before_dispatch: Callable[[], ActorContext] | None = None,
     ) -> ProjectBoardState:
-        self._sync(actor, project_id, expected_version=expected_version)
-        self._push_one(actor, project_id)
+        self._sync(
+            actor, project_id, expected_version=expected_version, before_dispatch=before_dispatch
+        )
+        self._push_one(actor, project_id, before_dispatch=before_dispatch)
         self._reset_read_failures(actor, project_id)
         return self.get(actor, project_id)
 
     def _reset_read_failures(self, actor: ActorContext, project_id: UUID) -> None:
-        with self.store.transaction(actor.household_id):
+        with self.store.transaction(actor.workspace_id):
             row = self._job(actor, project_id)
             assert row
             state = self._view(row)
@@ -986,7 +1029,7 @@ class ProjectBoardService:
         todo_id: str,
         **changes: Any,
     ) -> None:
-        with self.store.transaction(actor.household_id):
+        with self.store.transaction(actor.workspace_id):
             row = self._job(actor, project_id)
             assert row
             state = self._view(row)
@@ -1002,7 +1045,42 @@ class ProjectBoardService:
                 ),
             )
 
-    def _push_one(self, actor: ActorContext, project_id: UUID) -> bool:
+    def sync_operation(
+        self,
+        actor: ActorContext,
+        project_id: UUID,
+        *,
+        kind: Literal["status", "comment"],
+        expected_version: int,
+        todo_id: str | None = None,
+        before_dispatch: Callable[[], ActorContext] | None = None,
+    ) -> bool:
+        """Push one authorized runtime update without changing the active project's backlog."""
+        self._access(actor, project_id, write=True)
+        state, _ = self._bound(actor, project_id)
+        self._expected(state, expected_version)
+        self._guard(state)
+        assert state.binding
+        enabled = state.binding.sync_status if kind == "status" else state.binding.sync_progress
+        if not enabled:
+            raise AuthorizationError(
+                "This project has not authorized that synchronization operation"
+            )
+        if todo_id is not None and not any(row.todo_id == todo_id for row in state.mappings):
+            raise NotFoundError("Mapped project task not found")
+        return self._push_one(
+            actor, project_id, kind=kind, todo_id=todo_id, before_dispatch=before_dispatch
+        )
+
+    def _push_one(
+        self,
+        actor: ActorContext,
+        project_id: UUID,
+        *,
+        kind: Literal["status", "comment"] | None = None,
+        todo_id: str | None = None,
+        before_dispatch: Callable[[], ActorContext] | None = None,
+    ) -> bool:
         state, connection = self._bound(actor, project_id)
         self._guard(state)
         assert state.binding
@@ -1012,7 +1090,8 @@ class ProjectBoardService:
         for mapping in state.mappings:
             todo = rows.get(mapping.todo_id)
             if (
-                mapping.remote_archived
+                (todo_id is not None and mapping.todo_id != todo_id)
+                or mapping.remote_archived
                 or todo is None
                 or todo.status in {"todo", "ready", "archived"}
             ):
@@ -1023,6 +1102,7 @@ class ProjectBoardService:
             )
             if (
                 state.binding.sync_status
+                and kind in {None, "status"}
                 and desired
                 and desired != mapping.remote_status
                 and mapping.last_status_digest != progress_hash
@@ -1062,6 +1142,7 @@ class ProjectBoardService:
                     payload=payload,
                     send=status_write,
                     expected_binding=self._signature(state, connection),
+                    before_dispatch=before_dispatch,
                 )
                 self._update_mapping_flags(
                     actor,
@@ -1071,7 +1152,11 @@ class ProjectBoardService:
                     last_status_digest=progress_hash,
                 )
                 return True
-            if state.binding.sync_progress and mapping.last_progress_digest != progress_hash:
+            if (
+                state.binding.sync_progress
+                and kind in {None, "comment"}
+                and mapping.last_progress_digest != progress_hash
+            ):
                 before = self._check_remote(actor, state, connection, mapping)
                 payload = {
                     "remote_id": mapping.remote_id,
@@ -1114,6 +1199,7 @@ class ProjectBoardService:
                     payload=payload,
                     send=comment_write,
                     expected_binding=self._signature(state, connection),
+                    before_dispatch=before_dispatch,
                 )
                 self._update_mapping_flags(
                     actor, project_id, todo.id, last_progress_digest=progress_hash
@@ -1122,7 +1208,7 @@ class ProjectBoardService:
         return False
 
     def _recover_stale(self, job: Job) -> None:
-        with self.store.transaction(job.household_id):
+        with self.store.transaction(job.workspace_id):
             current = self.store.get_job(job.id)
             assert current
             state = self._view(current)
@@ -1165,7 +1251,7 @@ class ProjectBoardService:
         state = self._view(row)
         if state.next_sync_at and state.next_sync_at > self.clock():
             return 0
-        with self.store.transaction(row.household_id):
+        with self.store.transaction(row.workspace_id):
             current = self.store.get_job(row.id)
             if current is None or current.version != row.version:
                 return 0
@@ -1213,7 +1299,7 @@ class ProjectBoardService:
         row = self.store.get_job(request.operation_id)
         if (
             row is None
-            or row.household_id != actor.household_id
+            or row.workspace_id != actor.workspace_id
             or row.created_by != actor.actor_id
             or row.kind != self._op_kind(project_id)
             or row.id not in state.pending_operation_ids
@@ -1243,7 +1329,7 @@ class ProjectBoardService:
             )
         if operation.kind != "create" and request.resolution == "attach":
             raise ValidationError("Only a task creation supports attaching a provider task")
-        with self.store.transaction(actor.household_id):
+        with self.store.transaction(actor.workspace_id):
             current = self.get(actor, project_id)
             self._expected(current, request.expected_version)
             saved = self.store.get_job(operation.id)
@@ -1327,7 +1413,7 @@ class ProjectBoardService:
         operation: BoardOperation,
         request: ReconcileBoardOperation,
     ) -> ProjectBoardState:
-        with self.store.transaction(actor.household_id):
+        with self.store.transaction(actor.workspace_id):
             current = self.get(actor, project_id)
             self._expected(current, state.version)
             saved = self.store.get_job(row.id)

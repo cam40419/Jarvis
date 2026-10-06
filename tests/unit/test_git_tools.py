@@ -106,7 +106,7 @@ def setup(
     )
     context = ToolExecutionContext(
         actor_id=uuid4(),
-        household_id=request.workspace_id,
+        workspace_id=request.workspace_id,
         run_id=uuid4(),
         agent_id="coder",
         allowed_tool_ids=frozenset({tool.id}),
@@ -150,7 +150,7 @@ def test_registry_dispatches_guard_inside_exact_owned_lease() -> None:
     assert command.max_output_bytes == 65536
 
 
-@pytest.mark.parametrize("field", ["actor_id", "household_id", "run_id", "agent_id"])
+@pytest.mark.parametrize("field", ["actor_id", "workspace_id", "run_id", "agent_id"])
 def test_cannot_cross_worker_assignment(field: str) -> None:
     manager, _, tool, context, transport = setup()
     value: Any = "other" if field == "agent_id" else uuid4()

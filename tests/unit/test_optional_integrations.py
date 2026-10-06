@@ -34,7 +34,7 @@ def configured(kind="github", operation="repository", handler=None, **changes):
     definition = next(tool for tool in tools if tool.id == kind + "." + operation)
     context = ToolExecutionContext(
         actor_id=actor,
-        household_id=workspace,
+        workspace_id=workspace,
         run_id=uuid4(),
         agent_id="assistant",
         allowed_tool_ids=frozenset({definition.id}),
@@ -105,7 +105,7 @@ def test_cross_actor_workspace_and_assignment_access_fail_before_http(kind, oper
     if change == "actor":
         context = context.model_copy(update={"actor_id": uuid4()})
     elif change == "workspace":
-        context = context.model_copy(update={"household_id": uuid4()})
+        context = context.model_copy(update={"workspace_id": uuid4()})
     elif change == "tool":
         context = context.model_copy(update={"allowed_tool_ids": frozenset()})
     elif change == "scope":
@@ -357,7 +357,7 @@ def test_preflight_reports_missing_credentials_and_denied_tenant_without_network
     tool, context, _, _ = configured()
     actor = ActorContext(
         actor_id=context.actor_id,
-        household_id=context.household_id,
+        workspace_id=context.workspace_id,
         channel=Channel.WORKER,
         scopes=context.scopes,
     )

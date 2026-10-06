@@ -396,7 +396,7 @@ el('save-preferences').onclick = async () => {
     pendingPreferences = null;
     loadPreferenceControls();
     el('preferences-status').textContent =
-      'Saved for you in this household. Applies to future requests.';
+      'Saved for you in this workspace. Applies to future requests.';
   } catch (error) {
     el('preferences-status').textContent = error.message;
   } finally {
@@ -664,7 +664,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     assistant = await api('/v1/assistant');
     preferences = await api('/v1/preferences');
     loadPreferenceControls();
-    const member = session.memberships.find((m) => m.household_id === session.household_id);
+    const member = session.memberships.find((m) => m.workspace_id === session.workspace_id);
     el('user-name').textContent = member.display_name;
     el('user-avatar').textContent = member.display_name
       .split(/\s+/)
@@ -672,7 +672,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       .slice(0, 2)
       .join('')
       .toUpperCase();
-    el('household').textContent = member.household_name;
+    el('workspace').textContent = member.workspace_name;
     const hour = new Date().getHours();
     el('greeting').textContent =
       hour < 12

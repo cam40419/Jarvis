@@ -12,7 +12,7 @@ DRIVE_ID = r"^[A-Za-z0-9_-]+$"
 
 class ProjectDrive(StrictModel):
     project_id: UUID
-    household_id: UUID
+    workspace_id: UUID
     actor_id: UUID
     google_email: str = ""
     folder_id: str | None = None
@@ -28,7 +28,7 @@ class ProjectDrive(StrictModel):
 class ProjectFileOperation(StrictModel):
     id: UUID = Field(default_factory=uuid4)
     project_id: UUID
-    household_id: UUID
+    workspace_id: UUID
     actor_id: UUID
     google_email: str
     request_digest: str

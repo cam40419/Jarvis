@@ -117,7 +117,12 @@ def workspace_file(workspace: Path, value: str, *, output: bool = False) -> Path
 def public_address(hostname: str) -> str:
     records = socket.getaddrinfo(hostname, 443, type=socket.SOCK_STREAM)
     addresses = [str(record[4][0]) for record in records]
-    if not addresses or any(not ipaddress.ip_address(item).is_global for item in addresses):
+    if not addresses or any(
+        not (address := ipaddress.ip_address(item)).is_global
+        or address.is_multicast
+        or address.is_reserved
+        for item in addresses
+    ):
         raise ValueError("Browser destinations must resolve only to public Internet addresses")
     # Prefer IPv4 for worker hosts without IPv6 routing; the connection never
     # resolves the hostname again, so DNS rebinding cannot change the destination.
@@ -140,15 +145,21 @@ class PinnedHTTPSConnection(http.client.HTTPSConnection):
 
 
 class Fetcher:
-    def __init__(self, origins: frozenset[str], *, timeout_seconds: int) -> None:
+    def __init__(
+        self, origins: frozenset[str], *, timeout_seconds: int, public_web: bool = False
+    ) -> None:
+        if type(public_web) is not bool:
+            raise ValueError("Public-web access must be explicitly configured as a boolean")
         self.origins = origins
+        self.public_web = public_web
         self.deadline = time.monotonic() + timeout_seconds
         self.requests = 0
         self.total_bytes = 0
 
     def get(self, url: str) -> tuple[str, int, str, bytes]:
         for _redirect in range(6):
-            if origin(url) not in self.origins:
+            destination = origin(url)  # HTTPS/credentials/port validation also applies publicly.
+            if not self.public_web and destination not in self.origins:
                 raise ValueError("Browser URL or redirect is outside the configured origins")
             remaining = self.deadline - time.monotonic()
             self.requests += 1
@@ -201,6 +212,126 @@ class Fetcher:
         raise ValueError("Browser redirect limit exceeded")
 
 
+def outgoing_links(
+    entries: list[dict[str, str]], base_url: str
+) -> tuple[list[dict[str, str]], bool]:
+    """Bounded link metadata only; following any link still repeats the full URL/DNS policy."""
+    links: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for entry in entries[:201]:
+        try:
+            href = entry.get("href", "")
+            if not href or len(href) > 4000:
+                continue
+            url = urljoin(base_url, href)
+            origin(url)
+            url = urlsplit(url)._replace(fragment="").geturl()
+        except ValueError:
+            continue
+        if url in seen:
+            continue
+        seen.add(url)
+        if len(links) == 40:
+            return links, True
+        candidate = {"url": url, "title": entry.get("title", "").strip()[:240]}
+        if len(json.dumps([*links, candidate], ensure_ascii=False).encode("utf-8")) > 16000:
+            return links, True
+        links.append(candidate)
+    return links, len(entries) > 200
+
+
+_READ_DOCUMENT = r"""({limit}) => {
+    const blocks = new Set(['ADDRESS','ARTICLE','BLOCKQUOTE','DD','DIV','DL','DT',
+        'FIGCAPTION','FIGURE','FOOTER','H1','H2','H3','H4','H5','H6','HEADER','HR','LI','MAIN','OL',
+        'P','PRE','SECTION','TABLE','TR','UL']);
+    const ignored = new Set(['NAV','SCRIPT','STYLE','NOSCRIPT',
+        'TEMPLATE','SVG','CANVAS','IFRAME']);
+    const cookieUI = new RegExp([
+        '(?:^|\\s)(?:cookie[-_ ]?(?:banner|consent|notice|popup)|',
+        'consent[-_ ]?(?:banner|dialog|notice)|onetrust-banner-sdk|',
+        'onetrust-consent-sdk|cybotcookiebotdialog)(?:\\s|$)'
+    ].join(''), 'i');
+    function skip(element) {
+        if (ignored.has(element.tagName) || element.hidden ||
+            element.getAttribute('aria-hidden') === 'true') return true;
+        const role = element.getAttribute('role');
+        if (['navigation','banner','contentinfo'].includes(role)) return true;
+        if (['HEADER','FOOTER'].includes(element.tagName) &&
+            !element.closest('main, [role="main"], article')) return true;
+        const identity = `${element.id} ${element.getAttribute('class') || ''}`;
+        if (cookieUI.test(identity.replace(/\s+/g, ' '))) return true;
+        if (role === 'dialog' && /cookies?|consent/i.test(
+            `${element.getAttribute('aria-label') || ''} ${element.id}`)) return true;
+        const style = getComputedStyle(element);
+        return style.display === 'none' || style.visibility === 'hidden';
+    }
+    function extract(roots) {
+        const parts = [], links = [];
+        let characters = 0, visited = 0, textIncomplete = false, linksIncomplete = false;
+        function add(value) {
+            if (characters >= 200000) { textIncomplete = true; return; }
+            const retained = value.slice(0, 200000 - characters);
+            parts.push(retained); characters += retained.length;
+            if (retained.length !== value.length) textIncomplete = true;
+        }
+        function walk(node, depth = 0) {
+            if (++visited > 50000 || depth > 128) {
+                textIncomplete = linksIncomplete = true; return;
+            }
+            if (node.nodeType === Node.TEXT_NODE) {
+                add((node.nodeValue || '').replace(/\s+/g, ' ')); return;
+            }
+            if (node.nodeType !== Node.ELEMENT_NODE || skip(node)) return;
+            const tag = node.tagName;
+            if (tag === 'BR' || blocks.has(tag)) add('\n');
+            if (tag === 'A' && node.hasAttribute('href')) {
+                if (links.length < 201) links.push({
+                    href: (node.getAttribute('href') || '').slice(0, 4001),
+                    title: (node.textContent || '').replace(/\s+/g, ' ').slice(0, 240)
+                }); else linksIncomplete = true;
+            }
+            for (const child of node.childNodes) {
+                if (visited >= 50000) { textIncomplete = linksIncomplete = true; break; }
+                walk(child, depth + 1);
+            }
+            if (tag === 'TD' || tag === 'TH') add('\t');
+            else if (blocks.has(tag)) add('\n');
+        }
+        for (const root of roots) {
+            walk(root); if (visited >= 50000) break;
+        }
+        const text = parts.join('').replace(/[ \t]+\n/g, '\n')
+            .replace(/\n[ \t]+/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+        return {text: text.slice(0, limit + 1), links, textIncomplete, linksIncomplete};
+    }
+    for (const selector of ['main', '[role="main"]', 'article']) {
+        const found = Array.from(document.querySelectorAll(selector)).slice(0, 50)
+            .filter(item => {
+                for (let ancestor = item.parentElement; ancestor; ancestor = ancestor.parentElement)
+                    if (skip(ancestor)) return false;
+                return true;
+            });
+        const roots = found.filter(item => !found.some(
+            parent => parent !== item && parent.contains(item)));
+        const result = extract(roots);
+        if (result.text) return result;
+    }
+    return extract(document.body ? [document.body] : []);
+}"""
+
+
+def read_document(page: Any, max_text_chars: int, base_url: str) -> dict[str, Any]:
+    """Read semantic page content without changing the DOM used for screenshots."""
+    extracted = page.evaluate(_READ_DOCUMENT, {"limit": max_text_chars})
+    links, links_truncated = outgoing_links(extracted["links"], base_url)
+    return {
+        "text": extracted["text"][:max_text_chars],
+        "text_truncated": len(extracted["text"]) > max_text_chars or extracted["textIncomplete"],
+        "links": links,
+        "links_truncated": links_truncated or extracted["linksIncomplete"],
+    }
+
+
 def run(request: dict[str, Any], workspace: Path) -> dict[str, Any]:
     operation = request["operation"]
     arguments = validate_arguments(operation, request["arguments"])
@@ -211,13 +342,19 @@ def run(request: dict[str, Any], workspace: Path) -> dict[str, Any]:
         if operation != "browser.read"
         else None
     )
-    fetcher = Fetcher(origins, timeout_seconds=request["timeout_seconds"])
+    fetcher = Fetcher(
+        origins,
+        timeout_seconds=request["timeout_seconds"],
+        public_web=request.get("public_web", False),
+    )
     if local:
         source = workspace_file(workspace, arguments["input"])
         content = source.read_bytes()
         initial_url, status, content_type = "https://simon-render.invalid/", 200, "text/html"
     else:
         initial_url, status, content_type, content = fetcher.get(arguments["url"])
+        if operation == "browser.read" and not 200 <= status < 300:
+            raise ValueError("The source page did not return a successful HTTP response")
         if content_type.split(";", 1)[0].lower() not in {
             "text/html",
             "text/plain",
@@ -290,13 +427,25 @@ def run(request: dict[str, Any], workspace: Path) -> dict[str, Any]:
             context.route("**/*", route_resource)
             page = context.new_page()
             page.goto(initial_url, wait_until="load")
-            text = page.locator("body").inner_text()
+            if operation == "browser.read" and not 200 <= final_status < 300:
+                raise ValueError("The source page did not return a successful HTTP response")
+            if operation == "browser.read":
+                content_result = read_document(
+                    page, arguments["max_text_chars"], final_document_url
+                )
+            else:
+                text = page.locator("body").inner_text()
+                content_result = {
+                    "text": text[: arguments["max_text_chars"]],
+                    "text_truncated": len(text) > arguments["max_text_chars"],
+                    "links": [],
+                    "links_truncated": False,
+                }
             result = {
                 "title": page.title()[:1000],
                 "url": "local:" + arguments["input"] if local else final_document_url,
                 "status": final_status,
-                "text": text[: arguments["max_text_chars"]],
-                "text_truncated": len(text) > arguments["max_text_chars"],
+                **content_result,
                 "blocked_requests": blocked,
                 "screenshot_path": None,
             }

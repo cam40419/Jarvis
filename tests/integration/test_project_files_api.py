@@ -24,7 +24,7 @@ def test_project_api_upload_reads_and_csrf(client, container, auth_headers):
     )
     service.store.save_google_connection(
         GoogleConnection(
-            household_id=actor.household_id,
+            workspace_id=actor.workspace_id,
             actor_id=actor.actor_id,
             email="synthetic@example.com",
             scopes=(DRIVE_WRITE_SCOPE,),

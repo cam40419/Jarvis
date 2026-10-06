@@ -30,6 +30,11 @@ from simon.domain.project_files import (
 )
 from simon.services.canonical import digest
 from simon.services.identity import IDENTITY_LOCK, ROLE_SCOPES
+from simon.services.output_classification import (
+    deliverable_filename,
+    is_legacy_response_artifact,
+    receipt_filename,
+)
 
 if TYPE_CHECKING:
     from simon.services.connected import ConnectedService
@@ -39,6 +44,9 @@ class ProjectFileService:
     def __init__(self, connected: "ConnectedService") -> None:
         self.connected, self.store = connected, connected.store
         self.api = ProjectDriveAPI()
+        self.output_sync: (
+            Callable[[ActorContext, UUID, ProjectDrive, int], tuple[int, bool]] | None
+        ) = None
 
     def execute(
         self,
@@ -52,7 +60,7 @@ class ProjectFileService:
 
         def check() -> ActorContext:
             current = revalidate()
-            if (current.actor_id, current.household_id) != (actor.actor_id, actor.household_id):
+            if (current.actor_id, current.workspace_id) != (actor.actor_id, actor.workspace_id):
                 raise AuthorizationError("Project access changed.")
             attempt = self.store.attempt(run_id)
             if (
@@ -60,7 +68,7 @@ class ProjectFileService:
                 or attempt.status != "pending"
                 or attempt.expires_at <= utc_now()
                 or attempt.run.actor_id != actor.actor_id
-                or attempt.household_id != actor.household_id
+                or attempt.workspace_id != actor.workspace_id
             ):
                 raise AuthorizationError("Active request not found.")
             thread = self.connected.conversations.get(current, attempt.run.thread_id)
@@ -117,7 +125,7 @@ class ProjectFileService:
     def project(self, actor: ActorContext, identifier: UUID) -> ExplicitMemory:
         if "jobs:read" not in actor.scopes or "memories:read" not in actor.scopes:
             raise AuthorizationError("Project access is unavailable.")
-        project = self.store.explicit_memory(actor.household_id, identifier)
+        project = self.store.explicit_memory(actor.workspace_id, identifier)
         if (
             not project
             or not project.accepted
@@ -129,8 +137,8 @@ class ProjectFileService:
 
     def binding(self, actor: ActorContext, project_id: UUID) -> ProjectDrive:
         project = self.project(actor, project_id)
-        with self.store.transaction(actor.household_id):
-            existing = self.store.project_drive(actor.household_id, actor.actor_id, project_id)
+        with self.store.transaction(actor.workspace_id):
+            existing = self.store.project_drive(actor.workspace_id, actor.actor_id, project_id)
             if existing:
                 return existing
             # Personal context edits supersede memory records; keep the same live folder.
@@ -138,14 +146,14 @@ class ProjectFileService:
             for _ in range(100):
                 if not prior_id:
                     break
-                prior = self.store.explicit_memory(actor.household_id, prior_id)
+                prior = self.store.explicit_memory(actor.workspace_id, prior_id)
                 if (
                     not prior
                     or prior.created_by != project.created_by
                     or prior.category != "project"
                 ):
                     break
-                inherited = self.store.project_drive(actor.household_id, actor.actor_id, prior_id)
+                inherited = self.store.project_drive(actor.workspace_id, actor.actor_id, prior_id)
                 if inherited and (inherited.folder_id or not inherited.enabled):
                     binding = inherited.model_copy(
                         update={
@@ -160,7 +168,7 @@ class ProjectFileService:
                 prior_id = prior.supersedes
             binding = ProjectDrive(
                 project_id=project_id,
-                household_id=actor.household_id,
+                workspace_id=actor.workspace_id,
                 actor_id=actor.actor_id,
             )
             self.store.save_project_drive(binding)
@@ -186,7 +194,7 @@ class ProjectFileService:
         return self.connected.access_token(actor, connection), connection.email
 
     def view(self, actor: ActorContext, binding: ProjectDrive) -> dict[str, Any]:
-        connections = self.store.google_connections(actor.household_id, actor.actor_id)
+        connections = self.store.google_connections(actor.workspace_id, actor.actor_id)
         connection = (
             next((c for c in connections if c.email == binding.google_email), None)
             if binding.google_email
@@ -219,7 +227,7 @@ class ProjectFileService:
                 **project.model_dump(mode="json"),
                 "drive": self.view(actor, self.binding(actor, project.id)),
             }
-            for project in self.store.explicit_memories(actor.household_id, 0, 500, actor.actor_id)
+            for project in self.store.explicit_memories(actor.workspace_id, 0, 500, actor.actor_id)
             if project.category == "project"
         ]
 
@@ -269,12 +277,12 @@ class ProjectFileService:
         self.project(actor, project_id)
         token, email = self.access(actor, project_id, write=True, account=account)
         identifier = uuid5(
-            NAMESPACE_URL, f"project-file:{actor.household_id}:{actor.actor_id}:{key}"
+            NAMESPACE_URL, f"project-file:{actor.workspace_id}:{actor.actor_id}:{key}"
         )
         request_digest = digest({"project_id": str(project_id), "kind": kind, "data": data})
-        with self.store.transaction(IDENTITY_LOCK), self.store.transaction(actor.household_id):
+        with self.store.transaction(IDENTITY_LOCK), self.store.transaction(actor.workspace_id):
             current = revalidate()
-            if (current.actor_id, current.household_id) != (actor.actor_id, actor.household_id):
+            if (current.actor_id, current.workspace_id) != (actor.actor_id, actor.workspace_id):
                 raise AuthorizationError("Project access changed.")
             self.project(current, project_id)
             existing = self.store.project_file_operation(identifier)
@@ -296,7 +304,7 @@ class ProjectFileService:
                     return existing
             operation = existing or ProjectFileOperation(
                 id=identifier,
-                household_id=actor.household_id,
+                workspace_id=actor.workspace_id,
                 actor_id=actor.actor_id,
                 project_id=project_id,
                 google_email=email,
@@ -313,7 +321,7 @@ class ProjectFileService:
                 operation = operation.model_copy(update={"file_id": self.api.generate_id(token)})
                 self.store.save_project_file_operation(operation)
             current = revalidate()
-            if (current.actor_id, current.household_id) != (actor.actor_id, actor.household_id):
+            if (current.actor_id, current.workspace_id) != (actor.actor_id, actor.workspace_id):
                 raise AuthorizationError("Project access changed.")
             self.project(current, project_id)
             token, current_email = self.access(current, project_id, write=True, account=account)
@@ -340,7 +348,7 @@ class ProjectFileService:
                     else "File operation could not be completed. Inspect Drive before retrying.",
                 }
             )
-        with self.store.transaction(actor.household_id):
+        with self.store.transaction(actor.workspace_id):
             self.store.save_project_file_operation(operation)
             self.connected.audit.record(
                 event_type="project.file." + operation.status,
@@ -366,7 +374,7 @@ class ProjectFileService:
         if binding.google_email and binding.google_email != email:
             raise AuthorizationError("Google account changed. Link the project folder again.")
         if not binding.google_email:
-            with self.store.transaction(actor.household_id):
+            with self.store.transaction(actor.workspace_id):
                 binding = self.binding(actor, project_id)
                 if not binding.google_email:
                     binding = binding.model_copy(update={"google_email": email})
@@ -409,7 +417,7 @@ class ProjectFileService:
         )
         if operation.status != "succeeded":
             raise ConnectedError(operation.error or "Project folder creation is still in progress.")
-        with self.store.transaction(actor.household_id):
+        with self.store.transaction(actor.workspace_id):
             current = self.binding(actor, project_id)
             if not current.enabled or current.version != binding.version:
                 raise AuthorizationError("Project folder changed during creation.")
@@ -427,7 +435,7 @@ class ProjectFileService:
         return binding
 
     def current_actor(self, actor: ActorContext) -> ActorContext:
-        member = self.connected.identity.membership(actor.actor_id, actor.household_id)
+        member = self.connected.identity.membership(actor.actor_id, actor.workspace_id)
         return actor.model_copy(update={"scopes": ROLE_SCOPES[member.role]})
 
     def bind(self, actor: ActorContext, request: ProjectBind) -> dict[str, Any]:
@@ -442,15 +450,15 @@ class ProjectFileService:
         self.project(self.current_actor(actor), request.project_id)
         if self.access(actor, write=True, account=email)[1] != email:
             raise AuthorizationError("Google account changed.")
-        with self.store.transaction(actor.household_id):
-            old = self.store.project_drive(actor.household_id, actor.actor_id, request.project_id)
+        with self.store.transaction(actor.workspace_id):
+            old = self.store.project_drive(actor.workspace_id, actor.actor_id, request.project_id)
             if (old.version if old else 0) != request.expected_version:
                 raise ValidationError(
                     "Project folder changed. Refresh the project before relinking."
                 )
             binding = ProjectDrive(
                 project_id=request.project_id,
-                household_id=actor.household_id,
+                workspace_id=actor.workspace_id,
                 actor_id=actor.actor_id,
                 google_email=email,
                 folder_id=folder["id"],
@@ -463,7 +471,7 @@ class ProjectFileService:
     def unlink(self, actor: ActorContext, request: ProjectUnlink) -> dict[str, Any]:
         self.connected.conversations.authorize(actor, "jobs:write")
         self.project(actor, request.project_id)
-        with self.store.transaction(actor.household_id):
+        with self.store.transaction(actor.workspace_id):
             binding = self.binding(actor, request.project_id)
             if not binding.enabled and binding.version == request.expected_version + 1:
                 return self.view(actor, binding)
@@ -512,7 +520,7 @@ class ProjectFileService:
             search_all=request.search_all,
         )
         current = revalidate()
-        if (current.actor_id, current.household_id) != (actor.actor_id, actor.household_id):
+        if (current.actor_id, current.workspace_id) != (actor.actor_id, actor.workspace_id):
             raise AuthorizationError("Drive access changed.")
         self.connected.conversations.authorize(current, "threads:read")
         latest = self.connected.connection(current, connection.id)
@@ -626,13 +634,21 @@ class ProjectFileService:
             **self.api.list_files(token, folder_id, request.query, request.page_token),
         }
         self.assert_binding(actor, binding)
-        return result
+        return {**result, **self.read_provenance(actor, binding)}
 
     def read(self, actor: ActorContext, request: ProjectFile) -> dict[str, Any]:
         token, binding = self.context(actor, request.project_id)
         result = self.api.read(token, self.within(token, binding, request.file_id))
         self.assert_binding(actor, binding)
-        return result
+        return {**result, **self.read_provenance(actor, binding)}
+
+    def read_provenance(self, actor: ActorContext, binding: ProjectDrive) -> dict[str, Any]:
+        connection = self.connected.connection(actor, account=binding.google_email)
+        return {
+            "read_tool": "native.project_file_read",
+            "read_context": {"project_id": str(binding.project_id)},
+            "source_account_id": str(connection.id),
+        }
 
     def create_file(
         self,
@@ -708,14 +724,14 @@ class ProjectFileService:
         revalidate: Callable[[], ActorContext],
     ) -> dict[str, Any] | None:
         current = revalidate()
-        if (current.actor_id, current.household_id) != (actor.actor_id, actor.household_id):
+        if (current.actor_id, current.workspace_id) != (actor.actor_id, actor.workspace_id):
             raise AuthorizationError("Project access changed.")
         self.project(current, request.project_id)
         _, email = self.access(
             current, request.project_id, write=True, account=getattr(request, "account", "")
         )
         identifier = uuid5(
-            NAMESPACE_URL, f"project-file:{actor.household_id}:{actor.actor_id}:{key}"
+            NAMESPACE_URL, f"project-file:{actor.workspace_id}:{actor.actor_id}:{key}"
         )
         operation = self.store.project_file_operation(identifier)
         if not operation:
@@ -857,7 +873,7 @@ class ProjectFileService:
 
     def sync(self, actor: ActorContext, project_id: UUID, *, force: bool = False) -> dict[str, Any]:
         binding = self.binding(actor, project_id)
-        with self.store.transaction(actor.household_id):
+        with self.store.transaction(actor.workspace_id):
             binding = self.binding(actor, project_id)
             if (
                 not binding.enabled
@@ -874,18 +890,21 @@ class ProjectFileService:
             )
         error = None
         uploaded = 0
+        outputs_pending = False
         try:
             binding = self.ensure(actor, project_id)
             # Existing task artifacts are immutable: upload once, then preserve Drive-side edits.
             uploaded = 0
             for offset in range(0, 10000, 100):
                 artifacts = self.store.project_artifacts(
-                    actor.household_id, actor.actor_id, project_id, offset, 100
+                    actor.workspace_id, actor.actor_id, project_id, offset, 100
                 )
                 for artifact in artifacts:
+                    if is_legacy_response_artifact(artifact):
+                        continue
                     key = f"artifact:{artifact.id}:{binding.folder_id}:{binding.google_email}"
                     identifier = uuid5(
-                        NAMESPACE_URL, f"project-file:{actor.household_id}:{actor.actor_id}:{key}"
+                        NAMESPACE_URL, f"project-file:{actor.workspace_id}:{actor.actor_id}:{key}"
                     )
                     receipt = self.store.project_file_operation(identifier)
                     if receipt and receipt.status == "succeeded":
@@ -893,11 +912,21 @@ class ProjectFileService:
                     record = self.store.project_artifact(artifact.id)
                     if not record:
                         continue
+                    name = deliverable_filename(artifact.name)
+                    if receipt:
+                        name = receipt_filename(
+                            receipt,
+                            project_id=project_id,
+                            parent=binding.folder_id or "",
+                            media_type=artifact.media_type,
+                            sha256=artifact.sha256,
+                            names=(name, f"{str(artifact.task_id)[:8]}-{artifact.name}"),
+                        )
                     result = self.create_file(
                         actor,
                         ProjectFileCreate(
                             project_id=project_id,
-                            name=f"{str(artifact.task_id)[:8]}-{artifact.name}",
+                            name=name,
                         ),
                         key,
                         lambda: self.current_actor(actor),
@@ -912,6 +941,11 @@ class ProjectFileService:
                         break
                 if uploaded >= 5 or len(artifacts) < 100:
                     break
+            if self.output_sync is not None:
+                output_count, outputs_pending = self.output_sync(
+                    actor, project_id, binding, 5 - uploaded
+                )
+                uploaded += output_count
         except Exception as failure:
             error = (
                 str(failure)
@@ -919,12 +953,16 @@ class ProjectFileService:
                 else "Drive sync failed; retrying later."
             )
         finally:
-            with self.store.transaction(actor.household_id):
+            with self.store.transaction(actor.workspace_id):
                 current = self.binding(actor, project_id)
                 if current.version == binding.version:
                     current = current.model_copy(
                         update={
-                            "status": "error" if error else "pending" if uploaded >= 5 else "ready",
+                            "status": "error"
+                            if error
+                            else "pending"
+                            if uploaded >= 5 or outputs_pending
+                            else "ready",
                             "error": error,
                             "last_synced_at": current.last_synced_at if error else utc_now(),
                             "lease_until": utc_now(),
@@ -937,12 +975,12 @@ class ProjectFileService:
     def tick(self) -> None:
         if not self.connected.configured:
             return
-        for household_id, actor_id in self.store.google_accounts():
+        for workspace_id, actor_id in self.store.google_accounts():
             try:
-                member = self.connected.identity.membership(actor_id, household_id)
+                member = self.connected.identity.membership(actor_id, workspace_id)
                 actor = ActorContext(
                     actor_id=actor_id,
-                    household_id=household_id,
+                    workspace_id=workspace_id,
                     channel=Channel.WORKER,
                     scopes=ROLE_SCOPES[member.role],
                 )

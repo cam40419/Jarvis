@@ -75,7 +75,7 @@ def main() -> None:
             )
             actor = ActorContext(
                 actor_id=args.actor_id,
-                household_id=args.workspace_id,
+                workspace_id=args.workspace_id,
                 channel=Channel.WORKER,
                 scopes=frozenset(filter(None, args.scopes.split(","))),
             )

@@ -1,6 +1,6 @@
 from uuid import UUID, uuid4
 
-from simon.domain.identity import DEV_ACTOR_ID, DEV_HOUSEHOLD_ID
+from simon.domain.identity import DEV_ACTOR_ID, DEV_WORKSPACE_ID
 from simon.domain.models import ActorContext, Channel
 from simon.services.identity import ROLE_SCOPES
 
@@ -94,13 +94,13 @@ def test_work_overview_combines_projects_and_assistant_tasks(client, auth_header
     assert task_response.status_code == 202
     actor = ActorContext(
         actor_id=DEV_ACTOR_ID,
-        household_id=DEV_HOUSEHOLD_ID,
+        workspace_id=DEV_WORKSPACE_ID,
         channel=Channel.API,
         scopes=ROLE_SCOPES["owner"],
     )
     task_id = UUID(task_response.json()["id"])
     job = container.store.get_job(task_id)
-    memory = container.store.explicit_memory(DEV_HOUSEHOLD_ID, UUID(project.json()["id"]))
+    memory = container.store.explicit_memory(DEV_WORKSPACE_ID, UUID(project.json()["id"]))
     assert job and memory
     artifacts = container.tasks.save_artifacts(actor, job, memory, "# Panel result")
     artifact_response = client.get(f"/v1/assistant-tasks/{task_id}/artifacts")

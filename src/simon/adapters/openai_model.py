@@ -19,9 +19,12 @@ from simon.domain.model import ModelAnswer, ModelRequest
 
 
 class OpenAIModel:
-    def __init__(self, api_key: str) -> None:
+    def __init__(
+        self, api_key: str, *, credential_provider: Callable[[], str] | None = None
+    ) -> None:
         # Fixed official endpoint, finite timeouts, and no automatic generation retries.
         self.api_key = api_key
+        self.credential_provider = credential_provider
 
     def generate(self, request: ModelRequest) -> ModelAnswer:
         return self._generate(request, None)
@@ -49,7 +52,7 @@ class OpenAIModel:
         first_text_ms = None
         try:
             with OpenAI(
-                api_key=self.api_key,
+                api_key=self.credential_provider() if self.credential_provider else self.api_key,
                 base_url="https://api.openai.com/v1",
                 timeout=30,
                 max_retries=0,

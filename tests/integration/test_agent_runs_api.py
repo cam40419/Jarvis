@@ -196,10 +196,26 @@ def test_queue_execution_artifact_download_and_private_state(client, configured,
     assert artifact.status_code == 200 and artifact.text == saved["tasks"][0]["output"]
     assert artifact.headers["content-disposition"] == 'attachment; filename="answer.txt"'
     assert client.get(route + "/artifacts/" + str(uuid4())).status_code == 404
+    preview = client.get(route + "/artifacts/" + artifact_id + "/preview")
+    assert preview.status_code == 200
+    assert preview.json() == {
+        "artifact_id": artifact_id,
+        "name": "answer.txt",
+        "format": "markdown",
+        "text": "A completed brand report.",
+    }
+    assert preview.headers["cache-control"] == "no-store"
+    assert client.get(route + "/artifacts/" + str(uuid4()) + "/preview").status_code == 404
+    assert (
+        client.get(f"/v1/agent-platform/runs/{uuid4()}/artifacts/{artifact_id}/preview").status_code
+        == 404
+    )
     assert len(client.get("/v1/agent-platform/runs").json()) == 1
     actor = configured.agent_runs.actor_resolver(finished.actor_id, finished.workspace_id)
     with pytest.raises(NotFoundError):
         configured.agent_runs.get(actor.model_copy(update={"actor_id": uuid4()}), finished.id)
+    client.cookies.clear()
+    assert client.get(route + "/artifacts/" + artifact_id + "/preview").status_code == 401
 
 
 def test_cancel_queued_run_and_execution_switch(client, configured, auth_headers):

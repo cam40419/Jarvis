@@ -184,13 +184,13 @@ def test_preview_requires_auth_and_cannot_read_another_accounts_files(
     container.store.put_membership(
         Membership(
             actor_id=other.actor_id,
-            household_id=other.household_id,
+            workspace_id=other.workspace_id,
             role="owner",
             display_name="Other account",
-            household_name="Home",
+            workspace_name="Home",
         )
     )
-    token, _ = container.identity._issue(other.actor_id, other.household_id, "development")
+    token, _ = container.identity._issue(other.actor_id, other.workspace_id, "development")
     with TestClient(create_app(container), base_url="http://localhost:8000") as second:
         second.cookies.set("simon_session", token)
         assert second.get("/v1/local-files/preview", params=params).status_code == 422
@@ -208,10 +208,10 @@ def test_preview_revalidates_account_after_read(client, container, preview_files
         container.store.put_membership(
             Membership(
                 actor_id=actor.actor_id,
-                household_id=actor.household_id,
+                workspace_id=actor.workspace_id,
                 role="guest",
                 display_name="Revoked role",
-                household_name="Home",
+                workspace_name="Home",
             )
         )
         return raw

@@ -44,7 +44,7 @@ def definition(**overrides):
 def execution_context(tool, **overrides):
     values = {
         "actor_id": uuid4(),
-        "household_id": uuid4(),
+        "workspace_id": uuid4(),
         "run_id": uuid4(),
         "agent_id": "inspector-1",
         "allowed_tool_ids": frozenset({tool.id}),
@@ -172,7 +172,7 @@ def test_dispatch_checks_grants_schema_and_handler_then_preserves_provenance():
     assert result.run_id == context.run_id
     assert result.agent_id == context.agent_id
     assert result.actor_id == context.actor_id
-    assert result.household_id == context.household_id
+    assert result.workspace_id == context.workspace_id
     assert result.invocation_id == context.invocation_id
     assert len(calls) == 1
 

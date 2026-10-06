@@ -61,7 +61,7 @@ class AssistantTaskService:
     def project(self, actor: ActorContext, project_id: UUID | None) -> ExplicitMemory | None:
         if project_id is None:
             return None
-        memory = self.store.explicit_memory(actor.household_id, project_id)
+        memory = self.store.explicit_memory(actor.workspace_id, project_id)
         if (
             not memory
             or not memory.accepted
@@ -108,14 +108,14 @@ class AssistantTaskService:
         if project_id:
             self.project(actor, project_id)
         return tuple(
-            self.store.project_artifacts(actor.household_id, actor.actor_id, project_id, 0, 500)
+            self.store.project_artifacts(actor.workspace_id, actor.actor_id, project_id, 0, 500)
         )
 
     def artifact(self, actor: ActorContext, identifier: UUID) -> tuple[ProjectArtifact, bytes]:
         self.authorize(actor)
         record = self.store.project_artifact(identifier)
-        if not record or (record[0].household_id, record[0].actor_id) != (
-            actor.household_id,
+        if not record or (record[0].workspace_id, record[0].actor_id) != (
+            actor.workspace_id,
             actor.actor_id,
         ):
             raise NotFoundError("project artifact not found")
@@ -168,7 +168,7 @@ class AssistantTaskService:
                 raise ValidationError("task result is too large for project storage")
             artifact = ProjectArtifact(
                 id=uuid5(NAMESPACE_URL, f"simon:task-artifact:{job.id}:{name}"),
-                household_id=actor.household_id,
+                workspace_id=actor.workspace_id,
                 actor_id=actor.actor_id,
                 project_id=project.id,
                 task_id=job.id,
@@ -187,7 +187,7 @@ class AssistantTaskService:
         if (
             not job
             or job.kind != TASK_KIND
-            or (job.household_id, job.created_by) != (actor.household_id, actor.actor_id)
+            or (job.workspace_id, job.created_by) != (actor.workspace_id, actor.actor_id)
         ):
             raise NotFoundError("assistant task not found")
         return job
@@ -213,7 +213,7 @@ class AssistantTaskService:
     ) -> AssistantTask:
         self.authorize(actor, write=True)
         self.project(actor, request.project_id)
-        existing = self.store.jobs(actor.household_id, actor.actor_id, TASK_KIND, 0, 500)
+        existing = self.store.jobs(actor.workspace_id, actor.actor_id, TASK_KIND, 0, 500)
         if len(existing) >= 500:
             raise ValidationError("maximum 500 assistant tasks per account")
         rank = max((int(job.input.get("rank", 0)) for job in existing), default=0) + 1024
@@ -240,7 +240,7 @@ class AssistantTaskService:
         self.authorize(actor)
         return tuple(
             self.view(actor, job)
-            for job in self.store.jobs(actor.household_id, actor.actor_id, TASK_KIND, offset, limit)
+            for job in self.store.jobs(actor.workspace_id, actor.actor_id, TASK_KIND, offset, limit)
         )
 
     def get(self, actor: ActorContext, identifier: UUID) -> AssistantTask:
@@ -251,7 +251,7 @@ class AssistantTaskService:
         self, actor: ActorContext, identifier: UUID, request: EditAssistantTask
     ) -> AssistantTask:
         self.authorize(actor, write=True)
-        with self.store.transaction(actor.household_id):
+        with self.store.transaction(actor.workspace_id):
             job = self._owned(actor, identifier)
             if job.version != request.expected_version or job.status not in {
                 JobStatus.QUEUED,
@@ -281,7 +281,7 @@ class AssistantTaskService:
         self, actor: ActorContext, identifier: UUID, request: ControlAssistantTask
     ) -> AssistantTask:
         self.authorize(actor, write=True)
-        with self.store.transaction(actor.household_id):
+        with self.store.transaction(actor.workspace_id):
             job = self._owned(actor, identifier)
             if job.version != request.expected_version or job.status in TERMINAL:
                 raise InvalidTransitionError("task changed or ended; reload before controlling it")
@@ -290,7 +290,7 @@ class AssistantTaskService:
                 if job.status != JobStatus.QUEUED:
                     raise InvalidTransitionError("only queued tasks can move in the queue")
                 ordered = list(
-                    self.store.jobs(actor.household_id, actor.actor_id, TASK_KIND, 0, 500)
+                    self.store.jobs(actor.workspace_id, actor.actor_id, TASK_KIND, 0, 500)
                 )
                 queued = [
                     candidate for candidate in ordered if candidate.status == JobStatus.QUEUED
@@ -330,7 +330,7 @@ class AssistantTaskService:
         self, actor: ActorContext, identifier: UUID, request: SteerAssistantTask
     ) -> AssistantTask:
         self.authorize(actor, write=True)
-        with self.store.transaction(actor.household_id):
+        with self.store.transaction(actor.workspace_id):
             job = self._owned(actor, identifier)
             if job.version != request.expected_version or job.status in TERMINAL:
                 raise InvalidTransitionError("task changed or ended; reload before steering it")
@@ -349,13 +349,13 @@ class AssistantTaskService:
             )
 
     def worker_actor(self, job: Job) -> ActorContext:
-        member = self.identity.membership(job.created_by, job.household_id)
+        member = self.identity.membership(job.created_by, job.workspace_id)
         scopes = ROLE_SCOPES[member.role]
         if not {"jobs:write", "threads:write", "threads:read"} <= scopes:
             raise AuthorizationError("task access changed")
         return ActorContext(
             actor_id=job.created_by,
-            household_id=job.household_id,
+            workspace_id=job.workspace_id,
             channel=Channel.WORKER,
             scopes=scopes,
         )
@@ -364,7 +364,7 @@ class AssistantTaskService:
         for candidate in self.store.jobs_all(TASK_KIND, 100, "running"):
             if candidate.updated_at + timedelta(minutes=10) > utc_now():
                 continue
-            with self.store.transaction(candidate.household_id):
+            with self.store.transaction(candidate.workspace_id):
                 job = self.store.get_job(candidate.id)
                 if not job or job.version != candidate.version or job.status != JobStatus.RUNNING:
                     continue
@@ -432,7 +432,7 @@ class AssistantTaskService:
     def execute(self, candidate: Job) -> None:
         assert self.conversations
         actor = self.worker_actor(candidate)
-        with self.store.transaction(IDENTITY_LOCK), self.store.transaction(candidate.household_id):
+        with self.store.transaction(IDENTITY_LOCK), self.store.transaction(candidate.workspace_id):
             job = self.store.get_job(candidate.id)
             if not job or job.version != candidate.version or job.status != JobStatus.QUEUED:
                 return
@@ -518,7 +518,7 @@ class AssistantTaskService:
             text = next(message.text for message in messages if message.id == run.output_message_id)
             current = self.store.get_job(job.id)
             if current and current.status == JobStatus.RUNNING:
-                with self.store.transaction(current.household_id):
+                with self.store.transaction(current.workspace_id):
                     current = self.store.get_job(job.id)
                     if current and current.status == JobStatus.RUNNING:
                         artifacts = (

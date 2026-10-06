@@ -14,22 +14,19 @@ suite.
 
 ## Configure a provider
 
-Copy [the disabled example](../../examples/agents/external-providers.example.json)
-to an operator controlled JSON file. Set `SIMON_EXTERNAL_PROVIDERS_FILE` to its
-path for both the API and agent dispatcher. Replace the illustrative household
-and actor UUIDs with the actual authorized account IDs; the example development
-IDs do not grant access to production users. Secrets belong in the service
-environment or its local `.env`, referenced by `credential_env`. Do not add
-secret values to this JSON, agent prompts, source control, or proposal details.
+Open **Account & access / Connections / ClickUp & service accounts**. Select
+**Twilio phone messages** or **Booking and purchase gateway**, enter the provider
+credentials and connection fields, and choose **Connect account**. Simon saves
+these settings in the backend and encrypts the credential. Connections belong
+to the signed-in account and workspace. Use **Reconnect** to update credentials
+or fields, and **Disconnect** to remove the stored connection. API and worker
+processes read current settings without a restart; users do not edit files.
 
-The file supports at most 100 configurations and 256 KiB. Unknown properties,
-duplicate provider IDs and inline credential fields are rejected. Each provider
-is restricted to its configured household and actors. The review UI exposes
-configuration blockers without exposing tokens. Restart API and dispatcher
-after configuration changes. A change to the provider identity, destination,
-allowlist or credential reference requires a fresh proposal. Enabling the same
-configuration and provisioning its referenced token can unblock a pending
-proposal without changing its exact review details.
+Twilio fields include an account SID, originating number, and optional allowed
+recipient numbers. Gateway fields include an HTTPS service address and named
+merchant identifiers. Existing operator JSON configuration remains supported
+for compatibility. Changing provider identity, destination or allowlists still
+requires a fresh proposal under the existing review contract.
 
 For **Twilio**, configure an actual account SID, its server-side auth token and
 an authorized originating telephone number. Restrict `call_recipients` to exact
@@ -66,7 +63,7 @@ honors its contract.
    reservations include timezone-aware start/end times, location and party size.
    A quote request must never itself place an order or reserve capacity.
 2. After user review, `POST {endpoint}/commitments` receives
-   `{action_id, review_digest, household_id, actor_id, draft}` and
+   `{action_id, review_digest, workspace_id, actor_id, draft}` and
    `Idempotency-Key: <action_id>`. Verify that the entire submitted draft matches
    the immutable quote and its current validity. Reject changed prices, expired
    availability or substitutions with a definitive rejection such as HTTP 409;

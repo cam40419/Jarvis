@@ -76,7 +76,7 @@ class AssistantTask(StrictModel):
 
 class ProjectArtifact(StrictModel):
     id: UUID
-    household_id: UUID
+    workspace_id: UUID
     actor_id: UUID
     project_id: UUID
     task_id: UUID

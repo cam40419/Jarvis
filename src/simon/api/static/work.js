@@ -16,11 +16,37 @@
   let projectLoadGeneration = 0;
   const backgroundDrafts = new Map();
   const initialProject = new URLSearchParams(location.search).get('project');
+  const backgroundTools = node('details', undefined, 'work-secondary');
+  backgroundTools.id = 'work-background-tools';
+  backgroundTools.append(node('summary', 'Background work & saved project context'));
+  for (const section of $('work-view').querySelectorAll('.work-tasks, .work-columns'))
+    backgroundTools.append(section);
+  $('work-view').append(backgroundTools);
+  const jumpTo = (id) => {
+    const target = $(id);
+    if (!target) return;
+    if (target.tagName === 'DETAILS') target.open = true;
+    target.scrollIntoView({ block: 'start', behavior: 'instant' });
+    const focus = target.querySelector('summary, button, input');
+    focus?.focus({ preventScroll: true });
+  };
+  $('work-projects-open').onclick = () => jumpTo('project-command');
+  $('work-agents-open').onclick = () => {
+    $('agent-tab-agents')?.click();
+    jumpTo('agent-work');
+  };
+  $('work-background-open').onclick = () => jumpTo('work-background-tools');
+  $('work-connections-open').onclick = () => $('connections-open').click();
+  $('sidebar-projects').onclick = () => window.SimonWork.showOverview('top');
+  $('sidebar-agents').onclick = async () => {
+    await window.SimonWork.showOverview();
+    $('work-agents-open').click();
+  };
   const projectPage = node('section', undefined, 'project-page');
   projectPage.id = 'project-page';
   projectPage.hidden = true;
   $('work-view').append(projectPage);
-  projectPage.innerHTML = /* HTML */ `<button type="button" id="project-back">Back to Work</button>
+  projectPage.innerHTML = /* HTML */ `<button type="button" id="project-back">All projects</button>
     <p class="eyebrow">PROJECT</p>
     <h1 id="project-page-title"></h1>
     <p id="project-page-description"></p>
@@ -188,9 +214,7 @@
     }
   }
   $('project-back').onclick = () => {
-    projectLayout(null);
-    history.replaceState(null, '', appPath('/chat'));
-    loadWork();
+    window.SimonWork.showOverview('top');
   };
   $('project-work-form').onsubmit = async (event) => {
     event.preventDefault();
@@ -228,6 +252,7 @@
     document.querySelector('.composer-area').hidden = work;
     $('chat-open').setAttribute('aria-current', work ? 'false' : 'page');
     $('work-open').setAttribute('aria-current', work ? 'page' : 'false');
+    $('sidebar-projects').setAttribute('aria-current', work ? 'page' : 'false');
     $('chat-title').textContent = work
       ? 'Work with Simon'
       : rows.find((row) => row.id === activeThread)?.title || 'New conversation';
@@ -581,7 +606,7 @@
       content.replaceChildren();
     }
   }
-  async function linkProjectFolder(project) {
+  async function linkProjectFolder(project, onChoose = null) {
     clearTimeout(fileTimer);
     ++fileGeneration;
     if (!filesPanel.open) filesPanel.showModal();
@@ -604,6 +629,11 @@
     async function useFolder(folder) {
       feedback.textContent = 'Linking folder...';
       try {
+        if (onChoose) {
+          await onChoose({ account: account.value, folder_id: folder });
+          filesPanel.close();
+          return;
+        }
         await api('/v1/projects/link-drive', {
           project_id: project.id,
           account: account.value,
@@ -908,6 +938,7 @@
     refreshProject: loadProject,
     browseDrive: (project) => browseFiles(project),
     chooseDriveFolder: (project) => linkProjectFolder(project),
+    pickDriveFolder: (project, onChoose) => linkProjectFolder(project, onChoose),
     startProjectSession: async (project) => {
       await window.SimonBackground.project(project.id);
       showView('chat');
@@ -918,15 +949,30 @@
       const matched = currentProjectDetail?.id === expectedProject;
       for (const id of ['project-session-resources', 'project-background-resources']) {
         $(id).hidden = !matched;
-        target.append($(id));
+        if ($(id).parentElement !== target) target.append($(id));
       }
       return matched;
     },
-    showOverview() {
+    async showOverview(scrollTarget = null) {
       projectLayout(null);
       showView('work');
       history.replaceState(null, '', appPath('/chat'));
-      loadWork();
+      await loadWork();
+      if (currentProject) return;
+      if (scrollTarget === 'top') {
+        $('work-view').scrollTo({ top: 0, behavior: 'instant' });
+        $('work-projects-open').focus({ preventScroll: true });
+      } else if (scrollTarget) jumpTo(scrollTarget);
     },
   };
+  window.addEventListener('simon-project-command-update', (event) => {
+    const project = event.detail?.detail?.project;
+    if (!project || project.id !== currentProject) return;
+    const metadata = { subject: project.name, content: project.description };
+    if (currentProjectDetail?.id === project.id) Object.assign(currentProjectDetail, metadata);
+    for (const item of snapshot.projects) if (item.id === project.id) Object.assign(item, metadata);
+    $('project-page-title').textContent = project.name;
+    $('project-page-description').textContent = project.description;
+    if (!$('work-view').hidden) $('chat-title').textContent = project.name;
+  });
 })();

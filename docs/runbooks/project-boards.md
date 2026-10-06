@@ -50,6 +50,29 @@ Tokens and user access must be provisioned separately; a Codex plugin connection
 does not connect the Simon server. Configuration alone does not create a ClickUp
 account or organize an existing company workspace. The example is disabled.
 
+## Agent skills
+
+In **Work > Agents** or a project's member configuration, filter skills by **ClickUp**.
+Grant each operation independently:
+
+| Skill | Operation |
+| --- | --- |
+| Read the linked ClickUp board | Inspect the saved binding, mappings and sync state. |
+| List ClickUp tasks | Read a bounded page from the linked List. |
+| Read a ClickUp task | Read one task after verifying its List. |
+| Publish project tasks to ClickUp | Publish existing local todos and their dependencies. |
+| Import ClickUp tasks | Import selected tasks while no project cycle is active. |
+| Synchronize the ClickUp board | Pull a bounded batch and push a permitted update while idle. |
+| Sync task status to ClickUp | Push one saved execution status when status sync is enabled. |
+| Post project progress to ClickUp | Post one saved progress update when comments are enabled. |
+
+Tools use the calling run's project and cannot select another project's board. They
+recheck the run's current permissions before writes and use the bridge's durable
+operation journal. Board setup and recovery remain user operations. Selecting a
+skill does not enable a connection or change the project's synchronization options.
+Publish and status/progress updates can operate during execution; import and full
+sync preserve the active-cycle guard so an agent cannot rewrite its running backlog.
+
 ## Synchronization and recovery
 
 The bridge polls outbound from the local server, so board synchronization does not

@@ -4,7 +4,7 @@ For the active `cam40419` localhost installation, sign in with the existing pass
 [local operations](local-operations.md). The development launch instructions below are for a
 separate test session; the running local service has development-token login disabled.
 
-## First passkey
+## Username and password
 
 Start Docker Desktop. In PowerShell, from the repository root:
 
@@ -18,18 +18,37 @@ prints a one-use enrollment token, and starts the API. It changes process enviro
 not your `.env`. The default database URL matches the Compose default password; for a custom
 database use `-DatabaseUrl 'YOUR_CONNECTION_URL'`.
 
-Open **http://localhost:8000/login**. Expand **Set up a passkey**, paste the enrollment token,
-and choose **Create a passkey**. Complete your browser/device verification prompt. Then try
-**Test connection**, **Sign out**, and **Sign in with a passkey**.
+Open **http://localhost:8000/login**. Expand **Set up username and password**, paste the
+enrollment token, and choose your username and a password of at least 15 characters.
+Then try **Test connection**, **Sign out**, and **Sign in**.
 
 Use `localhost` consistently. `127.0.0.1` is a different origin and is not an alias for the
-configured relying party. A passkey needs a supported browser and authenticator (for example
-Windows Hello or a security key). This implementation requests discoverable credentials and
-user verification. For later starts, run `.\scripts\start-dev.ps1` without issuing another
-enrollment token. Stop the API with Ctrl+C; persistent passkeys and unexpired sessions survive
-the restart.
+configured origin. Password sign-in supports HTTPS hosting and loopback development. Passkey
+controls have been removed from the UI; existing records and operator APIs remain compatible.
+For later starts, run `.\scripts\start-dev.ps1` without issuing another enrollment token.
+Stop the API with Ctrl+C; accounts and unexpired sessions survive the restart.
 
-## Development login without a passkey
+## Email verification and password recovery
+
+The site administrator opens **Connections**, selects **Account email delivery**, and chooses
+**Resend** or **SMTP**. Enter the verified sender address and the Resend API key, or the SMTP
+server, username and password. SMTP uses verified TLS on port 587 (STARTTLS) or 465 (implicit TLS).
+Save the connection. Provider credentials are encrypted and saved in the backend; users do not
+edit configuration files. Resend requires a sender domain verified with that provider.
+
+While signed in, open **Recovery email** on the login/account page. Enter your email and current
+password, request the verification email, then submit its eight-digit code. Only verified email
+addresses are eligible for recovery, and each address can belong to only one account.
+
+Under **Forgot your password?**, enter that verified address and request a code. Enter the emailed
+code and your new password twice. Codes expire after ten minutes, allow at most five guesses,
+and cannot be reused. Requests have a one-minute cooldown and a five-per-hour limit per address
+or account. The public response does not reveal whether an account exists. A successful reset
+revokes previous sessions, sends a notification, and requires signing in with the new password.
+An administrator can use the operator recovery command for accounts that have not yet verified
+their email. No real email is delivered until the provider is configured.
+
+## Explicit development login
 
 ```powershell
 .\scripts\start-dev.ps1 -DevelopmentLogin
@@ -71,8 +90,8 @@ Invoke-RestMethod -Uri 'http://localhost:8000/auth/logout' `
 
 Expected failures: missing session is 401; wrong/missing Origin or CSRF token is 403;
 invalid request fields are 422 without reflected input. A revoked or expired session is 401.
-Changing `X-Actor-Id`, `X-Household-Id`, or `X-Scopes` cannot change your identity. Use
-`POST /auth/household` to select a household you actually belong to; it rotates the session
+Changing `X-Actor-Id`, `X-Workspace-Id`, or `X-Scopes` cannot change your identity. Use
+`POST /auth/workspace` to select a workspace you actually belong to; it rotates the session
 and returns a new CSRF token. Owner/member roles can read and submit jobs; guests can only echo.
 
 ## Local operator commands
@@ -86,18 +105,18 @@ $env:SIMON_DATABASE_URL = 'postgresql://jarvis:local-development-only@127.0.0.1:
 ```
 
 The commands are `membership`, `remove-membership`, `enroll`, `password-recovery`,
-`revoke-sessions`, and `revoke-passkey`. Membership creation/update takes `--actor-id`, `--household-id`, and
-`--role owner|member|guest`, plus optional display and household names. These are privileged
-local operations; no unauthenticated code issuance API is exposed. Existing display/household
+`revoke-sessions`, and `revoke-passkey`. Membership creation/update takes `--actor-id`, `--workspace-id`, and
+`--role owner|member|guest`, plus optional display and workspace names. These are privileged
+local operations; no unauthenticated code issuance API is exposed. Existing display/workspace
 names are preserved when updating a role. Removing a membership revokes all sessions for that
-user; other memberships remain available on the next valid passkey login.
+user; other memberships remain available on the next valid login.
 
 To issue another enrollment token for the seeded user:
 
 ```powershell
 .\venv\Scripts\python.exe -m simon.identity_admin enroll `
     --actor-id 11111111-1111-4111-8111-111111111111 `
-    --household-id 22222222-2222-4222-8222-222222222222
+    --workspace-id 22222222-2222-4222-8222-222222222222
 ```
 
 The enrollment token expires in 15 minutes and can successfully enroll only one credential.
@@ -122,7 +141,7 @@ For the site administrator's own account, a local operator with database access 
 
 ```powershell
 .\venv\Scripts\python.exe -m simon.identity_admin password-recovery `
-    --actor-id YOUR_ACTOR_ID --household-id YOUR_HOUSEHOLD_ID
+    --actor-id YOUR_ACTOR_ID --workspace-id YOUR_WORKSPACE_ID
 ```
 
 Recovery codes use the enrollment mechanism, so they also authorize passkey setup. Treat them

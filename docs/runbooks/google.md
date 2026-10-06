@@ -13,19 +13,15 @@ own Google OAuth connection. Credentials configured in Codex or ChatGPT are not 
 3. Create an OAuth client with application type **Web application**. Add the exact authorized redirect
    URI shown in Simon's Connections panel. The normal development URL is:
    `http://localhost:8000/auth/google/callback`. A deployed HTTPS origin needs its own exact redirect.
-4. Download the client JSON to a private location outside the repository. Import it locally:
-
-   ```powershell
-   .\venv\Scripts\python.exe -m simon.google_setup --client-file "C:\path\to\client_secret.json"
-   ```
-
-   This preserves other `.env` settings and writes `SIMON_GOOGLE_CLIENT_ID`,
-   `SIMON_GOOGLE_CLIENT_SECRET`, and a generated `SIMON_GOOGLE_TOKEN_KEY`. It prints no secrets.
-   Re-running with an existing valid token key preserves it. Keep this file private and backed up;
-   losing the key means you must reconnect Google, even if the database backup is intact.
-
-5. Restart Simon using `scripts/start-dev.ps1`. It applies migration **0007**, which adds encrypted
-   connection storage, short-lived OAuth state, and durable action previews.
+4. In Simon, open **Account & access / Connections / ClickUp & service accounts** as
+   the site administrator. Choose **Google application setup**, enter the Client ID and
+   Client secret from Google Cloud, and select **Connect account**. Simon encrypts the
+   secret and saves the application settings in the backend. An encryption key is
+   generated automatically if needed. No configuration file or restart is required.
+5. Keep the private full recovery bundle: it includes the database, `.env` and any
+   generated `credentials.key`. Restore the matching key with the database to keep
+   existing account connections usable. The old `simon.google_setup` CLI remains
+   available for operator compatibility.
 6. Open **Connections**, acknowledge that chats are shared with your household, then click
    **Connect Google**. Sign into the intended account and grant Calendar, Gmail, and/or Drive permission.
    Google redirects back to Simon. The panel shows the account and permissions that were granted.
@@ -48,6 +44,13 @@ content reads have explicit size limits. Project tools can create and edit files
 linked Drive folder. Simon does not invite attendees, create recurring events, or edit/delete
 existing calendar events.
 The event scope allows broader operations at Google, but Simon does not expose those operations.
+
+Project agents and reusable agents can select these capabilities individually under
+**Calendar** in their skill editor: **Read calendar events**, **Create a calendar event**,
+and **Check a calendar action**. Creating an event requires an explicit write grant and
+an active authorized agent run, using the same connected Google accounts. Agent actions
+have separate durable receipts; they do not borrow a chat's authorization. Interrupted
+or uncertain writes are not resent. Calendar events do not schedule future agent runs.
 
 External apps in Testing can receive refresh tokens that expire after seven days for these scopes;
 reconnect if Google reports an expired grant. Public distribution may require Google's verification.
@@ -212,6 +215,12 @@ and subsequent project writes use the same canonical location.
 Drive files, clears the folder association and disables automatic Drive provisioning/sync.
 This state persists across restarts and project context updates. Linking a folder again resumes
 Drive access. Changing a link does not move or delete old files.
+
+When the Docs API denies a document read, Simon can read a plain-text copy using
+[Drive export](https://developers.google.com/workspace/drive/api/reference/rest/v3/files/export)
+with the same connected account. Google still checks access to that file. These results are
+explicitly read-only, with no editable document revision or tab IDs; editing still requires
+Docs API access. Transfer, UTF-8 and text-size limits apply to the exported copy.
 
 `project_drive_trash` and the file browser's **Move to trash** button move selected Drive files
 or folders to trash, with durable operation receipts and revision checks. Folders include their

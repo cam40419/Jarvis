@@ -114,7 +114,7 @@ def test_password_recovery_code_resets_password_and_revokes_sessions(client, aut
 
 def test_account_api_invite_isolation_and_revocation(client, container, auth_headers):
     admin_token = client.cookies.get("simon_session")
-    admin_household = client.get("/auth/session").json()["household_id"]
+    admin_workspace = client.get("/auth/session").json()["workspace_id"]
     assert client.get("/auth/session").json()["can_manage_accounts"]
     body = {"display_name": "Alex", "idempotency_key": str(uuid4())}
     assert client.post("/v1/accounts/invite", json=body).status_code == 403
@@ -122,7 +122,7 @@ def test_account_api_invite_isolation_and_revocation(client, container, auth_hea
         client.post(
             "/v1/accounts/invite",
             headers=auth_headers,
-            json=body | {"household_id": admin_household},
+            json=body | {"workspace_id": admin_workspace},
         ).status_code
         == 422
     )
@@ -130,7 +130,7 @@ def test_account_api_invite_isolation_and_revocation(client, container, auth_hea
     assert result.status_code == 200, result.text
     invitation = result.json()
     identifier = invitation["account"]["actor_id"]
-    assert invitation["account"]["household_id"] != admin_household
+    assert invitation["account"]["workspace_id"] != admin_workspace
     assert "enrollment_hash" not in result.text
     assert (
         client.post("/v1/accounts/invite", headers=auth_headers, json=body).json()[
@@ -170,7 +170,7 @@ def test_account_api_invite_isolation_and_revocation(client, container, auth_hea
     assert client.get("/v1/memories").json() == []
     assert (
         client.post(
-            "/auth/household", headers=member_headers, json={"household_id": admin_household}
+            "/auth/workspace", headers=member_headers, json={"workspace_id": admin_workspace}
         ).status_code
         == 403
     )

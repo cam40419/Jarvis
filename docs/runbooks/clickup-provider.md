@@ -1,47 +1,59 @@
 # ClickUp project board provider
 
-The ClickUp adapter reads and updates explicitly configured Lists in a managed
-ClickUp Workspace. A List supplies its own workflow statuses and task records;
-ClickUp remains the place to manage its board views, members and permissions.
-Simon can read tasks, create marked tasks, update status, add dependencies and
-append progress comments. It does not create a ClickUp account or automatically
-connect an existing account. The shipped example is disabled.
+Connect ClickUp from **Account & access ? Connections ? ClickUp & service accounts**.
+Choose ClickUp, enter a name and your personal API token, then select **Connect account**.
+In ClickUp, find the token under **Settings ? Apps**. No configuration file,
+Workspace ID, List ID, environment variable, or server restart is needed.
 
-## Connect an existing workspace
+Simon saves the account connection in the backend with an encrypted credential,
+scoped to the signed-in Simon account and workspace. The connection discovers
+all ClickUp Workspaces permitted by the token and all accessible Spaces,
+folder Lists, folderless Lists and Lists in Shared with me. Individually shared
+tasks are discoverable through `shared_tasks_list` and readable through
+`account_task_read` without granting access to their whole List. New Lists are discovered on the next board
+selection; Workspace discovery refreshes within 30 seconds. Actual reads and
+writes still verify the current ClickUp permissions. Use **Reconnect** to rotate
+credentials without losing project bindings, and **Disconnect** to remove the
+stored connection. API and dispatcher processes resolve saved credentials live.
 
-1. Copy [the disabled configuration](../../examples/agents/project-boards.example.json)
-   to an operator controlled file. Set `SIMON_PROJECT_BOARDS_FILE` to that path
-   for the API and dispatcher processes. Replace the example household/actor
-   UUIDs with the real authorized Simon account identities.
-2. Set the actual numeric ClickUp `workspace_id` and explicit `list_ids`.
-   Copy a List's link from ClickUp to find its ID. Only these Lists are exposed,
-   even if the token has broader access. Task IDs are ClickUp's native IDs;
-   custom human-readable task IDs are not supported by this adapter.
-3. Put the credential in the service environment or local `.env` under the
-   configured `credential_env` name. `auth_type: "personal"` uses a personal
-   token beginning `pk_`; `"oauth"` uses an already provisioned OAuth access
-   token. Tokens are kept on the server. Set `enabled: true` and restart the
-   processes after configuration changes.
+Under a project's **Board** tab, choose the connected Workspace and the named
+List for that project's execution mirror. This selection identifies the task
+source and write destination; it does not limit the account's ClickUp access.
+Separate `clickup.connections_list`, `boards_list`, `account_tasks_list` and
+`account_task_read` agent skills browse accessible Lists without a project List
+binding. Existing publishing and synchronization skills use the saved project
+binding and its write settings.
 
-Personal tokens inherit the associated user's permissions; for an integration
-distributed to other users, use individually authorized OAuth tokens. This
-adapter supports those token types but does not provide an OAuth consent or
-refresh flow. Consult ClickUp's official [authentication documentation](https://developer.clickup.com/docs/authentication).
-No paid account or subscription is created by configuring Simon.
+Personal tokens inherit the associated ClickUp user's permissions.
+See [ClickUp authentication](https://developer.clickup.com/docs/authentication).
+Simon supports reading tasks, creating marked tasks, status updates, dependencies
+and progress comments. Account administration, deletion and arbitrary-field
+editing are not implemented.
 
-The JSON loader accepts at most 100 connections in 256 KiB, each with at most
-50 allowed Lists. It rejects duplicate IDs, unknown properties and inline token
-fields. Keep the file outside model-editable workspaces. The API base address is
-fixed to `https://api.clickup.com/api/v2`; custom endpoints, redirects and proxy
-environment inheritance are unavailable.
+## Backend storage and compatibility
+
+Migration `0027_integration_connections.sql` adds the private connection store.
+Credentials never appear in public API views. The backend reuses an existing
+Google encryption key when configured; otherwise it generates
+`%LOCALAPPDATA%/Simon/credentials.key` automatically (or the configured
+`integration_key_file`). Private full recovery bundles include this file along
+with `.env`. Restore the key with the database to preserve connected accounts.
+
+Existing operator files still work for compatibility. A legacy connection can
+use `discover_lists: true` instead of explicit `list_ids`. File-managed
+connections can also use a provisioned OAuth token; the UI currently connects
+ClickUp personal tokens. OAuth consent for distributed ClickUp apps is not
+implemented. The API base address remains fixed to
+`https://api.clickup.com/api/v2`.
 
 ## Provider operations and boundaries
 
 Read operations require `jobs:read`; writes require `jobs:write`, in addition to
-the configured household, actor and List grants. Before an operation, the
+the saved workspace, actor and List access settings. Before an operation, the
 adapter checks [authorized Workspaces](https://developer.clickup.com/reference/getauthorizedteams),
 the configured Workspace's [Spaces](https://developer.clickup.com/reference/getspaces),
-and the [List metadata](https://developer.clickup.com/reference/getlist). The
+and the [shared hierarchy](https://developer.clickup.com/reference/sharedhierarchy)
+when automatic discovery is enabled, plus the [List metadata](https://developer.clickup.com/reference/getlist). The
 List must belong to one of those Spaces. Returned tasks must match that List,
 Workspace and Space. Archived Lists cannot receive task operations.
 

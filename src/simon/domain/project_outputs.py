@@ -1,6 +1,7 @@
 """Public, path-free references to immutable project run outputs."""
 
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import Field
@@ -30,6 +31,15 @@ class ProjectOutput(StrictModel):
     created_at: datetime
     download_url: str
     project_copy: ProjectOutputCopy | None = None
+    title: str = ""
+    status: Literal["accepted", "draft", "partial"] = "accepted"
+    task_status: str = "succeeded"
+    source: Literal["artifact", "candidate"] = "artifact"
+    kind: Literal["response", "deliverable"] = "deliverable"
+    step: int | None = None
+    preview_url: str | None = None
+    document_url: str | None = None
+    document_name: str | None = None
 
 
 class ProjectOutputPage(StrictModel):

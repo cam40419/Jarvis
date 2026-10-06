@@ -43,7 +43,7 @@ def setup(provider="dropbox", operation="list", respond=None):
     definition = next(item for item in definitions if item.id == provider + "." + operation)
     context = ToolExecutionContext(
         actor_id=actor,
-        household_id=workspace,
+        workspace_id=workspace,
         run_id=uuid4(),
         agent_id="files",
         allowed_tool_ids=frozenset({definition.id}),
@@ -111,7 +111,7 @@ def test_cloud_scope_and_fixed_endpoint_validation_precedes_network(provider, ch
     else:
         key, value = {
             "actor": ("actor_id", uuid4()),
-            "workspace": ("household_id", uuid4()),
+            "workspace": ("workspace_id", uuid4()),
             "tool": ("allowed_tool_ids", frozenset()),
             "scope": ("scopes", frozenset()),
         }[change]
@@ -374,7 +374,7 @@ def test_cloud_preflight_honestly_reports_missing_download_host_and_credentials(
     tool, context, _, _ = setup("onedrive", "read")
     actor = ActorContext(
         actor_id=context.actor_id,
-        household_id=context.household_id,
+        workspace_id=context.workspace_id,
         channel=Channel.WORKER,
         scopes=context.scopes,
     )

@@ -37,6 +37,21 @@ class RecordingManager:
     def __init__(self) -> None:
         self.calls: list[tuple[UUID, ExecutionCommand, UUID, int]] = []
         self.fail = False
+        self.exit_code = 0
+        self.truncated = False
+        self.stdout = json.dumps(
+            {
+                "title": "Example",
+                "url": "https://example.com/article",
+                "status": 200,
+                "text": "Verified source page contents",
+                "text_truncated": False,
+                "blocked_requests": 0,
+                "links": [],
+                "links_truncated": False,
+                "screenshot_path": None,
+            }
+        )
 
     def execute(
         self,
@@ -49,7 +64,9 @@ class RecordingManager:
         self.calls.append((lease_id, command, attempt_id, fencing_token))
         if self.fail:
             raise ExecutionError("sensitive backend detail")
-        return ExecutionResult(exit_code=0, stdout='{"title":"Example"}')
+        return ExecutionResult(
+            exit_code=self.exit_code, stdout=self.stdout, truncated=self.truncated
+        )
 
 
 def setup(
@@ -99,7 +116,7 @@ def setup(
     )
     context = ToolExecutionContext(
         actor_id=uuid4(),
-        household_id=request.workspace_id,
+        workspace_id=request.workspace_id,
         run_id=uuid4(),
         agent_id="browser",
         allowed_tool_ids=frozenset({tool.id}),
@@ -122,6 +139,10 @@ def test_definitions_are_disabled_and_have_no_implicit_destinations() -> None:
     assert len(definitions) == 3
     assert all(not tool.enabled and not tool.configured for tool in definitions)
     assert all(tool.settings["allowed_origins"] == [] for tool in definitions)
+    assert all(tool.settings["public_web"] is False for tool in definitions)
+    assert (
+        "web.read" in next(tool for tool in definitions if tool.id == "browser.read").capabilities
+    )
 
 
 def test_transport_uses_owned_lease_and_only_configured_origins() -> None:
@@ -129,13 +150,39 @@ def test_transport_uses_owned_lease_and_only_configured_origins() -> None:
     registry = TransportRegistry()
     registry.register("browser", transport)
     result = registry.execute(tool, {"url": "https://example.com/article"}, context)
-    assert result.output["exit_code"] == 0
+    assert result.output["title"] == "Example"
+    assert result.output["text"] == "Verified source page contents"
+    assert result.output["url"] == "https://example.com/article"
+    assert "stdout" not in result.output and "screenshot_path" not in result.output
     identifier, command, attempt, fence = manager.calls[0]
     assert (identifier, attempt, fence) == (lease.id, lease.plan.request.attempt_id, 8)
     assert command.argv[:3] == ("/usr/local/bin/python3", "-I", "-c")
     payload = json.loads(command.argv[4])
     assert payload["allowed_origins"] == ["https://example.com"]
     assert payload["arguments"]["max_text_chars"] == 8000
+    assert payload["public_web"] is False
+
+
+def test_public_web_is_an_operator_setting_not_a_model_permission() -> None:
+    manager, _, tool, context, transport = setup()
+    tool.settings.update({"allowed_origins": [], "public_web": True})
+    transport(tool, {"url": "https://another-public.example/article"}, context)
+    assert json.loads(manager.calls[0][1].argv[4])["public_web"] is True
+    manager.calls.clear()
+    with pytest.raises(ToolCatalogError):
+        transport(tool, {"url": "https://example.com", "public_web": True}, context)
+    assert manager.calls == []
+
+
+@pytest.mark.parametrize("value", ["true", 1, None, []])
+def test_public_web_requires_exact_boolean_operator_opt_in(value: Any) -> None:
+    manager, _, tool, context, transport = setup()
+    tool.settings["public_web"] = value
+    with pytest.raises(ToolCatalogError, match="explicitly configured"):
+        transport(tool, {"url": "https://example.com"}, context)
+    with pytest.raises(ValueError, match="explicitly configured"):
+        runner.Fetcher(frozenset(), timeout_seconds=30, public_web=value)
+    assert manager.calls == []
 
 
 @pytest.mark.parametrize(
@@ -157,7 +204,7 @@ def test_ungranted_or_invalid_url_never_reaches_runner(url: str) -> None:
     assert manager.calls == []
 
 
-@pytest.mark.parametrize("field", ["actor_id", "household_id", "run_id", "agent_id"])
+@pytest.mark.parametrize("field", ["actor_id", "workspace_id", "run_id", "agent_id"])
 def test_cannot_cross_worker_assignment(field: str) -> None:
     manager, _, tool, context, transport = setup()
     value: Any = "other" if field == "agent_id" else uuid4()
@@ -215,7 +262,15 @@ def test_origin_grants_are_exact_bounded_origins(value: Any) -> None:
 
 @pytest.mark.parametrize(
     "addresses",
-    [["127.0.0.1"], ["10.0.0.1"], ["169.254.169.254"], ["::1"], ["93.184.216.34", "192.168.1.1"]],
+    [
+        ["127.0.0.1"],
+        ["10.0.0.1"],
+        ["169.254.169.254"],
+        ["::1"],
+        ["224.0.0.1"],
+        ["ff02::1"],
+        ["93.184.216.34", "192.168.1.1"],
+    ],
 )
 def test_private_and_mixed_dns_are_rejected(
     monkeypatch: pytest.MonkeyPatch,
@@ -299,6 +354,216 @@ def test_allowed_redirects_preserve_final_url_and_no_credentials(
     assert all(
         "Cookie" not in item["headers"] and "Authorization" not in item["headers"] for item in calls
     )
+
+
+def test_public_web_redirects_pin_each_public_destination_without_credentials(monkeypatch):
+    calls = fake_connections(
+        monkeypatch,
+        [
+            FakeResponse(302, {"Location": "https://supplier.example/about"}),
+            FakeResponse(200, {"Content-Type": "text/html"}, b"<p>Public facts</p>"),
+        ],
+    )
+    hosts = []
+
+    def address(hostname):
+        hosts.append(hostname)
+        return "93.184.216.34"
+
+    monkeypatch.setattr(runner, "public_address", address)
+    fetcher = runner.Fetcher(frozenset(), timeout_seconds=30, public_web=True)
+    assert fetcher.get("https://brand.example/source")[0] == "https://supplier.example/about"
+    assert hosts == ["brand.example", "supplier.example"]
+    assert all(item["address"] == "93.184.216.34" and item["closed"] for item in calls)
+    assert all(not {"Authorization", "Cookie"} & item["headers"].keys() for item in calls)
+
+
+@pytest.mark.parametrize(
+    "target", ["https://internal.example/", "https://169.254.169.254/", "https://mixed.example/"]
+)
+def test_public_web_redirect_cannot_reach_private_or_mixed_dns(monkeypatch, target):
+    calls = fake_connections(monkeypatch, [FakeResponse(302, {"Location": target})])
+    monkeypatch.setattr(runner, "public_address", runner_public_address)
+
+    def dns(hostname, *args, **kwargs):
+        addresses = ["93.184.216.34"] if hostname == "public.example" else ["169.254.169.254"]
+        if hostname == "mixed.example":
+            addresses.insert(0, "93.184.216.34")
+        return [(2, 1, 6, "", (address, 443)) for address in addresses]
+
+    monkeypatch.setattr(runner.socket, "getaddrinfo", dns)
+    fetcher = runner.Fetcher(frozenset(), timeout_seconds=30, public_web=True)
+    with pytest.raises(ValueError, match="public Internet"):
+        fetcher.get("https://public.example/start")
+    assert len(calls) == 1 and calls[0]["closed"]
+
+
+runner_public_address = runner.public_address
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        "http://example.com/",
+        "https://user:secret@example.com/",
+        "https://example.com:8443/",
+        "file:///etc/passwd",
+    ],
+)
+def test_public_web_does_not_bypass_url_policy(monkeypatch, target):
+    calls = fake_connections(monkeypatch, [])
+    fetcher = runner.Fetcher(frozenset(), timeout_seconds=30, public_web=True)
+    with pytest.raises(ValueError):
+        fetcher.get(target)
+    assert calls == []
+
+
+def test_outgoing_links_are_bounded_deduplicated_metadata():
+    links, truncated = runner.outgoing_links(
+        [
+            {"href": "/manufacturing#details", "title": "  Production  "},
+            {"href": "/manufacturing", "title": "duplicate"},
+            {"href": "mailto:someone@example.com", "title": "Email"},
+            {"href": "javascript:alert(1)", "title": "Script"},
+            {"href": "https://user:secret@example.com/", "title": "Credentials"},
+            {"href": "https://supplier.example/", "title": "Supplier " * 100},
+        ],
+        "https://brand.example/about",
+    )
+    assert not truncated
+    assert links[0] == {"url": "https://brand.example/manufacturing", "title": "Production"}
+    assert len(links) == 2 and len(links[1]["title"]) == 240
+    links, truncated = runner.outgoing_links(
+        [{"href": f"/page/{index}", "title": "Source"} for index in range(1000)],
+        "https://brand.example/",
+    )
+    assert len(links) == 40 and truncated
+    links, truncated = runner.outgoing_links(
+        [{"href": f"/page/{index}/" + "a" * 3500, "title": "Source"} for index in range(40)],
+        "https://brand.example/",
+    )
+    assert truncated and len(json.dumps(links, ensure_ascii=False).encode()) <= 16000
+
+
+def test_http_error_page_is_not_reported_as_successful_content(monkeypatch, tmp_path):
+    fake_connections(monkeypatch, [FakeResponse(403, {"Content-Type": "text/html"}, b"Forbidden")])
+    with pytest.raises(ValueError, match="successful HTTP"):
+        runner.run(
+            {
+                "operation": "browser.read",
+                "arguments": {"url": "https://example.com/"},
+                "allowed_origins": [],
+                "public_web": True,
+                "timeout_seconds": 30,
+            },
+            tmp_path,
+        )
+
+
+def test_nonzero_read_exit_is_known_tool_failure_and_not_retried():
+    manager, _, tool, context, transport = setup()
+    manager.exit_code = 2
+    with pytest.raises(ToolExecutionError, match="could not be read") as error:
+        transport(tool, {"url": "https://example.com"}, context)
+    assert error.value.unknown is False
+    assert len(manager.calls) == 1
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"text": "x" * 16001},
+        {"title": "x" * 1001},
+        {"status": 403},
+        {"url": "file:///etc/passwd"},
+        {"text_truncated": "false"},
+        {"links": [{"url": "https://example.com/", "title": "x"}] * 41},
+        {"links": [{"url": "https://user:secret@example.com/", "title": "private"}]},
+        {"screenshot_path": "output.png"},
+        {"extra": "untrusted"},
+    ],
+)
+def test_structured_read_result_rejects_malformed_or_unbounded_fields(change):
+    manager, _, tool, context, transport = setup()
+    page = json.loads(manager.stdout)
+    page.update(change)
+    manager.stdout = json.dumps(page)
+    with pytest.raises(ToolExecutionError, match="incomplete or invalid") as error:
+        transport(tool, {"url": "https://example.com"}, context)
+    assert not error.value.unknown and len(manager.calls) == 1
+
+
+@pytest.mark.parametrize(
+    "output",
+    ["broken JSON", '{"status":200,"status":201}', "{" * 5000, "x" * 131073],
+    ids=["invalid-json", "duplicate-field", "nested-json", "oversized"],
+)
+def test_structured_read_result_rejects_invalid_serialization(output):
+    manager, _, tool, context, transport = setup()
+    manager.stdout = output
+    with pytest.raises(ToolExecutionError, match="incomplete or invalid") as error:
+        transport(tool, {"url": "https://example.com"}, context)
+    assert not error.value.unknown
+
+
+def test_transport_truncation_cannot_be_a_successful_page():
+    manager, _, tool, context, transport = setup()
+    manager.truncated = True
+    with pytest.raises(ToolExecutionError, match="incomplete or invalid"):
+        transport(tool, {"url": "https://example.com"}, context)
+
+
+def test_structured_page_context_retains_source_identity_and_retrievable_text():
+    from simon.services.worker_context import ToolEvidenceBuffer, render_history
+
+    manager, _, tool, context, transport = setup()
+    page = json.loads(manager.stdout)
+    page["text"] = "Costing evidence; " * 800
+    manager.stdout = json.dumps(page)
+    output = transport(
+        tool, {"url": "https://example.com/article", "max_text_chars": 16000}, context
+    )
+    entry = {
+        "tool_id": tool.id,
+        "invocation_id": str(uuid4()),
+        "status": "succeeded",
+        "side_effect": False,
+        "arguments": {"url": page["url"]},
+        "output": output,
+    }
+    evidence = ToolEvidenceBuffer()
+    _, reference = evidence.capture(entry)
+    entry["evidence"] = reference
+    view = render_history([entry], 2500)
+    assert view.compacted
+    compacted = json.loads(view.text)["calls"][0]["output"]
+    assert compacted["url"] == page["url"] and compacted["title"] == page["title"]
+    assert compacted["text_truncated"] is False
+    assert compacted["text"]["evidence_pointer"] == "/output/text"
+    reread = evidence.read(
+        {
+            "invocation_id": entry["invocation_id"],
+            "pointer": "/output/text",
+            "offset": 0,
+            "limit": 1000,
+        }
+    )
+    assert reread["text"] == page["text"][:1000]
+
+
+@pytest.mark.parametrize("operation", ["browser.screenshot", "browser.render_html"])
+def test_image_operations_keep_execution_envelope(operation):
+    manager, _, tool, context, transport = setup(operation)
+    arguments = {"output": "image.png"}
+    arguments.update(
+        {"input": "source.html"}
+        if operation == "browser.render_html"
+        else {"url": "https://example.com"}
+    )
+    registry = TransportRegistry()
+    registry.register("browser", transport)
+    output = registry.execute(tool, arguments, context).output
+    assert output == {"exit_code": 0, "stdout": manager.stdout, "stderr": "", "truncated": False}
 
 
 @pytest.mark.parametrize("headers", [{"Content-Length": "3000000"}, {"Content-Encoding": "gzip"}])

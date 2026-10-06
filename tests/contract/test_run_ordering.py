@@ -2,12 +2,12 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 from simon.domain.conversations import Message, Run, Thread
-from simon.domain.identity import DEV_ACTOR_ID, DEV_HOUSEHOLD_ID
+from simon.domain.identity import DEV_ACTOR_ID, DEV_WORKSPACE_ID
 from simon.domain.ports import Store
 
 
 def thread(store: Store, title: str = "Ordered conversation") -> Thread:
-    record = Thread(household_id=DEV_HOUSEHOLD_ID, created_by=DEV_ACTOR_ID, title=title)
+    record = Thread(workspace_id=DEV_WORKSPACE_ID, created_by=DEV_ACTOR_ID, title=title)
     store.insert_thread(record)
     return record
 

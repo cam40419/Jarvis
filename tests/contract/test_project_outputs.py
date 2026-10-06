@@ -23,7 +23,7 @@ def output_setup(store, tmp_path):
     connected, actor, files, _ = local_setup(store, tmp_path)
     projects = tuple(
         ExplicitMemory(
-            household_id=actor.household_id,
+            workspace_id=actor.workspace_id,
             created_by=actor.actor_id,
             category="project",
             subject=f"Project {index}",
@@ -144,6 +144,56 @@ def test_outputs_page_within_run_and_across_runs_does_not_scan_unrelated_jobs(ou
             h.service.list(h.actor, h.projects[0].id, cursor=cursor)
 
 
+def test_deliverables_filter_uses_provenance_and_pages_past_responses(outputs):
+    h = outputs
+    expected = []
+    for number in (1, 2, 3):
+        run = create_output(h, number, count=3)
+        task = run.tasks[0]
+        original = task.artifacts[0]
+        answer = h.service.artifacts.publish_text(
+            workspace_id=original.workspace_id,
+            actor_id=original.actor_id,
+            run_id=run.id,
+            task_id=original.task_id,
+            name="answer.txt",
+            text=task.output,
+        )
+        # A separate file can genuinely be called answer.txt; provenance, not a
+        # filename blacklist, determines whether it is a conversation response.
+        authored = h.service.artifacts.publish_text(
+            workspace_id=original.workspace_id,
+            actor_id=original.actor_id,
+            run_id=run.id,
+            task_id=original.task_id,
+            name="answer.txt",
+            text="An explicitly authored file",
+        )
+        files = (answer, *task.artifacts[1:], authored)
+        replace_run(
+            h, run.model_copy(update={"tasks": (task.model_copy(update={"artifacts": files}),)})
+        )
+        expected.extend(item.id for item in files[1:])
+    items = []
+    cursor = None
+    while True:
+        page = h.service.list(h.actor, h.projects[0].id, kind="deliverable", limit=2, cursor=cursor)
+        items.extend(page.items)
+        cursor = page.next_cursor
+        if not cursor:
+            break
+        with pytest.raises(ValidationError, match="cursor"):
+            h.service.list(h.actor, h.projects[0].id, cursor=cursor)
+    assert len(items) == 9
+    assert {item.id for item in items} == set(expected)
+    assert all(item.kind == "deliverable" for item in items)
+    assert sum(item.name == "answer.txt" for item in items) == 3
+    responses = h.service.list(h.actor, h.projects[0].id, kind="response")
+    assert len(responses.items) == 3
+    assert all(item.kind == "response" for item in responses.items)
+    assert len(h.service.list(h.actor, h.projects[0].id).items) == 12
+
+
 def test_save_copy_replay_edits_and_revision_conflict_keep_original(outputs):
     h = outputs
     run = create_output(h)
@@ -161,7 +211,7 @@ def test_save_copy_replay_edits_and_revision_conflict_keep_original(outputs):
         len(
             [
                 event
-                for event in h.store.audit_events(h.actor.household_id)
+                for event in h.store.audit_events(h.actor.workspace_id)
                 if event.event_type == "project.output_saved"
             ]
         )
@@ -272,12 +322,12 @@ def test_lost_copy_receipt_and_tampered_artifact_are_safe(outputs):
 def test_shared_project_does_not_grant_another_accounts_artifacts(outputs):
     h = outputs
     shared = ExplicitMemory(
-        household_id=h.actor.household_id,
+        workspace_id=h.actor.workspace_id,
         created_by=h.actor.actor_id,
         category="project",
         subject="Shared project",
         content="Shared context, private execution outputs",
-        scope="household",
+        scope="workspace",
     )
     h.store.insert_memory(shared)
     run = saved_run(h.store, shared.id, actor=h.actor, state_dir=h.platform.state_dir)
@@ -285,7 +335,7 @@ def test_shared_project_does_not_grant_another_accounts_artifacts(outputs):
     h.store.put_membership(
         Membership(
             actor_id=other.actor_id,
-            household_id=other.household_id,
+            workspace_id=other.workspace_id,
             role="owner",
         )
     )

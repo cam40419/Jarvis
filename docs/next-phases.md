@@ -1,11 +1,14 @@
 # Simon roadmap
 
-Updated October 1, 2026. This is the authoritative delivery order for Simon. Detailed
+Updated October 2, 2026. This is the authoritative delivery order for Simon. Detailed
 architecture documents explain design choices; runbooks describe implemented behavior.
 The remaining subsystem plans provide design context and do not define the current backlog.
 
-The [project continuity roadmap](project-roadmap.md) details durable response waits
-and schedules for teams or individual agents within this delivery direction.
+The [project continuity roadmap](project-roadmap.md) records the October 2 requirement
+for automatic saving of all project context and outputs, peer-system research, durable
+response waits, and team/agent schedules. The first integrated persistence, team-card,
+workspace-record, continuity and calendar wave is implemented; the roadmap distinguishes
+its tested boundaries from the remaining company-scale autonomy work.
 
 Simon is a local workspace for delegating outcomes to configurable teams. The next
 milestone is **reviewed project delivery**: submit a brief, receive validated files,
@@ -20,8 +23,12 @@ one project experience.
 - Connected project boards own their business task fields and human collaboration.
   The implemented ClickUp bridge maintains a bounded local execution mirror. Avoid
   creating a competing company task authority inside Simon.
-- Managed files and artifacts remain local by default. Connected storage supplies
-  authorized inputs and export destinations; each artifact needs one canonical location.
+- Managed files and artifacts remain local by default. New worker context, responses,
+  evidence and drafts are journaled automatically for retained history. The Files view
+  and Drive replication expose actual deliverables with descriptive filenames; answers
+  are not automatically exported as documents.
+  Connected storage supplies authorized inputs and replication/export destinations;
+  each artifact needs one canonical identity and retained versions.
 - RobbinsHome owns devices and physical automation. Simon uses its optional external
   API. Printer control, plate swapping, and home workflows belong to that repository.
 - Keep the modular monolith and separate workers. Add infrastructure when a measured
@@ -55,11 +62,14 @@ one project experience.
 These tasks can proceed alongside application work. Record evidence from the actual
 installation before marking them complete; historical test totals are not current acceptance.
 
-- Select permanent file, artifact, and configuration paths outside the checkout. Migrate
-  with writers stopped, verify hashes, and exercise authorized downloads.
-- Select encrypted off-machine backup storage. Schedule complete database/file bundles;
-  the existing nightly database-only job does not protect all deliverables. Exercise a
-  restore and preserve credential recovery material separately.
+- Managed files and agent state were migrated to `%LOCALAPPDATA%/Simon/data` on October 2;
+  source/destination hashes and owner-scoped historical downloads passed. Original roots
+  remain available for rollback and historical leases. Select a separate permanent home
+  for operator configuration when packaging the installation independently of this checkout.
+- Select encrypted off-machine backup storage. The full-backup workflow now schedules
+  complete managed-data bundles and isolated restore checks in idle maintenance windows.
+  The local task is installed and its first 476-file/42-table restore check passed;
+  preserve credential recovery material separately.
 - Configure the final private HTTPS origin and provider authentication. Test phone login,
   private uploads/previews/downloads, streaming, voice, Google callbacks, and account isolation.
 - Verify cold-start and recovery behavior on the deployed host. Windows logon tasks require
@@ -70,7 +80,24 @@ installation before marking them complete; historical test totals are not curren
 
 ## Next application work
 
-### 1 Reviewed artifact handoff
+### 1 Automatic project persistence and reviewed outputs
+
+The first priority is the owner's October 2 requirement: project context, drafts, evidence
+and outputs are always saved and discoverable. Successful answers already have local
+artifact storage, but optional project-file copying, memory-only review candidates and
+separate evidence/cloud registries do not meet the complete requirement.
+
+- Persist candidates before review and enough context to continue unfinished work.
+- Register drafts, outputs and evidence in one authorized project inventory with stable
+  links, meaningful names, source references and immutable versions.
+- Replace Save-to-project with automatic project ownership; retain explicit export and
+  deliberate editing actions. Backfill existing records without rewriting source bytes.
+- Keep local commitment independent of cloud availability; connect the unified registry
+  to replication and complete backups as those operations are implemented.
+
+Acceptance: create an output without a save tool, find it in the project, retrieve it in
+a later task, and recover its exact draft after terminating the worker during review.
+Failed review must leave a visible saved draft, with an accurate completion status.
 
 Dependency file transfer is implemented: Docker tasks receive verified predecessor
 deliverables and a checksum-bearing input manifest, with the exact references saved on

@@ -65,7 +65,7 @@ def test_application_bridge_uses_fixed_command_and_owned_lease(runtime):
     "change",
     [
         {"actor_id": uuid4()},
-        {"household_id": uuid4()},
+        {"workspace_id": uuid4()},
         {"run_id": uuid4()},
         {"allowed_tool_ids": frozenset()},
         {"scopes": frozenset()},

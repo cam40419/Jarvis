@@ -125,7 +125,7 @@ class EmailDraft(GoogleAccountSelect):
 
 class ActionProposal(StrictModel):
     id: UUID = Field(default_factory=uuid4)
-    household_id: UUID
+    workspace_id: UUID
     actor_id: UUID
     run_id: UUID
     connection_id: UUID
@@ -153,7 +153,7 @@ class ActionProposal(StrictModel):
 class GoogleConnection(StrictModel):
     id: UUID = Field(default_factory=uuid4)
     actor_id: UUID
-    household_id: UUID
+    workspace_id: UUID
     email: str
     scopes: tuple[str, ...]
     encrypted_tokens: str = Field(repr=False)

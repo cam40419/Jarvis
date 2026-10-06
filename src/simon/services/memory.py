@@ -23,29 +23,29 @@ class MemoryService:
     ) -> tuple[ExplicitMemory, ...]:
         self.authorize(actor, "memories:read")
         return tuple(
-            self.store.explicit_memories(actor.household_id, offset, limit, actor.actor_id)
+            self.store.explicit_memories(actor.workspace_id, offset, limit, actor.actor_id)
         )
 
     def create(self, actor: ActorContext, request: CreateMemory) -> ExplicitMemory:
         self.authorize(actor, "memories:write")
-        with self.store.transaction(actor.household_id):
+        with self.store.transaction(actor.workspace_id):
 
             def operation() -> dict[str, object]:
                 if (
-                    request.scope == "household"
+                    request.scope == "workspace"
                     and len(
-                        self.store.explicit_memories(actor.household_id, 0, 100, personal=False)
+                        self.store.explicit_memories(actor.workspace_id, 0, 100, personal=False)
                     )
                     >= 100
                 ):
-                    raise ValidationError("households are limited to 100 active explicit memories")
+                    raise ValidationError("workspaces are limited to 100 active explicit memories")
                 if (
-                    len(self.store.explicit_memories(actor.household_id, 0, 500, actor.actor_id))
+                    len(self.store.explicit_memories(actor.workspace_id, 0, 500, actor.actor_id))
                     >= 500
                 ):
                     raise ValidationError("limited to 500 visible active memories")
                 memory = ExplicitMemory(
-                    household_id=actor.household_id,
+                    workspace_id=actor.workspace_id,
                     created_by=actor.actor_id,
                     subject=request.subject,
                     content=request.content,
@@ -63,33 +63,33 @@ class MemoryService:
                 return memory.model_dump(mode="json")
 
             result, _ = self.store.execute_once(
-                f"memory:{actor.household_id}:{actor.actor_id}",
+                f"memory:{actor.workspace_id}:{actor.actor_id}",
                 request.idempotency_key,
                 digest(
                     {"subject": request.subject, "content": request.content}
                     | (
                         {"scope": request.scope, "category": request.category}
-                        if request.scope != "household" or request.category != "fact"
+                        if request.scope != "workspace" or request.category != "fact"
                         else {}
                     )
                 ),
                 operation,
             )
             # A retry must not make a subsequently retracted memory look active again.
-            memory = self.store.explicit_memory(actor.household_id, UUID(str(result["id"])))
+            memory = self.store.explicit_memory(actor.workspace_id, UUID(str(result["id"])))
             assert memory is not None
             return memory
 
     def retract(self, actor: ActorContext, memory_id: UUID) -> ExplicitMemory:
         self.authorize(actor, "memories:write")
-        with self.store.transaction(actor.household_id):
-            memory = self.store.explicit_memory(actor.household_id, memory_id)
+        with self.store.transaction(actor.workspace_id):
+            memory = self.store.explicit_memory(actor.workspace_id, memory_id)
             if memory is None:
                 raise NotFoundError("memory not found")
             if memory.scope == "personal" and memory.created_by != actor.actor_id:
                 raise NotFoundError("memory not found")
             if memory.created_by != actor.actor_id and "memories:manage" not in actor.scopes:
-                raise AuthorizationError("only the creator or a household owner can retract memory")
+                raise AuthorizationError("only the creator or a workspace owner can retract memory")
             if memory.accepted:
                 self.store.retract_memory(memory)
                 self.audit.record(
@@ -104,11 +104,11 @@ class MemoryService:
     def remember(self, actor: ActorContext, run_id: UUID, fact: RememberFact) -> ExplicitMemory:
         """Save only from the current user's persisted request, never from tool/web output."""
         self.authorize(actor, "memories:write")
-        with self.store.transaction(actor.household_id):
+        with self.store.transaction(actor.workspace_id):
             attempt = self.store.attempt(run_id)
             if (
                 not attempt
-                or attempt.household_id != actor.household_id
+                or attempt.workspace_id != actor.workspace_id
                 or attempt.run.actor_id != actor.actor_id
                 or attempt.status != "pending"
             ):
@@ -136,7 +136,7 @@ class MemoryService:
                 if len(visible) >= 500 and not prior:
                     raise ValidationError("limited to 500 visible active memories")
                 memory = ExplicitMemory(
-                    household_id=actor.household_id,
+                    workspace_id=actor.workspace_id,
                     created_by=actor.actor_id,
                     scope="personal",
                     subject=fact.subject.strip(),
@@ -158,11 +158,11 @@ class MemoryService:
                 return {"id": str(memory.id)}
 
             result, _ = self.store.execute_once(
-                f"memory:{actor.household_id}:{actor.actor_id}",
+                f"memory:{actor.workspace_id}:{actor.actor_id}",
                 key,
                 digest(fact.model_dump()),
                 operation,
             )
-            memory = self.store.explicit_memory(actor.household_id, UUID(str(result["id"])))
+            memory = self.store.explicit_memory(actor.workspace_id, UUID(str(result["id"])))
             assert memory is not None
             return memory

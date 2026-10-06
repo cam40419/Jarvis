@@ -108,12 +108,15 @@ class ClickUpAdapter:
         list_id: str | None = None,
     ) -> None:
         if (
-            actor.household_id != connection.household_id
+            actor.workspace_id != connection.workspace_id
             or actor.actor_id not in connection.actor_ids
             or ("jobs:write" if write else "jobs:read") not in actor.scopes
         ):
             raise AuthorizationError("This ClickUp connection is not granted to this account")
-        if list_id is not None and _identifier(list_id, numeric=True) not in connection.list_ids:
+        if list_id is not None and (
+            _identifier(list_id, numeric=True) not in connection.list_ids
+            and not connection.discover_lists
+        ):
             raise AuthorizationError("The ClickUp list is outside the configured allowlist")
         reasons = board_configuration_reasons(connection, self.http.environ)
         if reasons:
@@ -150,7 +153,7 @@ class ClickUpAdapter:
 
     def _spaces(self, connection: BoardConnection) -> frozenset[str]:
         teams = _rows(self._request(connection, "GET", "/team"), "teams", maximum=1000)
-        if not any(str(team.get("id")) == connection.workspace_id for team in teams):
+        if not any(str(team.get("id")) == connection.clickup_workspace_id for team in teams):
             raise AuthorizationError(
                 "The ClickUp token does not authorize the configured workspace"
             )
@@ -158,7 +161,7 @@ class ClickUpAdapter:
             self._request(
                 connection,
                 "GET",
-                f"/team/{connection.workspace_id}/space",
+                f"/team/{connection.clickup_workspace_id}/space",
                 params={"archived": "false"},
             ),
             "spaces",
@@ -171,11 +174,14 @@ class ClickUpAdapter:
         connection: BoardConnection,
         list_id: str,
         spaces: frozenset[str],
+        shared_lists: frozenset[str] = frozenset(),
     ) -> BoardList:
         value = self._request(connection, "GET", f"/list/{list_id}")
         try:
             space_id = str(value["space"]["id"])
-            if str(value["id"]) != list_id or space_id not in spaces:
+            if str(value["id"]) != list_id or (
+                space_id not in spaces and list_id not in shared_lists
+            ):
                 raise AuthorizationError(
                     "The ClickUp list does not belong to the configured workspace"
                 )
@@ -191,12 +197,12 @@ class ClickUpAdapter:
             )
             return BoardList(
                 id=list_id,
-                workspace_id=connection.workspace_id,
+                workspace_id=connection.clickup_workspace_id,
                 name=value["name"],
                 space_id=space_id,
                 statuses=statuses,
                 archived=value.get("archived", False),
-                url=f"https://app.clickup.com/{connection.workspace_id}/v/li/{list_id}",
+                url=f"https://app.clickup.com/{connection.clickup_workspace_id}/v/li/{list_id}",
             )
         except (KeyError, TypeError, ValueError):
             raise ToolExecutionError("ClickUp returned invalid list metadata") from None
@@ -210,16 +216,85 @@ class ClickUpAdapter:
         write: bool = False,
     ) -> BoardList:
         self._authorize(connection, actor, list_id=list_id, write=write)
-        result = self._metadata(connection, list_id, self._spaces(connection))
+        spaces = self._spaces(connection)
+        shared = self._shared_lists(connection) if connection.discover_lists else frozenset()
+        result = self._metadata(connection, list_id, spaces, shared)
         if result.archived:
             raise ToolCatalogError("Archived ClickUp lists require operator review")
         return result
 
+    def _shared_lists(self, connection: BoardConnection) -> frozenset[str]:
+        shared = self._request(
+            connection, "GET", f"/team/{connection.clickup_workspace_id}/shared"
+        ).get("shared")
+        lists = _rows(shared, "lists", maximum=1000)
+        folders = _rows(shared, "folders", maximum=1000)
+        for folder in folders:
+            folder_id = _identifier(str(folder.get("id")), numeric=True)
+            lists.extend(
+                _rows(
+                    self._request(
+                        connection, "GET", f"/folder/{folder_id}/list", params={"archived": "false"}
+                    ),
+                    "lists",
+                    maximum=1000,
+                )
+            )
+        if len(lists) > 10000:
+            raise ToolExecutionError("ClickUp shared list discovery exceeds the supported bounds")
+        return frozenset(
+            _identifier(str(row.get("id")), numeric=True)
+            for row in lists
+            if not row.get("archived", False)
+        )
+
     def boards(self, connection: BoardConnection, actor: ActorContext) -> tuple[BoardList, ...]:
         self._authorize(connection, actor)
         spaces = self._spaces(connection)
+        identifiers = set(connection.list_ids)
+        shared: frozenset[str] = frozenset()
+        if connection.discover_lists:
+            shared = self._shared_lists(connection)
+            identifiers.update(shared)
+            for space in sorted(spaces):
+                space = _identifier(space, numeric=True)
+                lists = _rows(
+                    self._request(
+                        connection, "GET", f"/space/{space}/list", params={"archived": "false"}
+                    ),
+                    "lists",
+                    maximum=1000,
+                )
+                folders = _rows(
+                    self._request(
+                        connection, "GET", f"/space/{space}/folder", params={"archived": "false"}
+                    ),
+                    "folders",
+                    maximum=1000,
+                )
+                for folder in folders:
+                    folder_id = _identifier(str(folder.get("id")), numeric=True)
+                    lists.extend(
+                        _rows(
+                            self._request(
+                                connection,
+                                "GET",
+                                f"/folder/{folder_id}/list",
+                                params={"archived": "false"},
+                            ),
+                            "lists",
+                            maximum=1000,
+                        )
+                    )
+                identifiers.update(
+                    _identifier(str(row.get("id")), numeric=True)
+                    for row in lists
+                    if not row.get("archived", False)
+                )
+                if len(identifiers) > 10000:
+                    raise ToolExecutionError("ClickUp list discovery exceeds the supported bounds")
         return tuple(
-            self._metadata(connection, value, spaces) for value in sorted(connection.list_ids)
+            self._metadata(connection, value, spaces, shared) for value in sorted(identifiers)
         )
 
     def list_metadata(
@@ -244,7 +319,7 @@ class ClickUpAdapter:
             if (
                 (expected_id is not None and identifier != expected_id)
                 or str(value["list"]["id"]) != metadata.id
-                or str(value["team_id"]) != connection.workspace_id
+                or str(value["team_id"]) != connection.clickup_workspace_id
                 or str(value["space"]["id"]) != metadata.space_id
             ):
                 raise ValueError("Resource boundary mismatch")
@@ -252,13 +327,13 @@ class ClickUpAdapter:
             for row in _rows(value, "dependencies", maximum=100):
                 # ClickUp includes incoming and outgoing relationships. Only prerequisites apply.
                 if str(row.get("task_id")) == identifier:
-                    if str(row.get("workspace_id")) != connection.workspace_id:
+                    if str(row.get("workspace_id")) != connection.clickup_workspace_id:
                         raise ValueError("Dependency workspace mismatch")
                     dependencies.append(_identifier(row["depends_on"]))
             return BoardTask(
                 id=identifier,
                 list_id=metadata.id,
-                workspace_id=connection.workspace_id,
+                workspace_id=connection.clickup_workspace_id,
                 name=value["name"],
                 description=value.get("markdown_description") or value.get("description") or "",
                 status=value["status"]["status"],
@@ -340,6 +415,44 @@ class ClickUpAdapter:
         _identifier(task_id)
         metadata = self._checked_list(connection, actor, list_id)
         return self._get(connection, task_id, metadata)
+
+    def accessible_task(
+        self, connection: BoardConnection, actor: ActorContext, task_id: str
+    ) -> BoardTask:
+        """Read individually shared tasks without granting access to their whole List."""
+        self._authorize(connection, actor)
+        self._spaces(connection)
+        task_id = _identifier(task_id)
+        value = self._request(
+            connection, "GET", f"/task/{task_id}", params={"include_markdown_description": "true"}
+        )
+        try:
+            list_id = _identifier(str(value["list"]["id"]), numeric=True)
+            space_id = _identifier(str(value["space"]["id"]), numeric=True)
+            self._authorize(connection, actor, list_id=list_id)
+            if str(value["team_id"]) != connection.clickup_workspace_id:
+                raise AuthorizationError("The ClickUp task belongs to another Workspace")
+            metadata = BoardList(
+                id=list_id,
+                workspace_id=connection.clickup_workspace_id,
+                name="Shared task List",
+                space_id=space_id,
+                statuses=(),
+                url=f"https://app.clickup.com/{connection.clickup_workspace_id}/v/li/{list_id}",
+            )
+        except (KeyError, TypeError, ValueError):
+            raise ToolExecutionError("ClickUp returned invalid task metadata") from None
+        return self._task(connection, value, metadata, expected_id=task_id)
+
+    def shared_task_ids(self, connection: BoardConnection, actor: ActorContext) -> tuple[str, ...]:
+        self._authorize(connection, actor)
+        self._spaces(connection)
+        shared = self._request(
+            connection, "GET", f"/team/{connection.clickup_workspace_id}/shared"
+        ).get("shared")
+        return tuple(
+            _identifier(str(row.get("id"))) for row in _rows(shared, "tasks", maximum=1000)
+        )
 
     def get_tasks(
         self,

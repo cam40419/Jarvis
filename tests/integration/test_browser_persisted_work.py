@@ -97,10 +97,10 @@ main()
                 deadline = time.monotonic() + 25
                 while time.monotonic() < deadline:
                     jobs = connected.store.jobs(
-                        actor.household_id, actor.actor_id, "assistant.session", 0, 20
+                        actor.workspace_id, actor.actor_id, "assistant.session", 0, 20
                     )
                     tasks = connected.store.jobs(
-                        actor.household_id, actor.actor_id, "assistant.task", 0, 20
+                        actor.workspace_id, actor.actor_id, "assistant.task", 0, 20
                     )
                     if len(jobs) == 2 and all(job.status == "succeeded" for job in [*jobs, *tasks]):
                         break

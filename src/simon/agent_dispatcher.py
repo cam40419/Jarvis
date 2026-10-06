@@ -34,7 +34,14 @@ from simon.adapters.native_tools import (
     with_native_tools,
 )
 from simon.adapters.project_board_binding import project_board_service
+from simon.adapters.project_board_tools import (
+    project_board_tool_status,
+    project_board_transport_factory,
+)
+from simon.adapters.project_journal_tools import project_journal_transport_factory
 from simon.adapters.project_output_tools import project_output_transport_factory
+from simon.adapters.project_runtime_tools import with_project_runtime_tools
+from simon.adapters.project_storage_tools import project_storage_transport_factory
 from simon.adapters.project_work_tools import project_transport_factory
 from simon.adapters.tool_preflight import INSTALLED_TRANSPORTS
 from simon.config import Settings
@@ -48,7 +55,9 @@ from simon.services.connected import ConnectedService
 from simon.services.identity import IdentityService
 from simon.services.project_autonomy import ProjectAutonomyService
 from simon.services.project_coordinator import ProjectCoordinator
+from simon.services.project_output_replication import ProjectOutputReplicationService
 from simon.services.project_outputs import ProjectOutputService
+from simon.services.project_storage import ProjectStorageService
 from simon.services.project_work import ProjectWorkService
 from simon.services.tasks import AssistantTaskService
 
@@ -252,12 +261,13 @@ def main(argv: Sequence[str] | None = None) -> None:
             settings,
             IdentityService(store, settings),
         )
-        manifest = with_native_tools(manifest, connected)
+        manifest = with_native_tools(with_project_runtime_tools(manifest), connected)
         external_actions = external_action_service(settings, store)
         platform = AgentPlatformService(
             store,
             manifest,
             state_dir=settings.agent_state_dir,
+            integrations=connected.integrations,
             available_transports=INSTALLED_TRANSPORTS,
         )
         runs = AgentRunService(platform, enabled=settings.agent_execution_enabled)
@@ -279,7 +289,21 @@ def main(argv: Sequence[str] | None = None) -> None:
             store,
             project_resolver=AssistantTaskService(store, connected.identity).project,
         )
-        boards = project_board_service(settings, store, project_work)
+        project_storage = ProjectStorageService(project_work, connected)
+        platform.project_tool_filter_factory = project_storage.tool_filter
+        boards = project_board_service(
+            settings, store, project_work, integrations=connected.integrations
+        )
+        platform.tool_availability = lambda actor, tool_id: (
+            native_tool_status(connected, actor, tool_id)
+            if tool_id.startswith("native.")
+            else project_board_tool_status(boards, actor, tool_id)
+            if tool_id.startswith("clickup.")
+            else external_tool_status(external_actions, actor, tool_id)
+        )
+        platform.project_tool_availability = lambda actor, project_id, tool_id: (
+            project_board_tool_status(boards, actor, tool_id, project_id)
+        )
         coordinator = ProjectCoordinator(
             project_work,
             runs,
@@ -292,18 +316,32 @@ def main(argv: Sequence[str] | None = None) -> None:
         def project_tick() -> int:
             return boards.tick() + autonomy.tick()
 
+        project_outputs = ProjectOutputService(runs, connected.local_files)
+        project_replication = ProjectOutputReplicationService(project_outputs, connected.projects)
+        project_replication.destination_allowed = project_storage.primary_selected
+        connected.projects.output_sync = project_replication.sync
         dispatcher = AgentDispatcher(
             runs,
-            transport_factory=external_transport_factory(
-                project_transport_factory(
-                    project_output_transport_factory(
-                        native_transport_factory(connected),
-                        ProjectOutputService(runs, connected.local_files),
+            transport_factory=project_storage_transport_factory(
+                external_transport_factory(
+                    project_transport_factory(
+                        project_board_transport_factory(
+                            project_output_transport_factory(
+                                project_journal_transport_factory(
+                                    native_transport_factory(connected), project_outputs
+                                ),
+                                project_outputs,
+                            ),
+                            boards,
+                            runs,
+                        ),
+                        project_work,
+                        runs,
                     ),
-                    project_work,
-                    runs,
+                    external_actions,
                 ),
-                external_actions,
+                project_storage,
+                runs,
             ),
         )
         stop = Event()

@@ -121,6 +121,8 @@ def main() -> None:
             configuration["project-boards.json"] = settings.project_boards_file
         if args.include_secrets:
             configuration["server.env"] = ROOT / ".env"
+            if settings.integration_key_file.is_file():
+                configuration["credentials.key"] = settings.integration_key_file
         result = create_bundle(
             args.destination,
             roots={"files": settings.local_files_dir, "agents": settings.agent_state_dir},

@@ -7,7 +7,7 @@ import binascii
 import json
 import re
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 from urllib.parse import quote, urlsplit
 from uuid import UUID
@@ -340,13 +340,33 @@ class _Session:
         raise ToolExecutionError("Provider download exceeded the redirect limit")
 
 
-class DropboxTransport(BoundedHTTP):
+class ConnectedStorageTransport(BoundedHTTP):
+    def __init__(
+        self,
+        *,
+        definition_resolver: Callable[[ToolDefinition, ToolExecutionContext], ToolDefinition]
+        | None = None,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(**kwargs)
+        self.definition_resolver = definition_resolver
+
+    def resolve(self, definition: ToolDefinition, context: ToolExecutionContext) -> ToolDefinition:
+        return (
+            self.definition_resolver(definition, context)
+            if self.definition_resolver
+            else definition
+        )
+
+
+class DropboxTransport(ConnectedStorageTransport):
     def __call__(
         self,
         definition: ToolDefinition,
         arguments: dict[str, Any],
         context: ToolExecutionContext,
     ) -> dict[str, Any]:
+        definition = self.resolve(definition, context)
         _settings(definition)
         operation = str(definition.settings["operation"])
         authorize_operation(
@@ -518,13 +538,14 @@ class DropboxTransport(BoundedHTTP):
         return dict(redact({**item, "written": True}, (secret,)))
 
 
-class BoxTransport(BoundedHTTP):
+class BoxTransport(ConnectedStorageTransport):
     def __call__(
         self,
         definition: ToolDefinition,
         arguments: dict[str, Any],
         context: ToolExecutionContext,
     ) -> dict[str, Any]:
+        definition = self.resolve(definition, context)
         _settings(definition)
         operation = str(definition.settings["operation"])
         authorize_operation(
@@ -617,13 +638,14 @@ class BoxTransport(BoundedHTTP):
         return dict(redact(result, (secret,)))
 
 
-class OneDriveTransport(BoundedHTTP):
+class OneDriveTransport(ConnectedStorageTransport):
     def __call__(
         self,
         definition: ToolDefinition,
         arguments: dict[str, Any],
         context: ToolExecutionContext,
     ) -> dict[str, Any]:
+        definition = self.resolve(definition, context)
         _settings(definition)
         operation = str(definition.settings["operation"])
         authorize_operation(

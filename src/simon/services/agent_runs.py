@@ -13,7 +13,9 @@ from simon.domain.errors import (
     NotFoundError,
     ValidationError,
 )
+from simon.domain.execution import EnvironmentDefinition
 from simon.domain.models import ActorContext, Channel, Job, JobStatus, utc_now
+from simon.domain.tool_catalog import ToolDefinition
 from simon.services.agent_platform import AgentPlatformService, stable_configuration
 from simon.services.canonical import digest
 from simon.services.identity import ROLE_SCOPES
@@ -43,7 +45,7 @@ class AgentRunService:
             (
                 item
                 for item in self.store.memberships(actor_id)
-                if item.household_id == workspace_id
+                if item.workspace_id == workspace_id
             ),
             None,
         )
@@ -51,7 +53,7 @@ class AgentRunService:
             raise AuthorizationError("Workspace membership required")
         return ActorContext(
             actor_id=actor_id,
-            household_id=workspace_id,
+            workspace_id=workspace_id,
             channel=Channel.WORKER,
             scopes=ROLE_SCOPES[membership.role],
         )
@@ -70,7 +72,7 @@ class AgentRunService:
     def get(self, actor: ActorContext, identifier: UUID) -> AgentRun:
         self.platform.authorize(actor)
         job = self.job(identifier)
-        if (job.created_by, job.household_id) != (actor.actor_id, actor.household_id):
+        if (job.created_by, job.workspace_id) != (actor.actor_id, actor.workspace_id):
             raise NotFoundError("Agent run not found")
         state = self.view(job)
         self.platform.get(actor, state.plan_id)
@@ -79,7 +81,7 @@ class AgentRunService:
     def list(self, actor: ActorContext) -> tuple[AgentRun, ...]:
         self.platform.authorize(actor)
         result = []
-        for job in self.store.jobs(actor.household_id, actor.actor_id, RUN_KIND, 0, 100):
+        for job in self.store.jobs(actor.workspace_id, actor.actor_id, RUN_KIND, 0, 100):
             try:
                 result.append(self.get(actor, job.id))
             except NotFoundError:
@@ -87,23 +89,99 @@ class AgentRunService:
         return tuple(result)
 
     def assert_configuration(self, actor: ActorContext, plan: AgentTeamPlan) -> None:
-        current = digest(stable_configuration(self.platform.manifest.model_dump(mode="python")))
-        if current != plan.manifest_digest:
-            raise InvalidTransitionError("Agent configuration changed; create a new plan")
+        # Optional connections and unrelated roles can change during a long-running
+        # project. Recheck only this assignment's execution contracts and live grants.
+        job = self.store.get_job(plan.id)
+        assert job is not None
+        configuration = job.input["configuration"]
+        current_tools = {tool.id: tool for tool in self.platform.manifest.tools}
+        for saved in configuration.get("tools", []):
+            saved_tool = ToolDefinition.model_validate(saved)
+            current = current_tools.get(saved["id"])
+            if current is None or any(
+                stable_configuration(getattr(saved_tool, field))
+                != stable_configuration(getattr(current, field))
+                for field in (
+                    "endpoint",
+                    "settings",
+                    "credential_env",
+                    "environment_capabilities",
+                    "transport",
+                    "action_policy",
+                    "required_scopes",
+                    "input_schema",
+                    "output_schema",
+                )
+            ):
+                raise InvalidTransitionError("A required tool's execution contract changed")
+        current_models = {model.id: model for model in self.platform.manifest.models}
+        for saved in configuration.get("models", []):
+            model = current_models.get(saved["id"])
+            if (
+                model is None
+                or not model.enabled
+                or any(
+                    saved.get(field) != model.model_dump(mode="json").get(field)
+                    for field in (
+                        "provider",
+                        "model",
+                        "base_url",
+                        "local",
+                        "api_key_env",
+                        "input_cost_per_million_usd",
+                        "output_cost_per_million_usd",
+                    )
+                )
+            ):
+                raise InvalidTransitionError(
+                    "A model required by this task changed or is unavailable"
+                )
+        current_environments = {env.id: env for env in self.platform.manifest.environments}
+        for saved in configuration.get("environments", []):
+            saved_environment = EnvironmentDefinition.model_validate(saved)
+            environment = current_environments.get(saved["id"])
+            if (
+                environment is None
+                or not environment.enabled
+                or any(
+                    stable_configuration(getattr(saved_environment, field))
+                    != stable_configuration(getattr(environment, field))
+                    for field in (
+                        "kind",
+                        "os",
+                        "capabilities",
+                        "container_image",
+                        "runner_url",
+                        "credential_env",
+                        "network",
+                        "cpu_limit",
+                        "memory_mb",
+                        "gpu_devices",
+                        "container_uid",
+                        "container_gid",
+                    )
+                )
+            ):
+                raise InvalidTransitionError(
+                    "A runtime required by this task changed or is unavailable"
+                )
+        model_ids = {model.id for model in self.platform.manifest.models if model.enabled}
+        if any(task.model and task.model.endpoint_id not in model_ids for task in plan.tasks):
+            raise InvalidTransitionError("A model required by this task is unavailable")
         self.platform.plan_profiles(actor, plan)
 
     def assert_team(self, actor: ActorContext, plan: AgentTeamPlan) -> None:
         team = self.platform.resolve_team(actor, plan.team_id, plan.project_id)
-        if team.version != plan.team_version or not {task.agent_id for task in plan.tasks} <= set(
-            team.agent_ids
-        ):
+        if (not self.platform.shared_tools and team.version != plan.team_version) or not {
+            task.agent_id for task in plan.tasks
+        } <= set(team.agent_ids):
             raise InvalidTransitionError("Project team changed; create a new plan")
 
     def live_actor(self, job: Job) -> ActorContext:
         if not self.enabled:
             raise AuthorizationError("Agent execution is disabled")
-        current = self.actor_resolver(job.created_by, job.household_id)
-        if (current.actor_id, current.household_id) != (job.created_by, job.household_id):
+        current = self.actor_resolver(job.created_by, job.workspace_id)
+        if (current.actor_id, current.workspace_id) != (job.created_by, job.workspace_id):
             raise AuthorizationError("Actor resolver returned a different owner")
         actor = current.model_copy(
             update={
@@ -125,6 +203,24 @@ class AgentRunService:
         profiles = self.platform.plan_profiles(actor, plan)
         endpoints = {item.id: item for item in self.platform.manifest.models}
         specs = {item.id: item for item in request.tasks}
+        if self.platform.shared_tools:
+            from simon.adapters.execution_backends import DockerBackend
+
+            checked_environments = {
+                task.environment.environment_id for task in plan.tasks if task.environment
+            }
+            for identifier in sorted(checked_environments):
+                environment = next(
+                    env for env in self.platform.manifest.environments if env.id == identifier
+                )
+                if environment.kind == "docker" and isinstance(
+                    self.platform.environments.backends.get("docker"), DockerBackend
+                ):
+                    readiness = self.platform.test_environment(actor, identifier)
+                    if readiness["status"] == "failed":
+                        raise ValidationError(
+                            "Runtime " + identifier + " is not ready. " + readiness["message"]
+                        )
         tasks = []
         for task in plan.tasks:
             if task.model is None or task.blocked_reasons:
@@ -140,7 +236,7 @@ class AgentRunService:
             estimate = None
             if endpoint.local or (input_rate is not None and output_rate is not None):
                 estimate = (
-                    (profile.max_steps if task.tool_ids else 1)
+                    (profile.max_steps if task.tool_ids or spec.completion_contract else 1)
                     * (
                         endpoint.context_window_tokens * (input_rate or 0)
                         + min(spec.output_tokens, profile.max_output_tokens) * (output_rate or 0)
@@ -166,12 +262,28 @@ class AgentRunService:
         plan = self.platform.get(actor, plan_id)
         identifier = uuid5(plan_id, f"run:{request.idempotency_key}")
         fingerprint = digest(request.model_dump(mode="json"))
-        with self.store.transaction(actor.household_id):
+        with self.store.transaction(actor.workspace_id):
             old = self.store.get_job(identifier)
             if old is not None:
                 if old.input_digest != fingerprint:
                     raise IdempotencyConflictError("Run key was used for different settings")
                 return self.get(actor, identifier)
+            if plan.state != "planned" and self.platform.shared_tools:
+                # A connection fixed through the UI should not require reconstructing
+                # the same objective manually. Never refresh an executing run.
+                original = self.store.get_job(plan.id)
+                assert original is not None
+                saved_request = PlanTeamRequest.model_validate(original.input["request"])
+                key = "ready-" + digest(
+                    {
+                        "plan": str(plan.id),
+                        "configuration": self.platform.manifest.model_dump(mode="json"),
+                        "readiness": self.platform.tool_statuses(actor),
+                    }
+                )
+                plan = self.platform.plan(
+                    actor, saved_request.model_copy(update={"idempotency_key": key})
+                )
             self.assert_configuration(actor, plan)
             self.assert_team(actor, plan)
             if plan.state != "planned":
@@ -192,7 +304,7 @@ class AgentRunService:
             state = AgentRun(
                 id=identifier,
                 plan_id=plan.id,
-                workspace_id=actor.household_id,
+                workspace_id=actor.workspace_id,
                 actor_id=actor.actor_id,
                 tasks=tasks,
                 model_reserved_usd=total,
@@ -200,7 +312,7 @@ class AgentRunService:
             )
             job = Job(
                 id=identifier,
-                household_id=actor.household_id,
+                workspace_id=actor.workspace_id,
                 created_by=actor.actor_id,
                 kind=RUN_KIND,
                 idempotency_key=identifier.hex,
@@ -230,7 +342,7 @@ class AgentRunService:
         executor_id: UUID | None = None,
     ) -> AgentRun:
         job = self.job(identifier)
-        with self.store.transaction(job.household_id):
+        with self.store.transaction(job.workspace_id):
             job = self.job(identifier)
             state = self.view(job)
             if executor_id is not None and (
@@ -350,7 +462,7 @@ class AgentRunService:
         job = self.job(identifier)
         actor = ActorContext(
             actor_id=operator_actor_id,
-            household_id=job.household_id,
+            workspace_id=job.workspace_id,
             channel=Channel.WORKER,
             scopes=frozenset({"identity:manage"}),
         )
@@ -398,7 +510,7 @@ class AgentRunService:
                 }
             )
 
-        with self.store.transaction(actor.household_id):
+        with self.store.transaction(actor.workspace_id):
             state = self.update(identifier, change)
             self.platform.audit.record(
                 event_type="platform.run.reconciled",

@@ -31,12 +31,12 @@ def test_search_existing_text_and_fragmented_voice_is_private_and_paginated(stor
     connected, actor, _ = connected_setup(store)
     thread, message = history(connected, actor, "My printer is a Bambu A1.")
     # A legacy shared thread is still searchable by its original owner.
-    old = Thread(household_id=actor.household_id, created_by=actor.actor_id, title="Legacy")
+    old = Thread(workspace_id=actor.workspace_id, created_by=actor.actor_id, title="Legacy")
     store.insert_thread(old)
     store.insert_message(Message(thread_id=old.id, sequence=1, role="user", text="Bambu plates"))
     voice_thread, _ = history(connected, actor, "Do not duplicate backend wrappers")
     voice = VoiceSession(
-        household_id=actor.household_id,
+        workspace_id=actor.workspace_id,
         actor_id=actor.actor_id,
         thread_id=voice_thread.id,
         request_key=uuid4(),
@@ -51,7 +51,7 @@ def test_search_existing_text_and_fragmented_voice_is_private_and_paginated(stor
     store.save_voice_session(voice)
     other = actor.model_copy(update={"actor_id": uuid4()})
     store.put_membership(
-        Membership(actor_id=other.actor_id, household_id=actor.household_id, role="owner")
+        Membership(actor_id=other.actor_id, workspace_id=actor.workspace_id, role="owner")
     )
     history(connected, other, "Bambu other account private secret")
     connected.memories.create(
@@ -163,7 +163,7 @@ def test_private_memories_never_enter_other_accounts_or_legacy_shared_context(st
     )
     other = actor.model_copy(update={"actor_id": uuid4()})
     store.put_membership(
-        Membership(actor_id=other.actor_id, household_id=actor.household_id, role="owner")
+        Membership(actor_id=other.actor_id, workspace_id=actor.workspace_id, role="owner")
     )
     assert connected.memories.list(other) == ()
     with pytest.raises(NotFoundError):
@@ -171,10 +171,10 @@ def test_private_memories_never_enter_other_accounts_or_legacy_shared_context(st
     service = ConversationService(store, connected.audit)
     for who, shared in ((actor, False), (actor, True), (other, False)):
         thread = Thread(
-            household_id=who.household_id,
+            workspace_id=who.workspace_id,
             created_by=who.actor_id,
             title="Boundary",
-            visibility="household" if shared else "personal",
+            visibility="workspace" if shared else "personal",
         )
         store.insert_thread(thread)
         run = service.submit(
@@ -256,7 +256,7 @@ def test_shared_threads_and_revoked_attempts_cannot_use_personal_tools(store):
     connected, actor, token = connected_setup(store)
     model = FakeModel()
     service = ModelConversationService(store, connected.audit, model, connected.settings, connected)
-    shared = Thread(household_id=actor.household_id, created_by=actor.actor_id, title="Old shared")
+    shared = Thread(workspace_id=actor.workspace_id, created_by=actor.actor_id, title="Old shared")
     store.insert_thread(shared)
     connected.memories.create(
         actor,

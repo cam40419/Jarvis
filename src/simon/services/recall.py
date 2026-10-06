@@ -99,7 +99,7 @@ class RecallService:
         MemoryService.authorize(actor, "threads:read")
         terms = search_terms(query.query)
         documents = self.store.recall_documents(
-            actor.household_id, actor.actor_id, terms, query.offset, limit + 1, exclude_thread
+            actor.workspace_id, actor.actor_id, terms, query.offset, limit + 1, exclude_thread
         )
         results: list[dict[str, object]] = []
         for doc in documents[:limit]:
@@ -118,7 +118,7 @@ class RecallService:
             results.append(result)
         memories: list[dict[str, object]] = []
         if "memories:read" in actor.scopes:
-            rows = self.store.explicit_memories(actor.household_id, 0, 500, actor.actor_id)
+            rows = self.store.explicit_memories(actor.workspace_id, 0, 500, actor.actor_id)
             ranked = sorted(
                 rows,
                 key=lambda m: (

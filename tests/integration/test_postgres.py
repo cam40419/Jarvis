@@ -60,7 +60,7 @@ def test_api_state_survives_new_container(seeded_url: str) -> None:
                 "/auth/session",
                 headers={
                     "X-Actor-Id": str(uuid4()),
-                    "X-Household-Id": str(uuid4()),
+                    "X-Workspace-Id": str(uuid4()),
                     "X-Scopes": "dangerous:all",
                 },
             ).json()["actor_id"]

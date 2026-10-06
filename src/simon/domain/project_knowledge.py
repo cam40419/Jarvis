@@ -53,6 +53,33 @@ class UpdateProjectKnowledge(ProjectKnowledgeContent):
     _storage_key = field_validator("idempotency_key")(valid_knowledge_text)
 
 
+class ProjectKnowledgeEdit(StrictModel):
+    expected_version: int = Field(ge=0)
+    brief: str | None = Field(default=None, max_length=8000)
+    pinned_decisions: tuple[PinnedProjectDecision, ...] | None = Field(default=None, max_length=20)
+
+    @field_validator("brief")
+    @classmethod
+    def storage_text(cls, value: str | None) -> str | None:
+        return valid_knowledge_text(value) if value is not None else None
+
+    @model_validator(mode="after")
+    def valid_edit(self) -> "ProjectKnowledgeEdit":
+        if self.brief is None and self.pinned_decisions is None:
+            raise ValueError("Provide a brief or pinned decisions to update")
+        if self.pinned_decisions is not None:
+            ids = [decision.id for decision in self.pinned_decisions]
+            if len(ids) != len(set(ids)):
+                raise ValueError("Pinned decision IDs must be unique")
+        return self
+
+
+class EditProjectKnowledge(ProjectKnowledgeEdit):
+    idempotency_key: str = Field(min_length=8, max_length=180)
+
+    _storage_key = field_validator("idempotency_key")(valid_knowledge_text)
+
+
 class ProjectKnowledge(ProjectKnowledgeContent):
     project_id: UUID
     version: int = Field(default=0, ge=0)

@@ -6,6 +6,7 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError as PydanticError
 
+from simon.adapters.browser_tools import browser_tool_definitions
 from simon.adapters.memory import InMemoryStore
 from simon.domain.agent_platform import (
     AgentProfile,
@@ -22,7 +23,7 @@ from simon.domain.errors import (
     ValidationError,
 )
 from simon.domain.execution import EnvironmentDefinition
-from simon.domain.identity import DEV_ACTOR_ID, DEV_HOUSEHOLD_ID
+from simon.domain.identity import DEV_ACTOR_ID, DEV_WORKSPACE_ID
 from simon.domain.model_routing import ModelEndpoint
 from simon.domain.models import ActorContext, Channel, JobStatus
 from simon.domain.tool_catalog import ToolDefinition
@@ -35,7 +36,7 @@ from simon.services.jobs import JobService
 def actor():
     return ActorContext(
         actor_id=DEV_ACTOR_ID,
-        household_id=DEV_HOUSEHOLD_ID,
+        workspace_id=DEV_WORKSPACE_ID,
         channel=Channel.API,
         scopes=frozenset({"jobs:read", "jobs:write"}),
     )
@@ -102,6 +103,70 @@ def request(**updates):
     return PlanTeamRequest(**values)
 
 
+@pytest.mark.parametrize("selected", [(), ("test.read",)])
+def test_explicit_tools_without_environment_requirements_skip_optional_container(
+    actor,
+    manifest,
+    tmp_path,
+    selected,
+):
+    tool = ToolDefinition(
+        id="test.read",
+        description="Read application state",
+        transport="http",
+        configured=True,
+        endpoint="https://example.test/read",
+    )
+    manifest = manifest.model_copy(
+        update={
+            "tools": (tool,),
+            "agents": (
+                manifest.agents[0].model_copy(update={"tool_ids": (tool.id,)}),
+                manifest.agents[1],
+            ),
+            "environments": (manifest.environments[0].model_copy(update={"enabled": False}),),
+            "models": (
+                manifest.models[0].model_copy(
+                    update={"capabilities": frozenset({"text", "tools"})},
+                ),
+            ),
+        }
+    )
+    service = AgentPlatformService(InMemoryStore(), manifest, state_dir=tmp_path, environ={})
+    plan = service.plan(
+        actor,
+        request(
+            tasks=(
+                AgentTaskSpec(
+                    id="research",
+                    agent_id="researcher",
+                    objective="Read the requested context",
+                    tool_ids=selected,
+                ),
+            )
+        ),
+    )
+    assert plan.state == "planned", plan.tasks[0].blocked_reasons
+    assert plan.tasks[0].environment is None
+    explicit = service.plan(
+        actor,
+        request(
+            idempotency_key="explicit-disabled-environment",
+            tasks=(
+                AgentTaskSpec(
+                    id="research",
+                    agent_id="researcher",
+                    objective="Use chosen workspace",
+                    tool_ids=selected,
+                    environment_id="sandbox",
+                ),
+            ),
+        ),
+    )
+    assert explicit.state == "blocked"
+    assert "No permitted execution environment" in explicit.tasks[0].blocked_reasons[0]
+
+
 def service(tmp_path, manifest, store=None):
     return AgentPlatformService(
         store or InMemoryStore(),
@@ -109,6 +174,132 @@ def service(tmp_path, manifest, store=None):
         state_dir=tmp_path / "state",
         environ={},
     )
+
+
+@pytest.mark.parametrize(
+    "tools,grants,explicit,web_enabled,expected_environment,expected_state",
+    [
+        (
+            ("browser.read",),
+            ("browser-offline", "browser-web"),
+            None,
+            True,
+            "browser-web",
+            "planned",
+        ),
+        (
+            ("browser.screenshot",),
+            ("browser-offline", "browser-web"),
+            None,
+            True,
+            "browser-web",
+            "planned",
+        ),
+        (
+            ("browser.render_html",),
+            ("browser-web", "browser-offline"),
+            None,
+            True,
+            "browser-offline",
+            "planned",
+        ),
+        (("browser.read",), ("browser-offline",), None, True, None, "blocked"),
+        (("browser.read",), ("browser-offline", "browser-web"), None, False, None, "blocked"),
+        (
+            ("browser.read",),
+            ("browser-offline", "browser-web"),
+            "browser-offline",
+            True,
+            "browser-offline",
+            "blocked",
+        ),
+        (
+            ("browser.read", "browser.render_html"),
+            ("browser-offline", "browser-web"),
+            None,
+            True,
+            None,
+            "blocked",
+        ),
+    ],
+)
+def test_browser_environment_selection_matches_network_without_expanding_grants(
+    actor,
+    manifest,
+    tmp_path,
+    tools,
+    grants,
+    explicit,
+    web_enabled,
+    expected_environment,
+    expected_state,
+):
+    definitions = tuple(
+        tool.model_copy(update={"settings": {"allowed_origins": ["https://example.com"]}})
+        for tool in browser_tool_definitions(enabled=True)
+    )
+    configured = manifest.model_copy(
+        update={
+            "tools": definitions,
+            "agents": (
+                manifest.agents[0].model_copy(
+                    update={
+                        "tool_ids": tuple(tool.id for tool in definitions),
+                        "tool_scopes": actor.scopes,
+                        "max_action": "write",
+                        "environment_ids": grants,
+                    }
+                ),
+                manifest.agents[1],
+            ),
+            "environments": tuple(
+                EnvironmentDefinition(
+                    id=identifier,
+                    kind="docker",
+                    enabled=web_enabled if network == "bridge" else True,
+                    container_image="simon-browser:local",
+                    capabilities=frozenset({"browser", "python"}),
+                    network=network,
+                )
+                for identifier, network in (("browser-offline", "none"), ("browser-web", "bridge"))
+            ),
+            "models": (
+                manifest.models[0].model_copy(
+                    update={"capabilities": frozenset({"text", "tools"})}
+                ),
+            ),
+        }
+    )
+    platform = AgentPlatformService(
+        InMemoryStore(),
+        configured,
+        state_dir=tmp_path / "state",
+        environ={},
+        available_transports=("browser",),
+    )
+    plan = platform.plan(
+        actor,
+        request(
+            tasks=(
+                AgentTaskSpec(
+                    id="sources",
+                    agent_id="researcher",
+                    objective="Read the assigned source page",
+                    tool_ids=tools,
+                    environment_id=explicit,
+                ),
+            )
+        ),
+    )
+    selected = plan.tasks[0]
+    assert plan.state == expected_state, selected.blocked_reasons
+    assert (
+        selected.environment.environment_id if selected.environment else None
+    ) == expected_environment
+    if selected.environment:
+        assert selected.environment.environment_id in grants
+    assert platform.manifest == configured
+    assert not (tmp_path / "state").exists()  # Planning never allocates a browser.
 
 
 def test_plan_persists_without_allocating_or_starting_execution(tmp_path, manifest, actor):
@@ -139,7 +330,7 @@ def test_idempotency_includes_actor_and_rejects_changed_request(tmp_path, manife
     with pytest.raises(NotFoundError):
         platform.get(other, first.id)
     with pytest.raises(NotFoundError):
-        platform.get(actor.model_copy(update={"household_id": uuid4()}), first.id)
+        platform.get(actor.model_copy(update={"workspace_id": uuid4()}), first.id)
 
 
 @pytest.mark.parametrize(
@@ -217,7 +408,7 @@ def test_scope_authorization_and_context_revocation(tmp_path, manifest, actor):
         id="brand",
         kind="company",
         name="Brand",
-        workspace_id=actor.household_id,
+        workspace_id=actor.workspace_id,
         actor_ids=frozenset({actor.actor_id}),
     )
     configured = manifest.model_copy(update={"contexts": (context,)})
@@ -312,3 +503,76 @@ print(digest(stable_configuration(task.model_dump(mode='python'))))
         for seed in (1, 2)
     ]
     assert results[0] == results[1]
+
+
+def test_task_final_output_schema_is_optional_and_captures_valid_inline_schema():
+    base = {"id": "plan", "agent_id": "reviewer", "objective": "Prepare a plan"}
+    assert AgentTaskSpec(**base).final_output_schema is None
+    schema = {
+        "type": "object",
+        "properties": {"status": {"type": "string", "enum": ["plan", "waiting", "complete"]}},
+        "required": ["status"],
+        "additionalProperties": False,
+    }
+    task = AgentTaskSpec(**base, final_output_schema=schema)
+    assert task.final_output_schema == schema
+    restored = AgentTaskSpec.model_validate_json(task.model_dump_json())
+    assert restored.final_output_schema == schema
+    schema["required"].clear()
+    assert task.final_output_schema["required"] == ["status"]
+
+
+@pytest.mark.parametrize(
+    "schema",
+    [
+        {"type": "array"},
+        {"type": "object", "required": "status"},
+        {"type": "object", "description": "x" * 64000},
+        {"type": "object", "properties": {"status": {"$ref": "https://example.com/schema"}}},
+        {"type": "object", "properties": {"status": {"$dynamicRef": "file:///schema.json"}}},
+        {"type": "object", "properties": {"status": {"$ref": "relative-schema.json#value"}}},
+        {"type": "object", "default": float("nan")},
+        {"type": "object", "$schema": "https://example.com/custom-dialect"},
+        {"type": "object", "$schema": []},
+        {"type": "object", "$schema": {}},
+    ],
+    ids=[
+        "non-object",
+        "invalid-schema",
+        "oversized",
+        "remote-ref",
+        "dynamic-file-ref",
+        "relative-ref",
+        "nonfinite",
+        "unknown-dialect",
+        "list-dialect",
+        "object-dialect",
+    ],
+)
+def test_task_final_output_schema_rejects_invalid_unbounded_or_external_data(schema):
+    with pytest.raises(PydanticError):
+        AgentTaskSpec(
+            id="plan", agent_id="reviewer", objective="Prepare a plan", final_output_schema=schema
+        )
+
+
+def test_task_final_output_schema_rejects_cyclic_python_input():
+    schema = {"type": "object"}
+    schema["properties"] = schema
+    with pytest.raises(PydanticError, match="valid, finite JSON data"):
+        AgentTaskSpec(
+            id="plan", agent_id="reviewer", objective="Prepare a plan", final_output_schema=schema
+        )
+
+
+@pytest.mark.parametrize("reference", ["$ref", "$dynamicRef"])
+def test_task_final_output_schema_rejects_local_refs_before_controller_embedding(reference):
+    schema = {
+        "type": "object",
+        "properties": {"status": {reference: "#/$defs/status"}},
+        "$defs": {"status": {"type": "string"}},
+    }
+    with pytest.raises(PydanticError, match="must inline all schema references"):
+        AgentTaskSpec(
+            id="plan", agent_id="reviewer", objective="Prepare a plan", final_output_schema=schema
+        )

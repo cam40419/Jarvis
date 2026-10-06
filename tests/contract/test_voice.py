@@ -115,14 +115,14 @@ def test_voice_delegates_only_trusted_events_and_persists_usage(store):
         assert saved.usage_final and saved.seconds == 12.5 and saved.state == "closed"
         assert socket.closed and not service.active
         assert "DO_NOT_STORE" not in saved.model_dump_json()
-        assert store.voice_sessions(actor.household_id, uuid4()) == ()
+        assert store.voice_sessions(actor.workspace_id, uuid4()) == ()
         assert store.voice_session(uuid4(), saved.id) is None
         with pytest.raises(NotFoundError):
             service.get(actor.model_copy(update={"actor_id": uuid4()}), saved.id)
-        with pytest.raises(RuntimeError), store.transaction(actor.household_id):
+        with pytest.raises(RuntimeError), store.transaction(actor.workspace_id):
             store.save_voice_session(saved.model_copy(update={"seconds": 99}))
             raise RuntimeError("rollback")
-        assert store.voice_session(actor.household_id, saved.id).seconds == 12.5
+        assert store.voice_session(actor.workspace_id, saved.id).seconds == 12.5
 
     asyncio.run(scenario())
 
@@ -165,7 +165,7 @@ def test_voice_admission_duplicate_rate_limit_and_stale_lease(store):
         )
         store.save_voice_session(stale)
         live2, _ = await opened(service, actor, token)
-        assert store.voice_session(actor.household_id, stale.id).state == "failed"
+        assert store.voice_session(actor.workspace_id, stale.id).state == "failed"
         await service.close(live2)
         live3, _ = await opened(service, actor, token)
         await service.close(live3)
@@ -244,7 +244,7 @@ def test_voice_start_failure_cleanup_and_transcript_limit(store):
         with pytest.raises(ModelError) as error:
             await opened(service, actor, token)
         assert "private" not in str(error.value) and socket.closed and not service.active
-        saved = store.voice_sessions(actor.household_id, actor.actor_id)[0]
+        saved = store.voice_sessions(actor.workspace_id, actor.actor_id)[0]
         assert saved.state == "failed" and not saved.usage_final
         live, _ = await opened(service, actor, token)
         # New socket in real calls; queued closed event from the failed attach is not relevant.

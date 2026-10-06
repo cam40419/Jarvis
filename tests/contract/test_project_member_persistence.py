@@ -14,7 +14,7 @@ from simon.domain.agent_platform import (
 )
 from simon.domain.agent_profiles import AgentRoleDefinition
 from simon.domain.errors import AuthorizationError, NotFoundError
-from simon.domain.identity import DEV_ACTOR_ID, DEV_HOUSEHOLD_ID
+from simon.domain.identity import DEV_ACTOR_ID, DEV_WORKSPACE_ID
 from simon.domain.model_routing import ModelEndpoint
 from simon.domain.models import ActorContext, Channel
 from simon.domain.project_work import ConfigureProjectWork, ProjectTeam, ProjectTodo
@@ -32,7 +32,7 @@ REPORT_ID = "member-" + "b" * 32
 def member_projects(store, tmp_path):
     actor = ActorContext(
         actor_id=DEV_ACTOR_ID,
-        household_id=DEV_HOUSEHOLD_ID,
+        workspace_id=DEV_WORKSPACE_ID,
         channel=Channel.API,
         scopes=frozenset({"jobs:read", "jobs:write"}),
     )
@@ -81,7 +81,7 @@ def member_projects(store, tmp_path):
     )
 
     def resolve(current, project_id):
-        if (current.actor_id, current.household_id) != (actor.actor_id, actor.household_id) or (
+        if (current.actor_id, current.workspace_id) != (actor.actor_id, actor.workspace_id) or (
             project_id not in (first, second)
         ):
             raise NotFoundError("Project not found")

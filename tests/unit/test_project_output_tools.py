@@ -48,7 +48,7 @@ def test_tools_are_run_scoped_bounded_and_reject_contract_downgrades(tmp_path):
     definitions = {tool.id: tool for tool in project_output_definitions()}
     context = ToolExecutionContext(
         actor_id=h.actor.actor_id,
-        household_id=h.actor.household_id,
+        workspace_id=h.actor.workspace_id,
         run_id=run.id,
         agent_id="writer",
         allowed_tool_ids=frozenset(definitions),
@@ -110,7 +110,7 @@ def test_artifact_import_isolated_filename_integrity_and_revocation(tmp_path):
                     "workspace_path": workspace,
                     "request": lease.plan.request.model_copy(
                         update={
-                            "workspace_id": h.actor.household_id,
+                            "workspace_id": h.actor.workspace_id,
                             "agent_id": "writer",
                         }
                     ),
@@ -126,7 +126,7 @@ def test_artifact_import_isolated_filename_integrity_and_revocation(tmp_path):
     tool = workspace_artifact_definition()
     context = ToolExecutionContext(
         actor_id=h.actor.actor_id,
-        household_id=h.actor.household_id,
+        workspace_id=h.actor.workspace_id,
         run_id=current.id,
         agent_id="writer",
         allowed_tool_ids=frozenset({tool.id}),

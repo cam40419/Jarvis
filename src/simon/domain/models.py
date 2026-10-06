@@ -5,7 +5,7 @@ from enum import StrEnum
 from typing import Any
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import AliasChoices, AliasGenerator, BaseModel, ConfigDict, Field, field_validator
 
 
 def utc_now() -> datetime:
@@ -13,7 +13,19 @@ def utc_now() -> datetime:
 
 
 class StrictModel(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
+    # Read historical snapshots/configuration; all new serialization uses workspace names.
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=True,
+        alias_generator=AliasGenerator(
+            validation_alias=lambda name: AliasChoices(name, name.replace("workspace", "household"))
+        ),
+    )
+
+    @field_validator("scope", "visibility", mode="before", check_fields=False)
+    @classmethod
+    def legacy_workspace_scope(cls, value: Any) -> Any:
+        return "workspace" if value == "household" else value
 
 
 class RiskClass(StrEnum):
@@ -33,7 +45,7 @@ class Channel(StrEnum):
 
 class ActorContext(StrictModel):
     actor_id: UUID
-    household_id: UUID
+    workspace_id: UUID
     channel: Channel
     scopes: frozenset[str] = frozenset()
     correlation_id: UUID = Field(default_factory=uuid4)
@@ -80,7 +92,7 @@ TERMINAL_JOB_STATUSES = frozenset({JobStatus.SUCCEEDED, JobStatus.FAILED, JobSta
 
 class Job(StrictModel):
     id: UUID = Field(default_factory=uuid4)
-    household_id: UUID
+    workspace_id: UUID
     created_by: UUID
     kind: str = Field(pattern=r"^[a-z][a-z0-9_.-]{2,127}$")
     schema_version: int = Field(default=1, ge=1)
@@ -108,7 +120,7 @@ class AuditEvent(StrictModel):
     occurred_at: datetime = Field(default_factory=utc_now)
     event_type: str
     actor_id: UUID
-    household_id: UUID
+    workspace_id: UUID
     correlation_id: UUID
     resource_type: str
     resource_id: str

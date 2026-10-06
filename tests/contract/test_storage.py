@@ -6,7 +6,7 @@ import pytest
 
 from simon.api.app import AppContainer
 from simon.domain.errors import IdempotencyConflictError, InvalidTransitionError, NotFoundError
-from simon.domain.models import ActorContext, CapabilityInvocation, Channel, JobStatus
+from simon.domain.models import ActorContext, CapabilityInvocation, Channel, Job, JobStatus
 from simon.domain.ports import Store
 from simon.services.audit import AuditService
 from simon.services.jobs import JobService
@@ -16,7 +16,7 @@ from simon.services.jobs import JobService
 def actor() -> ActorContext:
     return ActorContext(
         actor_id="11111111-1111-4111-8111-111111111111",
-        household_id="22222222-2222-4222-8222-222222222222",
+        workspace_id="22222222-2222-4222-8222-222222222222",
         scopes=frozenset({"system:read"}),
         channel=Channel.API,
     )
@@ -41,6 +41,46 @@ def test_job_replay_conflict_and_isolated_return_values(store: Store, actor: Act
     assert len(store.audit_events()) == len(store.outbox_events()) == 1
 
 
+@pytest.mark.parametrize(
+    ("status", "result", "error_code"),
+    [
+        (JobStatus.QUEUED, None, None),
+        (JobStatus.SUCCEEDED, {"review": {"passed": True, "checks": ["read"]}}, None),
+        (JobStatus.SUCCEEDED, {}, None),
+        (JobStatus.FAILED, {"partial": "Saved evidence"}, "incomplete_worker_output"),
+    ],
+)
+def test_job_creation_preserves_initial_outcome_and_replay_does_not_replace_it(
+    store: Store, actor: ActorContext, status, result, error_code
+) -> None:
+    job = Job(
+        workspace_id=actor.workspace_id,
+        created_by=actor.actor_id,
+        kind="test.initial_outcome",
+        idempotency_key="initial-outcome-001",
+        input={"request": "review"},
+        input_digest="a" * 64,
+        status=status,
+        result=result,
+        error_code=error_code,
+    )
+    created, inserted = store.create_job(job)
+    assert inserted and created == job
+    assert store.get_job(job.id) == job
+    replayed, inserted_again = store.create_job(
+        job.model_copy(
+            update={
+                "id": uuid4(),
+                "status": JobStatus.RUNNING,
+                "result": {"replacement": "must not overwrite the saved outcome"},
+                "error_code": "different_error",
+            }
+        )
+    )
+    assert not inserted_again and replayed == job
+    assert store.get_job(job.id) == job
+
+
 def test_concurrent_submissions_commit_one_job_and_event(store: Store, actor: ActorContext) -> None:
     with ThreadPoolExecutor(max_workers=4) as pool:
         jobs = list(pool.map(lambda _: submit(store, actor), range(8)))
@@ -48,10 +88,10 @@ def test_concurrent_submissions_commit_one_job_and_event(store: Store, actor: Ac
     assert len(store.audit_events()) == len(store.outbox_events()) == 1
 
 
-def test_job_versions_and_household_boundary(store: Store, actor: ActorContext) -> None:
+def test_job_versions_and_workspace_boundary(store: Store, actor: ActorContext) -> None:
     service = JobService(store, AuditService(store))
     job = submit(store, actor)
-    other = actor.model_copy(update={"household_id": uuid4()})
+    other = actor.model_copy(update={"workspace_id": uuid4()})
     with pytest.raises(NotFoundError):
         service.get(other, job.id)
     with pytest.raises(NotFoundError):
@@ -67,7 +107,7 @@ def test_job_versions_and_household_boundary(store: Store, actor: ActorContext) 
 
 
 def test_rollback_removes_job_audit_and_outbox(store: Store, actor: ActorContext) -> None:
-    with pytest.raises(RuntimeError, match="crash"), store.transaction(actor.household_id):
+    with pytest.raises(RuntimeError, match="crash"), store.transaction(actor.workspace_id):
         job = submit(store, actor)
         raise RuntimeError("crash")
     assert store.get_job(job.id) is None
@@ -98,7 +138,7 @@ def test_concurrent_distinct_requests_have_contiguous_audit(
 ) -> None:
     with ThreadPoolExecutor(max_workers=4) as pool:
         list(pool.map(lambda i: submit(store, actor, f"distinct-job-{i}"), range(8)))
-    events = store.audit_events(actor.household_id)
+    events = store.audit_events(actor.workspace_id)
     assert [event.sequence for event in events] == list(range(1, 9))
     assert events[0].previous_hash == "0" * 64
     for previous, current in pairwise(events):
@@ -127,7 +167,7 @@ def test_invocation_replay_preserves_identity_and_is_atomic(
 
 
 def test_failed_invocation_can_retry(store: Store, actor: ActorContext) -> None:
-    with pytest.raises(RuntimeError), store.transaction(actor.household_id):
+    with pytest.raises(RuntimeError), store.transaction(actor.workspace_id):
         store.execute_once("test", "request-1", "a" * 64, lambda: {"ok": True})
         raise RuntimeError("rollback")
     output, replayed = store.execute_once("test", "request-1", "b" * 64, lambda: {"ok": False})
@@ -183,9 +223,9 @@ def test_replay_from_different_actor_is_rejected(store: Store, actor: ActorConte
 
 
 def test_nested_rollback_preserves_outer_work(store: Store, actor: ActorContext) -> None:
-    with store.transaction(actor.household_id):
+    with store.transaction(actor.workspace_id):
         first = submit(store, actor)
-        with pytest.raises(RuntimeError), store.transaction(actor.household_id):
+        with pytest.raises(RuntimeError), store.transaction(actor.workspace_id):
             second = submit(store, actor, "nested-job-002")
             raise RuntimeError("savepoint")
         third = submit(store, actor, "nested-job-003")

@@ -20,6 +20,7 @@
     executing: 'In progress',
     running: 'In progress',
     paused: 'Paused',
+    waiting: 'Waiting for input',
     blocked: 'Blocked',
     unknown: 'Outcome needs review',
     needs_review: 'Needs review',
@@ -96,10 +97,12 @@
     nextArchiveOffset = null;
   const savedRuns = new Map();
   const drafts = new Map();
+  const acceptedRequests = new Set();
   const teamDrafts = new Map();
   let memberEdit = null,
     memberSkills = [],
     selectedMemberSkills = new Set();
+  let createEditorGeneration = 0;
   const root = node('section', undefined, 'project-command');
   root.id = 'project-command';
   root.setAttribute('aria-labelledby', 'pc-heading');
@@ -135,8 +138,11 @@
               <p id="pc-project-description"></p>
             </div>
             <div class="pc-header-actions">
+              <button id="pc-new-request" type="button" class="pc-button primary">
+                New request
+              </button>
               <button id="pc-files" type="button" class="pc-button">Project files</button
-              ><button id="pc-settings" type="button" class="pc-button">Team &amp; autonomy</button>
+              ><button id="pc-settings" type="button" class="pc-button">Team &amp; access</button>
             </div>
           </header>
           <div id="pc-blockers" class="pc-notice error" hidden></div>
@@ -159,6 +165,7 @@
                   required
                   maxlength="16000"
                   rows="4"
+                  aria-describedby="pc-command-note pc-command-status pc-draft-status"
                   placeholder="Describe the outcome you want. Include constraints, decisions, or anything the team should know."
                 ></textarea>
                 <div class="pc-composer-footer">
@@ -169,6 +176,13 @@
                     Ask the lead
                   </button>
                 </div>
+                <div
+                  id="pc-draft-status"
+                  class="pc-draft-status"
+                  role="status"
+                  aria-live="polite"
+                ></div>
+                <div id="pc-command-actions" class="pc-command-actions"></div>
                 <p
                   id="pc-command-status"
                   class="pc-local-status"
@@ -268,6 +282,22 @@
           placeholder="The outcome, constraints, and context the team should keep in mind."
         ></textarea>
         <div id="pc-create-team-fields"></div>
+        <label
+          ><input id="pc-create-continuous" type="checkbox" /> Continue project iterations
+          automatically</label
+        >
+        <p class="pc-help">
+          Save the team, objective and limits once. Later requests reuse the project, files,
+          findings and history.
+        </p>
+        <label for="pc-create-budget"
+          >Model budget per iteration (USD, required for automatic work)</label
+        >
+        <input id="pc-create-budget" type="number" min="0.01" max="10000" step="0.01" />
+        <label for="pc-create-cadence">Check-in interval (minutes)</label>
+        <input id="pc-create-cadence" type="number" min="5" max="10080" value="60" />
+        <label for="pc-create-cycles">Maximum automatic iterations</label>
+        <input id="pc-create-cycles" type="number" min="1" max="100" value="10" />
       </fieldset>
       <p id="pc-create-error" class="pc-error" role="alert" hidden></p>
       <div class="pc-dialog-footer">
@@ -283,7 +313,7 @@
   settingsDialog.setAttribute('aria-labelledby', 'pc-settings-heading');
   settingsDialog.innerHTML = /* HTML */ `<div class="pc-dialog-header">
       <div>
-        <h2 id="pc-settings-heading">Team &amp; autonomy</h2>
+        <h2 id="pc-settings-heading">Team &amp; access</h2>
         <p id="pc-settings-project"></p>
       </div>
       <button type="button" class="pc-button pc-dialog-close" aria-label="Close project settings">
@@ -302,6 +332,11 @@
         <p id="pc-autonomy-help" class="pc-help">
           Your lead prepares a plan. You choose when its tasks start.
         </p>
+        <label for="pc-execution-policy">When a plan is ready</label
+        ><select id="pc-execution-policy">
+          <option value="review">Ask me to approve execution</option>
+          <option value="bounded">Run within the model budget</option>
+        </select>
         <div id="pc-schedule-fields" class="pc-form-grid" hidden>
           <div>
             <label for="pc-cadence">Check-in interval (minutes)</label
@@ -333,7 +368,8 @@
       <div>
         <h2 id="pc-member-heading">Add agent</h2>
         <p>
-          Configure this member for this project. Other projects and saved agents stay unchanged.
+          Define this member?s responsibilities and concrete working instructions. All workspace
+          tools are available.
         </p>
       </div>
       <button
@@ -358,7 +394,7 @@
         required
         maxlength="160"
         placeholder="e.g. Research and documentation lead"
-      /><label for="pc-member-description">Role description</label
+      /><label for="pc-member-description">Working instructions</label
       ><textarea
         id="pc-member-description"
         required
@@ -366,17 +402,34 @@
         rows="3"
         placeholder="Describe the outcomes this agent owns and how it should work."
       ></textarea>
+      <div class="pc-setup-assist">
+        <p>Describe the role and ask Simon to suggest concrete working instructions.</p>
+        <button id="pc-member-assistant" type="button" class="pc-button pc-text-button">
+          Describe this agent
+        </button>
+      </div>
       <div class="pc-skill-heading">
         <div>
           <h3 id="pc-member-skills-heading">Individual skills</h3>
           <p class="pc-help">
-            Choose each capability this member needs. One agent can own several responsibilities.
+            Choose each capability this member needs. Connected services need an authorized account
+            before use.
           </p>
         </div>
         <span id="pc-member-count" role="status" aria-live="polite"></span>
       </div>
-      <label for="pc-member-search" class="sr-only">Find an individual skill</label
-      ><input id="pc-member-search" type="search" placeholder="Find a skill" />
+      <div class="pc-member-filters">
+        <div>
+          <label for="pc-member-search">Find an individual skill</label
+          ><input id="pc-member-search" type="search" placeholder="Search skills or services" />
+        </div>
+        <div>
+          <label for="pc-member-category">Skill category</label
+          ><select id="pc-member-category">
+            <option value="">All categories</option>
+          </select>
+        </div>
+      </div>
       <div id="pc-member-skills" role="group" aria-labelledby="pc-member-skills-heading"></div>
       <p id="pc-member-error" class="pc-error" role="alert" hidden></p>
       <div class="pc-dialog-footer">
@@ -420,14 +473,14 @@
   const navigation = root.querySelector('.pc-tabs');
   const sections = [
     ['overview', 'Overview'],
-    ['tasks', 'Execution tasks'],
+    ['tasks', 'Tasks'],
     ['files', 'Files'],
-    ['history', 'Run history'],
+    ['history', 'History'],
     ['board', 'Board'],
     ['knowledge', 'Knowledge'],
     ['activity', 'Activity'],
     ['sessions', 'Sessions'],
-    ['team', 'Team'],
+    ['team', 'Team & access'],
   ];
   navigation.replaceChildren(
     ...sections.map(([id, label]) => {
@@ -446,6 +499,15 @@
     }),
   );
   boardSlot.before(navigation);
+  const sectionPicker = node('div', undefined, 'pc-section-picker');
+  const sectionLabel = node('label', 'Project section', 'sr-only');
+  sectionLabel.htmlFor = 'pc-project-section';
+  const sectionSelect = node('select');
+  sectionSelect.id = 'pc-project-section';
+  sectionSelect.append(...sections.map(([id, label]) => new Option(label, id)));
+  sectionSelect.onchange = () => setTab(sectionSelect.value);
+  sectionPicker.append(sectionLabel, sectionSelect);
+  navigation.before(sectionPicker);
   const overviewPanel = node('div');
   overviewPanel.id = 'pc-overview-panel';
   overviewPanel.setAttribute('role', 'tabpanel');
@@ -491,6 +553,17 @@
   const knowledgeSummary = node('section');
   knowledgeSummary.id = 'pc-knowledge-summary';
   overviewLinks.after(knowledgeSummary);
+  const projectSummary = node('div', undefined, 'pc-overview-summary');
+  projectSummary.id = 'pc-overview-summary';
+  const latestResult = node('section', undefined, 'pc-latest-result');
+  latestResult.id = 'pc-latest-result';
+  const questionsSlot = node('div', undefined, 'pc-continuity pc-priority-questions');
+  questionsSlot.id = 'pc-priority-questions';
+  questionsSlot.hidden = true;
+  cyclePanel.before(latestResult);
+  overviewPanel.prepend(projectSummary, contentGrid);
+  overviewPanel.append(overviewLinks, knowledgeSummary);
+  $('pc-panel').prepend($('pc-metrics'));
   const panelAction = button('Add task', () => openTodo());
   panelAction.id = 'pc-panel-action';
   $('pc-task-filter').after(panelAction);
@@ -611,7 +684,12 @@
       ).values(),
     ].sort((a, b) => b.sequence - a.sequence);
   const blockers = () => [
-    ...new Set([...(detail?.blocked_reasons || []), ...(work().blocked_reasons || [])]),
+    ...new Set(
+      detail?.presentation?.blockers || [
+        ...(detail?.blocked_reasons || []),
+        ...(work().blocked_reasons || []),
+      ],
+    ),
   ];
   const profile = (id) => {
     const resolved = detail?.member_profiles?.find((member) => member.agent_id === id);
@@ -639,11 +717,17 @@
     const result = node('button', label, 'pc-button ' + className);
     result.type = 'button';
     result.onclick = async () => {
+      result.parentElement?.querySelector('.pc-action-error')?.remove();
       result.disabled = true;
       try {
         await callback();
       } catch (error) {
         status(error.message, true);
+        if (result.isConnected) {
+          const notice = node('p', error.message, 'pc-action-error pc-error');
+          notice.setAttribute('role', 'alert');
+          result.after(notice);
+        }
       } finally {
         if (result.isConnected) result.disabled = false;
       }
@@ -663,6 +747,14 @@
   }
   function acceptDetail(current) {
     detail = current;
+    acceptedRequests.delete(current.project?.id);
+    const project = current.project;
+    if (project?.id === selected) {
+      const metadata = { subject: project.name, content: project.description };
+      projects = projects.map((item) => (item.id === project.id ? { ...item, ...metadata } : item));
+      if (resourceProject?.id === project.id) resourceProject = { ...resourceProject, ...metadata };
+      renderProjects();
+    }
     for (const run of current.runs || []) if (savedRuns.has(run.id)) savedRuns.set(run.id, run);
     // New entries shift offset pagination. Reset older pages rather than skip entries.
     if (activityCount !== work().activity_count) {
@@ -727,6 +819,16 @@
       button('Create your first project', openCreate, 'primary'),
     );
     welcome.prepend(node('span', '↗', 'pc-empty-mark'));
+    welcome.append(
+      button(
+        'Get help choosing a team',
+        () => {
+          openCreate();
+          if (projectDialog.open) openTeamAssistant('pc-create');
+        },
+        'pc-text-button',
+      ),
+    );
     $('pc-empty').replaceChildren(welcome);
   }
   function renderProjects() {
@@ -761,7 +863,7 @@
   async function selectProject(id, updateUrl = true) {
     if (selected) drafts.set(selected, $('pc-command').value);
     selected = id;
-    ++selectionEpoch;
+    const selectionRequest = ++selectionEpoch;
     detail = null;
     tab = 'overview';
     resourceProject = null;
@@ -787,12 +889,18 @@
     $('pc-panel-content').dataset.fingerprint = '';
     if (updateUrl && window.SimonWork) {
       window.SimonWork.prepareProject(id);
-      $('project-page').insertBefore(root, $('project-resources'));
+      mountProjectWorkspace();
       root.hidden = false;
       root.classList.add('pc-embedded');
       root.setAttribute('aria-labelledby', 'pc-project-title');
     }
     $('pc-command').value = drafts.get(id) || '';
+    window.SimonProjectDrafts?.bind($('pc-command'), {
+      projectId: id,
+      key: 'composer',
+      statusTarget: $('pc-draft-status'),
+      onChange: (text) => drafts.set(id, text),
+    });
     feedback('pc-command-status', '');
     $('pc-project-body').hidden = true;
     $('pc-empty').hidden = false;
@@ -812,6 +920,12 @@
       catalog = configured;
       acceptDetail(current);
       if (updateUrl) await window.SimonWork?.openProject(id);
+      if (selectionRequest === selectionEpoch && selected === id && updateUrl) {
+        $('pc-project-title').tabIndex = -1;
+        $('pc-project-title').focus({ preventScroll: true });
+        $('work-view').scrollTo({ top: 0, behavior: 'instant' });
+        $('project-page').scrollTo({ top: 0, behavior: 'instant' });
+      }
     } catch (error) {
       if (request !== generation) return;
       status(error.message, true);
@@ -826,6 +940,14 @@
       schedule();
     }
   }
+  function mountProjectWorkspace() {
+    const page = $('project-page'),
+      resources = $('project-resources');
+    // Re-inserting even the same DOM node blurs focused descendants. Polling
+    // should update the workspace in place; only navigation needs to move it.
+    if (root.parentElement !== page || root.nextElementSibling !== resources)
+      page.insertBefore(root, resources);
+  }
   function renderDetail() {
     if (!detail) return;
     const project = detail.project || projects.find((item) => item.id === selected);
@@ -837,6 +959,8 @@
       detail.plans,
       detail.runs,
       detail.external_actions,
+      detail.presentation,
+      detail.continuity,
       blockers(),
       catalog,
     ]);
@@ -859,34 +983,39 @@
               : assigned
                 ? 'ready'
                 : 'draft');
-    $('pc-project-state').replaceChildren(badge(currentState));
+    const projectState = badge(detail.presentation?.phase || currentState);
+    if (detail.presentation?.status_label)
+      projectState.textContent = detail.presentation.status_label;
+    $('pc-project-state').replaceChildren(projectState);
     const leadName = assigned ? profileName(assigned.lead_agent_id) : 'Choose your project lead';
     $('pc-lead-name').textContent = leadName;
     $('pc-lead-avatar').textContent = initials(leadName);
     $('pc-command-label').textContent = assigned
       ? 'What should ' + leadName + ' work on?'
       : 'What should the team work on?';
-    $('pc-command-submit').disabled =
-      saving || !assigned || mode.paused || Boolean(work().active_cycle) || blockers().length > 0;
-    $('pc-command-note').textContent = !assigned
-      ? 'Choose a team and lead in Team & autonomy to start.'
-      : mode.paused
-        ? 'Resume the project before asking the lead to start more work.'
-        : work().active_cycle
-          ? 'A cycle is underway. You can draft your next request here while it finishes.'
-          : blockers().length
-            ? 'Resolve the project blockers before starting another cycle.'
-            : mode.mode === 'scheduled'
-              ? 'The lead can start delegated work within the saved project limits.'
-              : 'The lead prepares a plan for you to review before its tasks run.';
+    renderComposer();
     const reasons = blockers();
     const notice = $('pc-blockers');
     notice.hidden = !reasons.length;
     if (reasons.length) {
-      notice.replaceChildren(node('strong', 'This project needs attention'));
+      notice.replaceChildren(node('strong', 'What needs attention'));
       const list = node('ul');
-      reasons.forEach((reason) => list.append(node('li', reason)));
+      reasons.forEach((reason) => list.append(node('li', memberReason(reason))));
       notice.append(list);
+      const actions = node('div', undefined, 'pc-task-actions');
+      actions.append(button('Check team access', () => setTab('team')));
+      if (reasons.some((reason) => /google|drive|calendar|account|oauth|connection/i.test(reason)))
+        actions.append(button('Open connections', () => $('connections-open').click()));
+      if (reasons.some((reason) => /clickup|board|list binding/i.test(reason)))
+        actions.append(button('Check project board', () => setTab('board')));
+      if (detail.presentation?.response)
+        actions.append(
+          button('Read lead response', () => {
+            setTab('overview');
+            latestResult.scrollIntoView({ block: 'start' });
+          }),
+        );
+      notice.append(actions);
     }
     if ($('pc-project-body').dataset.fingerprint === fingerprint) return;
     $('pc-project-body').dataset.fingerprint = fingerprint;
@@ -907,17 +1036,196 @@
       }),
     );
     renderCycle();
+    renderOverviewSummary();
+    if (questionsSlot.previousElementSibling !== latestResult) latestResult.after(questionsSlot);
+    window.SimonProjectContinuity?.mount(overviewPanel, selected, detail, {
+      refresh: () => reloadDetail(selected),
+      profileName,
+      questionsTarget: questionsSlot,
+    });
+    window.SimonResults?.mountLatest(latestResult, selected, {
+      runs: detail.runs,
+      state: detail.state,
+      plans: detail.plans,
+      presentation: detail.presentation,
+      profileName,
+      onHistory: () => setTab('history'),
+    });
     renderPanel();
     renderContext();
     renderOverviewLinks();
     renderSections();
   }
+  function focusRequest() {
+    if (!detail) return;
+    setTab('overview');
+    $('pc-command').focus({ preventScroll: true });
+    $('pc-command-form').scrollIntoView({ block: 'center', behavior: 'instant' });
+  }
+  function showCurrentRequest() {
+    setTab('overview');
+    cyclePanel.tabIndex = -1;
+    cyclePanel.focus({ preventScroll: true });
+    cyclePanel.scrollIntoView({ block: 'start', behavior: 'instant' });
+  }
+  const canReplaceFailedRequest = () =>
+    Boolean(
+      !work().active_cycle &&
+        work().blocked_reasons?.length &&
+        detail?.presentation?.recovery?.can_retry,
+    );
+  const canQueueRequest = () =>
+    Boolean(
+      detail?.continuity &&
+        team() &&
+        (work().active_cycle ||
+          detail.continuity.waits?.some((item) => item.status === 'waiting')) &&
+        !autonomy().paused &&
+        !blockers().length,
+    );
+  function renderComposer() {
+    const assigned = team(),
+      policy = autonomy(),
+      cycle = work().active_cycle,
+      reasons = blockers(),
+      allowed = session?.scopes?.includes('jobs:write');
+    const actions = $('pc-command-actions');
+    const replacesFailed = canReplaceFailedRequest();
+    const awaitingStatus = acceptedRequests.has(selected);
+    const queueRequest = canQueueRequest();
+    $('pc-command-submit').disabled =
+      saving ||
+      awaitingStatus ||
+      !allowed ||
+      !assigned ||
+      (Boolean(cycle) && !queueRequest) ||
+      (!replacesFailed && (policy.paused || reasons.length > 0));
+    $('pc-command-submit').textContent = replacesFailed
+      ? 'Replace failed request'
+      : queueRequest
+        ? 'Queue request'
+        : 'Ask the lead';
+    const fingerprint = JSON.stringify([
+      assigned?.lead_agent_id,
+      policy,
+      cycle?.phase,
+      reasons,
+      allowed,
+      replacesFailed,
+      awaitingStatus,
+      queueRequest,
+    ]);
+    if (actions.dataset.fingerprint === fingerprint) return;
+    actions.dataset.fingerprint = fingerprint;
+    actions.replaceChildren();
+    let note;
+    if (!allowed)
+      note = 'Your account can view this project. Starting work requires project write access.';
+    else if (!assigned) {
+      note = 'Choose a team and lead before sending a request.';
+      actions.append(button('Choose a team', openSettings));
+    } else if (awaitingStatus) {
+      note =
+        'Your request was saved. Refresh its status before sending another request. You can keep writing your draft.';
+      actions.append(
+        button('Refresh request status', async () => {
+          const projectId = selected;
+          await reloadDetail(projectId);
+          if (selected === projectId)
+            feedback('pc-command-status', 'Request saved. Project status is up to date.');
+        }),
+      );
+    } else if (replacesFailed) {
+      note =
+        'The previous planning attempt stopped before delegated work ran. Send a new request to replace it, or retry the previous request unchanged. Both start one plan for review; scheduled work stays off. Earlier attempts stay in History.';
+      actions.append(button('Retry previous request', () => controlProject('retry')));
+      actions.append(button('Review previous attempt', showCurrentRequest));
+    } else if (queueRequest) {
+      note =
+        'Your request will be saved in the queue. It can start when the current work finishes; unanswered questions stay saved separately.';
+      actions.append(button('Review current request', showCurrentRequest));
+    } else if (reasons.length) {
+      note =
+        'New requests are on hold: ' +
+        reasons.map(memberReason).join(' ') +
+        ' You can keep writing your draft.';
+      actions.append(button('Review project hold', showCurrentRequest));
+    } else if (policy.paused) {
+      note = 'This project is paused. Resume it to send your request; your draft will stay here.';
+      actions.append(button('Resume to send requests', () => controlProject('resume')));
+    } else if (cycle) {
+      note =
+        cycle.phase === 'ready'
+          ? 'A plan is waiting for review. Start or discard it before sending another request. Your draft stays here.'
+          : 'The team is already working on a request. You can draft the next one while it finishes.';
+      actions.append(button('Review current request', showCurrentRequest));
+    } else note = 'The lead prepares a plan for you to review before its tasks run.';
+    $('pc-command-note').textContent = note;
+    $('pc-command-note').classList.toggle(
+      'pc-command-held',
+      reasons.length > 0 || policy.paused || Boolean(cycle),
+    );
+    actions.hidden = !actions.childElementCount;
+  }
+  function renderOverviewSummary() {
+    const policy = autonomy();
+    projectSummary.replaceChildren();
+    const copy = node('div');
+    copy.append(
+      node(
+        'strong',
+        policy.paused
+          ? 'Paused'
+          : policy.mode === 'scheduled'
+            ? 'Automatic work is enabled'
+            : policy.execution_policy === 'bounded'
+              ? 'Work runs within your budget'
+              : 'You approve each plan',
+      ),
+    );
+    const count = todos().filter((task) => !done(task.status)).length;
+    copy.append(
+      node(
+        'span',
+        count +
+          ' open task' +
+          (count === 1 ? '' : 's') +
+          (team()
+            ? ' · ' +
+              team().agent_ids.length +
+              ' team member' +
+              (team().agent_ids.length === 1 ? '' : 's')
+            : ' · Choose a team to begin'),
+      ),
+    );
+    const actions = node('div', undefined, 'pc-summary-actions');
+    actions.append(button('View team', () => setTab('team'), 'pc-text-button'));
+    if (team()) {
+      const toggle = button(
+        policy.paused ? 'Resume project' : 'Pause project',
+        () => controlProject(policy.paused ? 'resume' : 'pause'),
+        'pc-text-button',
+      );
+      toggle.disabled = policy.paused && Boolean(work().blocked_reasons?.length);
+      actions.append(toggle);
+    }
+    projectSummary.append(copy, actions);
+  }
   function renderContext() {
     const assigned = team();
     const policy = autonomy();
     const aside = $('pc-context');
+    const openAccess = new Set(
+      [...aside.querySelectorAll('[data-member-id] details[open]')].map(
+        (item) => item.closest('[data-member-id]').dataset.memberId,
+      ),
+    );
+    const focusedSummary = document.activeElement?.tagName === 'SUMMARY';
+    const focusedMember = aside.contains(document.activeElement)
+      ? document.activeElement.closest('[data-member-id]')?.dataset.memberId
+      : null;
     aside.replaceChildren();
-    const people = node('section', undefined, 'pc-context-card');
+    const people = node('section', undefined, 'pc-context-card pc-agent-roster');
     people.append(
       node('h4', 'The project team'),
       node('strong', assigned?.name || 'Choose a team'),
@@ -929,45 +1237,87 @@
           'Choose agents whose capabilities cover the outcome, then select one to lead. One agent can handle several responsibilities.',
         ),
       );
+    const memberCards = node('div', undefined, 'pc-agent-cards');
+    people.append(memberCards);
     for (const id of assigned?.agent_ids || []) {
-      const person = node('div', undefined, 'pc-person');
+      const person = node('article', undefined, 'pc-person pc-agent-card');
       person.dataset.memberId = id;
       const copy = node('div');
       copy.append(
         node('strong', profileName(id)),
         node('small', id === assigned.lead_agent_id ? 'Project lead' : 'Team member'),
       );
+      const currentTasks = todos().filter((task) => task.agent_id === id && !done(task.status));
+      const currentTask =
+        currentTasks.find((task) => active(task.status)) ||
+        currentTasks.find((task) => attention(task.status)) ||
+        currentTasks[0];
+      const liveTasks = (detail.runs || [])
+        .filter((run) => active(run.status))
+        .flatMap((run) => run.tasks || [])
+        .filter((task) => task.agent_id === id && active(task.status));
+      const liveTask = liveTasks.find((task) => task.status === 'running') || liveTasks[0];
+      const planning = id === assigned.lead_agent_id && work().active_cycle?.phase === 'planning';
+      const state = planning
+        ? 'planning'
+        : liveTask?.status || currentTask?.status || (policy.paused ? 'paused' : 'available');
+      const stateBadge = badge(state);
+      if (state === 'available') stateBadge.textContent = 'Available';
+      copy.append(stateBadge);
       const description = assigned.members?.[id]?.description || profile(id)?.description;
       if (description) copy.append(node('small', description, 'pc-person-description'));
-      const ids = assigned.members?.[id]?.skill_ids || skillsForProfile(profile(id));
-      copy.append(node('small', skillNames(ids).join(' · '), 'pc-person-skills'));
-      const resolved = detail?.member_profiles?.find((member) => member.agent_id === id);
-      const reasons = [
-        ...new Set([
-          ...(resolved?.blocked_reasons || []),
-          ...ids.flatMap(
-            (skillId) =>
-              catalog?.individual_skills?.find((skill) => skill.id === skillId)?.blocked_reasons ||
-              [],
+      const current = node('div', undefined, 'pc-agent-current');
+      current.append(
+        node('span', 'Current work'),
+        node(
+          'p',
+          planning
+            ? 'Preparing the next plan'
+            : liveTask?.id === 'lead-summary'
+              ? 'Summarizing the project results'
+              : currentTask?.title ||
+                (liveTask ? human(liveTask.id) : 'No assigned work in progress'),
+        ),
+      );
+      if (currentTask && currentTasks.length > 1)
+        current.append(
+          node(
+            'small',
+            currentTasks.length - 1 + ' more open task' + (currentTasks.length === 2 ? '' : 's'),
           ),
-        ]),
-      ];
-      if (reasons.length)
-        copy.append(node('small', reasons.map(memberReason).join(' '), 'pc-skill-readiness'));
+        );
+      copy.append(current);
+      const skillDetails = node('details', undefined, 'pc-member-access');
+      skillDetails.open = openAccess.has(id);
+      skillDetails.append(node('summary', 'Workspace tool access'));
+      skillDetails.append(
+        node(
+          'p',
+          'All connected workspace tools are available to this agent. Configure and test accounts in Connections.',
+        ),
+      );
+      copy.append(skillDetails);
       if (assigned.roles?.[id])
         copy.append(node('small', assigned.roles[id], 'pc-person-responsibilities'));
       const configure = button(
-        'Edit skills',
+        'Edit role',
         () => {
           openSettings();
           editTeamMember('pc-settings', id);
         },
         'pc-text-button',
       );
-      configure.setAttribute('aria-label', 'Edit skills: ' + profileName(id));
+      configure.setAttribute('aria-label', 'Edit role: ' + profileName(id));
       copy.append(configure);
       person.append(node('span', initials(profileName(id)), 'pc-avatar'), copy);
-      people.append(person);
+      memberCards.append(person);
+      if (focusedMember === id)
+        requestAnimationFrame(() => {
+          if (configure.isConnected)
+            (focusedSummary ? skillDetails.querySelector('summary') : configure).focus({
+              preventScroll: true,
+            });
+        });
     }
     people.append(button(assigned ? 'Edit team' : 'Choose team', openSettings, 'pc-text-button'));
     aside.append(people);
@@ -980,7 +1330,9 @@
           ? 'Project paused'
           : policy.mode === 'scheduled'
             ? 'Scheduled progress'
-            : 'You review each plan',
+            : policy.execution_policy === 'bounded'
+              ? 'Execution within a budget'
+              : 'You review each plan',
       ),
     );
     control.append(
@@ -990,7 +1342,9 @@
           ? 'Future starts are paused. Work already running may finish and its results will be saved.'
           : policy.mode === 'scheduled'
             ? 'Your lead checks for the next useful step within these limits.'
-            : 'The lead proposes work. You decide when to start it.',
+            : policy.execution_policy === 'bounded'
+              ? 'Ready work can start within the saved model budget. Agent permissions and project holds still apply.'
+              : 'The lead proposes work. You decide when to start it.',
       ),
     );
     const rows = [
@@ -1034,7 +1388,7 @@
     cyclePanel.replaceChildren();
     const top = node('div', undefined, 'pc-task-top');
     top.append(
-      node('h4', (work().active_cycle ? 'Current' : 'Last') + ' cycle · ' + cycle.number),
+      node('h4', work().active_cycle ? 'Current request' : 'Latest request'),
       badge(cycle.phase),
     );
     cyclePanel.append(top);
@@ -1045,16 +1399,20 @@
         ? 'Approved. Waiting for the coordinator to start the team.'
         : 'Your plan is ready. Review the assigned tasks below, then start the team.',
       executing: 'The team is working through the plan. Results are saved as tasks finish.',
-      completed: 'This cycle is complete. Review the findings or give the lead the next objective.',
-      blocked: 'This cycle stopped. Review the reason and saved results before continuing.',
+      completed: 'This cycle is complete. The answer and saved files are above.',
+      blocked:
+        'This request stopped before completion. Read the lead response and check the next step below.',
       unknown: 'An action may have completed. Verify its actual outcome before starting more work.',
       cancelled: 'This cycle was discarded. Its record remains available.',
     };
     cyclePanel.append(node('p', messages[cycle.phase] || human(cycle.phase)));
-    if (cycle.error) cyclePanel.append(node('p', cycle.error, 'pc-error'));
+    const instruction = detail.presentation?.request || cycle.instruction;
+    cyclePanel.append(node('p', instruction, 'pc-current-request'));
+    if (cycle.error && !detail.presentation?.blockers?.length && !blockers().includes(cycle.error))
+      cyclePanel.append(node('p', memberReason(cycle.error), 'pc-error'));
     const request = node('details');
     request.open = Boolean(summaryOpen);
-    request.append(node('summary', 'Original request'), node('p', cycle.instruction));
+    request.append(node('summary', 'Request details'), node('p', instruction));
     cyclePanel.append(request);
     const plan = detail.plans?.find((item) => item.id === cycle.execution_plan_id);
     if (plan) {
@@ -1090,8 +1448,31 @@
       actions.append(button('Discard this plan', () => controlProject('discard')));
     } else if (work().active_cycle?.phase === 'starting' && !cycle.planning_run_id)
       actions.append(button('Discard request', () => controlProject('discard')));
-    if (!work().active_cycle && work().blocked_reasons?.length)
-      actions.append(button('Review and clear hold', openReview));
+    const recovery = detail.presentation?.recovery;
+    if (recovery?.can_retry) {
+      actions.append(button('Retry with current access', () => controlProject('retry'), 'primary'));
+      cyclePanel.append(
+        node(
+          'p',
+          'Retries this request once with the team’s current skills and access. Scheduled work stays off until you enable it again.',
+          'pc-help',
+        ),
+      );
+    }
+    if (!work().active_cycle && work().blocked_reasons?.length) {
+      const review = button('Review and clear hold', openReview);
+      if (recovery?.can_retry) {
+        const alternatives = node('details', undefined, 'pc-recovery-options');
+        alternatives.append(
+          node('summary', 'Other recovery options'),
+          node('p', 'To change the request, review the saved outcome and clear the hold first.'),
+          review,
+        );
+        cyclePanel.append(alternatives);
+      } else actions.append(review);
+    }
+    if (attention(cycle.phase) && !recovery?.can_retry && recovery?.blocked_reasons?.length)
+      cyclePanel.append(node('p', recovery.blocked_reasons.map(memberReason).join(' '), 'pc-help'));
     cyclePanel.append(actions);
     if (detail.external_actions?.length) {
       const external = node('div', undefined, 'pc-external-actions');
@@ -1142,8 +1523,10 @@
     }
     if (tab === 'history' && !historyPage) loadHistory();
     if (tab === 'sessions') window.SimonWork?.openProject(selected);
+    $('pc-project-body').scrollIntoView({ block: 'start', behavior: 'instant' });
   }
   function renderSections() {
+    sectionSelect.value = tab;
     root.querySelectorAll('[data-pc-tab]').forEach((item) => {
       const current = item.dataset.pcTab === tab;
       item.setAttribute('aria-selected', String(current));
@@ -1156,8 +1539,18 @@
       'pc-tab-' + (tab === 'overview' ? 'overview' : tab),
     );
     for (const [id, panel] of Object.entries(workspacePanels)) panel.hidden = tab !== id;
-    $('pc-context').hidden = !['overview', 'team'].includes(tab);
-    (tab === 'team' ? workspacePanels.team : contentGrid).append($('pc-context'));
+    $('pc-context').hidden = tab !== 'team';
+    if ($('pc-context').parentElement !== workspacePanels.team)
+      workspacePanels.team.append($('pc-context'));
+    if (!workspacePanels.team.querySelector('.pc-section-heading'))
+      workspacePanels.team.prepend(
+        sectionHeading(
+          'Team & access',
+          'Review each member’s skills and connection requirements. Edit a member, then save the team settings.',
+          button('Open connections', () => $('connections-open').click()),
+        ),
+      );
+    $('pc-metrics').hidden = tab !== 'tasks';
     if (tab === 'files') renderFiles();
     if (tab === 'history') renderHistory();
     if (tab === 'sessions') renderSessions();
@@ -1289,6 +1682,10 @@
           Promise.all([loadResources(true), window.SimonProjectOutputs?.refresh()]),
         ),
       ),
+    );
+    window.SimonProjectStorage?.render(
+      target,
+      resourceProject || { id: selected, subject: detail.project.name },
     );
     if (resourceError) target.append(node('p', resourceError, 'pc-notice error'));
     const local = node('section', undefined, 'pc-file-section');
@@ -1461,7 +1858,9 @@
       savedRuns.clear();
       ++historyGeneration;
     }
-    renderHistory();
+    // Keep expanded results mounted while refreshing their replacement. Rebuilding
+    // here starts result requests against the old history and can lose open state.
+    if (!historyPage) renderHistory();
     try {
       const params = new URLSearchParams({ limit: '20' });
       if (cursor) params.set('cursor', cursor);
@@ -1567,41 +1966,16 @@
       const header = node('div', undefined, 'pc-task-top');
       header.append(node('strong', profileName(task.agent_id)), badge(task.status));
       section.append(header);
-      window.SimonAgentActivity.render(section, task, null, run);
-      if (task.error_code) section.append(node('p', human(task.error_code), 'pc-error'));
-      if (task.output) {
-        const output = node('div', undefined, 'pc-markdown');
-        output.append(SimonMarkdown.render(task.output));
-        section.append(output);
-      } else
-        section.append(
-          node(
-            'p',
-            ['queued', 'running'].includes(task.status)
-              ? 'Output will appear when this task finishes.'
-              : 'No output was saved for this task.',
-            'muted',
-          ),
-        );
-      const files = node('div', undefined, 'pc-resource-actions');
-      for (const artifact of task.artifacts || []) {
-        const link = node('a', artifact.name, 'pc-file-link');
-        link.href = appPath(
-          '/v1/agent-platform/runs/' +
-            encodeURIComponent(run.id) +
-            '/artifacts/' +
-            encodeURIComponent(artifact.id),
-        );
-        link.download = artifact.name;
-        files.append(link);
-        if (
-          task.status === 'succeeded' &&
-          session?.scopes?.includes('jobs:write') &&
-          window.SimonProjectOutputs
-        )
-          files.append(window.SimonProjectOutputs.saveButton(selected, run.id, artifact));
-      }
-      section.append(files);
+      window.SimonResults?.renderTask(section, run, task, {
+        title: profileName(task.agent_id),
+        projectId: selected,
+        phase: historyPage?.items?.find((item) => item.id === run.id)?.phase,
+      });
+      const technical = node('details', undefined, 'pc-run-technical');
+      technical.append(node('summary', 'Run activity & technical details'));
+      window.SimonAgentActivity.render(technical, task, null, run);
+      if (task.error_code) technical.append(node('p', human(task.error_code), 'pc-error'));
+      section.append(technical);
       target.append(section);
     }
   }
@@ -1630,6 +2004,23 @@
     const focused = target.contains(document.activeElement)
       ? document.activeElement.dataset.focusKey
       : null;
+    if (tab === 'knowledge') {
+      $('pc-task-filter').hidden = true;
+      $('pc-task-summary').textContent = '';
+      panelAction.textContent = 'Add entry';
+      panelAction.onclick = openNote;
+      panelAction.hidden = !session?.scopes?.includes('jobs:write');
+      if (!target.querySelector('#pc-knowledge-content')) {
+        const knowledge = node('div');
+        knowledge.id = 'pc-knowledge-content';
+        const workspace = node('div');
+        workspace.id = 'pc-workspace-content';
+        target.replaceChildren(knowledge, workspace);
+      }
+      window.SimonProjectKnowledge?.mount($('pc-knowledge-content'), selected);
+      window.SimonProjectWorkspace?.mount($('pc-workspace-content'), selected, detail);
+      return;
+    }
     target.replaceChildren();
     const taskView = ['overview', 'tasks'].includes(tab);
     if (tab === 'overview') {
@@ -1648,10 +2039,6 @@
     panelAction.textContent = taskView ? 'Add task' : 'Add entry';
     panelAction.onclick = () => (taskView ? openTodo() : openNote());
     panelAction.hidden = tab === 'knowledge' && !session?.scopes?.includes('jobs:write');
-    if (tab === 'knowledge') {
-      window.SimonProjectKnowledge?.mount(target, selected);
-      return;
-    }
     if (taskView) {
       const filter = $('pc-task-filter').value;
       if (filter === 'archived') {
@@ -1886,11 +2273,17 @@
     wrap.append(title);
     const guidance = node(
       'p',
-      'Give each member a role and choose its individual skills. One agent can research, write, and check the result. Each member is configured independently for this project.',
+      'Give each member a role and concrete working instructions. Every member can use all connected workspace tools.',
       'pc-help',
     );
     guidance.id = prefix + '-team-guidance';
     wrap.append(guidance);
+    const assistant = node('div', undefined, 'pc-setup-assist');
+    assistant.append(
+      node('p', 'Describe the work in a conversation, then review a recommended team.'),
+      button('Describe a team', () => openTeamAssistant(prefix), 'pc-text-button'),
+    );
+    wrap.append(assistant);
     const templateLabel = node('label', 'Start from a team template');
     templateLabel.htmlFor = prefix + '-template';
     const templates = node('select');
@@ -1932,10 +2325,7 @@
       );
       label.append(input, copy);
       row.append(label);
-      const ids = agent.skill_ids || skillsForProfile(agent);
-      row.append(
-        node('p', skillNames(ids).join(' · ') || 'No skills available', 'pc-team-skill-summary'),
-      );
+      row.append(node('p', 'All connected workspace tools', 'pc-team-skill-summary'));
       const configure = button(
         'Configure',
         () => editTeamMember(prefix, agent.id),
@@ -1948,7 +2338,7 @@
     }
     const memberActions = node('div', undefined, 'pc-team-actions');
     memberActions.append(
-      node('p', 'Add a member and choose its skills for this project.'),
+      node('p', 'Add a member and define its responsibilities for this project.'),
       button('Add agent', () => editTeamMember(prefix), 'pc-text-button'),
     );
     wrap.append(memberActions, members);
@@ -2055,13 +2445,6 @@
       members: structuredClone(teamDrafts.get(prefix) || {}),
     };
   }
-  const skillNames = (ids) =>
-    ids.map(
-      (id) =>
-        catalog?.individual_skills?.find((skill) => skill.id === id)?.name ||
-        catalog?.skills?.find((skill) => skill.id === id)?.name ||
-        'Unavailable saved skill',
-    );
   function skillsForProfile(agent) {
     if (!Array.isArray(agent?.tool_ids)) return [];
     const tools = agent?.tool_ids || [];
@@ -2074,10 +2457,173 @@
         )
       : ['analysis'];
   }
+  function setupSkills(ids) {
+    const known = new Set((catalog?.individual_skills || []).map((skill) => skill.id));
+    return [
+      ...new Set(
+        ids.flatMap((id) => {
+          if (known.has(id)) return [id];
+          const legacy = catalog?.skills?.find((skill) => skill.id === id);
+          const atomic = legacy?.tool_ids?.map((tool) => 'tool.' + tool);
+          if (atomic?.length && atomic.every((skill) => known.has(skill))) return atomic;
+          throw Error(
+            'A saved skill is no longer available. Review the member’s skills before asking for a recommendation.',
+          );
+        }),
+      ),
+    ];
+  }
+  function setupRole(prefix, id, draft) {
+    const base =
+      prefix === 'pc-create' ? catalog?.agents?.find((agent) => agent.id === id) : profile(id);
+    const role = draft.members[id] || base || {};
+    return {
+      name: role.name || human(id),
+      description:
+        [role.description, draft.roles[id]].filter(Boolean).join('\n').slice(0, 4000) ||
+        'Own the work assigned to this project role.',
+      skill_ids: setupSkills(role.skill_ids || skillsForProfile(role)),
+      is_lead: draft.lead_agent_id === id,
+      rationale: '',
+    };
+  }
+  function openTeamAssistant(prefix) {
+    const parent = prefix === 'pc-create' ? projectDialog : settingsDialog;
+    if (!parent.open) return;
+    const original = teamDraft(prefix),
+      fingerprint = JSON.stringify(original),
+      settings = settingsSnapshot,
+      creating = createEditorGeneration,
+      projectId = prefix === 'pc-settings' ? settings?.project : null;
+    const snapshot = {
+      team_name: original.name.trim() || 'Project team',
+      roles: original.agent_ids.map((id) => setupRole(prefix, id, original)),
+    };
+    const goal =
+      prefix === 'pc-create' ? $('pc-create-goal').value.trim() : detail?.project?.description;
+    window.SimonSetupAssistant.open({
+      mode: 'team',
+      projectId,
+      initialPrompt: goal ? 'Suggest a small team for this project: ' + goal : '',
+      currentDraft: snapshot,
+      onApply(recommendation) {
+        if (
+          !parent.open ||
+          (prefix === 'pc-create'
+            ? createEditorGeneration !== creating
+            : settingsSnapshot !== settings || selected !== projectId) ||
+          JSON.stringify(teamDraft(prefix)) !== fingerprint
+        )
+          return false;
+        const members = {},
+          ids = [],
+          used = new Set();
+        let lead = '';
+        for (const role of recommendation.roles) {
+          const matching = original.agent_ids.filter(
+            (id) => setupRole(prefix, id, original).name === role.name,
+          );
+          const id =
+            matching.length === 1 && !used.has(matching[0])
+              ? matching[0]
+              : 'member-' + crypto.randomUUID().replaceAll('-', '');
+          used.add(id);
+          ids.push(id);
+          members[id] = {
+            name: role.name,
+            description: role.description,
+            skill_ids: [...role.skill_ids],
+          };
+          if (role.is_lead) lead = id;
+        }
+        teamFields(prefix, {
+          name: recommendation.team_name,
+          agent_ids: ids,
+          lead_agent_id: lead,
+          max_parallel: Number(original.max_parallel) || 2,
+          roles: {},
+          members,
+        });
+        const note = node(
+          'p',
+          'Recommendation added to the team draft. Review each member, then save to apply it.',
+          'pc-help pc-setup-applied',
+        );
+        note.setAttribute('role', 'status');
+        $(prefix + '-team-fields').prepend(note);
+        $(prefix + '-team-name').focus();
+        return true;
+      },
+    });
+  }
+  $('pc-member-assistant').onclick = () => {
+    if (!memberEdit || !memberDialog.open) return;
+    const editing = memberEdit,
+      settings = settingsSnapshot,
+      creating = createEditorGeneration,
+      projectId = editing.prefix === 'pc-settings' ? settings?.project : null;
+    const fields = () => ({
+      name: $('pc-member-name').value,
+      description: $('pc-member-description').value,
+      skill_ids: [...selectedMemberSkills],
+    });
+    const original = fields();
+    const complete = original.name.trim() && original.description.trim();
+    try {
+      window.SimonSetupAssistant.open({
+        mode: 'member',
+        projectId,
+        initialPrompt: complete
+          ? ''
+          : [original.name, original.description].filter(Boolean).join('\n'),
+        currentDraft: {
+          team_name: editing.draft.name,
+          roles: complete
+            ? [
+                {
+                  ...original,
+                  skill_ids: setupSkills(original.skill_ids),
+                  is_lead: editing.draft.lead_agent_id === editing.id,
+                  rationale: '',
+                },
+              ]
+            : [],
+        },
+        onApply(recommendation) {
+          if (
+            !memberDialog.open ||
+            memberEdit !== editing ||
+            (editing.prefix === 'pc-create'
+              ? createEditorGeneration !== creating
+              : settingsSnapshot !== settings || selected !== projectId) ||
+            JSON.stringify(fields()) !== JSON.stringify(original)
+          )
+            return false;
+          const role = recommendation.roles[0];
+          $('pc-member-name').value = role.name;
+          $('pc-member-description').value = role.description;
+          $('pc-member-template').value = '';
+          selectedMemberSkills = new Set(role.skill_ids);
+          $('pc-member-search').value = '';
+          $('pc-member-category').value = '';
+          renderMemberSkills();
+          $('pc-member-name').focus();
+          return true;
+        },
+      });
+    } catch (error) {
+      $('pc-member-error').textContent = error.message;
+      $('pc-member-error').hidden = false;
+    }
+  };
   function memberReason(reason) {
     let value = String(reason);
-    for (const tool of catalog?.tool_statuses || [])
-      value = value.replaceAll(tool.id, tool.description || 'An integration');
+    for (const tool of [...(catalog?.tool_statuses || [])].sort(
+      (a, b) => b.id.length - a.id.length,
+    )) {
+      const skill = catalog?.individual_skills?.find((item) => item.tool_ids?.includes(tool.id));
+      value = value.replaceAll(tool.id, skill?.name || tool.description || 'An integration');
+    }
     return value;
   }
   function editTeamMember(prefix, id = null) {
@@ -2092,7 +2638,7 @@
       template: $(prefix + '-template').value,
       rolesOpen: $(prefix + '-team-fields').querySelector('.pc-roles').open,
     };
-    $('pc-member-heading').textContent = id ? 'Configure team member' : 'Add agent';
+    $('pc-member-heading').textContent = id ? 'Edit role' : 'Add agent';
     $('pc-member-save-note').textContent =
       prefix === 'pc-create'
         ? 'Added to your team draft. Create the project to save it.'
@@ -2125,6 +2671,12 @@
         );
       }
     $('pc-member-search').value = '';
+    $('pc-member-category').replaceChildren(
+      new Option('All categories', ''),
+      ...[...new Set(memberSkills.map((skill) => skill.category || 'General'))]
+        .sort((a, b) => a.localeCompare(b))
+        .map((category) => new Option(category, category)),
+    );
     $('pc-member-error').hidden = true;
     renderMemberSkills();
     memberDialog.showModal();
@@ -2134,9 +2686,11 @@
     const target = $('pc-member-skills');
     target.replaceChildren();
     const query = $('pc-member-search').value.trim().toLocaleLowerCase();
+    const filterCategory = $('pc-member-category').value;
     const groups = new Map();
     for (const skill of memberSkills) {
       const category = skill.category || 'General';
+      if (filterCategory && filterCategory !== category) continue;
       if (
         query &&
         !(skill.name + ' ' + skill.description + ' ' + category).toLocaleLowerCase().includes(query)
@@ -2188,7 +2742,7 @@
       target.append(
         node(
           'p',
-          query
+          query || filterCategory
             ? 'No skills match this search.'
             : 'No individual skills are available. Ask your server operator to configure capabilities.',
           'pc-help',
@@ -2197,10 +2751,17 @@
     updateMemberSelection();
   }
   function updateMemberSelection() {
-    $('pc-member-count').textContent = selectedMemberSkills.size + ' selected';
-    $('pc-member-save').disabled = !selectedMemberSkills.size || selectedMemberSkills.size > 128;
+    $('pc-member-count').textContent = 'All workspace tools';
+    memberDialog.querySelector('.pc-skill-heading').hidden = true;
+    memberDialog.querySelector('.pc-member-filters').hidden = true;
+    $('pc-member-save').disabled = false;
+    $('pc-member-skills').hidden = true;
+    $('pc-member-search').closest('label')?.setAttribute('hidden', '');
+    $('pc-member-search').hidden = true;
+    $('pc-member-category').hidden = true;
   }
   $('pc-member-search').oninput = renderMemberSkills;
+  $('pc-member-category').onchange = renderMemberSkills;
   $('pc-member-template').onchange = () => {
     const agent = catalog?.agents?.find((item) => item.id === $('pc-member-template').value);
     $('pc-member-name').value = agent?.name || '';
@@ -2213,14 +2774,13 @@
     event.preventDefault();
     const name = $('pc-member-name').value.trim(),
       description = $('pc-member-description').value.trim();
-    if (!name || !description || !selectedMemberSkills.size || selectedMemberSkills.size > 128) {
-      $('pc-member-error').textContent =
-        'Enter a role title, description, and between 1 and 128 skills.';
+    if (!name || !description) {
+      $('pc-member-error').textContent = 'Enter a role title and concrete working instructions.';
       $('pc-member-error').hidden = false;
       return;
     }
     const { prefix, id, draft, template, rolesOpen } = memberEdit;
-    draft.members[id] = { name, description, skill_ids: [...selectedMemberSkills] };
+    draft.members[id] = { name, description, skill_ids: [] };
     if (!draft.agent_ids.includes(id)) draft.agent_ids.push(id);
     if (!draft.lead_agent_id) draft.lead_agent_id = id;
     teamFields(prefix, draft);
@@ -2257,6 +2817,7 @@
       status('Wait for the workspace to load, then create a project.', true);
       return;
     }
+    ++createEditorGeneration;
     $('pc-create-error').hidden = true;
     teamFields('pc-create', null);
     projectDialog.showModal();
@@ -2279,6 +2840,7 @@
     teamFields('pc-settings', team());
     const policy = autonomy();
     $('pc-autonomy-mode').value = policy.mode || 'manual';
+    $('pc-execution-policy').value = policy.execution_policy || 'review';
     $('pc-cadence').value = policy.cadence_minutes || 60;
     $('pc-cycle-limit').value = policy.max_cycles || 5;
     $('pc-budget').value = policy.model_budget_usd ?? '';
@@ -2288,13 +2850,15 @@
   }
   function updateMode() {
     const scheduled = $('pc-autonomy-mode').value === 'scheduled';
+    const bounded = $('pc-execution-policy').value === 'bounded';
+    const needsBudget = scheduled || bounded;
     $('pc-schedule-fields').hidden = !scheduled;
     $('pc-objective-wrap').hidden = !scheduled;
     $('pc-standing-objective').required = scheduled;
-    $('pc-budget').required = scheduled;
+    $('pc-budget').required = needsBudget;
     settingsDialog.querySelector('label[for="pc-budget"]').textContent =
-      'Model budget per cycle (USD' + (scheduled ? ', required)' : ', optional)');
-    $('pc-budget-help').textContent = scheduled
+      'Model budget per cycle (USD' + (needsBudget ? ', required)' : ', optional)');
+    $('pc-budget-help').textContent = needsBudget
       ? 'Scheduled work requires configured model prices so the budget can be enforced. The cap covers model usage; external service charges are separate.'
       : 'A model budget needs configured prices. Without prices, estimates are unavailable. External service charges are separate.';
     $('pc-autonomy-help').textContent = scheduled
@@ -2317,6 +2881,8 @@
       run_ready: 'Plan approved. The coordinator will start the team.',
       discard: 'Plan discarded. You can give the lead a new request.',
       acknowledge: 'Review recorded. Resume the project when you are ready to continue.',
+      retry:
+        'The original request is queued again with current access. You will review the new plan.',
     };
     status(messages[action]);
   }
@@ -2377,35 +2943,82 @@
   $('pc-command-form').onsubmit = async (event) => {
     event.preventDefault();
     if (!selected || saving) return;
-    const instruction = $('pc-command').value.trim();
-    if (!instruction) return;
+    const submittedDraft = $('pc-command').value;
+    const instruction = submittedDraft.trim();
+    if (!instruction) {
+      feedback('pc-command-status', 'Enter a request before sending it to the lead.', true);
+      $('pc-command').focus();
+      return;
+    }
+    if ($('pc-command-submit').disabled) {
+      feedback('pc-command-status', $('pc-command-note').textContent, true);
+      return;
+    }
+    const replacesFailed = canReplaceFailedRequest();
+    const expectedVersion = replacesFailed ? work().version : null;
+    const queuesRequest = canQueueRequest();
     if (
       !commandSubmission ||
       commandSubmission.instruction !== instruction ||
-      commandSubmission.project !== selected
+      commandSubmission.project !== selected ||
+      commandSubmission.replaceFailed !== replacesFailed ||
+      commandSubmission.expectedVersion !== expectedVersion ||
+      commandSubmission.queuesRequest !== queuesRequest
     )
-      commandSubmission = { instruction, project: selected, idempotency_key: crypto.randomUUID() };
+      commandSubmission = {
+        instruction,
+        project: selected,
+        replaceFailed: replacesFailed,
+        expectedVersion,
+        queuesRequest,
+        idempotency_key: crypto.randomUUID(),
+      };
     const requestedProject = selected;
     saving = true;
     $('pc-command-submit').disabled = true;
     feedback('pc-command-status', 'Sending your request to the lead…');
     try {
-      await api(endpoint('/command'), {
+      await api(endpoint(queuesRequest ? '/requests' : '/command'), {
         instruction,
         idempotency_key: commandSubmission.idempotency_key,
+        ...(replacesFailed ? { replace_failed: true, expected_version: expectedVersion } : {}),
       });
-      drafts.delete(requestedProject);
+      acceptedRequests.add(requestedProject);
+      window.SimonProjectDrafts?.clearAccepted(requestedProject, 'composer', submittedDraft);
+      const latestDraft =
+        selected === requestedProject ? $('pc-command').value : drafts.get(requestedProject);
+      const unchangedDraft = latestDraft === submittedDraft;
+      if (unchangedDraft) drafts.delete(requestedProject);
+      else if (latestDraft !== undefined) drafts.set(requestedProject, latestDraft);
       commandSubmission = null;
       if (selected === requestedProject) {
-        $('pc-command').value = '';
+        if (unchangedDraft) $('pc-command').value = '';
         feedback(
           'pc-command-status',
-          'Request saved. Your lead’s plan and progress will appear below.',
+          latestDraft && !unchangedDraft
+            ? 'Request saved. Your newer draft is still here. Follow the plan and progress in Overview.'
+            : 'Request saved. Your lead’s plan and progress will appear in Overview.',
         );
-        await reloadDetail(requestedProject);
+        try {
+          await reloadDetail(requestedProject);
+        } catch (_) {
+          if (selected === requestedProject)
+            feedback(
+              'pc-command-status',
+              'Request saved, but its latest status could not be loaded. Use Refresh request status to check progress.',
+              true,
+            );
+        }
       }
     } catch (error) {
-      if (selected === requestedProject) feedback('pc-command-status', error.message, true);
+      if (selected === requestedProject) {
+        feedback('pc-command-status', error.message + ' Your draft has been kept.', true);
+        try {
+          await reloadDetail(requestedProject);
+        } catch (_) {
+          /* Keep the request error and draft if the status refresh is also unavailable. */
+        }
+      }
     } finally {
       saving = false;
       renderDetail();
@@ -2428,11 +3041,27 @@
         projectSubmission = { name, description, idempotency_key: crypto.randomUUID() };
         draftProject = null;
       }
+      const continuous = $('pc-create-continuous').checked;
+      const budget =
+        $('pc-create-budget').value === '' ? null : Number($('pc-create-budget').value);
+      if (continuous && (!budget || !description))
+        throw Error('Enter a standing objective and model budget for automatic iterations.');
       if (!draftProject) draftProject = await api('/v1/projects', projectSubmission);
       const current = await api('/v1/projects/' + draftProject.id + '/command');
       await api(
         '/v1/projects/' + draftProject.id + '/team',
-        { expected_version: current.state.version, team: chosen },
+        {
+          expected_version: current.state.version,
+          team: chosen,
+          autonomy: {
+            mode: continuous ? 'scheduled' : 'manual',
+            execution_policy: continuous ? 'bounded' : 'review',
+            objective: description,
+            cadence_minutes: Number($('pc-create-cadence').value),
+            max_cycles: Number($('pc-create-cycles').value),
+            model_budget_usd: budget,
+          },
+        },
         'PATCH',
       );
       const id = draftProject.id;
@@ -2464,6 +3093,7 @@
           team: readTeam('pc-settings'),
           autonomy: {
             mode: $('pc-autonomy-mode').value,
+            execution_policy: $('pc-execution-policy').value,
             objective: $('pc-standing-objective').value.trim(),
             cadence_minutes: Number($('pc-cadence').value),
             max_cycles: Number($('pc-cycle-limit').value),
@@ -2593,7 +3223,13 @@
   $('pc-project-search').oninput = renderProjects;
   $('pc-task-filter').onchange = renderPanel;
   $('pc-autonomy-mode').onchange = updateMode;
+  $('pc-execution-policy').onchange = updateMode;
   $('pc-new-project').onclick = openCreate;
+  $('pc-new-request').onclick = focusRequest;
+  $('pc-command').oninput = () => {
+    if (selected) drafts.set(selected, $('pc-command').value);
+    if (!saving) feedback('pc-command-status', '');
+  };
   $('pc-settings').onclick = openSettings;
   $('pc-refresh').onclick = () => refresh();
   $('pc-files').onclick = () => {
@@ -2615,8 +3251,7 @@
     };
   });
   window.addEventListener('simon-project-open', (event) => {
-    const page = $('project-page');
-    page.insertBefore(root, $('project-resources'));
+    mountProjectWorkspace();
     root.hidden = false;
     root.classList.add('pc-embedded');
     root.setAttribute('aria-labelledby', 'pc-project-title');
@@ -2638,7 +3273,7 @@
     else if (!loading) refresh(true);
   });
   window.addEventListener('simon-project-close', () => {
-    $('work-status').after(root);
+    if (root.previousElementSibling !== $('work-status')) $('work-status').after(root);
     root.hidden = false;
     root.classList.remove('pc-embedded');
     root.setAttribute('aria-labelledby', 'pc-heading');
@@ -2675,6 +3310,7 @@
       ? field.value.trimEnd() + '\n\n' + reference
       : reference + '\n';
     drafts.set(selected, field.value);
+    field.dispatchEvent(new Event('input', { bubbles: true }));
     field.focus();
     field.scrollIntoView({ block: 'center' });
   }

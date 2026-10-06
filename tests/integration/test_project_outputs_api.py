@@ -26,6 +26,9 @@ def test_output_routes_require_login_and_project_visibility(client, auth_headers
     assert not response.json()["can_promote"]
     assert client.get(f"/v1/projects/{uuid4()}/outputs").status_code == 404
     assert client.get(f"/v1/projects/{project}/outputs?limit=51").status_code == 422
+    assert client.get(f"/v1/projects/{project}/outputs?kind=deliverable").status_code == 200
+    assert client.get(f"/v1/projects/{project}/outputs?kind=response").status_code == 200
+    assert client.get(f"/v1/projects/{project}/outputs?kind=unknown").status_code == 422
 
 
 def test_output_copy_download_csrf_original_and_conflicts(

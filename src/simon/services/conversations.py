@@ -36,11 +36,11 @@ class ConversationService:
 
     def create(self, actor: ActorContext, request: CreateThread) -> Thread:
         self.authorize(actor, "threads:write")
-        with self.store.transaction(actor.household_id):
+        with self.store.transaction(actor.workspace_id):
 
             def operation() -> dict[str, object]:
                 thread = Thread(
-                    household_id=actor.household_id,
+                    workspace_id=actor.workspace_id,
                     created_by=actor.actor_id,
                     title=request.title,
                     visibility="personal",
@@ -56,7 +56,7 @@ class ConversationService:
                 return thread.model_dump(mode="json")
 
             result, _ = self.store.execute_once(
-                f"thread:{actor.household_id}:{actor.actor_id}",
+                f"thread:{actor.workspace_id}:{actor.actor_id}",
                 request.idempotency_key,
                 digest(request.title),
                 operation,
@@ -65,7 +65,7 @@ class ConversationService:
 
     def get(self, actor: ActorContext, thread_id: UUID) -> Thread:
         self.authorize(actor, "threads:read")
-        thread = self.store.thread(actor.household_id, thread_id)
+        thread = self.store.thread(actor.workspace_id, thread_id)
         if thread is None or (
             thread.visibility == "personal" and thread.created_by != actor.actor_id
         ):
@@ -74,7 +74,7 @@ class ConversationService:
 
     def list(self, actor: ActorContext, offset: int, limit: int) -> tuple[Thread, ...]:
         self.authorize(actor, "threads:read")
-        return tuple(self.store.threads(actor.household_id, offset, limit, actor.actor_id))
+        return tuple(self.store.threads(actor.workspace_id, offset, limit, actor.actor_id))
 
     def messages(
         self, actor: ActorContext, thread_id: UUID, after: int, limit: int
@@ -84,7 +84,7 @@ class ConversationService:
 
     def submit(self, actor: ActorContext, thread_id: UUID, request: SubmitRun) -> Run:
         self.authorize(actor, "threads:write")
-        with self.store.transaction(actor.household_id):
+        with self.store.transaction(actor.workspace_id):
             self.get(actor, thread_id)
 
             def operation() -> dict[str, object]:
@@ -103,7 +103,7 @@ class ConversationService:
                 )
                 memories = (
                     self.store.explicit_memories(
-                        actor.household_id,
+                        actor.workspace_id,
                         0,
                         500,
                         actor.actor_id,
@@ -148,7 +148,7 @@ class ConversationService:
                 return run.model_dump(mode="json")
 
             result, _ = self.store.execute_once(
-                f"run:{actor.household_id}:{actor.actor_id}:{thread_id}",
+                f"run:{actor.workspace_id}:{actor.actor_id}:{thread_id}",
                 request.idempotency_key,
                 request_digest(request),
                 operation,

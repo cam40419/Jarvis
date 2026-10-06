@@ -6,7 +6,7 @@ import pytest
 from simon.domain.context import CreateMemory
 from simon.domain.conversations import CreateThread, SubmitRun
 from simon.domain.errors import AuthorizationError, IdempotencyConflictError, NotFoundError
-from simon.domain.identity import DEV_ACTOR_ID, DEV_HOUSEHOLD_ID, Membership
+from simon.domain.identity import DEV_ACTOR_ID, DEV_WORKSPACE_ID, Membership
 from simon.domain.models import ActorContext, Channel
 from simon.services.audit import AuditService
 from simon.services.conversations import ConversationService
@@ -17,7 +17,7 @@ from simon.services.memory import MemoryService
 def actor():
     return ActorContext(
         actor_id=DEV_ACTOR_ID,
-        household_id=DEV_HOUSEHOLD_ID,
+        workspace_id=DEV_WORKSPACE_ID,
         channel=Channel.API,
         scopes=frozenset({"threads:read", "threads:write", "memories:read", "memories:write"}),
     )
@@ -70,7 +70,7 @@ def test_scope_retraction_and_historical_snapshot(memory_service, actor):
     assert first.memory_context[0].source_memory_id == memory.id
     assert first.memory_context[0].text == memory.content
     assert first.memory_context[0].trust == "untrusted"
-    other = actor.model_copy(update={"household_id": uuid4()})
+    other = actor.model_copy(update={"workspace_id": uuid4()})
     assert service.list(other) == ()
     with pytest.raises(NotFoundError):
         service.retract(other, memory.id)
@@ -113,7 +113,7 @@ def test_member_can_only_retract_own_memory(memory_service, actor):
     memory = memory_service.create(actor, request())
     other_id = uuid4()
     memory_service.store.put_membership(
-        Membership(actor_id=other_id, household_id=actor.household_id, role="member")
+        Membership(actor_id=other_id, workspace_id=actor.workspace_id, role="member")
     )
     other = actor.model_copy(update={"actor_id": other_id})
     with pytest.raises(AuthorizationError):
@@ -139,13 +139,13 @@ def test_retraction_rolls_back_with_failed_audit(memory_service, actor, monkeypa
     )
 
 
-def test_memory_in_other_household_never_enters_context(memory_service, actor):
+def test_memory_in_other_workspace_never_enters_context(memory_service, actor):
     store = memory_service.store
-    other = actor.model_copy(update={"household_id": uuid4()})
+    other = actor.model_copy(update={"workspace_id": uuid4()})
     store.put_membership(
-        Membership(actor_id=actor.actor_id, household_id=other.household_id, role="owner")
+        Membership(actor_id=actor.actor_id, workspace_id=other.workspace_id, role="owner")
     )
-    memory_service.create(other, request("Other household private fact"))
+    memory_service.create(other, request("Other workspace private fact"))
     conversations = ConversationService(store, memory_service.audit)
     thread = conversations.create(
         actor, CreateThread(title="Isolated", idempotency_key="isolated-thread")

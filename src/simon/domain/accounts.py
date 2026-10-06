@@ -7,7 +7,7 @@ from simon.domain.models import StrictModel, utc_now
 
 class ManagedAccount(StrictModel):
     actor_id: UUID
-    household_id: UUID
+    workspace_id: UUID
     invited_by: UUID
     display_name: str = Field(min_length=1, max_length=100)
     created_at: AwareDatetime = Field(default_factory=utc_now)

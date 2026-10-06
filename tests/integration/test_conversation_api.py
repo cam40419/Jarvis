@@ -2,7 +2,7 @@ from uuid import uuid4
 
 import pytest
 
-from simon.domain.identity import DEV_ACTOR_ID, DEV_HOUSEHOLD_ID, Membership
+from simon.domain.identity import DEV_ACTOR_ID, DEV_WORKSPACE_ID, Membership
 
 
 def test_conversation_api_and_sse(client, auth_headers, container):
@@ -35,7 +35,7 @@ def test_conversation_api_and_sse(client, auth_headers, container):
     assert client.get("/chat").status_code == 200
     assert "default-src 'self'" in client.get("/chat").headers["content-security-policy"]
     container.store.put_membership(
-        Membership(actor_id=DEV_ACTOR_ID, household_id=DEV_HOUSEHOLD_ID, role="guest")
+        Membership(actor_id=DEV_ACTOR_ID, workspace_id=DEV_WORKSPACE_ID, role="guest")
     )
     assert client.get(events).status_code == 403
     assert client.get(base + "/messages").status_code == 403

@@ -28,7 +28,7 @@ class ArtifactReviewService:
         if (
             job is None
             or job.kind != REVIEW_KIND
-            or (job.household_id, job.created_by) != (actor.household_id, actor.actor_id)
+            or (job.workspace_id, job.created_by) != (actor.workspace_id, actor.actor_id)
         ):
             raise NotFoundError("Artifact review not found")
         review = ArtifactReview.model_validate(job.result)
@@ -67,7 +67,7 @@ class ArtifactReviewService:
         identifier = uuid5(run_id, "artifact-review:" + request.idempotency_key)
         payload = request.model_dump(mode="json")
         fingerprint = digest(payload)
-        with self.store.transaction(actor.household_id):
+        with self.store.transaction(actor.workspace_id):
             self.runs.get(actor, run_id)
             existing = self.store.get_job(identifier)
             if existing is not None:
@@ -96,7 +96,7 @@ class ArtifactReviewService:
             self.store.create_job(
                 Job(
                     id=identifier,
-                    household_id=actor.household_id,
+                    workspace_id=actor.workspace_id,
                     created_by=actor.actor_id,
                     kind=REVIEW_KIND,
                     idempotency_key=str(identifier),
@@ -122,7 +122,7 @@ class ArtifactReviewService:
                 self.store.create_job(
                     Job(
                         id=index_id,
-                        household_id=actor.household_id,
+                        workspace_id=actor.workspace_id,
                         created_by=actor.actor_id,
                         kind="platform.artifact_review_index",
                         idempotency_key=str(index_id),
@@ -143,7 +143,7 @@ class ArtifactReviewService:
     def acceptance(self, actor: ActorContext, review_id: UUID) -> ArtifactAcceptance:
         review = self.get(actor, review_id)
         identifier = uuid5(
-            actor.household_id,
+            actor.workspace_id,
             f"artifact-acceptance:{actor.actor_id}:{review.project_id or review.plan_id}:"
             + review.delivery_key,
         )
@@ -165,7 +165,7 @@ class ArtifactReviewService:
         if review.verdict != "passed":
             raise InvalidTransitionError("Only a passing review can be accepted")
         ArtifactStore(self.runs.platform.state_dir / "artifacts").read(review.artifact)
-        with self.store.transaction(actor.household_id):
+        with self.store.transaction(actor.workspace_id):
             current = self.acceptance(actor, review_id)
             # Exact retries succeed, but never silently restore a superseded revision.
             if current.revisions and current.revisions[-1].review_id == review_id:
@@ -217,7 +217,7 @@ class ArtifactReviewService:
                 self.store.create_job(
                     Job(
                         id=current.id,
-                        household_id=actor.household_id,
+                        workspace_id=actor.workspace_id,
                         created_by=actor.actor_id,
                         kind=ACCEPTANCE_KIND,
                         idempotency_key=str(current.id),

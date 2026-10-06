@@ -23,12 +23,6 @@
   const badge = (status) => node('span', labels[status] || status, 'agent-badge agent-' + status);
   const short = (value) => value?.slice(0, 8) || '';
   const money = (value) => (value == null ? 'Not reported' : '$' + Number(value).toFixed(4));
-  const size = (value) =>
-    value < 1024
-      ? value + ' B'
-      : value < 1048576
-        ? (value / 1024).toFixed(1) + ' KB'
-        : (value / 1048576).toFixed(1) + ' MB';
   const apiRoot = '/v1/agent-platform';
   let catalog = null,
     plans = [],
@@ -459,7 +453,7 @@
         node('strong', 'Resolve the setup issues above to run this plan.'),
         node(
           'p',
-          'After updating server configuration, create a new plan to use those changes.',
+          'Configure and test accounts in Connections, then start the saved task again.',
           'muted',
         ),
       );
@@ -525,6 +519,12 @@
   }
   function renderRun(run) {
     const target = $('agent-detail');
+    const activityState = new Map(
+      [...target.querySelectorAll('details[data-task-activity]')].map((item) => [
+        item.dataset.taskActivity,
+        item.open,
+      ]),
+    );
     target.replaceChildren();
     const plan = planFor(run);
     detailHeading(target, 'RUN / ' + short(run.id), teamName(plan?.team_id), run.status);
@@ -594,15 +594,25 @@
           'agent-cancel',
         ),
       );
-    for (const task of run.tasks) {
+    const orderedTasks = [...run.tasks].sort(
+      (left, right) => Number(right.id === 'lead-summary') - Number(left.id === 'lead-summary'),
+    );
+    for (const task of orderedTasks) {
       const card = node('article', undefined, 'agent-task-card');
       const head = node('div', undefined, 'agent-row-heading');
       head.append(node('h4', task.id), badge(task.status));
       card.append(head, node('p', agentName(task.agent_id), 'muted'));
       const spec = plan?.tasks.find((item) => item.id === task.id);
       if (spec) card.append(node('p', spec.objective, 'agent-objective'));
-      renderTaskActivity(card, task, spec, run);
-      card.append(
+      if (task.error_code)
+        card.append(node('p', task.error_code.replaceAll('_', ' '), 'agent-blocked-reason'));
+      window.SimonResults.renderTask(card, run, task, { projectId: plan?.project_id });
+      const activity = node('details', undefined, 'agent-run-technical');
+      activity.dataset.taskActivity = task.id;
+      activity.open = activityState.get(task.id) ?? ['queued', 'running'].includes(task.status);
+      activity.append(node('summary', 'Execution details'));
+      renderTaskActivity(activity, task, spec, run);
+      activity.append(
         node(
           'small',
           `${task.steps} steps · ${task.tool_calls} tool calls` +
@@ -612,52 +622,7 @@
           'muted',
         ),
       );
-      if (task.error_code)
-        card.append(node('p', task.error_code.replaceAll('_', ' '), 'agent-blocked-reason'));
-      if (task.output) {
-        const details = node('details', undefined, 'agent-output');
-        details.open = run.tasks.length === 1;
-        details.append(node('summary', 'View output'));
-        const body = node('div', undefined, 'agent-output-body');
-        body.append(SimonMarkdown.render(task.output));
-        details.append(body);
-        details.append(
-          action(
-            'Copy output',
-            async () => {
-              await navigator.clipboard.writeText(task.output);
-              status('Output copied.');
-            },
-            'agent-subtle',
-          ),
-        );
-        card.append(details);
-      }
-      const artifacts = node('div', undefined, 'agent-artifacts');
-      for (const artifact of task.artifacts) {
-        const link = node('a', undefined, 'agent-artifact');
-        link.href = appPath(`${apiRoot}/runs/${run.id}/artifacts/${artifact.id}`);
-        link.download = artifact.name;
-        link.append(
-          node('strong', artifact.name),
-          node('small', size(artifact.size) + ' · Download'),
-        );
-        artifacts.append(link);
-        if (['image/png', 'image/jpeg', 'image/webp'].includes(artifact.media_type)) {
-          const preview = node('details');
-          preview.append(node('summary', `Preview ${artifact.name}`));
-          preview.addEventListener('toggle', () => {
-            if (!preview.open || preview.querySelector('img')) return;
-            const image = node('img');
-            image.className = 'agent-artifact-preview';
-            image.alt = `Published output: ${artifact.name}`;
-            image.src = link.href;
-            preview.append(image, node('small', 'Published output, not a live screen.'));
-          });
-          artifacts.append(preview);
-        }
-      }
-      if (task.artifacts.length) card.append(artifacts);
+      card.append(activity);
       if (task.status === 'succeeded') {
         for (const artifact of task.artifacts) {
           const panel = node('div');

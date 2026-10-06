@@ -33,7 +33,7 @@ def test_invited_account_private_workspace_and_no_admin_access(store):
     request = InviteAccount(display_name="Alex", idempotency_key=uuid4())
     issued = service.invite(owner, request)
     account_id = UUID(issued["account"]["actor_id"])
-    assert UUID(issued["account"]["household_id"]) != owner.household_id
+    assert UUID(issued["account"]["workspace_id"]) != owner.workspace_id
     secret = issued["enrollment_token"]
     assert secret and store.get_enrollment(secret) is None
     assert secret not in str(store.managed_accounts()) + str(store.audit_events())
@@ -58,7 +58,7 @@ def test_invited_account_private_workspace_and_no_admin_access(store):
         with pytest.raises(AuthorizationError):
             action()
     with pytest.raises(AuthorizationError):
-        connected.identity.switch_household(token, owner.household_id)
+        connected.identity.switch_workspace(token, owner.workspace_id)
     thread = connected.conversations.create(
         owner, CreateThread(title="Private", idempotency_key="owner-private-thread")
     )
@@ -93,7 +93,7 @@ def test_invitation_renewal_expiry_and_account_revocation(store):
     with pytest.raises(AuthenticationError):
         connected.identity.resolve(token)
     with pytest.raises(AuthorizationError):
-        connected.identity.membership(invited.actor_id, invited.household_id)
+        connected.identity.membership(invited.actor_id, invited.workspace_id)
     with pytest.raises(InvalidTransitionError):
         service.access(
             owner, identifier, AccountAccess(enabled=True, expected_version=record.version)

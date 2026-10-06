@@ -19,7 +19,7 @@ def test_operator_enrollment_membership_and_revocation(postgres_url, monkeypatch
     settings = Settings(storage_backend="postgres", database_url=SecretStr(postgres_url))
     monkeypatch.setattr(identity_admin, "get_settings", lambda: settings)
     store = PostgresStore(postgres_url)
-    actor_id, household_id = uuid4(), uuid4()
+    actor_id, workspace_id = uuid4(), uuid4()
 
     def command(*arguments):
         monkeypatch.setattr(sys, "argv", ["identity_admin", *arguments])
@@ -30,22 +30,22 @@ def test_operator_enrollment_membership_and_revocation(postgres_url, monkeypatch
         "membership",
         "--actor-id",
         str(actor_id),
-        "--household-id",
-        str(household_id),
+        "--workspace-id",
+        str(workspace_id),
         "--role",
         "owner",
         "--display-name",
         "Test owner",
     )
     assert store.memberships(actor_id)[0].role == "owner"
-    output = command("enroll", "--actor-id", str(actor_id), "--household-id", str(household_id))
+    output = command("enroll", "--actor-id", str(actor_id), "--workspace-id", str(workspace_id))
     secret = output.strip().splitlines()[-1]
     assert store.get_enrollment(token_hash(secret)).actor_id == actor_id
     assert store.get_enrollment(secret) is None
     assert secret not in str(store.audit_events())
     identity = IdentityService(store, settings)
     with store.transaction():
-        token, _ = identity._issue(actor_id, household_id, "passkey")
+        token, _ = identity._issue(actor_id, workspace_id, "passkey")
     command("revoke-sessions", "--actor-id", str(actor_id))
     assert store.get_session(token_hash(token)) is None
     store.save_passkey(
@@ -68,8 +68,8 @@ def test_operator_enrollment_membership_and_revocation(postgres_url, monkeypatch
         "identity.sessions_revoked",
         "identity.passkey_revoked",
     }
-    command("remove-membership", "--actor-id", str(actor_id), "--household-id", str(household_id))
+    command("remove-membership", "--actor-id", str(actor_id), "--workspace-id", str(workspace_id))
     assert store.memberships(actor_id) == ()
     monkeypatch.setattr(identity_admin, "get_settings", lambda: Settings())
     with pytest.raises(RuntimeError, match="PostgreSQL"):
-        command("enroll", "--actor-id", str(actor_id), "--household-id", str(household_id))
+        command("enroll", "--actor-id", str(actor_id), "--workspace-id", str(workspace_id))

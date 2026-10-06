@@ -45,7 +45,7 @@ class WorkSessionService:
             self.tasks.project(actor, project_id)
         rows: list[Job] = []
         for offset in range(0, 100000, 500):
-            page = self.store.jobs(actor.household_id, actor.actor_id, KIND, offset, 500)
+            page = self.store.jobs(actor.workspace_id, actor.actor_id, KIND, offset, 500)
             rows.extend(page)
             if len(page) < 500:
                 break
@@ -62,7 +62,7 @@ class WorkSessionService:
         if (
             not job
             or job.kind != KIND
-            or (job.household_id, job.created_by) != (actor.household_id, actor.actor_id)
+            or (job.workspace_id, job.created_by) != (actor.workspace_id, actor.actor_id)
         ):
             raise NotFoundError("Work session not found.")
         assert self.tasks.conversations
@@ -79,7 +79,7 @@ class WorkSessionService:
         self.tasks.authorize(actor, write=True)
         assert self.tasks.conversations
         self.tasks.conversations.get(actor, thread_id)
-        with self.store.transaction(actor.household_id):
+        with self.store.transaction(actor.workspace_id):
             previous = self.list(actor, thread_id)
             if not project_id and previous and previous[0]["project_id"]:
                 project_id = UUID(previous[0]["project_id"])
@@ -116,7 +116,7 @@ class WorkSessionService:
 
     def cancel(self, actor: ActorContext, identifier: UUID) -> dict[str, Any]:
         self.tasks.authorize(actor, write=True)
-        with self.store.transaction(actor.household_id):
+        with self.store.transaction(actor.workspace_id):
             job = self.owned(actor, identifier)
             if job.status in ACTIVE:
                 self.tasks._cancel_model(actor, job)
@@ -127,7 +127,7 @@ class WorkSessionService:
         for candidate in self.store.jobs_all(KIND, 100, "running"):
             if candidate.updated_at + timedelta(minutes=5) > utc_now():
                 continue
-            with self.store.transaction(candidate.household_id):
+            with self.store.transaction(candidate.workspace_id):
                 job = self.store.get_job(candidate.id)
                 if not job or job.version != candidate.version or job.status != JobStatus.RUNNING:
                     continue
@@ -161,7 +161,7 @@ class WorkSessionService:
 
     def execute(self, candidate: Job) -> bool:
         assert self.tasks.conversations
-        with self.store.transaction(candidate.household_id):
+        with self.store.transaction(candidate.workspace_id):
             job = self.store.get_job(candidate.id)
             if not job or job.version != candidate.version or job.status != JobStatus.QUEUED:
                 return False
@@ -185,7 +185,7 @@ class WorkSessionService:
                 return self.tasks.worker_actor(current)
 
             def started(run: Run) -> None:
-                with self.store.transaction(job.household_id):
+                with self.store.transaction(job.workspace_id):
                     current_actor()
                     current = self.store.get_job(job.id)
                     assert current
@@ -198,7 +198,7 @@ class WorkSessionService:
                 current_actor()
                 text += chunk
                 if monotonic() - last_saved >= 1 or not chunk:
-                    with self.store.transaction(job.household_id):
+                    with self.store.transaction(job.workspace_id):
                         current = self.store.get_job(job.id)
                         if current and current.status == JobStatus.RUNNING:
                             self.tasks._save(current, current.version, result={"text": text})
@@ -214,7 +214,7 @@ class WorkSessionService:
                 on_delta=delta,
                 project_context=project_context,
             )
-            with self.store.transaction(job.household_id):
+            with self.store.transaction(job.workspace_id):
                 current = self.store.get_job(job.id)
                 if current and current.status == JobStatus.RUNNING:
                     self.tasks._save(
@@ -225,7 +225,7 @@ class WorkSessionService:
                         error_code=None,
                     )
         except Exception as error:
-            with self.store.transaction(job.household_id):
+            with self.store.transaction(job.workspace_id):
                 current = self.store.get_job(job.id)
                 if current and current.status == JobStatus.RUNNING:
                     self.tasks._save(

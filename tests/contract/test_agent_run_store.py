@@ -21,7 +21,7 @@ from simon.domain.agent_runs import StartAgentRun
 from simon.domain.artifact_reviews import AcceptArtifactReview, FileCheck, RecordArtifactReview
 from simon.domain.errors import IdempotencyConflictError
 from simon.domain.execution import EnvironmentLease
-from simon.domain.identity import DEV_ACTOR_ID, DEV_HOUSEHOLD_ID
+from simon.domain.identity import DEV_ACTOR_ID, DEV_WORKSPACE_ID
 from simon.domain.model_routing import (
     ModelEndpoint,
     RoutingDecision,
@@ -108,7 +108,7 @@ class RunFixture:
 def run_fixture(store: Store, tmp_path: Path) -> RunFixture:
     actor = ActorContext(
         actor_id=DEV_ACTOR_ID,
-        household_id=DEV_HOUSEHOLD_ID,
+        workspace_id=DEV_WORKSPACE_ID,
         channel=Channel.API,
         scopes=frozenset({"jobs:read", "jobs:write"}),
     )
@@ -241,7 +241,7 @@ def test_dispatch_result_and_artifact_roundtrip_after_reconstruction(
     artifact = task.artifacts[0]
     assert artifact.run_id == queued.id
     assert artifact.actor_id == fixture.actor.actor_id
-    assert artifact.workspace_id == fixture.actor.household_id
+    assert artifact.workspace_id == fixture.actor.workspace_id
     assert dispatcher.artifacts.read(artifact) == task.output.encode()
     assert fixture.reconstruct().get(fixture.actor, queued.id) == completed
     assert len(model.calls) == 1

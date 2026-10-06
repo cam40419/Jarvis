@@ -12,6 +12,7 @@ from simon.domain.errors import InvalidTransitionError, NotFoundError, Validatio
 from simon.domain.models import ActorContext, Job, JobStatus, StrictModel
 from simon.domain.project_knowledge import (
     ActivityKind,
+    EditProjectKnowledge,
     ProjectKnowledge,
     ProjectKnowledgePage,
     UpdateProjectKnowledge,
@@ -40,14 +41,14 @@ class ProjectKnowledgeService:
 
     @staticmethod
     def identifier(actor: ActorContext, project_id: UUID) -> UUID:
-        return uuid5(project_id, f"project-knowledge:{actor.household_id}:{actor.actor_id}")
+        return uuid5(project_id, f"project-knowledge:{actor.workspace_id}:{actor.actor_id}")
 
     def _job(self, actor: ActorContext, project_id: UUID) -> Job | None:
         self.work.project_resolver(actor, project_id)
         job = self.store.get_job(self.identifier(actor, project_id))
-        if job is not None and (job.kind, job.household_id, job.created_by) != (
+        if job is not None and (job.kind, job.workspace_id, job.created_by) != (
             KNOWLEDGE_KIND,
-            actor.household_id,
+            actor.workspace_id,
             actor.actor_id,
         ):
             raise NotFoundError("Project knowledge not found")
@@ -68,9 +69,9 @@ class ProjectKnowledgeService:
         self.work.authorize(actor)
         self.work.project_resolver(actor, project_id)
         job = self.store.get_job(identifier)
-        if job is None or (job.kind, job.household_id, job.created_by) != (
+        if job is None or (job.kind, job.workspace_id, job.created_by) != (
             self.work.activity_kind(project_id),
-            actor.household_id,
+            actor.workspace_id,
             actor.actor_id,
         ):
             raise NotFoundError("Project activity not found")
@@ -81,10 +82,14 @@ class ProjectKnowledgeService:
         actor: ActorContext,
         project_id: UUID,
         body: UpdateProjectKnowledge,
+        *,
+        run_id: UUID | None = None,
+        plan_id: UUID | None = None,
+        agent_id: str | None = None,
     ) -> ProjectKnowledge:
         self.work.authorize(actor, write=True)
         identifier = self.identifier(actor, project_id)
-        with self.store.transaction(actor.household_id):
+        with self.store.transaction(actor.workspace_id):
             # Current project authorization applies even to an idempotent response replay.
             self.work.project_resolver(actor, project_id)
 
@@ -118,7 +123,7 @@ class ProjectKnowledgeService:
                     saved, _ = self.store.create_job(
                         Job(
                             id=identifier,
-                            household_id=actor.household_id,
+                            workspace_id=actor.workspace_id,
                             created_by=actor.actor_id,
                             kind=KNOWLEDGE_KIND,
                             idempotency_key=identifier.hex,
@@ -132,11 +137,17 @@ class ProjectKnowledgeService:
                 self.store.create_job(
                     Job(
                         id=revision_id,
-                        household_id=actor.household_id,
+                        workspace_id=actor.workspace_id,
                         created_by=actor.actor_id,
                         kind=REVISION_KIND,
                         idempotency_key=revision_id.hex,
-                        input={"project_id": str(project_id), "initial_state": payload},
+                        input={
+                            "project_id": str(project_id),
+                            "initial_state": payload,
+                            "run_id": str(run_id) if run_id else None,
+                            "plan_id": str(plan_id) if plan_id else None,
+                            "agent_id": agent_id,
+                        },
                         input_digest=digest(payload),
                         status=JobStatus.SUCCEEDED,
                     )
@@ -148,6 +159,9 @@ class ProjectKnowledgeService:
                         kind="configuration",
                         text=f"Project brief and pinned decisions saved (version {saved.version}; "
                         f"{len(state.pinned_decisions)} pinned decisions).",
+                        run_id=run_id,
+                        plan_id=plan_id,
+                        agent_id=agent_id,
                     ),
                     idempotency_key="knowledge:" + str(saved.version),
                 )
@@ -156,7 +170,69 @@ class ProjectKnowledgeService:
             result, _ = self.store.execute_once(
                 "project-knowledge:" + identifier.hex,
                 body.idempotency_key,
-                digest(body.model_dump(mode="json", exclude={"idempotency_key"})),
+                digest(
+                    body.model_dump(mode="json", exclude={"idempotency_key"})
+                    | (
+                        {
+                            "run_id": str(run_id) if run_id else None,
+                            "plan_id": str(plan_id) if plan_id else None,
+                            "agent_id": agent_id,
+                        }
+                        if run_id is not None or plan_id is not None or agent_id is not None
+                        else {}
+                    )
+                ),
+                operation,
+            )
+            return ProjectKnowledge.model_validate(result)
+
+    def edit(
+        self,
+        actor: ActorContext,
+        project_id: UUID,
+        body: EditProjectKnowledge,
+        *,
+        run_id: UUID | None = None,
+        plan_id: UUID | None = None,
+        agent_id: str | None = None,
+    ) -> ProjectKnowledge:
+        """Patch selected fields, retaining the exact receipt on response-loss retries."""
+        self.work.authorize(actor, write=True)
+        identifier = self.identifier(actor, project_id)
+        with self.store.transaction(actor.workspace_id):
+            current = self.get(actor, project_id)
+
+            def operation() -> dict[str, object]:
+                saved = self.update(
+                    actor,
+                    project_id,
+                    UpdateProjectKnowledge(
+                        expected_version=body.expected_version,
+                        idempotency_key="edit:" + digest({"key": body.idempotency_key}),
+                        brief=current.brief if body.brief is None else body.brief,
+                        pinned_decisions=(
+                            current.pinned_decisions
+                            if body.pinned_decisions is None
+                            else body.pinned_decisions
+                        ),
+                    ),
+                    run_id=run_id,
+                    plan_id=plan_id,
+                    agent_id=agent_id,
+                )
+                return saved.model_dump(mode="json")
+
+            result, _ = self.store.execute_once(
+                "project-knowledge-edit:" + identifier.hex,
+                body.idempotency_key,
+                digest(
+                    {
+                        **body.model_dump(mode="json", exclude={"idempotency_key"}),
+                        "run_id": str(run_id) if run_id else None,
+                        "plan_id": str(plan_id) if plan_id else None,
+                        "agent_id": agent_id,
+                    }
+                ),
                 operation,
             )
             return ProjectKnowledge.model_validate(result)
@@ -207,7 +283,7 @@ class ProjectKnowledgeService:
                 if (value.project_id, value.actor_id, value.workspace_id, value.filter_digest) != (
                     project_id,
                     actor.actor_id,
-                    actor.household_id,
+                    actor.workspace_id,
                     filter_digest,
                 ):
                     raise ValueError("Cursor belongs to another project, account or search")
@@ -215,7 +291,7 @@ class ProjectKnowledgeService:
             except (ValueError, PydanticError) as error:
                 raise ValidationError("Invalid project knowledge cursor") from error
         rows = self.store.project_activity_jobs(
-            actor.household_id,
+            actor.workspace_id,
             actor.actor_id,
             project_id,
             query,
@@ -231,7 +307,7 @@ class ProjectKnowledgeService:
             value = _HistoryCursor(
                 project_id=project_id,
                 actor_id=actor.actor_id,
-                workspace_id=actor.household_id,
+                workspace_id=actor.workspace_id,
                 filter_digest=filter_digest,
                 before_sequence=items[-1].sequence,
             )

@@ -47,7 +47,7 @@ def prepare_dependency_artifacts(
             raise ArtifactError("Artifact dependency is not an authorized completed task")
         for artifact in dependency.artifacts[1:]:
             if (
-                artifact.workspace_id != actor.household_id
+                artifact.workspace_id != actor.workspace_id
                 or artifact.actor_id != actor.actor_id
                 or artifact.run_id != run_id
                 or artifact.task_id != task_ids[dependency.id]

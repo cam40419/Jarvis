@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import Field, field_validator
@@ -13,6 +14,15 @@ from simon.domain.models import StrictModel
 
 class ArtifactError(DomainError):
     code = "artifact_error"
+
+
+class ArtifactPreview(StrictModel):
+    """Inert, bounded text for authenticated inline rendering."""
+
+    artifact_id: UUID
+    name: str
+    format: Literal["markdown", "text"]
+    text: str
 
 
 class Artifact(StrictModel):

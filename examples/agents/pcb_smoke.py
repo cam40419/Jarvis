@@ -61,7 +61,7 @@ def smoke(*, write_review: bool = False) -> None:
     lease = manager.allocate(request, environment_id="pcb")
     context = ToolExecutionContext(
         actor_id=uuid4(),
-        household_id=request.workspace_id,
+        workspace_id=request.workspace_id,
         run_id=uuid4(),
         agent_id="pcb",
         scopes=frozenset({"jobs:write"}),

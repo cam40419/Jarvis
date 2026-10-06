@@ -74,7 +74,7 @@ class ProjectHistoryService:
             if (value.project_id, value.actor_id, value.workspace_id) != (
                 project_id,
                 actor.actor_id,
-                actor.household_id,
+                actor.workspace_id,
             ):
                 raise ValueError("Cursor belongs to another project or account")
         except (ValueError, PydanticError) as error:
@@ -94,7 +94,7 @@ class ProjectHistoryService:
             raise ValidationError("Project history page size must be between 1 and 50")
         before = self._cursor(actor, project_id, cursor)
         rows = self.store.project_run_jobs(
-            actor.household_id,
+            actor.workspace_id,
             actor.actor_id,
             project_id,
             before,
@@ -153,7 +153,7 @@ class ProjectHistoryService:
             value = _Cursor(
                 project_id=project_id,
                 actor_id=actor.actor_id,
-                workspace_id=actor.household_id,
+                workspace_id=actor.workspace_id,
                 created_at=last.created_at,
                 id=last.id,
             )

@@ -20,6 +20,7 @@ from simon.domain.accounts import ManagedAccount
 from simon.domain.connected_tools import ActionProposal, GoogleConnection, GoogleOAuthState
 from simon.domain.context import ExplicitMemory, RecallDocument
 from simon.domain.conversations import Message, ModelAttempt, Run, RunEvent, Thread
+from simon.domain.email_identity import EmailCode
 from simon.domain.errors import (
     AuthenticationError,
     IdempotencyConflictError,
@@ -34,6 +35,7 @@ from simon.domain.identity import (
     PasswordCredential,
     Session,
 )
+from simon.domain.integrations import IntegrationConnection
 from simon.domain.interaction import ResponsePreferences, RunFeedback
 from simon.domain.models import AuditEvent, Job, JobStatus, OutboxEvent
 from simon.domain.project_files import ProjectDrive, ProjectFileOperation
@@ -45,7 +47,7 @@ class PostgresStore(InMemoryStore):
     """Durable state with a process-local registry of executable capability handlers.
 
     Synchronous request threads get independent connections. Nested service/store calls
-    share one transaction, using savepoints. Household locks serialize audit sequencing.
+    share one transaction, using savepoints. Workspace locks serialize audit sequencing.
     External side effects are not covered by the database transaction.
     """
 
@@ -86,12 +88,12 @@ class PostgresStore(InMemoryStore):
             pool.close()
 
     @contextmanager
-    def transaction(self, household_id: UUID | None = None) -> Iterator[None]:
+    def transaction(self, workspace_id: UUID | None = None) -> Iterator[None]:
         current = self._connection.get()
         if current is not None:
             with current.transaction():
-                if household_id is not None:
-                    self._advisory_lock(f"household:{household_id}")
+                if workspace_id is not None:
+                    self._advisory_lock(f"workspace:{workspace_id}")
                 yield
             return
         with self._connection_context() as connection:
@@ -100,8 +102,8 @@ class PostgresStore(InMemoryStore):
                 with connection.transaction():
                     connection.execute("SET LOCAL lock_timeout = '10s'")
                     connection.execute("SET LOCAL statement_timeout = '30s'")
-                    if household_id is not None:
-                        self._advisory_lock(f"household:{household_id}")
+                    if workspace_id is not None:
+                        self._advisory_lock(f"workspace:{workspace_id}")
                     yield
             finally:
                 self._connection.reset(token)
@@ -146,12 +148,12 @@ class PostgresStore(InMemoryStore):
     def save_project_artifact(self, artifact: ProjectArtifact, content: bytes) -> None:
         with self.transaction():
             cursor = self.connection.execute(
-                "INSERT INTO project_artifacts (id,household_id,actor_id,project_id,task_id,"
+                "INSERT INTO project_artifacts (id,workspace_id,actor_id,project_id,task_id,"
                 "name,media_type,byte_count,sha256,content,created_at) "
                 "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING",
                 (
                     artifact.id,
-                    artifact.household_id,
+                    artifact.workspace_id,
                     artifact.actor_id,
                     artifact.project_id,
                     artifact.task_id,
@@ -173,7 +175,7 @@ class PostgresStore(InMemoryStore):
     def project_artifact(self, identifier: UUID) -> tuple[ProjectArtifact, bytes] | None:
         with self.transaction():
             row = self.connection.execute(
-                "SELECT id,household_id,actor_id,project_id,task_id,name,media_type,"
+                "SELECT id,workspace_id,actor_id,project_id,task_id,name,media_type,"
                 "byte_count,sha256,created_at,content FROM project_artifacts WHERE id=%s",
                 (identifier,),
             ).fetchone()
@@ -184,7 +186,7 @@ class PostgresStore(InMemoryStore):
 
     def project_artifacts(
         self,
-        household_id: UUID,
+        workspace_id: UUID,
         actor_id: UUID,
         project_id: UUID | None,
         offset: int,
@@ -192,11 +194,11 @@ class PostgresStore(InMemoryStore):
     ) -> tuple[ProjectArtifact, ...]:
         with self.transaction():
             rows = self.connection.execute(
-                "SELECT id,household_id,actor_id,project_id,task_id,name,media_type,"
-                "byte_count,sha256,created_at FROM project_artifacts WHERE household_id=%s "
+                "SELECT id,workspace_id,actor_id,project_id,task_id,name,media_type,"
+                "byte_count,sha256,created_at FROM project_artifacts WHERE workspace_id=%s "
                 "AND actor_id=%s AND (%s::uuid IS NULL OR project_id=%s) "
                 "ORDER BY created_at DESC,id DESC LIMIT %s OFFSET %s",
-                (household_id, actor_id, project_id, project_id, limit, offset),
+                (workspace_id, actor_id, project_id, project_id, limit, offset),
             ).fetchall()
             return tuple(ProjectArtifact.model_validate(row) for row in rows)
 
@@ -217,43 +219,43 @@ class PostgresStore(InMemoryStore):
     def save_managed_account(self, account: ManagedAccount) -> None:
         with self.transaction():
             self.connection.execute(
-                "INSERT INTO managed_accounts (actor_id, household_id, invited_by, snapshot) "
+                "INSERT INTO managed_accounts (actor_id, workspace_id, invited_by, snapshot) "
                 "VALUES (%s, %s, %s, %s) ON CONFLICT (actor_id) "
                 "DO UPDATE SET snapshot = EXCLUDED.snapshot",
                 (
                     account.actor_id,
-                    account.household_id,
+                    account.workspace_id,
                     account.invited_by,
                     Jsonb(account.model_dump(mode="json")),
                 ),
             )
 
-    def voice_sessions(self, household_id: UUID, actor_id: UUID) -> tuple[VoiceSession, ...]:
+    def voice_sessions(self, workspace_id: UUID, actor_id: UUID) -> tuple[VoiceSession, ...]:
         with self.transaction():
             rows = self.connection.execute(
-                "SELECT snapshot FROM voice_sessions WHERE household_id = %s AND actor_id = %s "
+                "SELECT snapshot FROM voice_sessions WHERE workspace_id = %s AND actor_id = %s "
                 "ORDER BY created_at DESC LIMIT 50",
-                (household_id, actor_id),
+                (workspace_id, actor_id),
             ).fetchall()
             return tuple(VoiceSession.model_validate(row["snapshot"]) for row in rows)
 
-    def voice_session(self, household_id: UUID, session_id: UUID) -> VoiceSession | None:
+    def voice_session(self, workspace_id: UUID, session_id: UUID) -> VoiceSession | None:
         with self.transaction():
             row = self.connection.execute(
-                "SELECT snapshot FROM voice_sessions WHERE household_id = %s AND id = %s",
-                (household_id, session_id),
+                "SELECT snapshot FROM voice_sessions WHERE workspace_id = %s AND id = %s",
+                (workspace_id, session_id),
             ).fetchone()
             return VoiceSession.model_validate(row["snapshot"]) if row else None
 
     def save_voice_session(self, session: VoiceSession) -> None:
         with self.transaction():
             self.connection.execute(
-                "INSERT INTO voice_sessions (id, household_id, actor_id, thread_id, created_at, "
+                "INSERT INTO voice_sessions (id, workspace_id, actor_id, thread_id, created_at, "
                 "snapshot) VALUES (%s, %s, %s, %s, %s, %s) ON CONFLICT (id) DO UPDATE "
                 "SET snapshot = EXCLUDED.snapshot",
                 (
                     session.id,
-                    session.household_id,
+                    session.workspace_id,
                     session.actor_id,
                     session.thread_id,
                     session.created_at,
@@ -262,43 +264,43 @@ class PostgresStore(InMemoryStore):
             )
 
     def response_preferences(
-        self, household_id: UUID, actor_id: UUID
+        self, workspace_id: UUID, actor_id: UUID
     ) -> ResponsePreferences | None:
         with self.transaction():
             row = self.connection.execute(
                 "SELECT snapshot FROM response_preferences "
-                "WHERE household_id = %s AND actor_id = %s",
-                (household_id, actor_id),
+                "WHERE workspace_id = %s AND actor_id = %s",
+                (workspace_id, actor_id),
             ).fetchone()
             return ResponsePreferences.model_validate(row["snapshot"]) if row else None
 
     def save_response_preferences(
-        self, household_id: UUID, actor_id: UUID, preferences: ResponsePreferences
+        self, workspace_id: UUID, actor_id: UUID, preferences: ResponsePreferences
     ) -> None:
-        with self.transaction(household_id):
+        with self.transaction(workspace_id):
             self.connection.execute(
-                "INSERT INTO response_preferences (household_id, actor_id, snapshot) "
-                "VALUES (%s,%s,%s) ON CONFLICT (household_id, actor_id) DO UPDATE "
+                "INSERT INTO response_preferences (workspace_id, actor_id, snapshot) "
+                "VALUES (%s,%s,%s) ON CONFLICT (workspace_id, actor_id) DO UPDATE "
                 "SET snapshot = EXCLUDED.snapshot",
-                (household_id, actor_id, Jsonb(preferences.model_dump(mode="json"))),
+                (workspace_id, actor_id, Jsonb(preferences.model_dump(mode="json"))),
             )
 
-    def feedback(self, household_id: UUID, actor_id: UUID, run_id: UUID) -> RunFeedback | None:
+    def feedback(self, workspace_id: UUID, actor_id: UUID, run_id: UUID) -> RunFeedback | None:
         with self.transaction():
             row = self.connection.execute(
                 "SELECT snapshot FROM run_feedback "
-                "WHERE household_id = %s AND actor_id = %s AND run_id = %s",
-                (household_id, actor_id, run_id),
+                "WHERE workspace_id = %s AND actor_id = %s AND run_id = %s",
+                (workspace_id, actor_id, run_id),
             ).fetchone()
             return RunFeedback.model_validate(row["snapshot"]) if row else None
 
-    def save_feedback(self, household_id: UUID, actor_id: UUID, feedback: RunFeedback) -> None:
-        with self.transaction(household_id):
+    def save_feedback(self, workspace_id: UUID, actor_id: UUID, feedback: RunFeedback) -> None:
+        with self.transaction(workspace_id):
             self.connection.execute(
-                "INSERT INTO run_feedback (household_id, actor_id, run_id, snapshot) "
-                "VALUES (%s,%s,%s,%s) ON CONFLICT (household_id, actor_id, run_id) DO UPDATE "
+                "INSERT INTO run_feedback (workspace_id, actor_id, run_id, snapshot) "
+                "VALUES (%s,%s,%s,%s) ON CONFLICT (workspace_id, actor_id, run_id) DO UPDATE "
                 "SET snapshot = EXCLUDED.snapshot",
-                (household_id, actor_id, feedback.run_id, Jsonb(feedback.model_dump(mode="json"))),
+                (workspace_id, actor_id, feedback.run_id, Jsonb(feedback.model_dump(mode="json"))),
             )
 
     def answer_runs(self, thread_id: UUID, offset: int, limit: int) -> tuple[Run, ...]:
@@ -324,14 +326,14 @@ class PostgresStore(InMemoryStore):
             return Run.model_validate(row["snapshot"]) if row else None
 
     def save_attempt(self, attempt: ModelAttempt) -> None:
-        with self.transaction(attempt.household_id):
+        with self.transaction(attempt.workspace_id):
             self.connection.execute(
-                "INSERT INTO model_attempts (id, household_id, thread_id, status, snapshot) "
+                "INSERT INTO model_attempts (id, workspace_id, thread_id, status, snapshot) "
                 "VALUES (%s,%s,%s,%s,%s) ON CONFLICT (id) DO UPDATE "
                 "SET status = EXCLUDED.status, snapshot = EXCLUDED.snapshot",
                 (
                     attempt.run.id,
-                    attempt.household_id,
+                    attempt.workspace_id,
                     attempt.run.thread_id,
                     attempt.status,
                     Jsonb(attempt.model_dump(mode="json")),
@@ -363,14 +365,14 @@ class PostgresStore(InMemoryStore):
             return tuple(Message.model_validate(row) for row in reversed(rows))
 
     def insert_memory(self, memory: ExplicitMemory) -> None:
-        with self.transaction(memory.household_id):
+        with self.transaction(memory.workspace_id):
             self.connection.execute(
-                "INSERT INTO memories (id, household_id, subject, scope, kind, content, source, "
+                "INSERT INTO memories (id, workspace_id, subject, scope, kind, content, source, "
                 "confidence, sensitivity, review_status, created_at, explicit_snapshot) "
                 "VALUES (%s,%s,%s,%s,'explicit',%s,%s,1,'personal','accepted',%s,%s)",
                 (
                     memory.id,
-                    memory.household_id,
+                    memory.workspace_id,
                     memory.subject,
                     memory.scope,
                     memory.content,
@@ -380,9 +382,39 @@ class PostgresStore(InMemoryStore):
                 ),
             )
 
+    def update_project_memory(
+        self, previous: ExplicitMemory, name: str, description: str
+    ) -> ExplicitMemory:
+        with self.transaction(previous.workspace_id):
+            row = self.connection.execute(
+                "SELECT explicit_snapshot FROM memories WHERE workspace_id = %s AND id = %s "
+                "AND review_status = 'accepted' AND explicit_snapshot IS NOT NULL FOR UPDATE",
+                (previous.workspace_id, previous.id),
+            ).fetchone()
+            if (
+                row is None
+                or ExplicitMemory.model_validate(row["explicit_snapshot"]) != previous
+                or not previous.accepted
+                or previous.category != "project"
+            ):
+                raise InvalidTransitionError("Project details changed before saving")
+            updated = previous.model_copy(update={"subject": name, "content": description})
+            self.connection.execute(
+                "UPDATE memories SET subject = %s, content = %s, explicit_snapshot = %s "
+                "WHERE workspace_id = %s AND id = %s",
+                (
+                    name,
+                    description,
+                    Jsonb(updated.model_dump(mode="json")),
+                    previous.workspace_id,
+                    previous.id,
+                ),
+            )
+            return updated
+
     def explicit_memories(
         self,
-        household_id: UUID,
+        workspace_id: UUID,
         offset: int,
         limit: int,
         actor_id: UUID | None = None,
@@ -390,44 +422,44 @@ class PostgresStore(InMemoryStore):
     ) -> tuple[ExplicitMemory, ...]:
         with self.transaction():
             rows = self.connection.execute(
-                "SELECT explicit_snapshot FROM memories WHERE household_id = %s "
+                "SELECT explicit_snapshot FROM memories WHERE workspace_id = %s "
                 "AND explicit_snapshot IS NOT NULL AND review_status = 'accepted' "
-                "AND (scope = 'household' OR (%s AND (%s::uuid IS NULL OR "
+                "AND (scope = 'workspace' OR (%s AND (%s::uuid IS NULL OR "
                 "explicit_snapshot->>'created_by' = %s))) "
                 "ORDER BY created_at, id LIMIT %s OFFSET %s",
-                (household_id, personal, actor_id, str(actor_id), limit, offset),
+                (workspace_id, personal, actor_id, str(actor_id), limit, offset),
             ).fetchall()
             return tuple(ExplicitMemory.model_validate(row["explicit_snapshot"]) for row in rows)
 
-    def explicit_memory(self, household_id: UUID, memory_id: UUID) -> ExplicitMemory | None:
+    def explicit_memory(self, workspace_id: UUID, memory_id: UUID) -> ExplicitMemory | None:
         with self.transaction():
             row = self.connection.execute(
-                "SELECT explicit_snapshot FROM memories WHERE household_id = %s AND id = %s "
+                "SELECT explicit_snapshot FROM memories WHERE workspace_id = %s AND id = %s "
                 "AND explicit_snapshot IS NOT NULL",
-                (household_id, memory_id),
+                (workspace_id, memory_id),
             ).fetchone()
             return ExplicitMemory.model_validate(row["explicit_snapshot"]) if row else None
 
     def retract_memory(self, memory: ExplicitMemory) -> None:
-        with self.transaction(memory.household_id):
+        with self.transaction(memory.workspace_id):
             self.connection.execute(
                 "UPDATE memories SET review_status = 'rejected', explicit_snapshot = %s "
-                "WHERE household_id = %s AND id = %s",
+                "WHERE workspace_id = %s AND id = %s",
                 (
                     Jsonb(memory.model_copy(update={"accepted": False}).model_dump(mode="json")),
-                    memory.household_id,
+                    memory.workspace_id,
                     memory.id,
                 ),
             )
 
     def insert_thread(self, thread: Thread) -> None:
-        with self.transaction(thread.household_id):
+        with self.transaction(thread.workspace_id):
             self.connection.execute(
-                "INSERT INTO threads (id, household_id, created_by, title, created_at, visibility) "
+                "INSERT INTO threads (id, workspace_id, created_by, title, created_at, visibility) "
                 "VALUES (%s, %s, %s, %s, %s, %s)",
                 (
                     thread.id,
-                    thread.household_id,
+                    thread.workspace_id,
                     thread.created_by,
                     thread.title,
                     thread.created_at,
@@ -436,29 +468,29 @@ class PostgresStore(InMemoryStore):
             )
 
     def threads(
-        self, household_id: UUID, offset: int, limit: int, actor_id: UUID | None = None
+        self, workspace_id: UUID, offset: int, limit: int, actor_id: UUID | None = None
     ) -> tuple[Thread, ...]:
         with self.transaction():
             rows = self.connection.execute(
-                "SELECT id, household_id, created_by, title, created_at, visibility FROM threads "
-                "WHERE household_id = %s AND (%s::uuid IS NULL OR visibility = 'household' "
+                "SELECT id, workspace_id, created_by, title, created_at, visibility FROM threads "
+                "WHERE workspace_id = %s AND (%s::uuid IS NULL OR visibility = 'workspace' "
                 "OR created_by = %s) ORDER BY created_at, id LIMIT %s OFFSET %s",
-                (household_id, actor_id, actor_id, limit, offset),
+                (workspace_id, actor_id, actor_id, limit, offset),
             ).fetchall()
             return tuple(Thread.model_validate(row) for row in rows)
 
-    def thread(self, household_id: UUID, thread_id: UUID) -> Thread | None:
+    def thread(self, workspace_id: UUID, thread_id: UUID) -> Thread | None:
         with self.transaction():
             row = self.connection.execute(
-                "SELECT id, household_id, created_by, title, created_at, visibility FROM threads "
-                "WHERE household_id = %s AND id = %s",
-                (household_id, thread_id),
+                "SELECT id, workspace_id, created_by, title, created_at, visibility FROM threads "
+                "WHERE workspace_id = %s AND id = %s",
+                (workspace_id, thread_id),
             ).fetchone()
             return Thread.model_validate(row) if row else None
 
     def recall_documents(
         self,
-        household_id: UUID,
+        workspace_id: UUID,
         actor_id: UUID,
         terms: tuple[str, ...],
         offset: int,
@@ -468,7 +500,7 @@ class PostgresStore(InMemoryStore):
         with self.transaction():
             rows = self.connection.execute(
                 """WITH owned AS (
-                    SELECT * FROM threads WHERE household_id = %(household)s
+                    SELECT * FROM threads WHERE workspace_id = %(workspace)s
                     AND created_by = %(actor)s
                     AND (%(exclude)s::uuid IS NULL OR id != %(exclude)s)
                 ), docs AS (
@@ -491,7 +523,7 @@ class PostgresStore(InMemoryStore):
                                 WITH ORDINALITY AS fragments(f, ord)
                         ) parts
                     ) transcript
-                    WHERE v.household_id = %(household)s AND v.actor_id = %(actor)s
+                    WHERE v.workspace_id = %(workspace)s AND v.actor_id = %(actor)s
                     AND transcript.text IS NOT NULL
                 ), ranked AS (
                     SELECT docs.*, (SELECT count(*) FROM unnest(%(terms)s::text[]) term
@@ -502,7 +534,7 @@ class PostgresStore(InMemoryStore):
                 ORDER BY score DESC, created_at DESC, id DESC LIMIT %(limit)s OFFSET %(offset)s
                 """,
                 {
-                    "household": household_id,
+                    "workspace": workspace_id,
                     "actor": actor_id,
                     "exclude": exclude_thread,
                     "terms": list(terms),
@@ -584,15 +616,16 @@ class PostgresStore(InMemoryStore):
             return tuple(RunEvent.model_validate(row) for row in rows)
 
     def create_job(self, job: Job) -> tuple[Job, bool]:
-        with self.transaction(job.household_id):
+        with self.transaction(job.workspace_id):
             row = self.connection.execute(
-                "INSERT INTO jobs (id, household_id, created_by, kind, schema_version, "
-                "idempotency_key, input, input_digest, status, version, created_at, updated_at) "
-                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) "
-                "ON CONFLICT (household_id, kind, idempotency_key) DO NOTHING RETURNING *",
+                "INSERT INTO jobs (id, workspace_id, created_by, kind, schema_version, "
+                "idempotency_key, input, input_digest, status, version, created_at, updated_at, "
+                "result, error_code) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) "
+                "ON CONFLICT (workspace_id, kind, idempotency_key) DO NOTHING RETURNING *",
                 (
                     job.id,
-                    job.household_id,
+                    job.workspace_id,
                     job.created_by,
                     job.kind,
                     job.schema_version,
@@ -603,13 +636,15 @@ class PostgresStore(InMemoryStore):
                     job.version,
                     job.created_at,
                     job.updated_at,
+                    Jsonb(job.result) if job.result is not None else None,
+                    job.error_code,
                 ),
             ).fetchone()
             if row is not None:
                 return self._job(row), True
             row = self.connection.execute(
-                "SELECT * FROM jobs WHERE household_id = %s AND kind = %s AND idempotency_key = %s",
-                (job.household_id, job.kind, job.idempotency_key),
+                "SELECT * FROM jobs WHERE workspace_id = %s AND kind = %s AND idempotency_key = %s",
+                (job.workspace_id, job.kind, job.idempotency_key),
             ).fetchone()
             assert row is not None
             if row["input_digest"] != job.input_digest or row["created_by"] != job.created_by:
@@ -628,35 +663,35 @@ class PostgresStore(InMemoryStore):
             return self._job(row) if row is not None else None
 
     def jobs(
-        self, household_id: UUID, actor_id: UUID, kind: str, offset: int, limit: int
+        self, workspace_id: UUID, actor_id: UUID, kind: str, offset: int, limit: int
     ) -> tuple[Job, ...]:
         with self.transaction():
             rows = self.connection.execute(
-                "SELECT * FROM jobs WHERE household_id=%s AND created_by=%s AND kind=%s "
+                "SELECT * FROM jobs WHERE workspace_id=%s AND created_by=%s AND kind=%s "
                 "ORDER BY COALESCE((input->>'priority')::int,3) DESC, "
                 "COALESCE((input->>'rank')::bigint,0), created_at, id OFFSET %s LIMIT %s",
-                (household_id, actor_id, kind, offset, limit),
+                (workspace_id, actor_id, kind, offset, limit),
             ).fetchall()
             return tuple(self._job(row) for row in rows)
 
     def project_run_jobs(
         self,
-        household_id: UUID,
+        workspace_id: UUID,
         actor_id: UUID,
         project_id: UUID,
         before: tuple[datetime, UUID] | None,
         limit: int,
     ) -> tuple[Job, ...]:
         cursor_clause = " AND (r.created_at,r.id) < (%s,%s)" if before else ""
-        parameters: tuple[Any, ...] = (household_id, actor_id, str(project_id))
+        parameters: tuple[Any, ...] = (workspace_id, actor_id, str(project_id))
         if before:
             parameters += before
         with self.transaction():
             rows = self.connection.execute(
                 "SELECT r.* FROM jobs p JOIN jobs r ON "
-                "r.household_id=p.household_id AND r.created_by=p.created_by "
+                "r.workspace_id=p.workspace_id AND r.created_by=p.created_by "
                 "AND r.input->>'plan_id'=p.id::text "
-                "WHERE p.household_id=%s AND p.created_by=%s "
+                "WHERE p.workspace_id=%s AND p.created_by=%s "
                 "AND p.kind='platform.plan' AND r.kind='platform.run' "
                 "AND p.input->'plan'->>'project_id'=%s"
                 + cursor_clause
@@ -667,7 +702,7 @@ class PostgresStore(InMemoryStore):
 
     def project_activity_jobs(
         self,
-        household_id: UUID,
+        workspace_id: UUID,
         actor_id: UUID,
         project_id: UUID,
         query: str,
@@ -676,13 +711,13 @@ class PostgresStore(InMemoryStore):
         limit: int,
     ) -> tuple[Job, ...]:
         clauses = [
-            "household_id=%s",
+            "workspace_id=%s",
             "created_by=%s",
             "kind=%s",
             "kind LIKE 'platform.project_activity.%%'",
         ]
         parameters: list[Any] = [
-            household_id,
+            workspace_id,
             actor_id,
             "platform.project_activity." + project_id.hex,
         ]
@@ -760,23 +795,23 @@ class PostgresStore(InMemoryStore):
             return self._job(row)
 
     def append_audit(self, event: AuditEvent) -> None:
-        with self.transaction(event.household_id):
+        with self.transaction(event.workspace_id):
             row = self.connection.execute(
-                "SELECT sequence, event_hash FROM audit_events WHERE household_id = %s "
+                "SELECT sequence, event_hash FROM audit_events WHERE workspace_id = %s "
                 "ORDER BY sequence DESC LIMIT 1",
-                (event.household_id,),
+                (event.workspace_id,),
             ).fetchone()
             if event.sequence != (row["sequence"] + 1 if row else 1):
                 raise ValueError("audit sequence is not contiguous")
             if event.previous_hash != (row["event_hash"] if row else "0" * 64):
                 raise ValueError("audit hash chain is invalid")
             self.connection.execute(
-                "INSERT INTO audit_events (id, household_id, sequence, occurred_at, event_type, "
+                "INSERT INTO audit_events (id, workspace_id, sequence, occurred_at, event_type, "
                 "actor_id, correlation_id, resource_type, resource_id, payload, previous_hash, "
                 "event_hash) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
                 (
                     event.id,
-                    event.household_id,
+                    event.workspace_id,
                     event.sequence,
                     event.occurred_at,
                     event.event_type,
@@ -790,12 +825,12 @@ class PostgresStore(InMemoryStore):
                 ),
             )
 
-    def audit_events(self, household_id: UUID | None = None) -> tuple[AuditEvent, ...]:
+    def audit_events(self, workspace_id: UUID | None = None) -> tuple[AuditEvent, ...]:
         with self.transaction():
             rows = self.connection.execute(
-                "SELECT * FROM audit_events WHERE (%s::uuid IS NULL OR household_id = %s) "
-                "ORDER BY household_id, sequence",
-                (household_id, household_id),
+                "SELECT * FROM audit_events WHERE (%s::uuid IS NULL OR workspace_id = %s) "
+                "ORDER BY workspace_id, sequence",
+                (workspace_id, workspace_id),
             ).fetchall()
             return tuple(AuditEvent.model_validate(row) for row in rows)
 
@@ -858,10 +893,10 @@ class PostgresStore(InMemoryStore):
     def memberships(self, actor_id: UUID) -> tuple[Membership, ...]:
         with self.transaction():
             rows = self.connection.execute(
-                "SELECT m.user_id AS actor_id, m.household_id, m.role, u.display_name, "
-                "h.name AS household_name FROM memberships m JOIN users u ON u.id = m.user_id "
-                "JOIN households h ON h.id = m.household_id WHERE m.user_id = %s "
-                "ORDER BY m.household_id",
+                "SELECT m.user_id AS actor_id, m.workspace_id, m.role, u.display_name, "
+                "h.name AS workspace_name FROM memberships m JOIN users u ON u.id = m.user_id "
+                "JOIN workspaces h ON h.id = m.workspace_id WHERE m.user_id = %s "
+                "ORDER BY m.workspace_id",
                 (actor_id,),
             )
             return tuple(Membership.model_validate(row) for row in rows)
@@ -873,32 +908,32 @@ class PostgresStore(InMemoryStore):
                 (membership.actor_id, membership.display_name),
             )
             self.connection.execute(
-                "INSERT INTO households (id, name) VALUES (%s, %s) ON CONFLICT DO NOTHING",
-                (membership.household_id, membership.household_name),
+                "INSERT INTO workspaces (id, name) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+                (membership.workspace_id, membership.workspace_name),
             )
             self.connection.execute(
-                "INSERT INTO memberships (user_id, household_id, role) VALUES (%s, %s, %s) "
-                "ON CONFLICT (household_id, user_id) DO UPDATE SET role = EXCLUDED.role",
-                (membership.actor_id, membership.household_id, membership.role),
+                "INSERT INTO memberships (user_id, workspace_id, role) VALUES (%s, %s, %s) "
+                "ON CONFLICT (workspace_id, user_id) DO UPDATE SET role = EXCLUDED.role",
+                (membership.actor_id, membership.workspace_id, membership.role),
             )
 
-    def delete_membership(self, actor_id: UUID, household_id: UUID) -> None:
+    def delete_membership(self, actor_id: UUID, workspace_id: UUID) -> None:
         with self.transaction():
             self.connection.execute(
-                "DELETE FROM memberships WHERE user_id = %s AND household_id = %s",
-                (actor_id, household_id),
+                "DELETE FROM memberships WHERE user_id = %s AND workspace_id = %s",
+                (actor_id, workspace_id),
             )
 
     def save_session(self, session: Session) -> None:
         with self.transaction():
             self.connection.execute("DELETE FROM auth_sessions WHERE expires_at <= now()")
             self.connection.execute(
-                "INSERT INTO auth_sessions (token_hash, actor_id, household_id, method, "
+                "INSERT INTO auth_sessions (token_hash, actor_id, workspace_id, method, "
                 "created_at, expires_at) VALUES (%s, %s, %s, %s, %s, %s)",
                 (
                     session.token_hash,
                     session.actor_id,
-                    session.household_id,
+                    session.workspace_id,
                     session.method,
                     session.created_at,
                     session.expires_at,
@@ -926,12 +961,12 @@ class PostgresStore(InMemoryStore):
         with self.transaction():
             self.connection.execute("DELETE FROM auth_enrollments WHERE expires_at <= now()")
             self.connection.execute(
-                "INSERT INTO auth_enrollments (token_hash, actor_id, household_id, expires_at) "
+                "INSERT INTO auth_enrollments (token_hash, actor_id, workspace_id, expires_at) "
                 "VALUES (%s, %s, %s, %s)",
                 (
                     enrollment.token_hash,
                     enrollment.actor_id,
-                    enrollment.household_id,
+                    enrollment.workspace_id,
                     enrollment.expires_at,
                 ),
             )
@@ -954,7 +989,7 @@ class PostgresStore(InMemoryStore):
             self.connection.execute("DELETE FROM auth_challenges WHERE expires_at <= now()")
             self.connection.execute(
                 "INSERT INTO auth_challenges (token_hash, binding_hash, challenge, kind, actor_id, "
-                "household_id, enrollment_hash, expires_at) "
+                "workspace_id, enrollment_hash, expires_at) "
                 "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
                 (
                     challenge.token_hash,
@@ -962,7 +997,7 @@ class PostgresStore(InMemoryStore):
                     challenge.challenge,
                     challenge.kind,
                     challenge.actor_id,
-                    challenge.household_id,
+                    challenge.workspace_id,
                     challenge.enrollment_hash,
                     challenge.expires_at,
                 ),
@@ -1045,37 +1080,125 @@ class PostgresStore(InMemoryStore):
                 raise AuthenticationError("username is already in use")
             self.connection.execute(
                 "INSERT INTO auth_passwords "
-                "(actor_id, username, password_hash, failed_attempts, locked_until) "
-                "VALUES (%s, %s, %s, %s, %s) ON CONFLICT (actor_id) DO UPDATE SET "
+                "(actor_id, username, password_hash, failed_attempts, locked_until, email) "
+                "VALUES (%s, %s, %s, %s, %s, %s) ON CONFLICT (actor_id) DO UPDATE SET "
                 "username = EXCLUDED.username, password_hash = EXCLUDED.password_hash, "
-                "failed_attempts = EXCLUDED.failed_attempts, locked_until = EXCLUDED.locked_until",
+                "failed_attempts = EXCLUDED.failed_attempts, locked_until = EXCLUDED.locked_until, "
+                "email = EXCLUDED.email",
                 (
                     credential.actor_id,
                     credential.username,
                     credential.password_hash,
                     credential.failed_attempts,
                     credential.locked_until,
+                    credential.email,
                 ),
             )
 
+    def password_for_email(self, email: str) -> PasswordCredential | None:
+        with self.transaction():
+            row = self.connection.execute(
+                "SELECT * FROM auth_passwords WHERE email=%s", (email,)
+            ).fetchone()
+            return PasswordCredential.model_validate(row) if row else None
+
+    def email_code(self, identifier: UUID) -> EmailCode | None:
+        with self.transaction():
+            row = self.connection.execute(
+                "SELECT * FROM auth_email_codes WHERE id=%s", (identifier,)
+            ).fetchone()
+            return EmailCode.model_validate(row) if row else None
+
+    def email_codes(
+        self, email: str, purpose: str, since: datetime, *, actor_id: UUID | None = None
+    ) -> tuple[EmailCode, ...]:
+        with self.transaction():
+            rows = self.connection.execute(
+                "SELECT * FROM auth_email_codes WHERE (email=%s OR actor_id=%s) "
+                "AND purpose=%s AND created_at >= %s ORDER BY created_at DESC",
+                (email, actor_id, purpose, since),
+            ).fetchall()
+            return tuple(EmailCode.model_validate(row) for row in rows)
+
+    def save_email_code(self, code: EmailCode) -> None:
+        with self.transaction():
+            self.connection.execute(
+                "INSERT INTO auth_email_codes "
+                "(id,actor_id,workspace_id,email,purpose,code_hash,created_at,"
+                "expires_at,attempts,consumed) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) "
+                "ON CONFLICT (id) DO UPDATE SET attempts=EXCLUDED.attempts,"
+                "consumed=EXCLUDED.consumed,expires_at=EXCLUDED.expires_at",
+                (
+                    code.id,
+                    code.actor_id,
+                    code.workspace_id,
+                    code.email,
+                    code.purpose,
+                    code.code_hash,
+                    code.created_at,
+                    code.expires_at,
+                    code.attempts,
+                    code.consumed,
+                ),
+            )
+
+    def purge_email_codes(self, before: datetime) -> None:
+        with self.transaction():
+            self.connection.execute("DELETE FROM auth_email_codes WHERE expires_at < %s", (before,))
+
+    def integration_connections(
+        self, workspace_id: UUID, actor_id: UUID
+    ) -> tuple[IntegrationConnection, ...]:
+        with self.transaction():
+            rows = self.connection.execute(
+                "SELECT snapshot FROM integration_connections "
+                "WHERE workspace_id=%s AND actor_id=%s ORDER BY id",
+                (workspace_id, actor_id),
+            ).fetchall()
+            return tuple(IntegrationConnection.model_validate(row["snapshot"]) for row in rows)
+
+    def save_integration_connection(self, connection: IntegrationConnection) -> None:
+        with self.transaction(connection.workspace_id):
+            self.connection.execute(
+                "INSERT INTO integration_connections (workspace_id, actor_id, id, snapshot) "
+                "VALUES (%s, %s, %s, %s) "
+                "ON CONFLICT (workspace_id, actor_id, id) DO UPDATE SET snapshot=EXCLUDED.snapshot",
+                (
+                    connection.workspace_id,
+                    connection.actor_id,
+                    connection.id,
+                    Jsonb(connection.model_dump(mode="json")),
+                ),
+            )
+
+    def delete_integration_connection(
+        self, workspace_id: UUID, actor_id: UUID, identifier: str
+    ) -> None:
+        with self.transaction(workspace_id):
+            self.connection.execute(
+                "DELETE FROM integration_connections "
+                "WHERE workspace_id=%s AND actor_id=%s AND id=%s",
+                (workspace_id, actor_id, identifier),
+            )
+
     def google_connections(
-        self, household_id: UUID, actor_id: UUID
+        self, workspace_id: UUID, actor_id: UUID
     ) -> tuple[GoogleConnection, ...]:
         with self.transaction():
             rows = self.connection.execute(
-                "SELECT snapshot FROM google_connections WHERE household_id=%s AND actor_id=%s "
+                "SELECT snapshot FROM google_connections WHERE workspace_id=%s AND actor_id=%s "
                 "ORDER BY (snapshot->>'is_default')::boolean DESC, email",
-                (household_id, actor_id),
+                (workspace_id, actor_id),
             ).fetchall()
             return tuple(GoogleConnection.model_validate(row["snapshot"]) for row in rows)
 
-    def google_connection(self, household_id: UUID, actor_id: UUID) -> GoogleConnection | None:
-        connections = self.google_connections(household_id, actor_id)
+    def google_connection(self, workspace_id: UUID, actor_id: UUID) -> GoogleConnection | None:
+        connections = self.google_connections(workspace_id, actor_id)
         return connections[0] if connections else None
 
     def save_google_connection(self, connection: GoogleConnection) -> None:
-        with self.transaction(connection.household_id):
-            connections = self.google_connections(connection.household_id, connection.actor_id)
+        with self.transaction(connection.workspace_id):
+            connections = self.google_connections(connection.workspace_id, connection.actor_id)
             old = next(
                 (c for c in connections if c.email.casefold() == connection.email.casefold()), None
             )
@@ -1083,11 +1206,11 @@ class PostgresStore(InMemoryStore):
                 update={"is_default": old.is_default if old else not connections}
             )
             self.connection.execute(
-                "INSERT INTO google_connections (household_id, actor_id, email, snapshot) "
-                "VALUES (%s, %s, %s, %s) ON CONFLICT (household_id, actor_id, email) "
+                "INSERT INTO google_connections (workspace_id, actor_id, email, snapshot) "
+                "VALUES (%s, %s, %s, %s) ON CONFLICT (workspace_id, actor_id, email) "
                 "DO UPDATE SET snapshot=EXCLUDED.snapshot",
                 (
-                    connection.household_id,
+                    connection.workspace_id,
                     connection.actor_id,
                     connection.email.casefold(),
                     Jsonb(connection.model_dump(mode="json")),
@@ -1095,30 +1218,30 @@ class PostgresStore(InMemoryStore):
             )
 
     def set_default_google_connection(
-        self, household_id: UUID, actor_id: UUID, connection_id: UUID
+        self, workspace_id: UUID, actor_id: UUID, connection_id: UUID
     ) -> None:
-        with self.transaction(household_id):
-            connections = self.google_connections(household_id, actor_id)
+        with self.transaction(workspace_id):
+            connections = self.google_connections(workspace_id, actor_id)
             if not any(c.id == connection_id for c in connections):
                 raise NotFoundError("Google account not found.")
             self.connection.execute(
                 "UPDATE google_connections SET snapshot=jsonb_set(snapshot, '{is_default}', "
-                "to_jsonb((snapshot->>'id')::uuid=%s)) WHERE household_id=%s AND actor_id=%s",
-                (connection_id, household_id, actor_id),
+                "to_jsonb((snapshot->>'id')::uuid=%s)) WHERE workspace_id=%s AND actor_id=%s",
+                (connection_id, workspace_id, actor_id),
             )
 
     def delete_google_connection(
-        self, household_id: UUID, actor_id: UUID, connection_id: UUID | None = None
+        self, workspace_id: UUID, actor_id: UUID, connection_id: UUID | None = None
     ) -> None:
-        with self.transaction(household_id):
+        with self.transaction(workspace_id):
             self.connection.execute(
-                "DELETE FROM google_connections WHERE household_id=%s AND actor_id=%s "
+                "DELETE FROM google_connections WHERE workspace_id=%s AND actor_id=%s "
                 "AND (%s::uuid IS NULL OR (snapshot->>'id')::uuid=%s)",
-                (household_id, actor_id, connection_id, connection_id),
+                (workspace_id, actor_id, connection_id, connection_id),
             )
-            remaining = self.google_connections(household_id, actor_id)
+            remaining = self.google_connections(workspace_id, actor_id)
             if remaining and not any(c.is_default for c in remaining):
-                self.set_default_google_connection(household_id, actor_id, remaining[0].id)
+                self.set_default_google_connection(workspace_id, actor_id, remaining[0].id)
 
     def save_google_state(self, state: GoogleOAuthState) -> None:
         with self.transaction():
@@ -1146,32 +1269,32 @@ class PostgresStore(InMemoryStore):
     def google_accounts(self) -> tuple[tuple[UUID, UUID], ...]:
         with self.transaction():
             rows = self.connection.execute(
-                "SELECT DISTINCT household_id, actor_id FROM google_connections ORDER BY actor_id"
+                "SELECT DISTINCT workspace_id, actor_id FROM google_connections ORDER BY actor_id"
             ).fetchall()
-            return tuple((row["household_id"], row["actor_id"]) for row in rows)
+            return tuple((row["workspace_id"], row["actor_id"]) for row in rows)
 
     def project_drive(
         self,
-        household_id: UUID,
+        workspace_id: UUID,
         actor_id: UUID,
         project_id: UUID,
     ) -> ProjectDrive | None:
         with self.transaction():
             row = self.connection.execute(
                 "SELECT snapshot FROM project_drive "
-                "WHERE household_id = %s AND actor_id = %s AND project_id = %s",
-                (household_id, actor_id, project_id),
+                "WHERE workspace_id = %s AND actor_id = %s AND project_id = %s",
+                (workspace_id, actor_id, project_id),
             ).fetchone()
             return ProjectDrive.model_validate(row["snapshot"]) if row else None
 
     def save_project_drive(self, binding: ProjectDrive) -> None:
         with self.transaction():
             self.connection.execute(
-                "INSERT INTO project_drive (household_id, actor_id, project_id, snapshot) "
-                "VALUES (%s, %s, %s, %s) ON CONFLICT (household_id, actor_id, project_id) "
+                "INSERT INTO project_drive (workspace_id, actor_id, project_id, snapshot) "
+                "VALUES (%s, %s, %s, %s) ON CONFLICT (workspace_id, actor_id, project_id) "
                 "DO UPDATE SET snapshot = EXCLUDED.snapshot",
                 (
-                    binding.household_id,
+                    binding.workspace_id,
                     binding.actor_id,
                     binding.project_id,
                     Jsonb(binding.model_dump(mode="json")),
@@ -1190,12 +1313,12 @@ class PostgresStore(InMemoryStore):
         with self.transaction():
             self.connection.execute(
                 "INSERT INTO project_file_operations "
-                "(id, household_id, actor_id, project_id, snapshot) "
+                "(id, workspace_id, actor_id, project_id, snapshot) "
                 "VALUES (%s, %s, %s, %s, %s) ON CONFLICT (id) "
                 "DO UPDATE SET snapshot = EXCLUDED.snapshot",
                 (
                     operation.id,
-                    operation.household_id,
+                    operation.workspace_id,
                     operation.actor_id,
                     operation.project_id,
                     Jsonb(operation.model_dump(mode="json")),
@@ -1204,7 +1327,7 @@ class PostgresStore(InMemoryStore):
 
     def project_file_operations(
         self,
-        household_id: UUID,
+        workspace_id: UUID,
         actor_id: UUID,
         project_id: UUID,
         limit: int,
@@ -1212,9 +1335,9 @@ class PostgresStore(InMemoryStore):
         with self.transaction():
             rows = self.connection.execute(
                 "SELECT snapshot FROM project_file_operations "
-                "WHERE household_id = %s AND actor_id = %s AND project_id = %s "
+                "WHERE workspace_id = %s AND actor_id = %s AND project_id = %s "
                 "ORDER BY snapshot->>'created_at' DESC, id DESC LIMIT %s",
-                (household_id, actor_id, project_id, limit),
+                (workspace_id, actor_id, project_id, limit),
             ).fetchall()
             return tuple(ProjectFileOperation.model_validate(row["snapshot"]) for row in rows)
 
@@ -1235,7 +1358,7 @@ class PostgresStore(InMemoryStore):
                 "LEFT JOIN model_attempts m ON m.id = a.attempt_id "
                 "JOIN threads t ON t.id = COALESCE(r.thread_id, m.thread_id) "
                 "WHERE t.id = %s AND a.actor_id = %s "
-                "AND a.household_id = t.household_id "
+                "AND a.workspace_id = t.workspace_id "
                 "AND (a.attempt_id IS NOT NULL OR r.snapshot->'action_ids' ? a.id::text) "
                 "ORDER BY a.snapshot->>'created_at' DESC, a.id DESC LIMIT %s",
                 (thread_id, actor_id, limit),
@@ -1246,14 +1369,14 @@ class PostgresStore(InMemoryStore):
         with self.transaction():
             self.connection.execute(
                 "INSERT INTO action_proposals "
-                "(id, household_id, actor_id, run_id, attempt_id, snapshot) "
+                "(id, workspace_id, actor_id, run_id, attempt_id, snapshot) "
                 "VALUES (%s, %s, %s, "
                 "CASE WHEN EXISTS (SELECT 1 FROM runs WHERE id = %s) THEN %s END, "
                 "CASE WHEN NOT EXISTS (SELECT 1 FROM runs WHERE id = %s) THEN %s END, %s) "
                 "ON CONFLICT (id) DO UPDATE SET snapshot = EXCLUDED.snapshot",
                 (
                     action.id,
-                    action.household_id,
+                    action.workspace_id,
                     action.actor_id,
                     action.run_id,
                     action.run_id,

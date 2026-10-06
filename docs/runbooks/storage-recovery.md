@@ -2,8 +2,21 @@
 
 Simon keeps managed project files and generated artifacts on the server. Remote
 clients use the authenticated file APIs; remote access does not require cloud
-storage. Drive remains a connected source or export destination. Local edits are
-not automatically mirrored to Drive.
+storage. Configured Drive synchronization copies accepted deliverable files after local
+saving, using the authored basename without generated ID prefixes. Controller answers,
+legacy task summaries and journal responses remain in Simon's history. An explicitly named
+project copy can also sync when its current bytes still match the saved source revision;
+generic answer-copy names do not qualify. Editable local-file changes are not mirrored;
+Drive-side edits are preserved. Drafts, evidence and planning records remain local.
+
+For installations that previously copied controller answers to Drive, the one-time
+`scripts/preview_drive_output_cleanup.py` audit matches exact original upload receipts,
+folder/account bindings, names, content hashes and current revisions. Its corresponding
+`scripts/apply_drive_output_cleanup.py` defaults to preview-only; execution requires the
+reviewed manifest's SHA-256. It rechecks every target, renames verified real deliverables
+and moves verified answer-only copies to reversible Drive trash. Local history remains
+available, edited or moved files are skipped, and original upload receipts prevent
+duplicate copies. Restart services with the corrected sync rules before applying cleanup.
 
 ## Permanent server paths
 
@@ -17,15 +30,28 @@ SIMON_AGENT_STATE_DIR=D:/SimonData/agents
 SIMON_AGENT_MANIFEST_FILE=D:/SimonConfig/agent-platform.json
 ```
 
-These settings already exist; changing them does not migrate old files. Stop all
-writers, make a verified backup, copy existing roots with their full directory
-structure to the new locations, compare file hashes, then update configuration.
-Keep the original data until an authenticated upload/download and agent artifact
-retrieval have passed. The account/project identifiers inside the roots must stay
-unchanged. Keep the lease SQLite journal on the execution host's local disk.
+Changing these settings alone does not migrate old files. Use the
+[verified storage migration helper](../storage-migration.md) with all writers stopped,
+or combine it with the maintenance wrapper:
+
+```powershell
+.\scripts\backup-full.ps1 -Force -MigrateStorageRoot "$env:LOCALAPPDATA\Simon\data"
+```
+
+It copies both roots, compares hashes, retains originals and a private configuration
+backup, and atomically changes only the two storage settings. Keep the originals:
+historical environment leases can still reference old absolute paths. The account/project
+identifiers inside the roots remain unchanged. Keep the lease SQLite journal on the
+execution host's local disk.
+
+The current Windows installation completed this migration on October 2, 2026. Managed
+files and agent state use `%LOCALAPPDATA%/Simon/data/files` and
+`%LOCALAPPDATA%/Simon/data/agents`; two owner-scoped historical artifact downloads matched
+their original hashes afterward. Operator configuration remains in the checkout.
 
 The `files` root includes private pre-edit versions. The `agents` root includes
-artifacts, the environment journal and retained working directories. PostgreSQL
+artifacts, execution journals, full tool evidence, the environment journal and retained
+working directories. PostgreSQL
 holds business records and references to these files. Owner-accessible Desktop,
 Documents, Downloads and additional host roots are NOT part of managed storage
 and need their own backup policy. Cloud files also need a separate export/backup
@@ -33,10 +59,25 @@ policy; cloud synchronization alone is not a backup.
 
 ## Combined recovery bundle
 
-The existing nightly `backup_local.py` job still backs up only PostgreSQL. The new
+The existing nightly `backup_local.py` job backs up only PostgreSQL. The
 `backup_bundle.py` command creates a complete managed-data recovery bundle during
-a maintenance window. It does not stop services, install a schedule, migrate data,
-or change production configuration.
+a maintenance window. The manual command itself does not stop services.
+
+For the registered Windows installation, run `scripts/backup-full.ps1` for the full
+workflow, or install `scripts/install-full-backup-task.ps1`. The task checks hourly,
+creates at most one verified bundle per idle day and defers while agent/assistant compute
+is queued or running. It honors existing maintenance/stop requests, owns its stop markers,
+drains all three registered services, then resumes only those previously running. A drain
+timeout preserves the stop markers for operator review; no process is killed.
+
+The default destination is `%LOCALAPPDATA%/Simon/backups`, outside the checkout. Use
+`-BackupRoot` for a different private volume and `-Force` to bypass the recent-success
+check. The restore check uses a new disposable database. `last-success.json` is written
+only after file checks and database restoration pass. Existing bundles are retained;
+capacity, off-machine delivery and encrypted key recovery need deployment configuration.
+This automation assumes the configured database is the repository's Compose `jarvis`
+database. It compares cluster and database identities before stopping services and refuses
+a mismatch; external database installations must adapt the dump/restore adapter first.
 
 1. Stop the API, assistant worker, agent dispatcher and any external file writers.
    Disable any recovery/startup tasks that could restart them during the operation.

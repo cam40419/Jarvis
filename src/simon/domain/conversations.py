@@ -11,9 +11,9 @@ from simon.domain.models import StrictModel, utc_now
 
 class Thread(StrictModel):
     id: UUID = Field(default_factory=uuid4)
-    household_id: UUID
+    workspace_id: UUID
     created_by: UUID
-    visibility: Literal["personal", "household"] = "household"
+    visibility: Literal["personal", "workspace"] = "workspace"
     title: str = Field(min_length=1, max_length=200)
     created_at: AwareDatetime = Field(default_factory=utc_now)
 
@@ -79,7 +79,7 @@ class RunEvent(StrictModel):
 class ModelAttempt(StrictModel):
     run: Run
     user: Message
-    household_id: UUID
+    workspace_id: UUID
     status: Literal["pending", "succeeded", "failed"] = "pending"
     error_code: str | None = None
     expires_at: AwareDatetime

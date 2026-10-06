@@ -2,7 +2,7 @@
 param(
     [switch]$Once,
     [ValidateNotNullOrEmpty()][string]$DatabaseUrl,
-    [guid]$HouseholdId,
+    [guid]$WorkspaceId,
     [switch]$Check,
     [switch]$Supervised
 )

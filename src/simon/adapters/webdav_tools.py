@@ -11,8 +11,8 @@ from urllib.parse import quote, unquote, urlsplit
 from uuid import UUID
 from xml.etree import ElementTree
 
+from simon.adapters.cloud_storage_tools import ConnectedStorageTransport
 from simon.adapters.optional_http import (
-    BoundedHTTP,
     authorize_operation,
     connection_endpoint,
     credential,
@@ -177,13 +177,14 @@ def _listing(content: bytes, endpoint: str, path: str) -> list[dict[str, Any]]:
     return entries
 
 
-class WebDAVTransport(BoundedHTTP):
+class WebDAVTransport(ConnectedStorageTransport):
     def __call__(
         self,
         definition: ToolDefinition,
         arguments: dict[str, Any],
         context: ToolExecutionContext,
     ) -> dict[str, Any]:
+        definition = self.resolve(definition, context)
         operation = definition.settings.get("operation")
         if not isinstance(operation, str) or operation not in _DESCRIPTIONS:
             raise ToolCatalogError("Unsupported WebDAV operation")

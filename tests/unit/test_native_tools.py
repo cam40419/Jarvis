@@ -3,7 +3,7 @@ from uuid import uuid4
 
 import pytest
 
-from simon.adapters.google import DRIVE_READ_SCOPE, ConnectedError
+from simon.adapters.google import CALENDAR_SCOPE, DRIVE_READ_SCOPE, ConnectedError
 from simon.adapters.memory import InMemoryStore
 from simon.adapters.model_endpoints import ModelEndpointClient
 from simon.adapters.native_tools import (
@@ -56,7 +56,7 @@ def runtime(tmp_path):
         definition = definitions["native." + name]
         context = ToolExecutionContext(
             actor_id=actor.actor_id,
-            household_id=actor.household_id,
+            workspace_id=actor.workspace_id,
             run_id=run_id,
             agent_id="worker",
             invocation_id=invocation or uuid4(),
@@ -92,6 +92,15 @@ def test_local_write_read_revision_and_invocation_idempotency(runtime):
     assert (files.workspace(transport.actor) / "reports/notes.md").read_text() == "Updated"
 
 
+def test_drive_read_guidance_preserves_listing_account_and_project_context():
+    definition = next(
+        item for item in native_tool_definitions() if item.id == "native.drive_read_file"
+    )
+    assert "source_account_id or account_id as the account argument" in definition.description
+    assert "prefer project_file_read" in definition.description
+    assert "same project_id" in definition.description
+
+
 def test_action_and_profile_scopes_cannot_be_bypassed(runtime):
     _, actor, _, _, transport, invoke = runtime
     arguments = {"root": "workspace", "path": "notes.md", "content": "Private"}
@@ -110,7 +119,7 @@ def test_action_and_profile_scopes_cannot_be_bypassed(runtime):
     )
     context = ToolExecutionContext(
         actor_id=actor.actor_id,
-        household_id=actor.household_id,
+        workspace_id=actor.workspace_id,
         run_id=transport.run_id,
         agent_id="worker",
         allowed_tool_ids=frozenset({definition.id}),
@@ -123,7 +132,7 @@ def test_action_and_profile_scopes_cannot_be_bypassed(runtime):
 @pytest.mark.parametrize("path", ["../outside.txt", "C:/Windows/win.ini", ".env", ".git/config"])
 def test_local_paths_cannot_escape_or_reveal_protected_files(runtime, path):
     *_, invoke = runtime
-    with pytest.raises((AuthorizationError, ValidationError)):
+    with pytest.raises((AuthorizationError, ValidationError, ToolExecutionError)):
         invoke("local_file_read", {"root": "workspace", "path": path})
 
 
@@ -136,7 +145,7 @@ def test_agent_never_exposes_host_roots_even_for_server_owner(runtime):
     definition = next(t for t in native_tool_definitions() if t.id == "native.local_file_read")
     context = ToolExecutionContext(
         actor_id=actor.actor_id,
-        household_id=actor.household_id,
+        workspace_id=actor.workspace_id,
         run_id=transport.run_id,
         agent_id="worker",
         allowed_tool_ids=frozenset({definition.id}),
@@ -166,10 +175,10 @@ def test_project_roots_require_visible_project_and_retained_scopes(runtime):
     connected.store.put_membership(
         Membership(
             actor_id=other.actor_id,
-            household_id=other.household_id,
+            workspace_id=other.workspace_id,
             role="owner",
             display_name="Other",
-            household_name="Household",
+            workspace_name="Workspace",
         )
     )
     tool = NativeToolTransport(
@@ -181,7 +190,7 @@ def test_project_roots_require_visible_project_and_retained_scopes(runtime):
     definition = next(t for t in native_tool_definitions() if t.id == "native.local_file_read")
     context = ToolExecutionContext(
         actor_id=other.actor_id,
-        household_id=other.household_id,
+        workspace_id=other.workspace_id,
         run_id=tool.run_id,
         agent_id="worker",
         allowed_tool_ids=frozenset({definition.id}),
@@ -227,9 +236,118 @@ def test_google_reads_are_scoped_to_connected_accounts(runtime):
     connected.api.drive_search = lambda token, request: calls.append(request) or {"files": []}
     result = invoke("drive_search_files", {"query": "notes"})
     assert result["account_email"] == "owner@example.com" and len(calls) == 1
-    with pytest.raises(ConnectedError, match="not connected"):
+    with pytest.raises(ToolExecutionError, match="Native read") as raised:
         invoke("drive_search_files", {"account": "another@example.com"})
+    assert not raised.value.unknown
     assert len(calls) == 1
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        ValidationError("private filename and provider detail"),
+        ConnectedError("private provider body"),
+    ],
+)
+def test_expected_read_failures_are_known_sanitized_and_not_retried(runtime, failure):
+    connected, actor, _, _, _, invoke = runtime
+    grant(connected, actor, (DRIVE_READ_SCOPE,))
+    calls = []
+
+    def read(token, request):
+        calls.append(request)
+        raise failure
+
+    connected.api.drive_file = read
+    with pytest.raises(ToolExecutionError) as raised:
+        invoke("drive_read_file", {"id": "private-resource"})
+    assert raised.value.unknown is False
+    assert str(raised.value) == "Native read could not be completed."
+    assert len(calls) == 1
+
+
+def test_explicit_unknown_read_outcome_is_not_downgraded(runtime):
+    connected, actor, _, _, _, invoke = runtime
+    grant(connected, actor, (DRIVE_READ_SCOPE,))
+
+    def read(token, request):
+        raise ConnectedError("private uncertain provider detail", unknown=True)
+
+    connected.api.drive_file = read
+    with pytest.raises(ToolExecutionError) as raised:
+        invoke("drive_read_file", {"id": "resource"})
+    assert raised.value.unknown is True
+    assert str(raised.value) == "Native read outcome is uncertain."
+
+
+def test_native_read_model_validation_is_known_without_provider_dispatch(runtime):
+    connected, actor, _, _, _, invoke = runtime
+    grant(connected, actor, (CALENDAR_SCOPE,))
+    calls = []
+    connected.api.events = lambda *args: calls.append(args) or {}
+    with pytest.raises(ToolExecutionError) as raised:
+        invoke(
+            "calendar_list_events",
+            {
+                "start": "2026-10-02T12:00:00Z",
+                "end": "2026-10-01T12:00:00Z",
+            },
+        )
+    assert not raised.value.unknown
+    assert str(raised.value) == "Native read arguments were not accepted."
+    assert not calls
+
+
+@pytest.mark.parametrize("error_type", [AuthorizationError, ToolCatalogError, NotFoundError])
+def test_read_authorization_catalog_and_hidden_resource_failures_still_halt(runtime, error_type):
+    connected, actor, _, _, _, invoke = runtime
+    grant(connected, actor, (DRIVE_READ_SCOPE,))
+
+    def read(token, request):
+        raise error_type("Read access is unavailable")
+
+    connected.api.drive_file = read
+    with pytest.raises(error_type):
+        invoke("drive_read_file", {"id": "resource"})
+
+
+def test_read_failure_revalidates_access_before_becoming_recoverable(runtime):
+    connected, actor, _, _, transport, invoke = runtime
+    grant(connected, actor, (DRIVE_READ_SCOPE,))
+
+    def read(token, request):
+        transport.revalidate = lambda: actor.model_copy(update={"scopes": frozenset()})
+        raise ConnectedError("Provider denied the read")
+
+    connected.api.drive_file = read
+    with pytest.raises(AuthorizationError, match="permissions changed"):
+        invoke("drive_read_file", {"id": "resource"})
+
+
+@pytest.mark.parametrize(
+    "failure", [ValidationError("Invalid write"), ConnectedError("Write failed")]
+)
+def test_write_failures_are_never_converted_to_recoverable_reads(runtime, failure):
+    connected, _, _, _, _, invoke = runtime
+
+    def write(*args):
+        raise failure
+
+    connected.local_files.run = write
+    with pytest.raises(type(failure)):
+        invoke("local_file_write", {"root": "workspace", "path": "report.md", "content": "Text"})
+
+
+def test_unexpected_read_exception_is_not_classified_as_a_known_failure(runtime):
+    connected, actor, _, _, _, invoke = runtime
+    grant(connected, actor, (DRIVE_READ_SCOPE,))
+
+    def read(token, request):
+        raise RuntimeError("Unexpected internal exception")
+
+    connected.api.drive_file = read
+    with pytest.raises(RuntimeError):
+        invoke("drive_read_file", {"id": "resource"})
 
 
 def test_project_reads_do_not_create_cloud_folders_and_writes_keep_receipts():
@@ -243,7 +361,7 @@ def test_project_reads_do_not_create_cloud_folders_and_writes_keep_receipts():
         definition = definitions["native." + name]
         context = ToolExecutionContext(
             actor_id=actor.actor_id,
-            household_id=actor.household_id,
+            workspace_id=actor.workspace_id,
             run_id=run_id,
             agent_id="worker",
             allowed_tool_ids=frozenset({definition.id}),
@@ -268,8 +386,9 @@ def test_project_reads_do_not_create_cloud_folders_and_writes_keep_receipts():
     assert read["text"] == "Report"
     binding = files.binding(actor, project_id)
     store.save_project_drive(binding.model_copy(update={"folder_id": None}))
-    with pytest.raises(ValidationError, match="Link a project"):
+    with pytest.raises(ToolExecutionError, match="Native read") as raised:
         invoke("project_files_list", {"project_id": str(project_id)})
+    assert not raised.value.unknown
     assert files.api.creates == 2
 
 
@@ -286,7 +405,7 @@ def test_unknown_cloud_write_halts_worker_without_replaying():
     definition = next(t for t in native_tool_definitions() if t.id == "native.project_file_create")
     context = ToolExecutionContext(
         actor_id=actor.actor_id,
-        household_id=actor.household_id,
+        workspace_id=actor.workspace_id,
         run_id=transport.run_id,
         agent_id="worker",
         allowed_tool_ids=frozenset({definition.id}),

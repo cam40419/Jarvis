@@ -21,7 +21,7 @@
       <section id="signed-out">
         <p class="eyebrow">SIMON WORKSPACE</p>
         <h1>Welcome back.</h1>
-        <p id="login-lede" class="lede">Sign in with your username and password or a passkey.</p>
+        <p id="login-lede" class="lede">Sign in with your username and password.</p>
         <form id="password-login-form">
           <label for="login-username">Username</label>
           <input
@@ -44,45 +44,41 @@
         </form>
         <details id="password-reset-panel">
           <summary>Forgot your password?</summary>
-          <p>
-            Ask your Simon administrator for a one-use recovery code. It expires after 15 minutes.
-            Enter your existing username and a new password.
-          </p>
-          <form id="password-reset-form">
-            <label for="reset-token">Recovery code</label>
-            <input id="reset-token" type="password" autocomplete="off" required maxlength="200" />
-            <label for="reset-username">Username</label>
+          <p>Enter your verified account email. We'll send you a code to reset your password.</p>
+          <form id="forgot-password-form">
+            <label for="forgot-email">Email address</label>
+            <input id="forgot-email" type="email" autocomplete="email" required maxlength="254" />
+            <button type="submit">Send reset code</button>
+          </form>
+          <form id="password-reset-form" hidden>
+            <label for="reset-code">Email code</label>
             <input
-              id="reset-username"
-              autocomplete="username"
+              id="reset-code"
+              inputmode="numeric"
+              autocomplete="one-time-code"
+              pattern="[0-9]{8}"
+              maxlength="8"
               required
-              minlength="3"
-              maxlength="32"
             />
             <label for="reset-password">New password</label>
             <input
               id="reset-password"
               type="password"
               autocomplete="new-password"
-              required
               minlength="15"
               maxlength="128"
+              required
+            />
+            <label for="reset-confirm">Confirm new password</label>
+            <input
+              id="reset-confirm"
+              type="password"
+              autocomplete="new-password"
+              minlength="15"
+              maxlength="128"
+              required
             />
             <button type="submit">Reset password</button>
-          </form>
-        </details>
-        <p id="password-separator" class="separator">Or use a passkey</p>
-        <button id="sign-in" class="primary">Sign in with a passkey</button>
-        <details>
-          <summary>Set up a passkey</summary>
-          <p>
-            Enter the enrollment token issued by your administrator. Your device will ask you to
-            confirm.
-          </p>
-          <form id="enroll-form">
-            <label for="enrollment">Enrollment token</label>
-            <input id="enrollment" type="password" autocomplete="off" required maxlength="200" />
-            <button type="submit">Create a passkey</button>
           </form>
         </details>
         <details id="password-register-panel">
@@ -134,20 +130,46 @@
         <p class="eyebrow">CONNECTED</p>
         <h1 id="welcome">You're signed in.</h1>
         <p id="account" class="lede"></p>
-        <label for="households">Active workspace</label>
-        <select id="households"></select>
+        <label for="workspaces">Active workspace</label>
+        <select id="workspaces"></select>
         <p id="permissions"></p>
         <div class="actions">
           <button id="echo" class="primary">Test connection</button>
           <button id="logout">Sign out</button>
         </div>
         <p><a class="primary-link" href="/chat">Open conversations</a></p>
+        <details id="recovery-email-panel">
+          <summary>Recovery email</summary>
+          <p id="recovery-email-status">Verify your email to enable password recovery.</p>
+          <form id="recovery-email-form">
+            <label for="recovery-email">Email address</label>
+            <input id="recovery-email" type="email" autocomplete="email" maxlength="254" required />
+            <label for="email-current-password">Current password</label>
+            <input
+              id="email-current-password"
+              type="password"
+              autocomplete="current-password"
+              maxlength="128"
+              required
+            />
+            <button type="submit">Send verification code</button>
+          </form>
+          <form id="email-code-form" hidden>
+            <label for="email-code">Email verification code</label>
+            <input
+              id="email-code"
+              inputmode="numeric"
+              autocomplete="one-time-code"
+              pattern="[0-9]{8}"
+              maxlength="8"
+              required
+            />
+            <button type="submit">Verify email</button>
+          </form>
+        </details>
         <details id="password-set-panel">
           <summary>Username and password</summary>
-          <p>
-            Set a username and a password of at least 15 characters for future sign-ins. Your
-            passkey remains available.
-          </p>
+          <p>Set a username and a password of at least 15 characters for future sign-ins.</p>
           <form id="password-set-form">
             <label for="set-username">Username</label>
             <input
@@ -207,7 +229,7 @@
           </button>
           <p id="code-instructions">
             Send this code and your Simon login URL to the person you invited. They can set up a
-            passkey or a username and password.
+            username and password.
           </p>
         </div>
         <p id="accounts-status" role="status"></p>

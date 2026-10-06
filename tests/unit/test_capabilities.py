@@ -32,7 +32,7 @@ class Input(BaseModel):
 
 def actor(*scopes: str) -> ActorContext:
     return ActorContext(
-        actor_id=uuid4(), household_id=uuid4(), channel=Channel.CHAT, scopes=frozenset(scopes)
+        actor_id=uuid4(), workspace_id=uuid4(), channel=Channel.CHAT, scopes=frozenset(scopes)
     )
 
 

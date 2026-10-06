@@ -90,7 +90,7 @@ class TransportRegistry:
         return ToolExecutionResult(
             tool_id=definition.id,
             actor_id=context.actor_id,
-            household_id=context.household_id,
+            workspace_id=context.workspace_id,
             run_id=context.run_id,
             agent_id=context.agent_id,
             invocation_id=context.invocation_id,
@@ -126,7 +126,7 @@ class HttpJsonTransport:
             raise ToolCatalogError("HTTP tool has no configured endpoint")
         headers = {
             "X-Actor-ID": str(context.actor_id),
-            "X-Household-ID": str(context.household_id),
+            "X-Workspace-ID": str(context.workspace_id),
             "X-Run-ID": str(context.run_id),
             "X-Agent-ID": context.agent_id,
             "X-Invocation-ID": str(context.invocation_id),
@@ -152,7 +152,7 @@ class HttpJsonTransport:
                         "arguments": arguments,
                         "context": {
                             "actor_id": str(context.actor_id),
-                            "household_id": str(context.household_id),
+                            "workspace_id": str(context.workspace_id),
                             "run_id": str(context.run_id),
                             "agent_id": context.agent_id,
                             "invocation_id": str(context.invocation_id),

@@ -90,9 +90,9 @@ def members(tmp_path):
     )
 
     def resolve(current, identifier):
-        if (current.actor_id, current.household_id) != (
+        if (current.actor_id, current.workspace_id) != (
             actor.actor_id,
-            actor.household_id,
+            actor.workspace_id,
         ) or identifier not in project_ids:
             raise NotFoundError("Project not found")
         return SimpleNamespace(id=identifier, subject="Documents", content="Use source evidence.")
@@ -201,7 +201,7 @@ def test_two_project_members_execute_distinct_individual_skills(members, monkeyp
     calls = []
 
     def generate(self, route, request):
-        granted = json.loads(request.system.split("Granted tools:\n", 1)[1])
+        granted, _ = json.JSONDecoder().raw_decode(request.system.split("Granted tools:\n", 1)[1])
         assert len(granted) == 1
         tool = granted[0]["id"]
         calls.append(tool)

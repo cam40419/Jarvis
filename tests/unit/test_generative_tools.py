@@ -90,7 +90,7 @@ def runtime(tmp_path):
     )
     actor = ActorContext(
         actor_id=context.actor_id,
-        household_id=context.household_id,
+        workspace_id=context.workspace_id,
         scopes=context.scopes,
         channel=Channel.API,
     )
@@ -233,7 +233,7 @@ def test_audio_reparse_race_cannot_follow_host_link(tmp_path, monkeypatch):
     "changes",
     [
         {"actor_id": uuid4()},
-        {"household_id": uuid4()},
+        {"workspace_id": uuid4()},
         {"run_id": uuid4()},
         {"agent_id": "other"},
         {"authorized_action": "read"},

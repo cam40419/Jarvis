@@ -9,7 +9,7 @@ from pydantic import SecretStr
 from simon.api.app import AppContainer, create_app
 from simon.config import Settings
 from simon.domain.errors import AuthenticationError
-from simon.domain.identity import DEV_ACTOR_ID, DEV_HOUSEHOLD_ID, Membership
+from simon.domain.identity import DEV_ACTOR_ID, DEV_WORKSPACE_ID, Membership
 from simon.domain.models import utc_now
 from simon.services.identity import IdentityService, token_hash
 from tests.passkey_helper import SoftwarePasskey
@@ -149,7 +149,7 @@ def test_password_sign_in_throttles_and_requires_origin(browser, identity_app):
 
 
 def test_enrollment_token_can_register_password_instead_of_passkey(browser, identity_app):
-    enrollment = identity_app.identity.enroll(DEV_ACTOR_ID, DEV_HOUSEHOLD_ID)
+    enrollment = identity_app.identity.enroll(DEV_ACTOR_ID, DEV_WORKSPACE_ID)
     body = {
         "token": enrollment,
         "username": "first.user",
@@ -166,7 +166,7 @@ def test_enrollment_token_can_register_password_instead_of_passkey(browser, iden
     )
 
 
-def test_password_routes_are_disabled_for_remote_origin():
+def test_password_routes_are_enabled_for_https_origin():
     remote = "https://simon.example"
     settings = Settings(
         environment="test",
@@ -176,18 +176,18 @@ def test_password_routes_are_disabled_for_remote_origin():
         model_provider="local",
     )
     with TestClient(create_app(AppContainer(settings=settings)), base_url=remote) as client:
-        assert client.get("/auth/config").json()["password_enabled"] is False
+        assert client.get("/auth/config").json()["password_enabled"] is True
         response = client.post(
             "/auth/password/login",
             headers={"Origin": remote},
             json={"username": "owner", "password": "a long password phrase"},
         )
-        assert response.status_code == 403
+        assert response.status_code == 401
 
 
 def register(browser, app, key=None):
     key = key or SoftwarePasskey()
-    invitation = app.identity.enroll(DEV_ACTOR_ID, DEV_HOUSEHOLD_ID)
+    invitation = app.identity.enroll(DEV_ACTOR_ID, DEV_WORKSPACE_ID)
     start = browser.post(
         "/auth/passkeys/register/options", headers={"Origin": ORIGIN}, json={"token": invitation}
     )
@@ -209,7 +209,7 @@ def test_header_identity_is_rejected_and_tokens_are_not_stored_raw(browser, iden
             "/v1/capabilities",
             headers={
                 "X-Actor-Id": str(DEV_ACTOR_ID),
-                "X-Household-Id": str(DEV_HOUSEHOLD_ID),
+                "X-Workspace-Id": str(DEV_WORKSPACE_ID),
                 "X-Scopes": "system:read",
             },
         ).status_code
@@ -265,28 +265,28 @@ def test_login_rotation_logout_and_revocation(browser, identity_app):
     assert browser.get("/auth/session").status_code == 401
 
 
-def test_scope_changes_and_household_selection_do_not_trust_headers(browser, identity_app):
+def test_scope_changes_and_workspace_selection_do_not_trust_headers(browser, identity_app):
     headers = login(browser)
     other = uuid4()
     assert (
         browser.post(
-            "/auth/household", headers=headers, json={"household_id": str(other)}
+            "/auth/workspace", headers=headers, json={"workspace_id": str(other)}
         ).status_code
         == 403
     )
     identity_app.store.put_membership(
-        Membership(actor_id=DEV_ACTOR_ID, household_id=other, role="guest")
+        Membership(actor_id=DEV_ACTOR_ID, workspace_id=other, role="guest")
     )
     old = browser.cookies["simon_session"]
     before = identity_app.identity.resolve(old)[0]
-    response = browser.post("/auth/household", headers=headers, json={"household_id": str(other)})
+    response = browser.post("/auth/workspace", headers=headers, json={"workspace_id": str(other)})
     assert response.status_code == 200
     assert response.json()["scopes"] == ["system:read"]
     assert response.json()["expires_at"] == before.expires_at.isoformat()
     with pytest.raises(AuthenticationError):
         identity_app.identity.resolve(old)
     identity_app.store.put_membership(
-        Membership(actor_id=DEV_ACTOR_ID, household_id=other, role="member")
+        Membership(actor_id=DEV_ACTOR_ID, workspace_id=other, role="member")
     )
     assert "jobs:write" in browser.get("/auth/session").json()["scopes"]
 
@@ -340,7 +340,7 @@ def test_real_passkey_registration_and_login(browser, identity_app):
         ).status_code
         == 401
     )
-    secret = identity_app.identity.enroll(DEV_ACTOR_ID, DEV_HOUSEHOLD_ID)
+    secret = identity_app.identity.enroll(DEV_ACTOR_ID, DEV_WORKSPACE_ID)
     options = browser.post(
         "/auth/passkeys/register/options", headers={"Origin": ORIGIN}, json={"token": secret}
     ).json()["options"]
@@ -413,7 +413,7 @@ def test_ceremonies_are_browser_bound_and_consumed_atomically(browser, identity_
 
 
 def test_invalid_registration_burns_challenge_but_preserves_enrollment(browser, identity_app):
-    secret = identity_app.identity.enroll(DEV_ACTOR_ID, DEV_HOUSEHOLD_ID)
+    secret = identity_app.identity.enroll(DEV_ACTOR_ID, DEV_WORKSPACE_ID)
     start = browser.post(
         "/auth/passkeys/register/options", headers={"Origin": ORIGIN}, json={"token": secret}
     ).json()
@@ -456,7 +456,7 @@ def test_passkey_revocation_prevents_new_logins(browser, identity_app):
 
 
 def test_enrollment_and_challenge_expiry(browser, identity_app):
-    invitation = identity_app.identity.enroll(DEV_ACTOR_ID, DEV_HOUSEHOLD_ID)
+    invitation = identity_app.identity.enroll(DEV_ACTOR_ID, DEV_WORKSPACE_ID)
     enrollment = identity_app.store.get_enrollment(token_hash(invitation))
     identity_app.store.delete_enrollment(enrollment.token_hash)
     identity_app.store.save_enrollment(
@@ -490,7 +490,7 @@ def test_enrollment_and_challenge_expiry(browser, identity_app):
 
 def test_duplicate_passkey_does_not_overwrite_owner(browser, identity_app):
     key, _, _ = register(browser, identity_app)
-    invitation = identity_app.identity.enroll(DEV_ACTOR_ID, DEV_HOUSEHOLD_ID)
+    invitation = identity_app.identity.enroll(DEV_ACTOR_ID, DEV_WORKSPACE_ID)
     start = browser.post(
         "/auth/passkeys/register/options", headers={"Origin": ORIGIN}, json={"token": invitation}
     ).json()
@@ -522,7 +522,7 @@ def test_session_creation_is_atomic_with_audit(browser, identity_app, monkeypatc
 
 def test_removed_membership_blocks_session_and_passkey_login(browser, identity_app):
     key, _, _ = register(browser, identity_app)
-    identity_app.store.delete_membership(DEV_ACTOR_ID, DEV_HOUSEHOLD_ID)
+    identity_app.store.delete_membership(DEV_ACTOR_ID, DEV_WORKSPACE_ID)
     assert browser.get("/auth/session").status_code == 403
     start = browser.post("/auth/passkeys/login/options", headers={"Origin": ORIGIN}).json()
     assert (

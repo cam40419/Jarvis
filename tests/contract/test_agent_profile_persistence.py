@@ -14,7 +14,7 @@ from simon.domain.agent_platform import (
 from simon.domain.agent_profiles import CreateAgentProfile, UpdateAgentProfile
 from simon.domain.agent_runs import StartAgentRun
 from simon.domain.errors import InvalidTransitionError
-from simon.domain.identity import DEV_ACTOR_ID, DEV_HOUSEHOLD_ID
+from simon.domain.identity import DEV_ACTOR_ID, DEV_WORKSPACE_ID
 from simon.domain.model_routing import ModelEndpoint
 from simon.domain.models import ActorContext, Channel
 from simon.services.agent_platform import AgentPlatformService
@@ -25,7 +25,7 @@ from simon.services.agent_runs import AgentRunService
 def custom_agents(store, tmp_path):
     actor = ActorContext(
         actor_id=DEV_ACTOR_ID,
-        household_id=DEV_HOUSEHOLD_ID,
+        workspace_id=DEV_WORKSPACE_ID,
         channel=Channel.API,
         scopes=frozenset({"jobs:read", "jobs:write"}),
     )

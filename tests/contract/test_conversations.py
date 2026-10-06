@@ -10,7 +10,7 @@ from simon.domain.errors import (
     NotFoundError,
     ValidationError,
 )
-from simon.domain.identity import DEV_ACTOR_ID, DEV_HOUSEHOLD_ID
+from simon.domain.identity import DEV_ACTOR_ID, DEV_WORKSPACE_ID
 from simon.domain.models import ActorContext, Channel
 from simon.services.audit import AuditService
 from simon.services.conversations import ConversationService
@@ -20,7 +20,7 @@ from simon.services.conversations import ConversationService
 def actor():
     return ActorContext(
         actor_id=DEV_ACTOR_ID,
-        household_id=DEV_HOUSEHOLD_ID,
+        workspace_id=DEV_WORKSPACE_ID,
         channel=Channel.API,
         scopes=frozenset({"threads:read", "threads:write"}),
     )
@@ -66,10 +66,10 @@ def test_history_snapshot_and_replay(service, actor):
         service.create(actor, CreateThread(title="changed", idempotency_key="thread-test-001"))
 
 
-def test_household_and_scope_boundaries(service, actor):
+def test_workspace_and_scope_boundaries(service, actor):
     thread = create(service, actor)
     run = submit(service, actor, thread)
-    other = actor.model_copy(update={"household_id": uuid4()})
+    other = actor.model_copy(update={"workspace_id": uuid4()})
     assert service.list(other, 0, 100) == ()
     for operation in (
         lambda: service.get(other, thread.id),

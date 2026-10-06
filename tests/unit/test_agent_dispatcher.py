@@ -169,7 +169,7 @@ def make_harness(
 ) -> Harness:
     actor = ActorContext(
         actor_id=uuid4(),
-        household_id=uuid4(),
+        workspace_id=uuid4(),
         channel=Channel.API,
         scopes=frozenset({"jobs:read", "jobs:write"}),
     )
@@ -530,7 +530,7 @@ def test_preexisting_external_lease_blocks_without_claiming_unknown_execution(
     harness = make_harness(tmp_path, environment=True)
     existing = harness.platform.environments.allocate(
         EnvironmentRequest(
-            workspace_id=harness.actor.household_id,
+            workspace_id=harness.actor.workspace_id,
             agent_id="worker",
             task_id=uuid4(),
             attempt_id=uuid4(),

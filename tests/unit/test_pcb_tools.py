@@ -102,7 +102,7 @@ def test_commands_use_owned_offline_lease_and_fixed_cli(operation):
     [
         {"actor_id": uuid4()},
         {"run_id": uuid4()},
-        {"household_id": uuid4()},
+        {"workspace_id": uuid4()},
         {"agent_id": "other"},
         {"scopes": frozenset()},
         {"allowed_tool_ids": frozenset()},

@@ -86,7 +86,7 @@ class VoiceService:
 
     def get(self, actor: ActorContext, identifier: UUID) -> VoiceSession:
         self.connected.conversations.authorize(actor, "threads:read")
-        record = self.store.voice_session(actor.household_id, identifier)
+        record = self.store.voice_session(actor.workspace_id, identifier)
         if not record or record.actor_id != actor.actor_id:
             raise NotFoundError("voice session not found")
         self.connected.conversations.get(actor, record.thread_id)
@@ -103,7 +103,7 @@ class VoiceService:
 
     def check(self, live: ActiveVoice, generation: int | None = None) -> ActorContext:
         _, actor = self.connected.identity.resolve(live.token)
-        if (actor.actor_id, actor.household_id) != (live.actor.actor_id, live.actor.household_id):
+        if (actor.actor_id, actor.workspace_id) != (live.actor.actor_id, live.actor.workspace_id):
             raise AuthorizationError("Voice access changed")
         self.connected.conversations.authorize(actor, "threads:write")
         self.connected.conversations.get(actor, live.record.thread_id)
@@ -115,7 +115,7 @@ class VoiceService:
 
     def save(self, live: ActiveVoice, **update: Any) -> None:
         live.record = live.record.model_copy(update=update)
-        with self.store.transaction(live.actor.household_id):
+        with self.store.transaction(live.actor.workspace_id):
             self.store.save_voice_session(live.record)
         live.last_saved = monotonic()
         live.dirty = False
@@ -123,12 +123,12 @@ class VoiceService:
     async def start(self, actor: ActorContext, token: str, offer: VoiceOffer) -> dict[str, Any]:
         if not self.enabled:
             raise ModelError("model_not_configured")
-        with self.store.transaction(IDENTITY_LOCK), self.store.transaction(actor.household_id):
+        with self.store.transaction(IDENTITY_LOCK), self.store.transaction(actor.workspace_id):
             _, checked = self.connected.identity.resolve(token)
-            if (checked.actor_id, checked.household_id) != (actor.actor_id, actor.household_id):
+            if (checked.actor_id, checked.workspace_id) != (actor.actor_id, actor.workspace_id):
                 raise AuthorizationError("Voice access changed")
             self.connected.conversations.authorize(checked, "threads:write")
-            previous = self.store.voice_sessions(actor.household_id, actor.actor_id)
+            previous = self.store.voice_sessions(actor.workspace_id, actor.actor_id)
             for old in previous:
                 if old.request_key == offer.idempotency_key:
                     raise ModelBusyError(
@@ -154,13 +154,13 @@ class VoiceService:
                 ),
             )
             persona = (
-                self.store.response_preferences(actor.household_id, actor.actor_id)
+                self.store.response_preferences(actor.workspace_id, actor.actor_id)
                 or ResponsePreferences()
             ).persona
             record = VoiceSession(
                 persona=persona,
                 voice_name=persona.voice or self.settings.voice_name,
-                household_id=actor.household_id,
+                workspace_id=actor.workspace_id,
                 actor_id=actor.actor_id,
                 thread_id=thread.id,
                 request_key=offer.idempotency_key,

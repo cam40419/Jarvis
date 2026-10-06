@@ -39,7 +39,7 @@ try {
     if ($Enroll) {
         & $python -m simon.identity_admin enroll `
             --actor-id 11111111-1111-4111-8111-111111111111 `
-            --household-id 22222222-2222-4222-8222-222222222222
+            --workspace-id 22222222-2222-4222-8222-222222222222
         if ($LASTEXITCODE -ne 0) { throw 'Enrollment token creation failed.' }
     }
     if ($DevelopmentLogin -or $Memory) {

@@ -171,7 +171,7 @@ def test_lead_retrieves_older_finding_through_real_dispatcher_and_context_reache
         assert "durable clothing brand" in task["additional_instructions"]
     summary = execution.input["request"]["tasks"][-1]
     assert summary["objective"] == state.active_cycle.instruction
-    assert "final review" in summary["additional_instructions"]
+    assert "Answer the original project request directly" in summary["additional_instructions"]
     assert set(summary["tool_ids"]) == {"project.knowledge_read", "project.history_search"}
 
 
@@ -191,7 +191,7 @@ def test_tool_reads_are_run_project_bound_and_revalidate_current_permissions(tmp
     tools = {item.id: item for item in project_work_tool_definitions()}
     context = ToolExecutionContext(
         actor_id=h.actor.actor_id,
-        household_id=h.actor.household_id,
+        workspace_id=h.actor.workspace_id,
         run_id=run_id,
         agent_id="lead",
         scopes=h.actor.scopes,
@@ -243,7 +243,7 @@ def test_long_history_entries_have_explicit_readable_continuations(tmp_path):
     )
     context = ToolExecutionContext(
         actor_id=h.actor.actor_id,
-        household_id=h.actor.household_id,
+        workspace_id=h.actor.workspace_id,
         run_id=run_id,
         agent_id="lead",
         scopes=h.actor.scopes,
@@ -313,8 +313,9 @@ def test_maximum_brief_pins_role_and_request_stay_within_task_contract(tmp_path,
     planning = h.store.get_job(state.active_cycle.planning_plan_id)
     text = planning.input["request"]["tasks"][0]["additional_instructions"]
     assert len(text) <= 16000
-    assert '"brief_truncated": true' in text
-    assert '"id": "pin-19"' in text
+    reference = json.loads(text.split("from this user data:\n", 1)[1])["context"]["knowledge"]
+    assert reference["brief_truncated"] is True
+    assert reference["pinned_decisions"][-1]["id"] == "pin-19"
     compiled = h.coordinator._compile(h.actor, state, LeadDecision.model_validate(h.decision))
     assert compiled.cycle.phase == "ready"
     execution = h.store.get_job(compiled.cycle.execution_plan_id)

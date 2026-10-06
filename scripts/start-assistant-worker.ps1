@@ -1,7 +1,7 @@
 param(
     [switch]$Once,
     [ValidateNotNullOrEmpty()][string]$DatabaseUrl,
-    [guid]$HouseholdId,
+    [guid]$WorkspaceId,
     [switch]$Check,
     [switch]$Supervised
 )
@@ -24,13 +24,13 @@ if ($Supervised -and -not $Check -and (Test-Path -LiteralPath $stopFile)) {
 }
 if (-not (Test-Path -LiteralPath $python)) { throw 'Install the project environment first.' }
 $previousDatabaseUrl = [Environment]::GetEnvironmentVariable('SIMON_DATABASE_URL', 'Process')
-$previousHouseholdId = [Environment]::GetEnvironmentVariable('SIMON_ACCOUNT_HOUSEHOLD_ID', 'Process')
+$previousWorkspaceId = [Environment]::GetEnvironmentVariable('SIMON_ACCOUNT_WORKSPACE_ID', 'Process')
 Push-Location $repoRoot
 try {
     # Settings loads .env. Only explicitly supplied compatibility parameters override it.
     if ($PSBoundParameters.ContainsKey('DatabaseUrl')) { $env:SIMON_DATABASE_URL = $DatabaseUrl }
-    if ($PSBoundParameters.ContainsKey('HouseholdId')) {
-        $env:SIMON_ACCOUNT_HOUSEHOLD_ID = $HouseholdId.ToString()
+    if ($PSBoundParameters.ContainsKey('WorkspaceId')) {
+        $env:SIMON_ACCOUNT_WORKSPACE_ID = $WorkspaceId.ToString()
     }
     if (-not $Check) {
         New-Item -ItemType Directory -Path $logDirectory -Force | Out-Null
@@ -61,6 +61,6 @@ try {
     throw
 } finally {
     [Environment]::SetEnvironmentVariable('SIMON_DATABASE_URL', $previousDatabaseUrl, 'Process')
-    [Environment]::SetEnvironmentVariable('SIMON_ACCOUNT_HOUSEHOLD_ID', $previousHouseholdId, 'Process')
+    [Environment]::SetEnvironmentVariable('SIMON_ACCOUNT_WORKSPACE_ID', $previousWorkspaceId, 'Process')
     Pop-Location
 }

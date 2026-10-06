@@ -20,11 +20,12 @@ from uuid import UUID, uuid4, uuid5
 
 from pydantic import ValidationError
 
-from simon.domain.artifacts import Artifact, ArtifactError
+from simon.domain.artifacts import Artifact, ArtifactError, ArtifactPreview
 from simon.domain.models import utc_now
 from simon.services.safe_files import open_regular_nofollow
 
 DEFAULT_MAX_ARTIFACT_BYTES = 50 * 1024 * 1024
+MAX_TEXT_PREVIEW_BYTES = 256 * 1024
 _MAX_METADATA_BYTES = 16384
 
 
@@ -119,6 +120,29 @@ class ArtifactStore:
             destination.write(data)
             destination.flush()
             os.fsync(destination.fileno())
+
+    def preview(self, artifact: Artifact) -> ArtifactPreview:
+        """Return verified UTF-8 text; HTML and code remain inert source text."""
+        if not (
+            artifact.media_type.startswith("text/")
+            or artifact.media_type in {"application/json", "application/xml"}
+        ):
+            raise ArtifactError("This file has no text preview. Download it to open it.")
+        if artifact.size > MAX_TEXT_PREVIEW_BYTES:
+            raise ArtifactError("This file is too large to preview. Download the complete file.")
+        content = self.read(artifact, max_bytes=min(self.max_bytes, MAX_TEXT_PREVIEW_BYTES))
+        try:
+            text = content.decode("utf-8-sig")
+        except UnicodeDecodeError:
+            raise ArtifactError("This file is not UTF-8 text. Download it to open it.") from None
+        return ArtifactPreview(
+            artifact_id=artifact.id,
+            name=artifact.name,
+            format="markdown"
+            if artifact.media_type in {"text/plain", "text/markdown", "text/x-markdown"}
+            else "text",
+            text=text,
+        )
 
     def publish_text(
         self,

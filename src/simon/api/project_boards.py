@@ -42,7 +42,10 @@ def board_blockers(
             reasons.append("The saved board connection is no longer available to this account.")
         else:
             reasons.extend(connection["blocked_reasons"])
-            if state.binding.list_id not in connection["list_ids"]:
+            if (
+                not connection.get("discover_lists")
+                and state.binding.list_id not in connection["list_ids"]
+            ):
                 reasons.append("The saved project list is no longer authorized.")
     return tuple(dict.fromkeys(reasons))
 

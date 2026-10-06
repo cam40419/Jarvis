@@ -90,11 +90,11 @@ class ExternalActionToolTransport:
         service: ExternalActionService,
         *,
         actor_id: UUID,
-        household_id: UUID,
+        workspace_id: UUID,
         run_id: UUID,
         revalidate: Callable[[], ActorContext] | None = None,
     ) -> None:
-        self.service, self.actor_id, self.household_id = service, actor_id, household_id
+        self.service, self.actor_id, self.workspace_id = service, actor_id, workspace_id
         self.run_id, self.revalidate = run_id, revalidate
 
     def __call__(
@@ -106,8 +106,8 @@ class ExternalActionToolTransport:
         write = definition.id == "external_actions.propose"
         scope = "jobs:write" if write else "jobs:read"
         if (
-            (context.actor_id, context.household_id, context.run_id)
-            != (self.actor_id, self.household_id, self.run_id)
+            (context.actor_id, context.workspace_id, context.run_id)
+            != (self.actor_id, self.workspace_id, self.run_id)
             or definition.id not in context.allowed_tool_ids
             or scope not in context.scopes
             or not definition.required_scopes <= context.scopes
@@ -124,14 +124,14 @@ class ExternalActionToolTransport:
         scopes = context.scopes
         if self.revalidate is not None:
             current = self.revalidate()
-            if (current.actor_id, current.household_id) != (self.actor_id, self.household_id):
+            if (current.actor_id, current.workspace_id) != (self.actor_id, self.workspace_id):
                 raise AuthorizationError("External-action access changed")
             scopes &= current.scopes
             if scope not in scopes or not definition.required_scopes <= scopes:
                 raise AuthorizationError("External-action permission was revoked")
         actor = ActorContext(
             actor_id=context.actor_id,
-            household_id=context.household_id,
+            workspace_id=context.workspace_id,
             channel=Channel.WORKER,
             scopes=scopes,
         )

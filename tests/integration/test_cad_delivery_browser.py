@@ -106,13 +106,13 @@ def test_real_vase_files_preview_download_privacy_and_engineering_catalog(reques
     container.store.put_membership(
         Membership(
             actor_id=other_id,
-            household_id=actor.household_id,
+            workspace_id=actor.workspace_id,
             role="owner",
             display_name="Separate synthetic account",
-            household_name="Test household",
+            workspace_name="Test workspace",
         )
     )
-    other_token, _ = container.identity._issue(other_id, actor.household_id, "development")
+    other_token, _ = container.identity._issue(other_id, actor.workspace_id, "development")
     with httpx.Client(base_url=origin, trust_env=False) as anonymous:
         for endpoint in ("download", "preview"):
             path = f"/v1/local-files/{endpoint}"

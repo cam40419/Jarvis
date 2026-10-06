@@ -1,5 +1,6 @@
 import base64
 import json
+from collections.abc import Callable
 from email.message import EmailMessage
 from email.policy import SMTP
 from time import monotonic, time
@@ -42,8 +43,15 @@ class GoogleTokens(BaseModel):
 class GoogleAPI:
     """Fixed Google endpoints; no retries, redirects, or provider error-body logging."""
 
-    def __init__(self, settings: Settings) -> None:
-        self.settings = settings
+    def __init__(
+        self, settings: Settings, *, settings_provider: Callable[[], Settings] | None = None
+    ) -> None:
+        self._settings = settings
+        self.settings_provider = settings_provider
+
+    @property
+    def settings(self) -> Settings:
+        return self.settings_provider() if self.settings_provider else self._settings
 
     def _request(
         self,

@@ -33,7 +33,7 @@ def pending_calendar(service, actor):
     attempt = ModelAttempt(
         run=run,
         user=user,
-        household_id=actor.household_id,
+        workspace_id=actor.workspace_id,
         expires_at=utc_now() + timedelta(minutes=5),
     )
     service.store.save_attempt(attempt)

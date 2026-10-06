@@ -25,7 +25,7 @@ class VoiceSession(StrictModel):
     persona: AssistantPersona = Field(default_factory=AssistantPersona)
     voice_name: VoiceName | None = None
     id: UUID = Field(default_factory=uuid4)
-    household_id: UUID
+    workspace_id: UUID
     actor_id: UUID
     thread_id: UUID
     request_key: UUID

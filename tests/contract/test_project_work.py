@@ -12,7 +12,7 @@ from simon.domain.errors import (
     NotFoundError,
     ValidationError,
 )
-from simon.domain.identity import DEV_ACTOR_ID, DEV_HOUSEHOLD_ID
+from simon.domain.identity import DEV_ACTOR_ID, DEV_WORKSPACE_ID
 from simon.domain.models import ActorContext, Channel, Job, JobStatus
 from simon.domain.project_work import (
     ConfigureProjectWork,
@@ -32,7 +32,7 @@ from simon.services.project_work import WORK_KIND, ProjectWorkService
 def project_work(store):
     actor = ActorContext(
         actor_id=DEV_ACTOR_ID,
-        household_id=DEV_HOUSEHOLD_ID,
+        workspace_id=DEV_WORKSPACE_ID,
         channel=Channel.API,
         scopes=frozenset({"jobs:read", "jobs:write"}),
     )
@@ -41,9 +41,9 @@ def project_work(store):
     permissions = {"visible": True, "write": True}
 
     def resolve(current, identifier):
-        if not permissions["visible"] or (current.actor_id, current.household_id, identifier) != (
+        if not permissions["visible"] or (current.actor_id, current.workspace_id, identifier) != (
             actor.actor_id,
-            actor.household_id,
+            actor.workspace_id,
             project_id,
         ):
             raise NotFoundError("Project not found")
@@ -85,6 +85,282 @@ def project_work(store):
     )
 
 
+def test_manual_planning_retry_is_durable_and_claimed_once(project_work):
+    h = project_work
+    original = "Assess our source files and prepare a launch plan. " + "Detail. " * 200
+    state = h.work.request_cycle(h.actor, h.project_id, original, "retry-original")
+    previous_id = state.active_cycle.id
+    state = h.work.update_cycle_atomic(
+        h.actor,
+        h.project_id,
+        previous_id,
+        lambda current: ProjectCycleUpdate(
+            cycle=current.active_cycle.model_copy(
+                update={"phase": "blocked", "error": "File access is missing"}
+            ),
+            todos=(
+                ProjectTodo(
+                    id="prepare-launch",
+                    title="Launch plan",
+                    objective="Assess the source files",
+                    status="blocked",
+                    cycle_id=previous_id,
+                ),
+            ),
+        ),
+    )
+    work = h.reconstruct()
+    work.cycle_retry_validator = lambda *_: None
+    request = ProjectWorkControl(action="retry", expected_version=state.version)
+
+    def retry():
+        try:
+            return work.control(h.actor, h.project_id, request)
+        except InvalidTransitionError:
+            return None
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(lambda _: retry(), range(2)))
+    assert sum(result is not None for result in results) == 1
+    saved = h.reconstruct().get(h.actor, h.project_id)
+    assert saved.active_cycle.phase == "starting"
+    assert saved.active_cycle.id != previous_id and saved.cycle_count == 2
+    assert saved.active_cycle.instruction == original == saved.last_instruction
+    assert saved.last_cycle.id == previous_id
+    assert saved.todos[0].status == "ready"
+    assert not saved.autonomy.paused and saved.blocked_reasons == ()
+
+
+def test_continue_uses_durable_substantive_request_after_review(project_work):
+    h = project_work
+    original = "Review the brand's existing files and identify the next deliverable."
+    state = h.work.request_cycle(h.actor, h.project_id, original, "continue-original")
+    state = h.work.update_cycle_atomic(
+        h.actor,
+        h.project_id,
+        state.active_cycle.id,
+        lambda current: ProjectCycleUpdate(
+            cycle=current.active_cycle.model_copy(
+                update={"phase": "blocked", "error": "Access needed"}
+            )
+        ),
+    )
+    state = h.work.control(
+        h.actor,
+        h.project_id,
+        ProjectWorkControl(
+            action="acknowledge", expected_version=state.version, note="Access supplied"
+        ),
+    )
+    state = h.work.control(
+        h.actor, h.project_id, ProjectWorkControl(action="resume", expected_version=state.version)
+    )
+    state = h.reconstruct().request_cycle(
+        h.actor, h.project_id, "Continue.", "continue-original-again"
+    )
+    assert state.active_cycle.instruction == original == state.last_instruction
+
+
+def failed_planning(h, *, phase="blocked", execution_run_id=None):
+    state = h.work.request_cycle(h.actor, h.project_id, "Original request", "replace-original")
+    return h.work.update_cycle_atomic(
+        h.actor,
+        h.project_id,
+        state.active_cycle.id,
+        lambda current: ProjectCycleUpdate(
+            cycle=current.active_cycle.model_copy(
+                update={
+                    "phase": phase,
+                    "error": "Planning could not finish",
+                    "execution_run_id": execution_run_id,
+                }
+            ),
+            activity=(ProjectActivityDraft(kind="blocked", text="Preserve the failed attempt."),),
+        ),
+    )
+
+
+def test_replacement_request_preserves_history_and_replays_once(project_work):
+    h = project_work
+    before = failed_planning(h)
+    reviewed = []
+    h.work.cycle_retry_validator = lambda actor, cycle: reviewed.append(cycle.id)
+    state = h.work.request_cycle(
+        h.actor,
+        h.project_id,
+        "New deliverable",
+        "replace-failed-plan",
+        replace_failed=True,
+        expected_version=before.version,
+    )
+    assert state.active_cycle.instruction == state.last_instruction == "New deliverable"
+    assert state.active_cycle.id != before.last_cycle.id
+    assert not state.active_cycle.automatic and not state.active_cycle.execution_approved
+    assert state.last_cycle == before.last_cycle
+    assert state.todos == before.todos and state.team == before.team
+    assert not state.blocked_reasons and not state.autonomy.paused
+    assert state.cycle_count == before.cycle_count + 1
+    assert reviewed == [before.last_cycle.id]
+    history = h.work.list_activity(h.actor, h.project_id)["items"]
+    assert sum("Replaced failed planning" in item["text"] for item in history) == 1
+    assert any(item["text"] == "Preserve the failed attempt." for item in history)
+    restored = h.reconstruct()
+    assert (
+        restored.request_cycle(
+            h.actor,
+            h.project_id,
+            "New deliverable",
+            "replace-failed-plan",
+            replace_failed=True,
+            expected_version=before.version,
+        )
+        == state
+    )
+    assert restored.list_activity(h.actor, h.project_id)["items"] == history
+    for instruction, replace in (("Changed deliverable", True), ("New deliverable", False)):
+        with pytest.raises(IdempotencyConflictError):
+            h.work.request_cycle(
+                h.actor,
+                h.project_id,
+                instruction,
+                "replace-failed-plan",
+                replace_failed=replace,
+                expected_version=before.version,
+            )
+
+
+def test_replacement_request_version_race_starts_only_one_cycle(project_work):
+    h = project_work
+    before = failed_planning(h)
+    h.work.cycle_retry_validator = lambda *_: None
+
+    def replace(number):
+        try:
+            return h.work.request_cycle(
+                h.actor,
+                h.project_id,
+                f"Replacement {number}",
+                f"replacement-race-{number}",
+                replace_failed=True,
+                expected_version=before.version,
+            )
+        except InvalidTransitionError:
+            return None
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(replace, range(2)))
+    assert sum(result is not None for result in results) == 1
+    saved = h.reconstruct().get(h.actor, h.project_id)
+    assert saved.cycle_count == before.cycle_count + 1
+    assert saved.last_cycle == before.last_cycle
+    assert (
+        sum(
+            "Replaced failed planning" in item["text"]
+            for item in h.work.list_activity(h.actor, h.project_id)["items"]
+        )
+        == 1
+    )
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        "automatic",
+        "unversioned",
+        "stale",
+        "not_explicit",
+        "active",
+        "unknown",
+        "executed",
+        "no_validator",
+        "review_rejected",
+        "read_only",
+        "foreign_actor",
+        "team_revoked",
+    ],
+)
+def test_replacement_request_cannot_bypass_review_or_permissions(project_work, failure):
+    h = project_work
+    before = (
+        h.work.request_cycle(h.actor, h.project_id, "In progress", "already-active")
+        if failure == "active"
+        else failed_planning(
+            h,
+            phase="unknown" if failure == "unknown" else "blocked",
+            execution_run_id=uuid4() if failure == "executed" else None,
+        )
+    )
+    h.work.cycle_retry_validator = lambda *_: None
+    actor = h.actor
+    kwargs = {"replace_failed": True, "expected_version": before.version}
+    if failure == "automatic":
+        kwargs["automatic"] = True
+    elif failure == "unversioned":
+        kwargs.pop("expected_version")
+    elif failure == "stale":
+        kwargs["expected_version"] = before.version - 1
+    elif failure == "not_explicit":
+        kwargs["replace_failed"] = False
+    elif failure == "no_validator":
+        h.work.cycle_retry_validator = None
+    elif failure == "read_only":
+        actor = actor.model_copy(update={"scopes": frozenset({"jobs:read"})})
+    elif failure == "foreign_actor":
+        actor = actor.model_copy(update={"actor_id": uuid4()})
+    elif failure in {"review_rejected", "team_revoked"}:
+
+        def reject(*_):
+            raise InvalidTransitionError("Current grants or outcome require review")
+
+        if failure == "review_rejected":
+            h.work.cycle_retry_validator = reject
+        else:
+            h.work.team_validator = reject
+    history = h.work.list_activity(h.actor, h.project_id)
+    with pytest.raises(
+        (AuthorizationError, InvalidTransitionError, ValidationError, NotFoundError)
+    ):
+        h.work.request_cycle(actor, h.project_id, "Replacement", "denied-replacement", **kwargs)
+    assert h.work.get(h.actor, h.project_id) == before
+    assert h.work.list_activity(h.actor, h.project_id) == history
+
+
+def test_replacement_request_rolls_back_acknowledgement_and_idempotency(project_work, monkeypatch):
+    h = project_work
+    before = failed_planning(h)
+    h.work.cycle_retry_validator = lambda *_: None
+    history = h.work.list_activity(h.actor, h.project_id)
+    original = h.work._activity
+
+    def interrupted(actor, state, entry, key):
+        if entry.kind == "cycle":
+            raise RuntimeError("Request persistence interrupted")
+        return original(actor, state, entry, key)
+
+    monkeypatch.setattr(h.work, "_activity", interrupted)
+    with pytest.raises(RuntimeError, match="persistence interrupted"):
+        h.work.request_cycle(
+            h.actor,
+            h.project_id,
+            "Replacement",
+            "atomic-replacement",
+            replace_failed=True,
+            expected_version=before.version,
+        )
+    assert h.work.get(h.actor, h.project_id) == before
+    assert h.work.list_activity(h.actor, h.project_id) == history
+    monkeypatch.setattr(h.work, "_activity", original)
+    saved = h.work.request_cycle(
+        h.actor,
+        h.project_id,
+        "Replacement",
+        "atomic-replacement",
+        replace_failed=True,
+        expected_version=before.version,
+    )
+    assert saved.active_cycle.instruction == "Replacement"
+
+
 class Coordinator:
     """Real atomic DB enqueues; no model or external transport is used by these tests."""
 
@@ -100,7 +376,7 @@ class Coordinator:
             if current.phase != "starting":
                 raise InvalidTransitionError("Cycle was already started")
             run = Job(
-                household_id=actor.household_id,
+                workspace_id=actor.workspace_id,
                 created_by=actor.actor_id,
                 kind="platform.project_test_run",
                 idempotency_key=str(current.id),
@@ -220,7 +496,7 @@ def test_history_pagination_is_newest_first_and_owner_scoped(project_work):
     assert [item["text"] for item in second["items"]] == [f"Observation {i}" for i in (2, 1, 0)]
     for stranger in (
         h.actor.model_copy(update={"actor_id": uuid4()}),
-        h.actor.model_copy(update={"household_id": uuid4()}),
+        h.actor.model_copy(update={"workspace_id": uuid4()}),
     ):
         with pytest.raises(NotFoundError):
             h.work.get(stranger, h.project_id)
@@ -250,7 +526,7 @@ def test_two_schedulers_enqueue_one_run_and_restart_never_duplicates(project_wor
     assert state.active_cycle.planning_run_id == coordinator.enqueued[0]
     assert (
         len(
-            h.store.jobs(h.actor.household_id, h.actor.actor_id, "platform.project_test_run", 0, 10)
+            h.store.jobs(h.actor.workspace_id, h.actor.actor_id, "platform.project_test_run", 0, 10)
         )
         == 1
     )
@@ -265,7 +541,7 @@ def test_failed_atomic_update_rolls_back_the_run_and_event(project_work):
         h.store.create_job(
             Job(
                 id=identifier,
-                household_id=h.actor.household_id,
+                workspace_id=h.actor.workspace_id,
                 created_by=h.actor.actor_id,
                 kind="platform.project_test_run",
                 idempotency_key=identifier.hex,

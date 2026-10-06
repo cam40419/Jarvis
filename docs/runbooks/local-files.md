@@ -54,6 +54,21 @@ requested. Folder searches match names and stop after 100 matches, 20,000 entrie
 The browser supports local folder navigation, file/ZIP uploads, text previews with pagination,
 downloads, new folders, ZIP inspection/extraction, and handing a file to chat for editing.
 
+## Formatted project reports
+
+Accepted project prose reports (`.md` or `.txt`) have a formatted Word version by default.
+In **Files → Deliverable files**, choose **Download Word document** for an editable `.docx`
+with styled headings, lists, tables, and source links. **Download original** retains the
+unchanged source. Conversion accepts UTF-8 report text up to 1,000,000 bytes; technical files
+such as README, changelog, and requirements files are excluded. Ordinary conversation answers remain
+in Overview and Run history rather than becoming deliverable files.
+
+Existing Word documents, PDFs, spreadsheets, and other native files keep their formats.
+Local DOCX files are labeled **Word document**: download and open them in Word or a compatible
+editor to see their formatting. They do not offer the text-only **Read** or **Edit with Simon**
+controls. This report-formatting workflow applies to project deliverables, not standalone
+assistant `FILE` exports from chat.
+
 ## Drive and local files
 
 `local_file_import_drive` downloads a binary/text/ZIP from an authorized linked project folder.
@@ -61,7 +76,9 @@ Use native project tools for Google Docs and Sheets. `local_file_export_drive` u
 file as a new Drive file. Transfers currently use the Drive adapter's 10 MB limit.
 
 Local folders and Drive folders are separate stores. Local edits and extracted files are not
-automatically mirrored to Drive. Existing automatic task-output uploads remain unchanged.
+automatically mirrored to Drive. When project deliverable replication is enabled for a linked
+Drive folder, eligible prose reports are published as formatted Word documents; native files
+retain their original formats. Internal answers and working drafts are not uploaded as reports.
 
 ## Limits and operation behavior
 
@@ -80,8 +97,9 @@ automatically mirrored to Drive. Existing automatic task-output uploads remain u
 - Successful tool/UI requests have durable idempotency receipts. A process crash between filesystem
   publication and receipt commit can leave a completed file without its receipt; a retry fails
   conservatively on the existing path or changed revision. Inspect the result before a new request.
-- Binary files can be uploaded, downloaded, moved and archived. Local PDF/image/Office content
-  parsing and editing are not included; native Google Docs/Sheets keep their existing tools.
+- Binary files can be uploaded, downloaded, moved and archived. Images and PDFs have browser
+  previews; binary content is not edited through local UTF-8 text tools. Native Google Docs/Sheets
+  keep their existing tools.
 - File content is untrusted data. Extracting an archive does not run any of its programs.
 
 Validation covers memory/PostgreSQL service behavior, access boundaries, stale revisions,

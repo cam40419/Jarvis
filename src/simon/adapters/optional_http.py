@@ -62,7 +62,9 @@ def connection_endpoint(definition: ToolDefinition) -> str:
 
 
 def tenant_grant(definition: ToolDefinition, workspace_id: UUID, actor_id: UUID) -> None:
-    configured_workspace = definition.settings.get("workspace_id")
+    configured_workspace = definition.settings.get(
+        "workspace_id", definition.settings.get("household_id")
+    )
     actor_ids = definition.settings.get("actor_ids")
     try:
         if not isinstance(actor_ids, list) or not actor_ids or len(actor_ids) > 100:
@@ -102,7 +104,7 @@ def authorize_operation(
         or definition.action_policy != ("write" if write else "read")
     ):
         raise ToolCatalogError("Optional tool configuration does not match this operation")
-    tenant_grant(definition, context.household_id, context.actor_id)
+    tenant_grant(definition, context.workspace_id, context.actor_id)
     try:
         # Canonical operation schemas cannot be widened by a manifest edit.
         Draft202012Validator(schema).validate(arguments)
@@ -147,7 +149,7 @@ class HTTPResult:
     def json(self, *, write: bool) -> Any:
         try:
             return json.loads(self.content)
-        except (ValueError, UnicodeError):
+        except (ValueError, UnicodeError, RecursionError):
             raise ToolExecutionError(
                 "The remote service returned invalid JSON", unknown=write
             ) from None
@@ -247,7 +249,7 @@ def optional_tool_status(
     if not definition.configured:
         return "unconfigured", ("This optional integration has not been configured",)
     try:
-        tenant_grant(definition, actor.household_id, actor.actor_id)
+        tenant_grant(definition, actor.workspace_id, actor.actor_id)
         connection_endpoint(definition)
         credential(definition, environ)
         if definition.transport == "github":

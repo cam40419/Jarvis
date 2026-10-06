@@ -60,7 +60,7 @@ def test_browser_upload_unzip_read_and_edit_prompt(postgres_url, tmp_path, monke
             extracted = (
                 tmp_path
                 / "files"
-                / str(actor.household_id)
+                / str(actor.workspace_id)
                 / str(actor.actor_id)
                 / "imports/Stdout/notes.md"
             )

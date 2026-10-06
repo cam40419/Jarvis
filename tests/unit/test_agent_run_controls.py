@@ -78,7 +78,7 @@ def test_operator_can_recover_revoked_owner_and_missing_lease_association(tmp_pa
     )
     lease = harness.platform.environments.allocate(
         EnvironmentRequest(
-            workspace_id=harness.actor.household_id,
+            workspace_id=harness.actor.workspace_id,
             agent_id="worker",
             task_id=uuid4(),
             attempt_id=uuid5(queued.id, "first"),

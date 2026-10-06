@@ -56,6 +56,8 @@ def load_external_providers(path: Path | None) -> tuple[ExternalProviderDefiniti
 
 def provider_fingerprint(definition: ExternalProviderDefinition) -> str:
     values = definition.model_dump(mode="json", exclude={"enabled"})
+    # Existing confirmed proposals hash this spelling. Preserve their review receipts.
+    values["household_id"] = values.pop("workspace_id")
     values["actor_ids"] = sorted(values["actor_ids"])
     values["call_recipients"] = sorted(values["call_recipients"])
     return digest(values)
@@ -243,7 +245,7 @@ class ExternalActionProviders:
                 {
                     "action_id": str(action.id),
                     "review_digest": action.review_digest,
-                    "household_id": str(action.household_id),
+                    "workspace_id": str(action.workspace_id),
                     "actor_id": str(action.actor_id),
                     "draft": action.draft.model_dump(mode="json"),
                 }

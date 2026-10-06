@@ -21,7 +21,7 @@ def test_completed_run_remains_readable_after_agents_removed_but_cannot_restart(
     assert [item.id for item in page.items] == [run_id]
     with pytest.raises(ValidationError, match="available"):
         h.coordinator.resolve_team(h.actor, h.project.id)
-    with pytest.raises(InvalidTransitionError, match="configuration changed"):
+    with pytest.raises(InvalidTransitionError, match="changed or is unavailable"):
         h.runs.start(h.actor, plan_id, StartAgentRun(idempotency_key="forbidden-new-run"))
 
     def revoked(*_):

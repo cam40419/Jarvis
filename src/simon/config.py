@@ -1,3 +1,4 @@
+import os
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
@@ -46,7 +47,17 @@ class Settings(BaseSettings):
     auth_rate_window_seconds: float = Field(default=60, gt=0, le=86400)
     # Site administration is separate from ownership of an invited user's workspace.
     account_admin_actor_id: UUID = UUID("11111111-1111-4111-8111-111111111111")
-    account_household_id: UUID | None = None
+    account_workspace_id: UUID | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "SIMON_ACCOUNT_WORKSPACE_ID",
+            "JARVIS_ACCOUNT_WORKSPACE_ID",
+            "account_workspace_id",
+            "SIMON_ACCOUNT_HOUSEHOLD_ID",
+            "JARVIS_ACCOUNT_HOUSEHOLD_ID",
+            "account_household_id",
+        ),
+    )
     log_level: str = "INFO"
     database_url: SecretStr = SecretStr("postgresql://jarvis:jarvis@localhost:5432/jarvis")
     # Do not let an inherited legacy key override the renamed application's credential.
@@ -71,6 +82,11 @@ class Settings(BaseSettings):
     agent_execution_enabled: bool = False
     external_providers_file: Path | None = None
     project_boards_file: Path | None = None
+    integration_key_file: Path = (
+        Path(os.environ.get("LOCALAPPDATA", str(Path.home() / ".local/share")))
+        / "Simon"
+        / "credentials.key"
+    )
     home_api_url: str = ""
     home_api_token: SecretStr | None = None
 
@@ -139,6 +155,13 @@ class Settings(BaseSettings):
         ):
             raise ValueError(
                 "production requires HTTPS, PostgreSQL, and development login disabled"
+            )
+        if self.environment == "production" and (
+            self.account_admin_actor_id == UUID("11111111-1111-4111-8111-111111111111")
+            or self.account_workspace_id == UUID("22222222-2222-4222-8222-222222222222")
+        ):
+            raise ValueError(
+                "production requires real account IDs; development placeholders are forbidden"
             )
         return self
 

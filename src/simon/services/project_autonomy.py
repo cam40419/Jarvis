@@ -47,6 +47,9 @@ class ProjectAutonomyService:
         if not self.enabled:
             return 0
         changed = 0
+        continuity = getattr(self.coordinator, "continuity", None)
+        if continuity is not None:
+            changed += continuity.tick(self.batch_size)
         # Running projects include paused work that needs to record an already
         # dispatched run's progress. Rotate within the bounded scan for fairness.
         active = list(self.work.store.jobs_all(WORK_KIND, 10000, "running"))

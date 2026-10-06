@@ -55,7 +55,7 @@ def runtime(tmp_path):
     tools = {tool.id: tool for tool in cad_tool_definitions(enabled=True)}
     context = ToolExecutionContext(
         actor_id=uuid4(),
-        household_id=request.workspace_id,
+        workspace_id=request.workspace_id,
         run_id=uuid4(),
         agent_id="cad",
         scopes=frozenset({"jobs:read", "jobs:write"}),
@@ -94,7 +94,7 @@ def test_definitions_are_optional_and_execute_only_in_exact_lease(runtime):
     assert json.loads(command.argv[4])["arguments"] == {"input": "shape.stl", "vase_checks": False}
 
 
-@pytest.mark.parametrize("field", ["actor_id", "household_id", "run_id", "agent_id"])
+@pytest.mark.parametrize("field", ["actor_id", "workspace_id", "run_id", "agent_id"])
 def test_cross_assignment_is_rejected_before_execution(runtime, field):
     manager, _, tools, context, transport = runtime
     value = "other" if field == "agent_id" else uuid4()

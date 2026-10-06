@@ -22,6 +22,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
+from simon.adapters.account_email import AccountEmail
 from simon.adapters.external_action_binding import (
     external_action_service,
     external_tool_status,
@@ -34,18 +35,28 @@ from simon.adapters.native_tools import (
     with_native_tools,
 )
 from simon.adapters.project_board_binding import project_board_service
+from simon.adapters.project_board_tools import (
+    project_board_tool_status,
+    project_board_transport_factory,
+)
+from simon.adapters.project_journal_tools import project_journal_transport_factory
 from simon.adapters.project_output_tools import project_output_transport_factory
+from simon.adapters.project_runtime_tools import with_project_runtime_tools
+from simon.adapters.project_storage_tools import project_storage_transport_factory
 from simon.adapters.project_work_tools import project_transport_factory
 from simon.adapters.tool_preflight import INSTALLED_TRANSPORTS
 from simon.api.agent_platform import agent_platform_router
+from simon.api.agent_setup_assistant import agent_setup_assistant_router
 from simon.api.auth import auth_router, require_csrf, session_cookie
 from simon.api.external_actions import external_actions_router
+from simon.api.integrations import integrations_router
 from simon.api.local_files import local_file_router
 from simon.api.model_stream import model_stream
 from simon.api.project_boards import project_boards_router
 from simon.api.project_command import project_command_router
 from simon.api.project_files import project_router
 from simon.api.project_outputs import project_outputs_router
+from simon.api.project_workspace import project_workspace_router
 from simon.api.request_ingress import RequestIngressMiddleware
 from simon.api.tasks import task_router
 from simon.api.work_sessions import session_router
@@ -55,7 +66,7 @@ from simon.domain.connected_tools import ActionProposal, GoogleAccountSelect, Go
 from simon.domain.context import CreateMemory, ExplicitMemory, RecallQuery
 from simon.domain.conversations import CreateThread, Message, Run, SubmitRun, Thread
 from simon.domain.errors import AuthorizationError, DomainError, ModelError
-from simon.domain.identity import DEV_ACTOR_ID, DEV_HOUSEHOLD_ID, Membership
+from simon.domain.identity import DEV_ACTOR_ID, DEV_WORKSPACE_ID, Membership
 from simon.domain.interaction import (
     AnswerReference,
     ResponsePreferences,
@@ -73,12 +84,15 @@ from simon.domain.models import (
 from simon.domain.ports import Store
 from simon.domain.voice import VoiceOffer
 from simon.services.accounts import AccountService
+from simon.services.agent_calendar import AgentCalendarService
 from simon.services.agent_platform import AgentPlatformService, load_manifest
 from simon.services.agent_runs import AgentRunService
+from simon.services.agent_setup_assistant import AgentSetupAssistantService
 from simon.services.audit import AuditService
 from simon.services.capabilities import CapabilityBroker
 from simon.services.connected import ConnectedService
 from simon.services.conversations import ConversationService
+from simon.services.email_identity import EmailIdentityService
 from simon.services.identity import IdentityService
 from simon.services.interaction import InteractionService
 from simon.services.jobs import JobService
@@ -87,8 +101,11 @@ from simon.services.model_conversations import ModelConversationService
 from simon.services.policy import PolicyEngine
 from simon.services.project_autonomy import ProjectAutonomyService
 from simon.services.project_coordinator import ProjectCoordinator
+from simon.services.project_output_replication import ProjectOutputReplicationService
 from simon.services.project_outputs import ProjectOutputService
+from simon.services.project_storage import ProjectStorageService
 from simon.services.project_work import ProjectWorkService
+from simon.services.project_workspace import ProjectWorkspaceService
 from simon.services.tasks import AssistantTaskService
 from simon.services.voice import VoiceService
 from simon.services.work_sessions import WorkSessionService
@@ -126,16 +143,19 @@ class AppContainer:
             self.store.put_membership(
                 Membership(
                     actor_id=DEV_ACTOR_ID,
-                    household_id=DEV_HOUSEHOLD_ID,
+                    workspace_id=DEV_WORKSPACE_ID,
                     role="owner",
                     display_name="Development user",
-                    household_name="Development household",
+                    workspace_name="Development workspace",
                 )
             )
         self.identity = IdentityService(self.store, self.settings)
         self.accounts = AccountService(self.identity)
         self.audit = AuditService(self.store)
         self.connected = ConnectedService(self.store, self.audit, self.settings, self.identity)
+        self.email_identity = EmailIdentityService(
+            self.identity, AccountEmail(self.connected.integrations)
+        )
         self.external_actions = external_action_service(self.settings, self.store)
         self.interaction = InteractionService(self.store, self.audit, self.connected.home)
         self.policy = PolicyEngine()
@@ -146,10 +166,16 @@ class AppContainer:
             from simon.adapters.openai_model import OpenAIModel
 
             assert self.settings.openai_api_key is not None
+            fallback_openai_key = self.settings.openai_api_key.get_secret_value()
             self.conversations = ModelConversationService(
                 self.store,
                 self.audit,
-                OpenAIModel(self.settings.openai_api_key.get_secret_value()),
+                OpenAIModel(
+                    self.settings.openai_api_key.get_secret_value(),
+                    credential_provider=lambda: self.connected.integrations.credentials.get(
+                        "SIMON_OPENAI_API_KEY", fallback_openai_key
+                    ),
+                ),
                 self.settings,
                 self.connected,
             )
@@ -165,10 +191,11 @@ class AppContainer:
         self.agent_platform = AgentPlatformService(
             self.store,
             with_native_tools(
-                load_manifest(self.settings.agent_manifest_file),
+                with_project_runtime_tools(load_manifest(self.settings.agent_manifest_file)),
                 self.connected,
             ),
             state_dir=self.settings.agent_state_dir,
+            integrations=self.connected.integrations,
             available_transports=INSTALLED_TRANSPORTS,
             tool_availability=lambda actor, tool_id: (
                 native_tool_status(
@@ -177,6 +204,8 @@ class AppContainer:
                     tool_id,
                 )
                 if tool_id.startswith("native.")
+                else project_board_tool_status(self.project_boards, actor, tool_id)
+                if tool_id.startswith("clickup.")
                 else external_tool_status(
                     self.external_actions,
                     actor,
@@ -189,8 +218,17 @@ class AppContainer:
             self.agent_platform,
             enabled=self.settings.agent_execution_enabled,
         )
+        self.agent_calendar = AgentCalendarService(self.connected)
         self.project_outputs = ProjectOutputService(self.agent_runs, self.connected.local_files)
+        self.project_output_replication = ProjectOutputReplicationService(
+            self.project_outputs, self.connected.projects
+        )
+        self.connected.projects.output_sync = self.project_output_replication.sync
         self.agent_transport_factory = project_output_transport_factory(
+            self.agent_transport_factory,
+            self.project_outputs,
+        )
+        self.agent_transport_factory = project_journal_transport_factory(
             self.agent_transport_factory,
             self.project_outputs,
         )
@@ -198,7 +236,26 @@ class AppContainer:
             self.store,
             project_resolver=self.tasks.project,
         )
-        self.project_boards = project_board_service(self.settings, self.store, self.project_work)
+        self.project_workspace = ProjectWorkspaceService(self.project_work)
+        self.project_storage = ProjectStorageService(self.project_work, self.connected)
+        self.agent_platform.project_tool_filter_factory = self.project_storage.tool_filter
+        self.project_output_replication.destination_allowed = self.project_storage.primary_selected
+        self.agent_transport_factory = project_storage_transport_factory(
+            self.agent_transport_factory,
+            self.project_storage,
+            self.agent_runs,
+        )
+        self.project_boards = project_board_service(
+            self.settings, self.store, self.project_work, integrations=self.connected.integrations
+        )
+        self.agent_platform.project_tool_availability = lambda actor, project_id, tool_id: (
+            project_board_tool_status(self.project_boards, actor, tool_id, project_id)
+        )
+        self.agent_transport_factory = project_board_transport_factory(
+            self.agent_transport_factory,
+            self.project_boards,
+            self.agent_runs,
+        )
         self.project_coordinator = ProjectCoordinator(
             self.project_work,
             self.agent_runs,
@@ -206,6 +263,7 @@ class AppContainer:
             boards=self.project_boards,
         )
         self.project_work.team_validator = self.project_coordinator.validate_team
+        self.agent_setup_assistant = AgentSetupAssistantService(self.agent_platform)
         self.project_autonomy = ProjectAutonomyService(
             self.project_work,
             self.project_coordinator,
@@ -287,7 +345,7 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
     hostname = urlsplit(services.settings.public_origin).hostname
     assert hostname is not None
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=[hostname])
-    app.include_router(auth_router(services.identity))
+    app.include_router(auth_router(services.identity, services.email_identity))
     static = Path(__file__).parent / "static"
     app.mount("/assets", StaticFiles(directory=static), name="assets")
 
@@ -387,13 +445,25 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
             services.agent_platform,
             checked_actor,
             services.agent_runs,
+            services.agent_calendar,
         )
     )
+    app.include_router(agent_setup_assistant_router(services.agent_setup_assistant, checked_actor))
     app.include_router(project_router(services.connected.projects, checked_actor))
     app.include_router(project_command_router(services.project_coordinator, checked_actor))
     app.include_router(project_outputs_router(services.project_outputs, checked_actor))
+    app.include_router(
+        project_workspace_router(
+            services.project_workspace,
+            checked_actor,
+            replication=services.project_output_replication,
+            locations=services.project_storage,
+        )
+    )
     app.include_router(external_actions_router(services.external_actions, checked_actor))
     app.include_router(project_boards_router(services.project_boards, checked_actor))
+    assert services.project_boards.integrations is not None
+    app.include_router(integrations_router(services.project_boards.integrations, checked_actor))
     if services.tasks.conversations:
         app.include_router(session_router(services.work_sessions, checked_actor))
     app.include_router(local_file_router(services.connected.local_files, checked_actor))
@@ -403,8 +473,10 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
         actor: Annotated[ActorContext, Depends(checked_actor)],
     ) -> dict[str, object]:
         return {
-            "configured": services.connected.home.configured,
-            "url": services.settings.home_api_url if services.connected.home.configured else None,
+            "configured": services.connected.home.for_actor(actor).configured,
+            "url": services.connected.home.for_actor(actor).url
+            if services.connected.home.for_actor(actor).configured
+            else None,
         }
 
     @app.get("/v1/work/overview")
@@ -512,7 +584,7 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
     @app.get("/v1/voice")
     def voice_config(actor: Annotated[ActorContext, Depends(checked_actor)]) -> dict[str, Any]:
         services.conversations.authorize(actor, "threads:read")
-        records = services.store.voice_sessions(actor.household_id, actor.actor_id)
+        records = services.store.voice_sessions(actor.workspace_id, actor.actor_id)
         return {
             "enabled": services.voice.enabled,
             "max_seconds": services.settings.voice_max_seconds,
@@ -847,6 +919,12 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
     ) -> dict[str, object]:
         services.connected.set_default(actor, body.account)
         return services.connected.status(actor)
+
+    @app.post("/v1/connections/google/test")
+    def google_test(
+        body: GoogleAccountSelect, actor: Annotated[ActorContext, Depends(checked_actor)]
+    ) -> dict[str, str]:
+        return services.connected.test_connection(actor, body.account)
 
     @app.get("/v1/actions/{action_id}", response_model=ActionProposal)
     def action_status(

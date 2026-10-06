@@ -11,7 +11,7 @@ from simon.services.jobs import JobService
 
 def setup() -> tuple[JobService, InMemoryStore, ActorContext]:
     store = InMemoryStore()
-    actor = ActorContext(actor_id=uuid4(), household_id=uuid4(), channel=Channel.API)
+    actor = ActorContext(actor_id=uuid4(), workspace_id=uuid4(), channel=Channel.API)
     return JobService(store, AuditService(store)), store, actor
 
 

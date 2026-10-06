@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import ipaddress
-from typing import Literal, Self
+from typing import Any, Literal, Self
 from urllib.parse import urlsplit
 
 from pydantic import Field, field_validator, model_validator
@@ -132,11 +132,19 @@ class RoutingDecision(StrictModel):
 
 
 class TextGenerationRequest(StrictModel):
-    """Bounded text generation. Tool loops and media have separate execution contracts."""
+    """Bounded generation; controller actions are returned, never executed here."""
 
     prompt: str = Field(min_length=1, max_length=1_000_000)
     system: str = Field(default="", max_length=100_000)
     max_output_tokens: int = Field(default=1024, ge=1)
+    response_schema: dict[str, Any] | None = None
+    controller_mode: bool = False
+
+    @model_validator(mode="after")
+    def validate_controller_schema(self) -> Self:
+        if self.controller_mode and self.response_schema is None:
+            raise ValueError("Controller generation requires a response schema")
+        return self
 
 
 class TextGenerationResult(StrictModel):
@@ -147,3 +155,18 @@ class TextGenerationResult(StrictModel):
     output_tokens: int | None = Field(default=None, ge=0)
     # True means the API reported hitting its output limit; not an accepted deliverable.
     truncated: bool = False
+    refused: bool = False
+    response_reason: Literal["max_output_tokens", "refusal"] | None = None
+    reasoning_tokens: int | None = Field(default=None, ge=0)
+
+    @model_validator(mode="after")
+    def valid_terminal_output(self) -> Self:
+        if not self.text and not (self.truncated or self.refused):
+            raise ValueError("Empty output requires an explicit truncated or refused outcome")
+        if self.refused and self.text:
+            raise ValueError("Refusal bodies must not be returned as generated text")
+        if self.response_reason == "refusal" and not self.refused:
+            raise ValueError("A refusal reason requires a refused outcome")
+        if self.response_reason == "max_output_tokens" and not self.truncated:
+            raise ValueError("An output limit reason requires a truncated outcome")
+        return self

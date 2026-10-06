@@ -11,9 +11,13 @@ from simon.domain.errors import (
     NotFoundError,
     ValidationError,
 )
-from simon.domain.identity import DEV_ACTOR_ID, DEV_HOUSEHOLD_ID
+from simon.domain.identity import DEV_ACTOR_ID, DEV_WORKSPACE_ID
 from simon.domain.models import ActorContext, Channel
-from simon.domain.project_knowledge import PinnedProjectDecision, UpdateProjectKnowledge
+from simon.domain.project_knowledge import (
+    EditProjectKnowledge,
+    PinnedProjectDecision,
+    UpdateProjectKnowledge,
+)
 from simon.domain.project_work import ProjectActivityDraft
 from simon.services.project_knowledge import REVISION_KIND, ProjectKnowledgeService
 from simon.services.project_work import ProjectWorkService
@@ -23,7 +27,7 @@ from simon.services.project_work import ProjectWorkService
 def knowledge(store):
     actor = ActorContext(
         actor_id=DEV_ACTOR_ID,
-        household_id=DEV_HOUSEHOLD_ID,
+        workspace_id=DEV_WORKSPACE_ID,
         channel=Channel.API,
         scopes=frozenset({"jobs:read", "jobs:write"}),
     )
@@ -33,10 +37,10 @@ def knowledge(store):
     def resolve(current, identifier):
         if (
             not access["allowed"]
-            or (current.actor_id, current.household_id)
+            or (current.actor_id, current.workspace_id)
             != (
                 actor.actor_id,
-                actor.household_id,
+                actor.workspace_id,
             )
             or identifier not in {project_id, other_id}
         ):
@@ -102,7 +106,7 @@ def test_memory_revision_and_audit_survive_service_reconstruction(knowledge):
     restored = ProjectKnowledgeService(h.work)
     assert restored.get(h.actor, h.project_id) == second
     assert second.version == 2 and second.pinned_decisions == ()
-    revisions = h.store.jobs(h.actor.household_id, h.actor.actor_id, REVISION_KIND, 0, 10)
+    revisions = h.store.jobs(h.actor.workspace_id, h.actor.actor_id, REVISION_KIND, 0, 10)
     assert len(revisions) == 2
     assert any(job.input["initial_state"]["pinned_decisions"] for job in revisions)
     assert restored.activity(h.actor, h.project_id, source.id).run_id == source.run_id
@@ -122,6 +126,69 @@ def test_response_loss_retry_stale_update_and_payload_conflict(knowledge):
     # Task/activity edits do not invalidate the independently versioned brief.
     record(h, "Unrelated worker progress", kind="progress")
     assert save(h, version=1, key="save-after-progress").version == 2
+
+
+def test_agent_partial_edit_preserves_pins_and_original_receipt_after_later_edits(knowledge):
+    h = knowledge
+    pinned = PinnedProjectDecision(id="fabric", title="Fabric", text="Choose linen.")
+    first = save(h, pins=(pinned,))
+    run_id, plan_id = uuid4(), uuid4()
+    body = EditProjectKnowledge(
+        expected_version=first.version,
+        idempotency_key="agent-brief-edit",
+        brief="Verified suppliers and collection direction.",
+    )
+    updated = h.service.edit(
+        h.actor, h.project_id, body, run_id=run_id, plan_id=plan_id, agent_id="researcher"
+    )
+    assert updated.version == 2 and updated.pinned_decisions == (pinned,)
+    recent = h.service.history(h.actor, h.project_id, kind="configuration", limit=1).items[0]
+    assert (recent.run_id, recent.plan_id, recent.agent_id) == (run_id, plan_id, "researcher")
+    cleared = h.service.edit(
+        h.actor,
+        h.project_id,
+        EditProjectKnowledge(
+            expected_version=2, idempotency_key="clear-project-pins", pinned_decisions=()
+        ),
+    )
+    assert cleared.version == 3 and not cleared.pinned_decisions and cleared.brief == updated.brief
+    assert (
+        h.service.edit(
+            h.actor, h.project_id, body, run_id=run_id, plan_id=plan_id, agent_id="researcher"
+        )
+        == updated
+    )
+    assert h.service.get(h.actor, h.project_id) == cleared
+    with pytest.raises(IdempotencyConflictError):
+        h.service.edit(h.actor, h.project_id, body.model_copy(update={"brief": "Changed"}))
+    with pytest.raises(InvalidTransitionError):
+        h.service.edit(
+            h.actor, h.project_id, body.model_copy(update={"idempotency_key": "fresh-stale-edit"})
+        )
+    h.access["allowed"] = False
+    with pytest.raises(NotFoundError):
+        h.service.edit(h.actor, h.project_id, body)
+
+
+def test_agent_partial_edit_rejects_foreign_decision_provenance(knowledge):
+    h = knowledge
+    source = record(h, "Private other project evidence", project_id=h.other_id)
+    with pytest.raises(NotFoundError):
+        h.service.edit(
+            h.actor,
+            h.project_id,
+            EditProjectKnowledge(
+                expected_version=0,
+                idempotency_key="foreign-partial-knowledge",
+                brief="Must roll back",
+                pinned_decisions=(
+                    PinnedProjectDecision(
+                        id="foreign", title="No", text="Other", source_activity_id=source.id
+                    ),
+                ),
+            ),
+        )
+    assert h.service.get(h.actor, h.project_id).version == 0
 
 
 def test_concurrent_edit_has_one_winner_without_lost_update(knowledge):
@@ -145,7 +212,7 @@ def test_authorization_rechecked_for_cached_save_and_all_reads(knowledge):
     entry = record(h, "Private decision")
     save(h)
     other = h.actor.model_copy(update={"actor_id": uuid4()})
-    outsider = h.actor.model_copy(update={"household_id": uuid4()})
+    outsider = h.actor.model_copy(update={"workspace_id": uuid4()})
     for actor in (other, outsider):
         for read in (
             lambda actor=actor: h.service.get(actor, h.project_id),
@@ -245,7 +312,7 @@ def test_isolation_even_when_project_resolver_permits_multiple_owners(knowledge)
     )
     for actor in (
         h.actor.model_copy(update={"actor_id": uuid4()}),
-        h.actor.model_copy(update={"household_id": uuid4()}),
+        h.actor.model_copy(update={"workspace_id": uuid4()}),
     ):
         assert broad.get(actor, h.project_id).version == 0
         assert broad.history(actor, h.project_id).items == ()

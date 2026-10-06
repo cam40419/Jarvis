@@ -269,8 +269,8 @@ class GenerativeToolTransport:
         assignment = self.lease.plan.request
         if (
             context.actor_id != self.actor.actor_id
-            or context.household_id != self.actor.household_id
-            or context.household_id != assignment.workspace_id
+            or context.workspace_id != self.actor.workspace_id
+            or context.workspace_id != assignment.workspace_id
             or context.run_id != self.run_id
             or context.agent_id != assignment.agent_id
             or context.authorized_action != "write"
@@ -295,9 +295,9 @@ class GenerativeToolTransport:
 
         def check() -> None:
             current = self.revalidate()
-            if (current.actor_id, current.household_id) != (
+            if (current.actor_id, current.workspace_id) != (
                 self.actor.actor_id,
-                self.actor.household_id,
+                self.actor.workspace_id,
             ) or not definition.required_scopes <= (
                 current.scopes & self.actor.scopes & context.scopes
             ):

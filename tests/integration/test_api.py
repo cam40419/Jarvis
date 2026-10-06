@@ -81,21 +81,21 @@ def test_invalid_job_kind_is_a_client_error(
     assert response.status_code == 422
 
 
-def test_jobs_require_scopes_and_get_is_household_scoped(
+def test_jobs_require_scopes_and_get_is_workspace_scoped(
     client: TestClient,
     container: AppContainer,
     auth_headers: dict[str, str],
 ) -> None:
     from uuid import uuid4
 
-    from simon.domain.identity import DEV_ACTOR_ID, DEV_HOUSEHOLD_ID, Membership
+    from simon.domain.identity import DEV_ACTOR_ID, DEV_WORKSPACE_ID, Membership
 
     body = {"kind": "test.job", "input": {}, "idempotency_key": "scoped-job-001"}
     job = client.post("/v1/jobs", headers=auth_headers, json=body).json()
     path = f"/v1/jobs/{job['id']}"
     assert client.get(path, headers=auth_headers).json()["id"] == job["id"]
     container.store.put_membership(
-        Membership(actor_id=DEV_ACTOR_ID, household_id=DEV_HOUSEHOLD_ID, role="guest")
+        Membership(actor_id=DEV_ACTOR_ID, workspace_id=DEV_WORKSPACE_ID, role="guest")
     )
     assert (
         client.post(
@@ -106,10 +106,10 @@ def test_jobs_require_scopes_and_get_is_household_scoped(
     assert client.get(path, headers=auth_headers | {"X-Scopes": "jobs:read"}).status_code == 403
     other = uuid4()
     container.store.put_membership(
-        Membership(actor_id=DEV_ACTOR_ID, household_id=other, role="owner")
+        Membership(actor_id=DEV_ACTOR_ID, workspace_id=other, role="owner")
     )
     switched = client.post(
-        "/auth/household", headers=auth_headers, json={"household_id": str(other)}
+        "/auth/workspace", headers=auth_headers, json={"workspace_id": str(other)}
     )
     assert switched.status_code == 200
     assert client.get(path).status_code == 404

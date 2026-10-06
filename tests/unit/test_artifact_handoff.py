@@ -45,14 +45,14 @@ class Handoff:
 def handoff(tmp_path):
     actor = ActorContext(
         actor_id=uuid4(),
-        household_id=uuid4(),
+        workspace_id=uuid4(),
         channel=Channel.API,
         scopes=frozenset({"jobs:read", "jobs:write"}),
     )
     store = ArtifactStore(tmp_path / "artifacts", max_bytes=1024)
     run_id, task_id = uuid4(), uuid4()
     artifact = store.publish_bytes(
-        workspace_id=actor.household_id,
+        workspace_id=actor.workspace_id,
         actor_id=actor.actor_id,
         run_id=run_id,
         task_id=task_id,
@@ -128,7 +128,7 @@ def test_text_only_worker_gets_explicit_unavailable_reference(handoff):
 
 def test_archive_bytes_are_preserved_without_extraction(handoff):
     artifact = handoff.store.publish_bytes(
-        workspace_id=handoff.actor.household_id,
+        workspace_id=handoff.actor.workspace_id,
         actor_id=handoff.actor.actor_id,
         run_id=handoff.run_id,
         task_id=handoff.task_id,

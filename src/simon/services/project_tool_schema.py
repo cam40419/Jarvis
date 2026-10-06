@@ -65,11 +65,14 @@ DESCRIPTIONS = {
     ),
     "project_sync": ("Provision the project folder and upload pending task outputs now."),
     "project_files_list": (
-        "List live project folder files; null folder_id means project root. Page with "
-        "next_page_token."
+        "List live project files. Read returned file IDs with project_file_read using the same "
+        "project_id; both tools use the project's linked Google account. Null folder_id means "
+        "project root. Page with next_page_token."
     ),
     "project_file_read": (
-        "Read live text/code or Google Docs with revision and tab IDs; inspect other file metadata."
+        "Read a project_files_list result using its project_id and file_id, through the project's "
+        "linked Google account. Read live text/code or Google Docs; inspect other file metadata. "
+        "A read_only Docs export has no editable revision or tab IDs."
     ),
     "project_file_create": (
         "Create text/code, Google Doc, Google Sheet (CSV content), or folder in the "

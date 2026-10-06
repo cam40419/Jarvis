@@ -20,6 +20,15 @@ They demonstrate standard/frontier configuration; these assignments are deployme
 policy, not comparative benchmark results or promises of account access. Example
 context/output limits are conservative application caps, not provider maxima.
 
+The generated starter manifest uses the documented 400,000-token context window
+for the exact default `gpt-5.4-mini` model, allowing expanded project instructions,
+tool definitions, and planning schemas to fit. Its output cap remains 4,096 tokens;
+agent input, output, and spending limits still apply. This context capacity is
+documented in the [official model details](https://developers.openai.com/api/docs/models/gpt-5.4-mini).
+Other model IDs retain a conservative 32,768-token starter context limit until
+their administrator verifies the deployment and updates the manifest. Existing
+manifests retain their configured limits when starter defaults change.
+
 Set `model`, `base_url`, `capabilities`, `context_window_tokens`, `max_output_tokens`,
 and supported `reasoning_efforts` from the actual deployment. Unknown fields are
 rejected. Set `enabled` only after verifying the account or local server. Model IDs
@@ -57,6 +66,21 @@ assertion about the deployment's data boundary. `model_override` names an invent
 endpoint and still obeys every constraint. Decisions include alternatives, rejection
 reasons, and the original request. Unsupported reasoning settings are never invented;
 an empty list leaves reasoning configuration to the provider.
+
+Check the selected model's default before leaving `reasoning_efforts` empty.
+For example, [GPT-5.4 Mini](https://developers.openai.com/api/docs/models/gpt-5.4-mini)
+defaults to no reasoning and supports explicit reasoning effort.
+[Reasoning tokens](https://developers.openai.com/api/docs/guides/reasoning)
+share the response-token limit with visible output, so a report or completion
+review needs room for both. Configure supported efforts and suitable endpoint and
+profile ceilings; generated project tasks still obey routing and budget checks.
+The provider recommends an initial allowance of at least 25,000 tokens for
+reasoning plus output while measuring a workload. A reasoning-only response can
+consume its entire allowance without producing visible text. Simon records that
+as `model_output_truncated`, retaining usage and reasoning-token counts; explicit
+provider refusals are recorded as `model_refused` without retaining their bodies.
+Neither outcome triggers an automatic retry or replays a completed tool action.
+These are known generation failures, not accepted final answers.
 
 Run this offline preview from the repository root in PowerShell:
 
@@ -105,6 +129,13 @@ local chat endpoints. It does not execute tool loops, images, video, or desktops
 those require the corresponding capability runner. Capability declarations alone do
 not implement a tool. Truncated responses are marked, and failed requests are never
 automatically retried.
+
+For dispatched agents, the model-request transport timeout is at most 120 seconds,
+or 300 seconds when the profile permits more than 8,192 output tokens. It is also
+bounded by the profile's `timeout_seconds`. The overall worker deadline remains
+in force between calls; cancellation cannot interrupt an in-flight synchronous
+request. Tool transport timeouts are unchanged, and a timed-out model request is
+never automatically retried.
 
 Pricing fields are USD per million input/output tokens. Unknown cloud pricing blocks
 budgeted routing. Unpriced local execution estimates zero API charges, excluding hardware

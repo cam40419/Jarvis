@@ -14,7 +14,7 @@
     $('invitation-result').hidden = !value.enrollment_token;
     $('invitation-token').value = value.enrollment_token || '';
     $('code-instructions').textContent =
-      'Send this code and your Simon login URL to the person you invited. They can set up a passkey or a username and password.';
+      'Send this code and your Simon login URL to the person you invited. They can set up a username and password.';
     note.textContent = value.enrollment_token
       ? 'Invitation created. Share this one-use code privately; it expires in 15 minutes.'
       : 'Account already created. Use Renew invitation if you need a new code.';
@@ -56,15 +56,6 @@
         button('Renew invitation', async () =>
           invitation(await api('/v1/accounts/' + account.actor_id + '/invitation', {})),
         );
-      if (passwordEnabled && account.status === 'active' && account.has_password)
-        button('Issue password recovery code', async () => {
-          const value = await api('/v1/accounts/' + account.actor_id + '/password-recovery', {});
-          $('invitation-result').hidden = false;
-          $('invitation-token').value = value.enrollment_token;
-          $('code-instructions').textContent =
-            'Share this code privately. The account holder should open Forgot your password? and enter this code, their existing username, and a new password.';
-          note.textContent = 'Recovery code issued. It expires in 15 minutes and can be used once.';
-        });
       button(account.disabled ? 'Enable account' : 'Disable account', async () => {
         await api('/v1/accounts/' + account.actor_id + '/access', {
           enabled: account.disabled,

@@ -16,17 +16,19 @@ from simon.domain.execution import EnvironmentLease
 from simon.domain.models import ActorContext
 from simon.domain.ports import Store
 from simon.services.agent_dispatcher import TransportFactory
-from simon.services.agent_platform import platform_credentials
 from simon.services.audit import AuditService
 from simon.services.external_actions import ExternalActionService
+from simon.services.integrations import IntegrationService
 
 
 def external_action_service(settings: Settings, store: Store) -> ExternalActionService:
+    integrations = IntegrationService(store, settings)
     return ExternalActionService(
         store,
         AuditService(store),
         load_external_providers(settings.external_providers_file),
-        ExternalActionProviders(BoundedHTTP(environ=platform_credentials())),
+        ExternalActionProviders(BoundedHTTP(environ=integrations.credentials)),
+        integrations=integrations,
     )
 
 
@@ -57,7 +59,7 @@ def external_transport_factory(
             "external_actions": ExternalActionToolTransport(
                 service,
                 actor_id=actor.actor_id,
-                household_id=actor.household_id,
+                workspace_id=actor.workspace_id,
                 run_id=run_id,
                 revalidate=revalidate,
             ),

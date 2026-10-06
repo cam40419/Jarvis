@@ -124,7 +124,7 @@ def test_folder_creation_live_files_edits_and_replay(store):
     with pytest.raises(ValidationError, match="changed"):
         files.edit(actor, edit, "stale-edit", lambda: actor)
     assert store.project_file_operation(UUID(saved["id"])).before["text"] == "Original"
-    assert store.google_accounts() == ((actor.household_id, actor.actor_id),)
+    assert store.google_accounts() == ((actor.workspace_id, actor.actor_id),)
 
 
 def test_project_boundaries_account_changes_and_legacy_scopes(store):
@@ -136,19 +136,60 @@ def test_project_boundaries_account_changes_and_legacy_scopes(store):
     with pytest.raises(Exception, match="Project not found"):
         files.read(other, ProjectFile(project_id=project, file_id="outside"))
     connection = connected.connection(actor)
-    store.delete_google_connection(actor.household_id, actor.actor_id)
+    store.delete_google_connection(actor.workspace_id, actor.actor_id)
     store.save_google_connection(
         connection.model_copy(update={"id": uuid4(), "email": "changed@example.com"})
     )
     with pytest.raises(ConnectedError, match="not connected"):
         files.ensure(actor, project)
-    store.delete_google_connection(actor.household_id, actor.actor_id)
+    store.delete_google_connection(actor.workspace_id, actor.actor_id)
     store.save_google_connection(connection)
     grant(connected, actor, (DRIVE_READ_SCOPE,))
     assert "drive_read_file" in connected.available(actor)
     assert "project_file_edit" not in connected.available(actor)
     with pytest.raises(ConnectedError, match="Reconnect"):
         files.ensure(actor, project)
+
+
+def test_project_read_provenance_preserves_linked_account_after_default_changes(store):
+    connected, actor, files, project = setup_project(store)
+    linked = connected.connection(actor)
+    saved = files.create_file(
+        actor,
+        ProjectFileCreate(project_id=project, name="evidence.txt", content="Project evidence"),
+        "create-evidence",
+        lambda: actor,
+    )
+    tokens = json.loads(connected.decrypt(linked.encrypted_tokens))
+    tokens["access_token"] = "other-account-token"
+    other = linked.model_copy(
+        update={
+            "id": uuid4(),
+            "email": "other@example.com",
+            "encrypted_tokens": connected.encrypt(json.dumps(tokens)),
+        }
+    )
+    store.save_google_connection(other)
+    store.set_default_google_connection(actor.workspace_id, actor.actor_id, other.id)
+    observed_tokens = []
+    original_read = files.api.read
+
+    def record_read(token, metadata):
+        observed_tokens.append(token)
+        return original_read(token, metadata)
+
+    files.api.read = record_read
+    listing = files.files(actor, ProjectFiles(project_id=project))
+    result = files.read(actor, ProjectFile(project_id=project, file_id=saved["file_id"]))
+    for response in (listing, result):
+        assert response["read_tool"] == "native.project_file_read"
+        assert response["read_context"] == {"project_id": str(project)}
+        assert response["source_account_id"] == str(linked.id)
+        assert "access-secret" not in json.dumps(response)
+        assert "other-account-token" not in json.dumps(response)
+    assert observed_tokens == ["access-secret"]
+    assert result["text"] == "Project evidence"
+    assert connected.connection(actor).id == other.id
 
 
 def test_recovery_after_lost_upload_response_uses_same_id(store):
@@ -178,7 +219,7 @@ def test_background_upload_once_preserves_live_edits_and_relinks(store):
     content = b"original"
     artifact = ProjectArtifact(
         id=uuid4(),
-        household_id=actor.household_id,
+        workspace_id=actor.workspace_id,
         actor_id=actor.actor_id,
         project_id=project,
         task_id=task.id,
@@ -191,6 +232,7 @@ def test_background_upload_once_preserves_live_edits_and_relinks(store):
     store.save_project_artifact(artifact, content)
     assert files.sync(actor, project, force=True)["status"] == "ready"
     live = files.files(actor, ProjectFiles(project_id=project))["files"][0]
+    assert live["name"] == "notes.md"
     files.api.contents[live["id"]] = b"edited directly in Drive"
     files.sync(actor, project, force=True)
     assert files.api.creates == 2 and files.api.contents[live["id"]] == b"edited directly in Drive"
@@ -208,6 +250,69 @@ def test_background_upload_once_preserves_live_edits_and_relinks(store):
     files.sync(actor, project, force=True)
     assert len(files.api.list_files("t", "existing")["files"]) == 1
     assert files.api.contents[live["id"]] == b"edited directly in Drive"
+
+
+def test_legacy_task_summary_stays_local_and_named_file_syncs(store):
+    connected, actor, files, project = setup_project(store)
+    tasks = AssistantTaskService(store, connected.identity)
+    task = tasks.create(
+        actor,
+        CreateAssistantTask(
+            title="Supplier report",
+            instructions="Write a report",
+            project_id=project,
+            idempotency_key="named-report-task",
+        ),
+    )
+    text = "The report is ready.\n\n```file:supplier-comparison.md\n# Supplier comparison\n```"
+    artifacts = tasks.save_artifacts(
+        actor, store.get_job(task.id), files.project(actor, project), text
+    )
+    assert {item.name for item in artifacts} == {"result.md", "supplier-comparison.md"}
+    assert files.sync(actor, project, force=True)["status"] == "ready"
+    remote = files.files(actor, ProjectFiles(project_id=project))["files"]
+    assert [item["name"] for item in remote] == ["supplier-comparison.md"]
+    assert files.api.contents[remote[0]["id"]] == b"# Supplier comparison"
+    summary = next(item for item in artifacts if item.name == "result.md")
+    assert store.project_artifact(summary.id)[1] == text.encode()
+
+
+def test_pending_legacy_upload_reuses_original_request_after_filename_change(store):
+    connected, actor, files, project = setup_project(store)
+    tasks = AssistantTaskService(store, connected.identity)
+    task = tasks.create(
+        actor,
+        CreateAssistantTask(
+            title="Supplier report",
+            instructions="Write a report",
+            project_id=project,
+            idempotency_key="pending-report-task",
+        ),
+    )
+    artifacts = tasks.save_artifacts(
+        actor,
+        store.get_job(task.id),
+        files.project(actor, project),
+        "```file:supplier-comparison.md\n# Suppliers\n```",
+    )
+    artifact = next(item for item in artifacts if item.name != "result.md")
+    binding = files.binding(actor, project)
+    key = f"artifact:{artifact.id}:{binding.folder_id}:{binding.google_email}"
+    files.api.timeout_after_create = True
+    pending = files.create_file(
+        actor,
+        ProjectFileCreate(project_id=project, name=f"{str(task.id)[:8]}-{artifact.name}"),
+        key,
+        lambda: actor,
+        raw=store.project_artifact(artifact.id)[1],
+        media_type=artifact.media_type,
+        retry_create=True,
+    )
+    assert pending["status"] == "unknown"
+    files.api.timeout_after_create = False
+    assert files.sync(actor, project, force=True)["status"] == "ready"
+    assert files.api.creates == 2
+    assert len(files.files(actor, ProjectFiles(project_id=project))["files"]) == 1
 
 
 def test_voice_tool_dispatch_and_cancelled_request(store):

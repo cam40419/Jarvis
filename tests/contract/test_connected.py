@@ -20,7 +20,7 @@ from simon.domain.errors import (
     NotFoundError,
     ValidationError,
 )
-from simon.domain.identity import DEV_ACTOR_ID, DEV_HOUSEHOLD_ID, Membership
+from simon.domain.identity import DEV_ACTOR_ID, DEV_WORKSPACE_ID, Membership
 from simon.domain.models import utc_now
 from simon.services.audit import AuditService
 from simon.services.connected import ConnectedService
@@ -50,10 +50,10 @@ def connected_setup(store):
     store.put_membership(
         Membership(
             actor_id=DEV_ACTOR_ID,
-            household_id=DEV_HOUSEHOLD_ID,
+            workspace_id=DEV_WORKSPACE_ID,
             role="owner",
             display_name="Test",
-            household_name="Test",
+            workspace_name="Test",
         )
     )
     identity = IdentityService(store, settings)
@@ -316,7 +316,7 @@ def test_refresh_preserves_binding_and_disconnect_during_refresh(setup):
 def test_connected_storage_transaction_rolls_back(setup):
     service, actor, _ = setup
     before = service.connection(actor)
-    with pytest.raises(RuntimeError), service.store.transaction(actor.household_id):
-        service.store.delete_google_connection(actor.household_id, actor.actor_id)
+    with pytest.raises(RuntimeError), service.store.transaction(actor.workspace_id):
+        service.store.delete_google_connection(actor.workspace_id, actor.actor_id)
         raise RuntimeError("rollback")
     assert service.connection(actor) == before

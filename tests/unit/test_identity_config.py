@@ -1,3 +1,5 @@
+from uuid import uuid4
+
 import pytest
 from pydantic import SecretStr
 
@@ -69,6 +71,7 @@ def test_production_requires_persistent_secure_identity():
         storage_backend="postgres",
         public_origin="https://simon.example",
         rp_id="simon.example",
+        account_admin_actor_id=uuid4(),
     )
     assert settings.secure_cookies
     assert not settings.dev_login_enabled

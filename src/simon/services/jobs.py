@@ -49,14 +49,14 @@ class JobService:
         if kind.startswith("platform."):
             raise ValidationError("Agent platform jobs must use the agent platform API")
         job = Job(
-            household_id=actor.household_id,
+            workspace_id=actor.workspace_id,
             created_by=actor.actor_id,
             kind=kind,
             idempotency_key=idempotency_key,
             input=input,
             input_digest=digest(input),
         )
-        with self._store.transaction(actor.household_id):
+        with self._store.transaction(actor.workspace_id):
             saved, created = self._store.create_job(job)
             if created:
                 self._audit.record(
@@ -78,11 +78,11 @@ class JobService:
         result: dict[str, Any] | None = None,
         error_code: str | None = None,
     ) -> Job:
-        with self._store.transaction(actor.household_id):
+        with self._store.transaction(actor.workspace_id):
             current = self._store.get_job(job_id)
             if (
                 current is None
-                or current.household_id != actor.household_id
+                or current.workspace_id != actor.workspace_id
                 or (
                     (
                         current.kind in {"workflow.action", "assistant.task", "assistant.session"}
@@ -115,7 +115,7 @@ class JobService:
         if (
             job is None
             or job.kind.startswith("platform.")
-            or job.household_id != actor.household_id
+            or job.workspace_id != actor.workspace_id
             or (
                 (
                     job.kind in {"workflow.action", "assistant.task", "assistant.session"}

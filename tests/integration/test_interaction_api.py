@@ -70,7 +70,7 @@ def test_preferences_and_feedback_api(client, container, auth_headers):
     assert client.get(f"/v1/runs/{run['id']}").json() == run
     actor = ActorContext(
         actor_id=UUID(run["actor_id"]),
-        household_id=UUID(thread["household_id"]),
+        workspace_id=UUID(thread["workspace_id"]),
         channel=Channel.API,
         scopes=frozenset({"threads:read", "threads:write"}),
     )

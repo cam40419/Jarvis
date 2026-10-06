@@ -36,7 +36,7 @@ def adapter(monkeypatch, respond):
 def proposal(kind):
     return ActionProposal(
         actor_id=uuid4(),
-        household_id=uuid4(),
+        workspace_id=uuid4(),
         run_id=uuid4(),
         connection_id=uuid4(),
         account_email="sender@example.com",

@@ -72,7 +72,7 @@ def test_personality_is_personal_preserved_and_snapshotted(store):
         live, _ = await opened(service, actor, token)
         assert observed[0][0] == "vesper" and "British cadence" in observed[0][1]
         assert live.record.persona == saved.persona and live.record.voice_name == "vesper"
-        store.save_response_preferences(actor.household_id, actor.actor_id, ResponsePreferences())
+        store.save_response_preferences(actor.workspace_id, actor.actor_id, ResponsePreferences())
         assert live.record.persona.preset == "jarvis"  # Active calls retain their startup snapshot.
         await service.shutdown()
 

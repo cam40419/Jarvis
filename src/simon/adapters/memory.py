@@ -16,6 +16,7 @@ from simon.domain.accounts import ManagedAccount
 from simon.domain.connected_tools import ActionProposal, GoogleConnection, GoogleOAuthState
 from simon.domain.context import ExplicitMemory, RecallDocument
 from simon.domain.conversations import Message, ModelAttempt, Run, RunEvent, Thread
+from simon.domain.email_identity import EmailCode
 from simon.domain.errors import (
     AuthenticationError,
     IdempotencyConflictError,
@@ -30,6 +31,7 @@ from simon.domain.identity import (
     PasswordCredential,
     Session,
 )
+from simon.domain.integrations import IntegrationConnection
 from simon.domain.interaction import ResponsePreferences, RunFeedback
 from simon.domain.models import (
     AuditEvent,
@@ -67,6 +69,7 @@ class InMemoryStore:
         self._challenges: dict[str, Challenge] = {}
         self._passkeys: dict[str, Passkey] = {}
         self._passwords: dict[UUID, PasswordCredential] = {}
+        self._email_codes: dict[UUID, EmailCode] = {}
         self._threads: dict[UUID, Thread] = {}
         self._messages: dict[UUID, Message] = {}
         self._runs: dict[UUID, Run] = {}
@@ -75,6 +78,7 @@ class InMemoryStore:
         self._attempts: dict[UUID, ModelAttempt] = {}
         self._response_preferences: dict[tuple[UUID, UUID], ResponsePreferences] = {}
         self._google: dict[tuple[UUID, UUID, str], GoogleConnection] = {}
+        self._integrations: dict[tuple[UUID, UUID, str], IntegrationConnection] = {}
         self._google_states: dict[str, GoogleOAuthState] = {}
         self._actions: dict[UUID, ActionProposal] = {}
         self._feedback: dict[tuple[UUID, UUID, UUID], RunFeedback] = {}
@@ -85,7 +89,7 @@ class InMemoryStore:
         self._project_file_ops: dict[UUID, ProjectFileOperation] = {}
 
     @contextmanager
-    def transaction(self, household_id: UUID | None = None) -> Iterator[None]:
+    def transaction(self, workspace_id: UUID | None = None) -> Iterator[None]:
         with self._lock:
             snapshot = deepcopy(
                 (
@@ -100,6 +104,7 @@ class InMemoryStore:
                     self._challenges,
                     self._passkeys,
                     self._passwords,
+                    self._email_codes,
                     self._threads,
                     self._messages,
                     self._runs,
@@ -109,6 +114,7 @@ class InMemoryStore:
                     self._response_preferences,
                     self._feedback,
                     self._google,
+                    self._integrations,
                     self._google_states,
                     self._actions,
                     self._voice_sessions,
@@ -133,6 +139,7 @@ class InMemoryStore:
                     self._challenges,
                     self._passkeys,
                     self._passwords,
+                    self._email_codes,
                     self._threads,
                     self._messages,
                     self._runs,
@@ -142,6 +149,7 @@ class InMemoryStore:
                     self._response_preferences,
                     self._feedback,
                     self._google,
+                    self._integrations,
                     self._google_states,
                     self._actions,
                     self._voice_sessions,
@@ -151,6 +159,42 @@ class InMemoryStore:
                     self._project_file_ops,
                 ) = snapshot
                 raise
+
+    def password_for_email(self, email: str) -> PasswordCredential | None:
+        with self._lock:
+            return next((c for c in self._passwords.values() if c.email == email), None)
+
+    def email_code(self, identifier: UUID) -> EmailCode | None:
+        with self._lock:
+            return self._email_codes.get(identifier)
+
+    def email_codes(
+        self, email: str, purpose: str, since: datetime, *, actor_id: UUID | None = None
+    ) -> tuple[EmailCode, ...]:
+        with self._lock:
+            return tuple(
+                sorted(
+                    (
+                        c
+                        for c in self._email_codes.values()
+                        if (c.email == email or c.actor_id == actor_id)
+                        and c.purpose == purpose
+                        and c.created_at >= since
+                    ),
+                    key=lambda c: c.created_at,
+                    reverse=True,
+                )
+            )
+
+    def save_email_code(self, code: EmailCode) -> None:
+        with self._lock:
+            self._email_codes[code.id] = code
+
+    def purge_email_codes(self, before: datetime) -> None:
+        with self._lock:
+            self._email_codes = {
+                k: c for k, c in self._email_codes.items() if c.expires_at >= before
+            }
 
     def save_project_artifact(self, artifact: ProjectArtifact, content: bytes) -> None:
         with self._lock:
@@ -165,7 +209,7 @@ class InMemoryStore:
 
     def project_artifacts(
         self,
-        household_id: UUID,
+        workspace_id: UUID,
         actor_id: UUID,
         project_id: UUID | None,
         offset: int,
@@ -177,7 +221,7 @@ class InMemoryStore:
                     (
                         artifact
                         for artifact, _content in self._project_artifacts.values()
-                        if artifact.household_id == household_id
+                        if artifact.workspace_id == workspace_id
                         and artifact.actor_id == actor_id
                         and (project_id is None or artifact.project_id == project_id)
                     ),
@@ -198,48 +242,48 @@ class InMemoryStore:
         with self._lock:
             self._managed_accounts[account.actor_id] = account
 
-    def voice_sessions(self, household_id: UUID, actor_id: UUID) -> tuple[VoiceSession, ...]:
+    def voice_sessions(self, workspace_id: UUID, actor_id: UUID) -> tuple[VoiceSession, ...]:
         with self._lock:
             return tuple(
                 sorted(
                     (
                         s
                         for s in self._voice_sessions.values()
-                        if s.household_id == household_id and s.actor_id == actor_id
+                        if s.workspace_id == workspace_id and s.actor_id == actor_id
                     ),
                     key=lambda s: s.created_at,
                     reverse=True,
                 )[:50]
             )
 
-    def voice_session(self, household_id: UUID, session_id: UUID) -> VoiceSession | None:
+    def voice_session(self, workspace_id: UUID, session_id: UUID) -> VoiceSession | None:
         with self._lock:
             session = self._voice_sessions.get(session_id)
-            return session if session and session.household_id == household_id else None
+            return session if session and session.workspace_id == workspace_id else None
 
     def save_voice_session(self, session: VoiceSession) -> None:
         with self._lock:
             self._voice_sessions[session.id] = session
 
     def response_preferences(
-        self, household_id: UUID, actor_id: UUID
+        self, workspace_id: UUID, actor_id: UUID
     ) -> ResponsePreferences | None:
         with self._lock:
-            return self._response_preferences.get((household_id, actor_id))
+            return self._response_preferences.get((workspace_id, actor_id))
 
     def save_response_preferences(
-        self, household_id: UUID, actor_id: UUID, preferences: ResponsePreferences
+        self, workspace_id: UUID, actor_id: UUID, preferences: ResponsePreferences
     ) -> None:
         with self._lock:
-            self._response_preferences[household_id, actor_id] = preferences
+            self._response_preferences[workspace_id, actor_id] = preferences
 
-    def feedback(self, household_id: UUID, actor_id: UUID, run_id: UUID) -> RunFeedback | None:
+    def feedback(self, workspace_id: UUID, actor_id: UUID, run_id: UUID) -> RunFeedback | None:
         with self._lock:
-            return self._feedback.get((household_id, actor_id, run_id))
+            return self._feedback.get((workspace_id, actor_id, run_id))
 
-    def save_feedback(self, household_id: UUID, actor_id: UUID, feedback: RunFeedback) -> None:
+    def save_feedback(self, workspace_id: UUID, actor_id: UUID, feedback: RunFeedback) -> None:
         with self._lock:
-            self._feedback[household_id, actor_id, feedback.run_id] = feedback
+            self._feedback[workspace_id, actor_id, feedback.run_id] = feedback
 
     def answer_runs(self, thread_id: UUID, offset: int, limit: int) -> tuple[Run, ...]:
         with self._lock:
@@ -306,9 +350,20 @@ class InMemoryStore:
                 raise InvalidTransitionError("memory already exists")
             self._explicit_memories[memory.id] = memory
 
+    def update_project_memory(
+        self, previous: ExplicitMemory, name: str, description: str
+    ) -> ExplicitMemory:
+        with self._lock:
+            current = self._explicit_memories.get(previous.id)
+            if current != previous or not previous.accepted or previous.category != "project":
+                raise InvalidTransitionError("Project details changed before saving")
+            updated = previous.model_copy(update={"subject": name, "content": description})
+            self._explicit_memories[previous.id] = updated
+            return updated
+
     def explicit_memories(
         self,
-        household_id: UUID,
+        workspace_id: UUID,
         offset: int,
         limit: int,
         actor_id: UUID | None = None,
@@ -319,10 +374,10 @@ class InMemoryStore:
                 (
                     m
                     for m in self._explicit_memories.values()
-                    if m.household_id == household_id
+                    if m.workspace_id == workspace_id
                     and m.accepted
                     and (
-                        m.scope == "household"
+                        m.scope == "workspace"
                         or (personal and (actor_id is None or m.created_by == actor_id))
                     )
                 ),
@@ -330,10 +385,10 @@ class InMemoryStore:
             )
             return tuple(rows[offset : offset + limit])
 
-    def explicit_memory(self, household_id: UUID, memory_id: UUID) -> ExplicitMemory | None:
+    def explicit_memory(self, workspace_id: UUID, memory_id: UUID) -> ExplicitMemory | None:
         with self._lock:
             memory = self._explicit_memories.get(memory_id)
-            return memory if memory and memory.household_id == household_id else None
+            return memory if memory and memory.workspace_id == workspace_id else None
 
     def retract_memory(self, memory: ExplicitMemory) -> None:
         with self._lock:
@@ -346,16 +401,16 @@ class InMemoryStore:
             self._threads[thread.id] = thread
 
     def threads(
-        self, household_id: UUID, offset: int, limit: int, actor_id: UUID | None = None
+        self, workspace_id: UUID, offset: int, limit: int, actor_id: UUID | None = None
     ) -> tuple[Thread, ...]:
         with self._lock:
             rows = sorted(
                 (
                     t
                     for t in self._threads.values()
-                    if t.household_id == household_id
+                    if t.workspace_id == workspace_id
                     and (
-                        actor_id is None or t.visibility == "household" or t.created_by == actor_id
+                        actor_id is None or t.visibility == "workspace" or t.created_by == actor_id
                     )
                 ),
                 key=lambda t: (t.created_at, t.id),
@@ -364,7 +419,7 @@ class InMemoryStore:
 
     def recall_documents(
         self,
-        household_id: UUID,
+        workspace_id: UUID,
         actor_id: UUID,
         terms: tuple[str, ...],
         offset: int,
@@ -375,7 +430,7 @@ class InMemoryStore:
             threads = {
                 t.id: t
                 for t in self._threads.values()
-                if t.household_id == household_id
+                if t.workspace_id == workspace_id
                 and t.created_by == actor_id
                 and t.id != exclude_thread
             }
@@ -414,7 +469,7 @@ class InMemoryStore:
                 for s in self._voice_sessions.values()
                 if s.thread_id in threads
                 and s.actor_id == actor_id
-                and s.household_id == household_id
+                and s.workspace_id == workspace_id
                 and s.fragments
             )
 
@@ -426,10 +481,10 @@ class InMemoryStore:
             documents.sort(key=lambda d: (score(d), d.created_at, d.id), reverse=True)
             return tuple(documents[offset : offset + limit])
 
-    def thread(self, household_id: UUID, thread_id: UUID) -> Thread | None:
+    def thread(self, workspace_id: UUID, thread_id: UUID) -> Thread | None:
         with self._lock:
             row = self._threads.get(thread_id)
-            return row if row and row.household_id == household_id else None
+            return row if row and row.workspace_id == workspace_id else None
 
     def messages(self, thread_id: UUID, after: int, limit: int) -> tuple[Message, ...]:
         with self._lock:
@@ -510,7 +565,7 @@ class InMemoryStore:
 
     def create_job(self, job: Job) -> tuple[Job, bool]:
         with self._lock:
-            lookup = (job.household_id, job.kind, job.idempotency_key)
+            lookup = (job.workspace_id, job.kind, job.idempotency_key)
             existing_id = self._job_keys.get(lookup)
             if existing_id:
                 existing = self._jobs[existing_id]
@@ -532,13 +587,13 @@ class InMemoryStore:
             return job.model_copy(deep=True) if job else None
 
     def jobs(
-        self, household_id: UUID, actor_id: UUID, kind: str, offset: int, limit: int
+        self, workspace_id: UUID, actor_id: UUID, kind: str, offset: int, limit: int
     ) -> tuple[Job, ...]:
         with self._lock:
             rows = [
                 job
                 for job in self._jobs.values()
-                if job.household_id == household_id
+                if job.workspace_id == workspace_id
                 and job.created_by == actor_id
                 and job.kind == kind
             ]
@@ -553,7 +608,7 @@ class InMemoryStore:
 
     def project_run_jobs(
         self,
-        household_id: UUID,
+        workspace_id: UUID,
         actor_id: UUID,
         project_id: UUID,
         before: tuple[datetime, UUID] | None,
@@ -564,14 +619,14 @@ class InMemoryStore:
                 str(job.id)
                 for job in self._jobs.values()
                 if job.kind == "platform.plan"
-                and (job.household_id, job.created_by) == (household_id, actor_id)
+                and (job.workspace_id, job.created_by) == (workspace_id, actor_id)
                 and job.input.get("plan", {}).get("project_id") == str(project_id)
             }
             rows = [
                 job
                 for job in self._jobs.values()
                 if job.kind == "platform.run"
-                and (job.household_id, job.created_by) == (household_id, actor_id)
+                and (job.workspace_id, job.created_by) == (workspace_id, actor_id)
                 and job.input.get("plan_id") in plan_ids
                 and (before is None or (job.created_at, job.id) < before)
             ]
@@ -580,7 +635,7 @@ class InMemoryStore:
 
     def project_activity_jobs(
         self,
-        household_id: UUID,
+        workspace_id: UUID,
         actor_id: UUID,
         project_id: UUID,
         query: str,
@@ -591,8 +646,8 @@ class InMemoryStore:
         with self._lock:
             rows = []
             for job in self._jobs.values():
-                if (job.household_id, job.created_by, job.kind) != (
-                    household_id,
+                if (job.workspace_id, job.created_by, job.kind) != (
+                    workspace_id,
                     actor_id,
                     "platform.project_activity." + project_id.hex,
                 ):
@@ -660,7 +715,7 @@ class InMemoryStore:
 
     def append_audit(self, event: AuditEvent) -> None:
         with self._lock:
-            events = self.audit_events(event.household_id)
+            events = self.audit_events(event.workspace_id)
             expected_sequence = len(events) + 1
             if event.sequence != expected_sequence:
                 raise ValueError("audit sequence is not contiguous")
@@ -669,12 +724,12 @@ class InMemoryStore:
                 raise ValueError("audit hash chain is invalid")
             self._audit.append(event.model_copy(deep=True))
 
-    def audit_events(self, household_id: UUID | None = None) -> tuple[AuditEvent, ...]:
+    def audit_events(self, workspace_id: UUID | None = None) -> tuple[AuditEvent, ...]:
         with self._lock:
             return tuple(
                 event.model_copy(deep=True)
                 for event in self._audit
-                if household_id is None or event.household_id == household_id
+                if workspace_id is None or event.workspace_id == workspace_id
             )
 
     def add_outbox(self, event: OutboxEvent) -> None:
@@ -709,17 +764,17 @@ class InMemoryStore:
             return tuple(
                 sorted(
                     (m for m in self._memberships.values() if m.actor_id == actor_id),
-                    key=lambda m: str(m.household_id),
+                    key=lambda m: str(m.workspace_id),
                 )
             )
 
     def put_membership(self, membership: Membership) -> None:
         with self._lock:
-            self._memberships[membership.actor_id, membership.household_id] = membership
+            self._memberships[membership.actor_id, membership.workspace_id] = membership
 
-    def delete_membership(self, actor_id: UUID, household_id: UUID) -> None:
+    def delete_membership(self, actor_id: UUID, workspace_id: UUID) -> None:
         with self._lock:
-            self._memberships.pop((actor_id, household_id), None)
+            self._memberships.pop((actor_id, workspace_id), None)
 
     def save_session(self, session: Session) -> None:
         with self._lock:
@@ -806,10 +861,37 @@ class InMemoryStore:
                 for item in self._passwords.values()
             ):
                 raise AuthenticationError("username is already in use")
+            if credential.email and any(
+                item.actor_id != credential.actor_id and item.email == credential.email
+                for item in self._passwords.values()
+            ):
+                raise AuthenticationError("email is already in use")
             self._passwords[credential.actor_id] = credential
 
+    def integration_connections(
+        self, workspace_id: UUID, actor_id: UUID
+    ) -> tuple[IntegrationConnection, ...]:
+        with self._lock:
+            return tuple(
+                value.model_copy(deep=True)
+                for key, value in self._integrations.items()
+                if key[:2] == (workspace_id, actor_id)
+            )
+
+    def save_integration_connection(self, connection: IntegrationConnection) -> None:
+        with self._lock:
+            self._integrations[(connection.workspace_id, connection.actor_id, connection.id)] = (
+                connection.model_copy(deep=True)
+            )
+
+    def delete_integration_connection(
+        self, workspace_id: UUID, actor_id: UUID, identifier: str
+    ) -> None:
+        with self._lock:
+            self._integrations.pop((workspace_id, actor_id, identifier), None)
+
     def google_connections(
-        self, household_id: UUID, actor_id: UUID
+        self, workspace_id: UUID, actor_id: UUID
     ) -> tuple[GoogleConnection, ...]:
         with self._lock:
             return tuple(
@@ -817,45 +899,45 @@ class InMemoryStore:
                     (
                         c
                         for c in self._google.values()
-                        if (c.household_id, c.actor_id) == (household_id, actor_id)
+                        if (c.workspace_id, c.actor_id) == (workspace_id, actor_id)
                     ),
                     key=lambda c: (not c.is_default, c.email.casefold()),
                 )
             )
 
-    def google_connection(self, household_id: UUID, actor_id: UUID) -> GoogleConnection | None:
-        connections = self.google_connections(household_id, actor_id)
+    def google_connection(self, workspace_id: UUID, actor_id: UUID) -> GoogleConnection | None:
+        connections = self.google_connections(workspace_id, actor_id)
         return connections[0] if connections else None
 
     def save_google_connection(self, connection: GoogleConnection) -> None:
         with self._lock:
-            key = (connection.household_id, connection.actor_id, connection.email.casefold())
+            key = (connection.workspace_id, connection.actor_id, connection.email.casefold())
             old = self._google.get(key)
             default = old.is_default if old else not self.google_connections(*key[:2])
             self._google[key] = connection.model_copy(update={"is_default": default})
 
     def set_default_google_connection(
-        self, household_id: UUID, actor_id: UUID, connection_id: UUID
+        self, workspace_id: UUID, actor_id: UUID, connection_id: UUID
     ) -> None:
         with self._lock:
-            connections = self.google_connections(household_id, actor_id)
+            connections = self.google_connections(workspace_id, actor_id)
             if not any(c.id == connection_id for c in connections):
                 raise NotFoundError("Google account not found.")
             for c in connections:
-                self._google[household_id, actor_id, c.email.casefold()] = c.model_copy(
+                self._google[workspace_id, actor_id, c.email.casefold()] = c.model_copy(
                     update={"is_default": c.id == connection_id}
                 )
 
     def delete_google_connection(
-        self, household_id: UUID, actor_id: UUID, connection_id: UUID | None = None
+        self, workspace_id: UUID, actor_id: UUID, connection_id: UUID | None = None
     ) -> None:
         with self._lock:
-            for c in self.google_connections(household_id, actor_id):
+            for c in self.google_connections(workspace_id, actor_id):
                 if connection_id is None or c.id == connection_id:
-                    self._google.pop((household_id, actor_id, c.email.casefold()))
-            remaining = self.google_connections(household_id, actor_id)
+                    self._google.pop((workspace_id, actor_id, c.email.casefold()))
+            remaining = self.google_connections(workspace_id, actor_id)
             if remaining and not any(c.is_default for c in remaining):
-                self.set_default_google_connection(household_id, actor_id, remaining[0].id)
+                self.set_default_google_connection(workspace_id, actor_id, remaining[0].id)
 
     def save_google_state(self, state: GoogleOAuthState) -> None:
         with self._lock:
@@ -877,16 +959,16 @@ class InMemoryStore:
 
     def project_drive(
         self,
-        household_id: UUID,
+        workspace_id: UUID,
         actor_id: UUID,
         project_id: UUID,
     ) -> ProjectDrive | None:
         with self._lock:
-            return self._project_drive.get((household_id, actor_id, project_id))
+            return self._project_drive.get((workspace_id, actor_id, project_id))
 
     def save_project_drive(self, binding: ProjectDrive) -> None:
         with self._lock:
-            key = (binding.household_id, binding.actor_id, binding.project_id)
+            key = (binding.workspace_id, binding.actor_id, binding.project_id)
             self._project_drive[key] = binding
 
     def project_file_operation(self, identifier: UUID) -> ProjectFileOperation | None:
@@ -899,7 +981,7 @@ class InMemoryStore:
 
     def project_file_operations(
         self,
-        household_id: UUID,
+        workspace_id: UUID,
         actor_id: UUID,
         project_id: UUID,
         limit: int,
@@ -910,8 +992,8 @@ class InMemoryStore:
                     (
                         operation
                         for operation in self._project_file_ops.values()
-                        if (operation.household_id, operation.actor_id, operation.project_id)
-                        == (household_id, actor_id, project_id)
+                        if (operation.workspace_id, operation.actor_id, operation.project_id)
+                        == (workspace_id, actor_id, project_id)
                     ),
                     key=lambda operation: operation.created_at,
                     reverse=True,
@@ -938,7 +1020,7 @@ class InMemoryStore:
                 if action.immediate
                 and (attempt := self._attempts.get(action.run_id))
                 and attempt.run.thread_id == thread_id
-                and attempt.household_id == action.household_id
+                and attempt.workspace_id == action.workspace_id
             )
             return tuple(
                 sorted(

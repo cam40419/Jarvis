@@ -95,6 +95,27 @@ def test_browser_connection_cards_citations_reload_and_mobile(postgres_url, tmp_
             expect(page.locator("#google-connection")).to_contain_text("1 Google account(s)")
             expect(page.locator("#google-accounts")).to_contain_text("owner@example.com")
             expect(page.locator("#google-connect")).to_be_disabled()
+            page.locator("#integration-provider").select_option("email")
+            expect(page.locator("#integration-email")).to_be_visible()
+            page.locator("#integration-email-transport").select_option("smtp")
+            expect(page.locator("#integration-smtp")).to_be_visible()
+            page.locator("#integration-email-transport").select_option("resend")
+            expect(page.locator("#integration-smtp")).to_be_hidden()
+            page.locator("#integration-email-from").fill("simon@example.com")
+            page.locator("#integration-credential").fill("browser-fake-resend-key")
+            page.locator("#integration-connect").click()
+            expect(page.locator("#integration-status")).to_have_text(
+                "Connected. Your account is ready to use."
+            )
+            email_record = next(
+                record
+                for record in service.store.integration_connections(
+                    actor.workspace_id, actor.actor_id
+                )
+                if record.provider == "email"
+            )
+            assert email_record.settings["from_email"] == "simon@example.com"
+            assert "browser-fake-resend-key" not in email_record.model_dump_json()
             page.get_by_role("button", name="Close connections").click()
             page.goto(origin + "/chat#" + str(thread.id))
             expect(page.locator(".action-card")).to_be_visible()

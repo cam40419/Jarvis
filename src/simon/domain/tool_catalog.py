@@ -134,7 +134,7 @@ class ToolDefinition(StrictModel):
 
 class ToolExecutionContext(StrictModel):
     actor_id: UUID
-    household_id: UUID
+    workspace_id: UUID
     run_id: UUID
     agent_id: str = Field(min_length=1, max_length=200)
     invocation_id: UUID = Field(default_factory=uuid4)
@@ -148,7 +148,7 @@ class ToolExecutionContext(StrictModel):
 class ToolExecutionResult(StrictModel):
     tool_id: str
     actor_id: UUID
-    household_id: UUID
+    workspace_id: UUID
     run_id: UUID
     agent_id: str
     invocation_id: UUID

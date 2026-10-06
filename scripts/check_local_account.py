@@ -11,16 +11,16 @@ from simon.services.identity import IdentityService
 
 def main() -> None:
     settings = Settings()
-    if settings.account_household_id is None:
-        raise RuntimeError("SIMON_ACCOUNT_HOUSEHOLD_ID must identify the local workspace.")
+    if settings.account_workspace_id is None:
+        raise RuntimeError("SIMON_ACCOUNT_WORKSPACE_ID must identify the local workspace.")
     store = PostgresStore(settings.database_url.get_secret_value())
     identity = IdentityService(store, settings)
-    membership = identity.membership(settings.account_admin_actor_id, settings.account_household_id)
+    membership = identity.membership(settings.account_admin_actor_id, settings.account_workspace_id)
     if membership.role != "owner":
         raise RuntimeError("The configured administrator must own the account workspace.")
     actor = ActorContext(
         actor_id=settings.account_admin_actor_id,
-        household_id=settings.account_household_id,
+        workspace_id=settings.account_workspace_id,
         channel=Channel.API,
         scopes=frozenset({"identity:manage"}),
     )
@@ -29,7 +29,7 @@ def main() -> None:
     password = store.password_for_actor(settings.account_admin_actor_id)
     if password is None or password.username != "cam40419":
         raise RuntimeError("The cam40419 password credential is missing.")
-    print(f"Administrator {password.username} owns {membership.household_name}.")
+    print(f"Administrator {password.username} owns {membership.workspace_name}.")
 
 
 if __name__ == "__main__":

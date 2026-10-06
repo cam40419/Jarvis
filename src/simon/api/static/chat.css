@@ -1202,3 +1202,25 @@ dialog textarea {
   margin: 0;
   min-width: 0;
 }
+
+#connections-panel.connections-center {
+  width: min(1120px, 96vw);
+  margin: auto;
+  height: 94dvh;
+  max-height: 94dvh;
+  border-radius: 16px;
+}
+#connections-catalog {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+}
+#connections-catalog details {
+  border: 1px solid var(--border, #ddd);
+  border-radius: 8px;
+  padding: 12px;
+}
+#connections-catalog summary {
+  cursor: pointer;
+  font-weight: 600;
+}

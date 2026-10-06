@@ -221,7 +221,7 @@ def definitions(names: tuple[ToolName, ...]) -> list[ToolParam]:
             }
         elif name == "home_rename_device":
             description = (
-                "Name or rename any household light or outlet in Simon immediately. "
+                "Name or rename any workspace light or outlet in Simon immediately. "
                 "Resolve a unique device from home_list_devices first; Shelly identifier_suffix "
                 "can distinguish unnamed plugs. Saves across refreshes and restarts; does not "
                 "rename the vendor app, change its room/load, enable control, or switch power."
@@ -252,7 +252,7 @@ def definitions(names: tuple[ToolName, ...]) -> list[ToolParam]:
             }
         elif name == "home_list_devices":
             description = (
-                "Immediately list saved household devices with rooms and groups. "
+                "Immediately list saved workspace devices with rooms and groups. "
                 "Use these IDs only. If expected devices are missing, use home_refresh_devices "
                 "to check provider errors."
             )

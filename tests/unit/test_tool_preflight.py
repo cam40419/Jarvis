@@ -42,7 +42,7 @@ def test_browser_plan_checks_origins_and_environment_before_execution(
     )
     actor = ActorContext(
         actor_id=uuid4(),
-        household_id=uuid4(),
+        workspace_id=uuid4(),
         channel=Channel.API,
         scopes=frozenset({"jobs:read", "jobs:write"}),
     )
@@ -108,7 +108,7 @@ def test_browser_plan_checks_origins_and_environment_before_execution(
 def test_engineering_tools_require_offline_workers_before_execution(tmp_path, tool, network, ready):
     actor = ActorContext(
         actor_id=uuid4(),
-        household_id=uuid4(),
+        workspace_id=uuid4(),
         channel=Channel.API,
         scopes=frozenset({"jobs:read", "jobs:write"}),
     )

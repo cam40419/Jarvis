@@ -101,10 +101,10 @@ class ExternalProviderDefinition(StrictModel):
     name: str = Field(min_length=1, max_length=100)
     kind: Literal["twilio", "gateway"]
     enabled: bool = False
-    household_id: UUID
+    workspace_id: UUID
     actor_ids: frozenset[UUID] = Field(min_length=1, max_length=100)
     endpoint: str | None = None
-    credential_env: str = Field(pattern=r"^[A-Z][A-Z0-9_]{1,100}$")
+    credential_env: str = Field(pattern=r"^[A-Z][A-Z0-9_]{1,160}$")
     account_sid: str | None = None
     from_number: str | None = None
     merchant_names: dict[str, str] = Field(default_factory=dict, max_length=100)
@@ -146,7 +146,7 @@ class ManualActionResolution(StrictModel):
 
 class ExternalActionProposal(StrictModel):
     id: UUID = Field(default_factory=uuid4)
-    household_id: UUID
+    workspace_id: UUID
     actor_id: UUID
     run_id: UUID | None = None
     idempotency_key: str = Field(min_length=8, max_length=200)

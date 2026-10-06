@@ -351,7 +351,18 @@
         node('h3', 'A ClickUp connection is needed'),
         node(
           'p',
-          'Ask the server operator to connect an authorized ClickUp account and allow the lists this project can use. Credentials stay on the server.',
+          'Connect your ClickUp account in Connections. Simon discovers the Workspaces and Lists your account can access.',
+        ),
+      );
+      empty.append(
+        button(
+          'Connect ClickUp account',
+          () => {
+            bindingDialog.close();
+            document.getElementById('connections-open').click();
+            document.getElementById('integration-credential').focus();
+          },
+          true,
         ),
       );
       target.append(empty);
@@ -366,7 +377,7 @@
         ><select id="pb-list" required>
           <option value="">Choose a connection first</option>
         </select>
-        <p class="pb-help">Only lists authorized by the server operator are available.</p>
+        <p class="pb-help">Choose from the Lists accessible to your connected account.</p>
         <div class="pb-permissions">
           <label class="pb-check"
             ><input id="pb-sync-progress" type="checkbox" checked /><span
@@ -446,6 +457,9 @@
       if (document.getElementById('pb-connection').value !== connectionId || !bindingDialog.open)
         return;
       availableBoards = result.boards || result.items || result;
+      if (!availableBoards.length)
+        reasons.textContent =
+          'ClickUp returned no accessible Lists for this account. Check the token belongs to the ClickUp account that has your boards, or share those Lists with that account.';
       select.replaceChildren(
         new Option(
           availableBoards.length ? 'Choose the project list' : 'No authorized lists are available',
@@ -924,6 +938,9 @@
     card.querySelector('.pc-task-meta')?.append(node('span', 'Managed in ClickUp'));
   }
   window.addEventListener('simon-project-command-update', selectProject);
+  window.addEventListener('simon-connections-change', () => {
+    if (projectId) refresh();
+  });
   const initial = window.SimonProjectCommand?.getSnapshot();
   if (initial) selectProject({ detail: initial });
   window.SimonProjectBoard = { refresh, decorateTask };

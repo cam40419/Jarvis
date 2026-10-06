@@ -89,7 +89,7 @@ class ModelEndpointClient:
             ) from None
         try:
             document = httpx.Response(200, content=bytes(data)).json()
-            return self._parse(endpoint, document)
+            return self._parse(endpoint, document, controller_mode=request.controller_mode)
         except (ValueError, TypeError, KeyError, AttributeError, IndexError):
             raise ModelEndpointError(
                 "invalid_model_response",
@@ -111,12 +111,21 @@ class ModelEndpointClient:
         ):
             raise ModelEndpointError("route_changed", "Model configuration changed; route again")
         endpoint = self._endpoints[decision.endpoint_id]
-        if "text" not in endpoint.capabilities or not decision.request.required_capabilities <= {
-            "text"
-        }:
+        if request.response_schema is not None and endpoint.provider != "openai_responses":
             raise ModelEndpointError(
                 "unsupported_generation_mode",
-                "This adapter executes text generation only; tools and media require their runner",
+                "Structured response schemas are supported only by the OpenAI Responses transport",
+            )
+        allowed_capabilities = {"text", "tools"} if request.controller_mode else {"text"}
+        if (
+            "text" not in endpoint.capabilities
+            or not decision.request.required_capabilities <= allowed_capabilities
+            or (request.controller_mode and "tools" not in endpoint.capabilities)
+        ):
+            raise ModelEndpointError(
+                "unsupported_generation_mode",
+                "Generation requires text capability; controller mode also requires tools "
+                "capability, and media requires its own runner",
             )
         if request.max_output_tokens > decision.request.output_tokens:
             raise ModelEndpointError(
@@ -145,6 +154,27 @@ class ModelEndpointClient:
             }
             if effort:
                 payload["reasoning"] = {"effort": effort}
+            if request.controller_mode:
+                payload["tools"] = [
+                    {
+                        "type": "function",
+                        "name": "simon_controller",
+                        "description": "Return one next controller action or final result",
+                        "strict": True,
+                        "parameters": request.response_schema,
+                    }
+                ]
+                payload["tool_choice"] = {"type": "function", "name": "simon_controller"}
+                payload["parallel_tool_calls"] = False
+            elif request.response_schema is not None:
+                payload["text"] = {
+                    "format": {
+                        "type": "json_schema",
+                        "name": "simon_controller",
+                        "strict": True,
+                        "schema": request.response_schema,
+                    }
+                }
             return "/responses", payload, headers
         if endpoint.provider == "openai_compatible":
             if key:
@@ -191,11 +221,15 @@ class ModelEndpointClient:
         return f"/models/{quote(model, safe='')}:generateContent", payload, headers
 
     @staticmethod
-    def _parse(endpoint: ModelEndpoint, document: Any) -> TextGenerationResult:
+    def _parse(
+        endpoint: ModelEndpoint, document: Any, controller_mode: bool = False
+    ) -> TextGenerationResult:
         if not isinstance(document, dict):
             raise ValueError("Expected an object")
         text_parts: list[str] = []
         truncated = False
+        refused = False
+        reasoning_tokens = None
         if endpoint.provider == "openai_responses":
             status = document.get("status")
             if status == "incomplete":
@@ -204,17 +238,45 @@ class ModelEndpointClient:
                 truncated = True
             elif status != "completed":
                 raise ValueError("Response did not complete")
-            for item in document["output"]:
+            output = document["output"]
+            if not isinstance(output, list):
+                raise ValueError("Expected output items")
+            for item in output:
                 if item["type"] == "reasoning":
                     continue
-                if item["type"] != "message":
-                    raise ValueError("Unexpected non-message output")
-                for part in item["content"]:
-                    if part["type"] != "output_text":
-                        raise ValueError("Unsupported response content")
-                    text_parts.append(part["text"])
+                if item["type"] == "message":
+                    for part in item["content"]:
+                        if part["type"] == "refusal":
+                            if not isinstance(part.get("refusal"), str):
+                                raise ValueError("Invalid refusal content")
+                            # Record the typed outcome, never the provider's
+                            # refusal body or accompanying generated text.
+                            refused = True
+                        elif part["type"] == "output_text":
+                            if not isinstance(part.get("text"), str):
+                                raise ValueError("Invalid text content")
+                            if not controller_mode:
+                                text_parts.append(part["text"])
+                        else:
+                            raise ValueError("Unsupported response content")
+                    continue
+                if controller_mode:
+                    if (
+                        item["type"] != "function_call"
+                        or item.get("name") != "simon_controller"
+                        or not isinstance(item.get("arguments"), str)
+                    ):
+                        raise ValueError("Unexpected controller output")
+                    text_parts.append(item["arguments"])
+                    continue
+                raise ValueError("Unexpected non-message output")
+            if controller_mode and (
+                len(text_parts) > 1 or (not text_parts and not (truncated or refused))
+            ):
+                raise ValueError("Expected exactly one controller function call")
             usage = document.get("usage") or {}
             incoming, outgoing = usage.get("input_tokens"), usage.get("output_tokens")
+            reasoning_tokens = (usage.get("output_tokens_details") or {}).get("reasoning_tokens")
         elif endpoint.provider == "openai_compatible":
             choice = document["choices"][0]
             if choice.get("finish_reason") not in {"stop", "length"}:
@@ -253,8 +315,8 @@ class ModelEndpointClient:
             thoughts = usage.get("thoughtsTokenCount")
             if outgoing is not None and thoughts is not None:
                 outgoing += thoughts
-        text = "\n".join(text_parts)
-        if not text:
+        text = "" if refused else "\n".join(text_parts)
+        if not text and not (truncated or refused):
             raise ValueError("Response contained no text")
         return TextGenerationResult(
             endpoint_id=endpoint.id,
@@ -263,4 +325,7 @@ class ModelEndpointClient:
             input_tokens=incoming,
             output_tokens=outgoing,
             truncated=truncated,
+            refused=refused,
+            response_reason="refusal" if refused else "max_output_tokens" if truncated else None,
+            reasoning_tokens=reasoning_tokens,
         )

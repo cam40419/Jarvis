@@ -77,7 +77,7 @@ def model_stream(
             required.add("memories:read")
         if (
             current.actor_id != actor.actor_id
-            or current.household_id != actor.household_id
+            or current.workspace_id != actor.workspace_id
             or not required <= current.scopes
         ):
             raise AuthorizationError("access changed during generation")

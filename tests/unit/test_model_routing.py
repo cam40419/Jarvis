@@ -201,6 +201,10 @@ def test_provider_transports_use_expected_wire_contract(
         assert "synthetic-secret" not in str(request.url)
         payload = json.loads(request.content)
         if provider == "openai_responses":
+            assert "text" not in payload
+            assert "tools" not in payload
+            assert "tool_choice" not in payload
+            assert "parallel_tool_calls" not in payload
             assert payload["reasoning"] == {"effort": "high"}
             assert payload["store"] is False
             assert payload["max_output_tokens"] == 512
@@ -228,6 +232,238 @@ def test_provider_transports_use_expected_wire_contract(
     assert result.input_tokens == 12
     assert result.output_tokens == 5
     assert len(seen) == 1
+
+
+def test_responses_transport_transmits_explicit_strict_response_schema() -> None:
+    configured = frontier()
+    environment = {"TEST_PROVIDER_KEY": "synthetic-secret"}
+    decision = ModelRouter([configured], environ=environment).route(RoutingRequest())
+    schema = {
+        "type": "object",
+        "properties": {"type": {"type": "string", "enum": ["final"]}, "output": {"type": "string"}},
+        "required": ["type", "output"],
+        "additionalProperties": False,
+    }
+    output = '{"type":"final","output":"Completed"}'
+    seen: list[httpx.Request] = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        assert request.url.path == "/v1/responses"
+        payload = json.loads(request.content)
+        assert payload["text"] == {
+            "format": {
+                "type": "json_schema",
+                "name": "simon_controller",
+                "strict": True,
+                "schema": schema,
+            }
+        }
+        assert payload["input"] == "Return a final result"
+        assert payload["store"] is False
+        response = response_for("openai_responses")
+        response["output"][0]["content"][0]["text"] = output
+        return httpx.Response(200, json=response)
+
+    client = ModelEndpointClient(
+        [configured], environ=environment, transport=httpx.MockTransport(handle)
+    )
+    result = client.generate(
+        decision, TextGenerationRequest(prompt="Return a final result", response_schema=schema)
+    )
+    assert result.text == output
+    assert len(seen) == 1
+
+
+def test_controller_mode_requires_a_schema() -> None:
+    with pytest.raises(ValidationError, match="requires a response schema"):
+        TextGenerationRequest(prompt="Return the next action", controller_mode=True)
+    assert TextGenerationRequest(prompt="Plain generation").controller_mode is False
+
+
+def test_responses_controller_forces_one_function_and_ignores_accompanying_text() -> None:
+    configured = frontier(capabilities=frozenset({"text", "tools"}))
+    environment = {"TEST_PROVIDER_KEY": "synthetic-secret"}
+    decision = ModelRouter([configured], environ=environment).route(
+        RoutingRequest(required_capabilities=frozenset({"text", "tools"}))
+    )
+    schema = {
+        "type": "object",
+        "properties": {"output": {"type": "string"}},
+        "required": ["output"],
+        "additionalProperties": False,
+    }
+    arguments = '{"output":"This is the selected controller result"}'
+    seen: list[httpx.Request] = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        payload = json.loads(request.content)
+        assert payload["tools"] == [
+            {
+                "type": "function",
+                "name": "simon_controller",
+                "description": "Return one next controller action or final result",
+                "strict": True,
+                "parameters": schema,
+            }
+        ]
+        assert payload["tool_choice"] == {"type": "function", "name": "simon_controller"}
+        assert payload["parallel_tool_calls"] is False
+        assert "text" not in payload
+        assert payload["store"] is False
+        response = response_for("openai_responses")
+        response["output"] = [
+            {"type": "reasoning", "summary": []},
+            {
+                "type": "message",
+                "content": [{"type": "output_text", "text": '{"type":"tool"}'}],
+            },
+            {"type": "function_call", "name": "simon_controller", "arguments": arguments},
+            {
+                "type": "message",
+                "content": [{"type": "output_text", "text": '{"type":"final"}'}],
+            },
+        ]
+        return httpx.Response(200, json=response)
+
+    client = ModelEndpointClient(
+        [configured], environ=environment, transport=httpx.MockTransport(handle)
+    )
+    result = client.generate(
+        decision,
+        TextGenerationRequest(
+            prompt="Return the next action", response_schema=schema, controller_mode=True
+        ),
+    )
+    assert result.text == arguments
+    assert result.input_tokens == 12
+    assert result.output_tokens == 5
+    assert len(seen) == 1
+
+
+@pytest.mark.parametrize(
+    "failure",
+    ["no_call", "multiple_calls", "wrong_name", "wrong_type", "wrong_arguments", "empty_arguments"],
+)
+def test_controller_mode_rejects_ambiguous_or_unexpected_output(failure: str) -> None:
+    configured = frontier(capabilities=frozenset({"text", "tools"}))
+    environment = {"TEST_PROVIDER_KEY": "synthetic-secret"}
+    decision = ModelRouter([configured], environ=environment).route(
+        RoutingRequest(required_capabilities=frozenset({"text", "tools"}))
+    )
+    call: dict[str, Any] = {
+        "type": "function_call",
+        "name": "simon_controller",
+        "arguments": '{"output":"synthetic-sensitive-provider-data"}',
+    }
+    output = [call]
+    if failure == "no_call":
+        output = response_for("openai_responses")["output"]
+    elif failure == "multiple_calls":
+        output.append(dict(call))
+    elif failure == "wrong_name":
+        call["name"] = "other_function"
+    elif failure == "wrong_type":
+        call["type"] = "web_search_call"
+    elif failure == "wrong_arguments":
+        call["arguments"] = {"output": "synthetic-sensitive-provider-data"}
+    else:
+        call["arguments"] = ""
+    seen: list[httpx.Request] = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, json={"status": "completed", "output": output})
+
+    client = ModelEndpointClient(
+        [configured], environ=environment, transport=httpx.MockTransport(handle)
+    )
+    with pytest.raises(ModelEndpointError) as caught:
+        client.generate(
+            decision,
+            TextGenerationRequest(
+                prompt="Return the next action", response_schema={}, controller_mode=True
+            ),
+        )
+    assert caught.value.code == "invalid_model_response"
+    assert caught.value.may_have_been_dispatched is True
+    assert "synthetic-sensitive" not in str(caught.value)
+    assert len(seen) == 1
+
+
+@pytest.mark.parametrize("provider", ["openai_compatible", "anthropic", "gemini"])
+def test_controller_mode_rejects_other_transports_before_dispatch(provider: str) -> None:
+    configured = frontier(
+        provider=provider, reasoning_efforts=(), capabilities=frozenset({"text", "tools"})
+    )
+    environment = {"TEST_PROVIDER_KEY": "synthetic-secret"}
+    decision = ModelRouter([configured], environ=environment).route(
+        RoutingRequest(required_capabilities=frozenset({"text", "tools"}))
+    )
+    seen: list[httpx.Request] = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, json=response_for(provider))
+
+    client = ModelEndpointClient(
+        [configured], environ=environment, transport=httpx.MockTransport(handle)
+    )
+    with pytest.raises(ModelEndpointError) as caught:
+        client.generate(
+            decision,
+            TextGenerationRequest(
+                prompt="Return the next action", response_schema={}, controller_mode=True
+            ),
+        )
+    assert caught.value.code == "unsupported_generation_mode"
+    assert caught.value.may_have_been_dispatched is False
+    assert seen == []
+
+
+def test_controller_mode_requires_declared_tools_capability_before_dispatch() -> None:
+    configured = frontier()
+    environment = {"TEST_PROVIDER_KEY": "synthetic-secret"}
+    decision = ModelRouter([configured], environ=environment).route(RoutingRequest())
+    client = ModelEndpointClient([configured], environ=environment)
+    with pytest.raises(ModelEndpointError) as caught:
+        client.generate(
+            decision,
+            TextGenerationRequest(
+                prompt="Return the next action", response_schema={}, controller_mode=True
+            ),
+        )
+    assert caught.value.code == "unsupported_generation_mode"
+    assert caught.value.may_have_been_dispatched is False
+
+
+@pytest.mark.parametrize("provider", ["openai_compatible", "anthropic", "gemini"])
+@pytest.mark.parametrize(
+    "schema", [{}, {"type": "object", "properties": {}}], ids=["empty", "object"]
+)
+def test_unsupported_transports_reject_response_schema_before_any_dispatch(
+    provider, schema
+) -> None:
+    configured = frontier(provider=provider, reasoning_efforts=())
+    environment = {"TEST_PROVIDER_KEY": "synthetic-secret"}
+    decision = ModelRouter([configured], environ=environment).route(RoutingRequest())
+    seen: list[httpx.Request] = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, json=response_for(provider))
+
+    client = ModelEndpointClient(
+        [configured], environ=environment, transport=httpx.MockTransport(handle)
+    )
+    with pytest.raises(ModelEndpointError) as caught:
+        client.generate(
+            decision, TextGenerationRequest(prompt="Return a result", response_schema=schema)
+        )
+    assert caught.value.code == "unsupported_generation_mode"
+    assert caught.value.may_have_been_dispatched is False
+    assert seen == []
 
 
 @pytest.mark.parametrize("failure", ["timeout", "server", "redirect", "invalid", "oversize"])
@@ -270,10 +506,11 @@ def test_credential_revocation_is_rechecked_at_dispatch() -> None:
     assert not caught.value.may_have_been_dispatched
 
 
-def test_text_adapter_rejects_tool_or_media_work_before_network_access() -> None:
+@pytest.mark.parametrize("capability", ["tools", "vision"])
+def test_text_adapter_rejects_tool_or_media_work_before_network_access(capability: str) -> None:
     configured = endpoint(capabilities=frozenset({"text", "vision", "tools"}))
     decision = ModelRouter([configured]).route(
-        RoutingRequest(required_capabilities=frozenset({"vision"}))
+        RoutingRequest(required_capabilities=frozenset({capability}))
     )
     with pytest.raises(ModelEndpointError) as caught:
         ModelEndpointClient([configured]).generate(decision, TextGenerationRequest(prompt="Hello"))

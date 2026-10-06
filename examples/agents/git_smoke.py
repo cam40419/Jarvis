@@ -42,7 +42,7 @@ def main() -> None:
     ownership = {"attempt_id": request.attempt_id, "fencing_token": lease.fencing_token}
     context = ToolExecutionContext(
         actor_id=uuid4(),
-        household_id=request.workspace_id,
+        workspace_id=request.workspace_id,
         run_id=uuid4(),
         agent_id="git-smoke",
         scopes=frozenset({"jobs:read", "jobs:write"}),

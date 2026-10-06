@@ -11,6 +11,15 @@ from simon.api.project_boards import board_blockers
 from simon.api.project_knowledge import project_knowledge_router
 from simon.domain.errors import DomainError, ValidationError
 from simon.domain.models import ActorContext, StrictModel
+from simon.domain.project_continuity import (
+    CancelProjectRequest,
+    ContinueProjectWork,
+    CreateProjectSchedule,
+    CreateProjectWait,
+    QueueProjectRequest,
+    ReplyProjectWait,
+    SetProjectSchedule,
+)
 from simon.domain.project_work import (
     ConfigureProjectWork,
     ProjectActivityDraft,
@@ -20,11 +29,14 @@ from simon.domain.project_work import (
 )
 from simon.services.project_coordinator import ProjectCoordinator
 from simon.services.project_history import ProjectHistoryService, ProjectRunPage
+from simon.services.project_presentation import project_presentation
 
 
 class ProjectCommand(StrictModel):
     instruction: str = Field(min_length=1, max_length=16000, pattern=r"\S")
     idempotency_key: str = Field(min_length=8, max_length=180)
+    replace_failed: bool = False
+    expected_version: int | None = Field(default=None, ge=0)
 
 
 class AddProjectTodo(StrictModel):
@@ -81,6 +93,7 @@ def project_command_router(
             if identifier
         }
         plans, executions = [], []
+        run_records = []
         blockers = list(state.blocked_reasons)
         if coordinator.boards is not None:
             blockers.extend(
@@ -106,7 +119,9 @@ def project_command_router(
                 blockers.append(str(error))
         for identifier in sorted(run_ids, key=str):
             try:
-                executions.append(runs.get(actor, identifier).model_dump(mode="json"))
+                execution = runs.get(actor, identifier)
+                run_records.append(execution)
+                executions.append(execution.model_dump(mode="json"))
             except DomainError as error:
                 blockers.append(str(error))
         return {
@@ -128,6 +143,13 @@ def project_command_router(
             if coordinator.external_actions
             else [],
             "blocked_reasons": list(dict.fromkeys(blockers)),
+            "continuity": continuity_snapshot(project_id, actor),
+            "presentation": project_presentation(
+                state,
+                run_records,
+                blockers=blockers,
+                recovery=coordinator.retry_readiness(actor, project_id),
+            ),
         }
 
     @router.post("/command", status_code=202)
@@ -138,13 +160,117 @@ def project_command_router(
     ) -> ProjectWorkState:
         if not runs.enabled:
             raise ValidationError("Enable agent execution before asking a project lead to work")
-        state = work.get(actor, project_id)
         return work.request_cycle(
             actor,
             project_id,
             body.instruction,
             body.idempotency_key,
-            automatic=state.autonomy.mode == "scheduled",
+            # A user request always follows manual plan review. Only the scheduler
+            # can consume scheduled-cycle allowances and approve automatic work.
+            automatic=False,
+            replace_failed=body.replace_failed,
+            expected_version=body.expected_version,
+        )
+
+    @router.get("/continuity")
+    def continuity_snapshot(
+        project_id: UUID, actor: Annotated[ActorContext, Depends(authenticate)]
+    ) -> dict[str, Any]:
+        return {
+            **coordinator.continuity.snapshot(actor, project_id),
+            "continuation": coordinator.continuation_readiness(actor, project_id),
+        }
+
+    @router.post("/requests", status_code=202)
+    def queue_request(
+        project_id: UUID,
+        body: QueueProjectRequest,
+        actor: Annotated[ActorContext, Depends(authenticate)],
+    ) -> dict[str, Any]:
+        if not runs.enabled:
+            raise ValidationError("Enable agent execution before queuing project work")
+        return coordinator.continuity.queue(actor, project_id, body)
+
+    @router.post("/requests/{request_id}/cancel")
+    def cancel_request(
+        project_id: UUID,
+        request_id: UUID,
+        body: CancelProjectRequest,
+        actor: Annotated[ActorContext, Depends(authenticate)],
+    ) -> dict[str, Any]:
+        return coordinator.continuity.cancel_request(
+            actor, project_id, request_id, body.expected_version
+        )
+
+    @router.post("/waits", status_code=201)
+    def create_wait(
+        project_id: UUID,
+        body: CreateProjectWait,
+        actor: Annotated[ActorContext, Depends(authenticate)],
+    ) -> dict[str, Any]:
+        return coordinator.continuity.create_wait(actor, project_id, body)
+
+    @router.post("/requests/{request_id}/retry", status_code=202)
+    def retry_request(
+        project_id: UUID,
+        request_id: UUID,
+        body: CancelProjectRequest,
+        actor: Annotated[ActorContext, Depends(authenticate)],
+    ) -> dict[str, Any]:
+        return coordinator.continuity.retry_request(
+            actor, project_id, request_id, body.expected_version
+        )
+
+    @router.post("/waits/{wait_id}/reply", status_code=202)
+    def reply_wait(
+        project_id: UUID,
+        wait_id: UUID,
+        body: ReplyProjectWait,
+        actor: Annotated[ActorContext, Depends(authenticate)],
+    ) -> dict[str, Any]:
+        return coordinator.continuity.reply(actor, project_id, wait_id, body)
+
+    @router.post("/waits/{wait_id}/cancel")
+    def cancel_wait(
+        project_id: UUID,
+        wait_id: UUID,
+        body: CancelProjectRequest,
+        actor: Annotated[ActorContext, Depends(authenticate)],
+    ) -> dict[str, Any]:
+        return coordinator.continuity.cancel_wait(actor, project_id, wait_id, body.expected_version)
+
+    @router.post("/schedules", status_code=201)
+    def create_schedule(
+        project_id: UUID,
+        body: CreateProjectSchedule,
+        actor: Annotated[ActorContext, Depends(authenticate)],
+    ) -> dict[str, Any]:
+        if not runs.enabled:
+            raise ValidationError("Enable agent execution before scheduling project work")
+        return coordinator.continuity.schedule(actor, project_id, body)
+
+    @router.patch("/schedules/{schedule_id}")
+    def set_schedule(
+        project_id: UUID,
+        schedule_id: UUID,
+        body: SetProjectSchedule,
+        actor: Annotated[ActorContext, Depends(authenticate)],
+    ) -> dict[str, Any]:
+        return coordinator.continuity.set_schedule(actor, project_id, schedule_id, body)
+
+    @router.post("/continue", status_code=202)
+    def continue_work(
+        project_id: UUID,
+        body: ContinueProjectWork,
+        actor: Annotated[ActorContext, Depends(authenticate)],
+    ) -> ProjectWorkState:
+        if not runs.enabled:
+            raise ValidationError("Enable agent execution before continuing project work")
+        return coordinator.continue_saved(
+            actor,
+            project_id,
+            expected_version=body.expected_version,
+            idempotency_key=body.idempotency_key,
         )
 
     @router.patch("/team")

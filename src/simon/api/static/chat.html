@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="/assets/chat.css" />
     <script src="/assets/app-path.js" defer></script>
     <script src="/assets/markdown.js" defer></script>
+    <script src="/assets/result-view.js" defer></script>
     <script src="/assets/chat.js" defer></script>
     <script src="/assets/connections.js" defer></script>
     <link rel="stylesheet" href="/assets/voice.css" />
@@ -19,8 +20,13 @@
     <script src="/assets/work.js" defer></script>
     <script src="/assets/local-files.js" defer></script>
     <script src="/assets/agent-work.js" defer></script>
+    <script src="/assets/setup-assistant.js" defer></script>
     <script src="/assets/agent-library.js" defer></script>
+    <script src="/assets/project-drafts.js" defer></script>
+    <script src="/assets/project-continuity.js" defer></script>
+    <script src="/assets/project-storage.js" defer></script>
     <script src="/assets/project-command.js" defer></script>
+    <script src="/assets/project-workspace.js" defer></script>
     <script src="/assets/project-knowledge.js" defer></script>
     <script src="/assets/project-outputs.js" defer></script>
     <script src="/assets/project-board.js" defer></script>
@@ -28,12 +34,17 @@
     <link rel="stylesheet" href="/assets/theme.css" />
     <link rel="stylesheet" href="/assets/agent-work.css" />
     <link rel="stylesheet" href="/assets/agent-library.css" />
+    <link rel="stylesheet" href="/assets/setup-assistant.css" />
     <link rel="stylesheet" href="/assets/project-command.css" />
+    <link rel="stylesheet" href="/assets/result-view.css" />
     <link rel="stylesheet" href="/assets/project-knowledge.css" />
+    <link rel="stylesheet" href="/assets/project-workspace.css" />
+    <link rel="stylesheet" href="/assets/project-continuity.css" />
     <link rel="stylesheet" href="/assets/project-outputs.css" />
     <link rel="stylesheet" href="/assets/project-board.css" />
     <link rel="stylesheet" href="/assets/external-actions.css" />
     <link rel="stylesheet" href="/assets/local-files.css" />
+    <link rel="stylesheet" href="/assets/workspace-shell.css" />
   </head>
   <body class="chat-page">
     <button id="sidebar-scrim" class="scrim" aria-label="Close navigation" hidden></button>
@@ -46,6 +57,11 @@
       <button id="new-chat" class="new-chat">
         <span aria-hidden="true">＋</span> New conversation <kbd>Alt N</kbd>
       </button>
+      <nav class="sidebar-work-nav" aria-label="Workspace">
+        <button id="sidebar-projects" type="button" class="nav-button">Projects</button>
+        <button id="sidebar-agents" type="button" class="nav-button">Agents &amp; skills</button>
+        <button id="connections-open" type="button" class="nav-button" disabled>Connections</button>
+      </nav>
       <label class="search"
         ><span aria-hidden="true">⌕</span
         ><input
@@ -60,13 +76,12 @@
       </nav>
       <div class="sidebar-bottom">
         <button id="personality-open" class="nav-button">Personality &amp; voice</button
-        ><button id="connections-open" class="nav-button" disabled>Connections</button
         ><button id="memory-open" class="nav-button">
           <span aria-hidden="true">◇</span> Memory <span id="memory-count" class="count">0</span>
         </button>
         <a href="/login" class="account-link"
           ><span id="user-avatar" class="avatar">U</span
-          ><span><strong id="user-name">Your account</strong><small id="household"></small></span
+          ><span><strong id="user-name">Your account</strong><small id="workspace"></small></span
           ><span class="account-arrow" aria-hidden="true">↗</span></a
         >
       </div>
@@ -136,14 +151,24 @@
       </section>
       <section id="work-view" class="work-view" aria-label="Work and projects" hidden>
         <div class="work-hero">
-          <p class="eyebrow">WORKSPACE</p>
-          <h1>Work</h1>
-          <p>Projects, agent teams, and the work they deliver.</p>
-          <div class="work-hero-actions">
-            <button id="work-plan" class="primary" type="button">Discuss a new project</button
-            ><button id="work-review" type="button">Review priorities</button
-            ><button id="work-refresh" type="button">Refresh workspace</button>
+          <div class="work-home-heading">
+            <h1>Workspace</h1>
+            <button id="work-refresh" type="button" class="pc-button">Refresh workspace</button>
           </div>
+          <p>Open a project for its requests, answers, files, and team.</p>
+          <nav class="work-home-nav" aria-label="Workspace sections">
+            <button id="work-projects-open" type="button">Projects</button>
+            <button id="work-agents-open" type="button">Agents &amp; runs</button>
+            <button id="work-background-open" type="button">Background work</button>
+            <button id="work-connections-open" type="button">Connections</button>
+          </nav>
+          <details class="work-chat-shortcuts">
+            <summary>Discuss with Simon</summary>
+            <div class="work-hero-actions">
+              <button id="work-plan" type="button">Discuss a new project</button>
+              <button id="work-review" type="button">Review priorities</button>
+            </div>
+          </details>
         </div>
         <p id="work-status" role="status" aria-live="polite"></p>
         <section class="work-card work-tasks">
@@ -298,7 +323,7 @@
                   Save as my defaults
                 </button>
                 <p id="preferences-status" role="status" aria-live="polite">
-                  Saved defaults apply to your chats in this household.
+                  Saved defaults apply to your chats in this workspace.
                 </p>
               </div>
             </details>
@@ -367,7 +392,7 @@
         ><label for="memory-scope">Who can use this?</label
         ><select id="memory-scope">
           <option value="personal">Only me</option>
-          <option value="household">Shared workspace</option></select
+          <option value="workspace">Shared workspace</option></select
         ><button class="primary">Save memory</button>
         <p class="muted fine">
           Personal memories are used in your private conversations. Shared memories are visible to
@@ -397,13 +422,32 @@
       </p>
       <a href="/login">Account &amp; access ↗</a>
     </dialog>
-    <dialog id="connections-panel" class="side-panel" aria-labelledby="connections-heading">
+    <dialog
+      id="connections-panel"
+      class="side-panel connections-center"
+      aria-labelledby="connections-heading"
+    >
       <div class="panel-header">
         <h2 id="connections-heading">Connections</h2>
         <button class="icon-button" data-close="connections-panel" aria-label="Close connections">
           ×
         </button>
       </div>
+      <p>
+        Configure and test connections before starting work. Every agent uses these workspace
+        connections.
+      </p>
+      <section class="memory-card" aria-labelledby="connections-readiness-heading">
+        <h3 id="connections-readiness-heading">All connections and tools</h3>
+        <button id="connections-refresh" type="button">Refresh readiness</button>
+        <input
+          id="connections-search"
+          type="search"
+          placeholder="Find a service or tool"
+          aria-label="Find a connection or tool"
+        />
+        <div id="connections-catalog" role="status"></div>
+      </section>
       <div class="memory-card">
         <h3>Web</h3>
         <p id="web-connection"></p>
@@ -437,6 +481,192 @@
       <div class="memory-card">
         <h3>RobbinsHome</h3>
         <div id="home-connection"></div>
+      </div>
+      <div class="memory-card">
+        <h3>Service accounts</h3>
+        <p>
+          Connect accounts here. Credentials are encrypted on the server. ClickUp discovers every
+          Workspace and List your account can access.
+        </p>
+        <div id="integration-accounts"></div>
+        <form id="integration-form">
+          <label for="integration-provider">Service</label>
+          <select id="integration-provider">
+            <option value="clickup">ClickUp</option>
+            <option id="integration-openai-option" value="openai" hidden disabled>
+              OpenAI models and web search
+            </option>
+            <option value="github">GitHub</option>
+            <option value="dropbox">Dropbox</option>
+            <option value="box">Box</option>
+            <option value="webdav">WebDAV storage</option>
+            <option value="onedrive">OneDrive &amp; SharePoint</option>
+            <option value="twilio">Twilio phone messages</option>
+            <option value="gateway">Booking and purchase gateway</option>
+            <option value="home">RobbinsHome</option>
+            <option id="integration-email-option" value="email" hidden disabled>
+              Account email delivery
+            </option>
+            <option id="integration-google-option" value="google_app" hidden disabled>
+              Google application setup
+            </option>
+          </select>
+          <label for="integration-name">Connection name</label>
+          <input id="integration-name" maxlength="100" placeholder="My ClickUp account" />
+          <label id="integration-credential-label" for="integration-credential"
+            >Personal API token</label
+          >
+          <input
+            id="integration-credential"
+            type="password"
+            autocomplete="off"
+            maxlength="4096"
+            required
+          />
+          <p id="integration-help" class="muted fine">
+            In ClickUp, open Settings → Apps and copy your personal API token. No List IDs needed.
+          </p>
+          <fieldset id="integration-twilio" hidden disabled>
+            <legend>Phone account</legend>
+            <label for="integration-sid">Account SID</label
+            ><input id="integration-sid" maxlength="100" />
+            <label for="integration-phone">From phone number</label
+            ><input id="integration-phone" type="tel" placeholder="+15551234567" />
+            <label for="integration-recipients"
+              >Allowed recipients (one international number per line; blank allows any)</label
+            >
+            <textarea id="integration-recipients" rows="3"></textarea>
+          </fieldset>
+          <fieldset id="integration-gateway" hidden disabled>
+            <legend>Booking and purchase service</legend>
+            <label for="integration-endpoint">Service address</label
+            ><input id="integration-endpoint" type="url" maxlength="1000" placeholder="https://…" />
+            <label for="integration-merchants"
+              >Merchants (one merchant identifier = display name per line)</label
+            >
+            <textarea id="integration-merchants" rows="3"></textarea>
+          </fieldset>
+          <fieldset id="integration-home" hidden disabled>
+            <legend>RobbinsHome server</legend>
+            <label for="integration-home-endpoint">Server address</label
+            ><input
+              id="integration-home-endpoint"
+              type="url"
+              maxlength="1000"
+              placeholder="https://home.example.com"
+            />
+          </fieldset>
+          <fieldset id="integration-storage" hidden disabled>
+            <legend>Storage access</legend>
+            <div id="integration-webdav-fields">
+              <label for="integration-webdav-endpoint">WebDAV folder address</label>
+              <input
+                id="integration-webdav-endpoint"
+                type="url"
+                maxlength="1000"
+                placeholder="https://storage.example.com/remote.php/dav/files/me"
+              />
+              <label for="integration-webdav-user">Username</label>
+              <input id="integration-webdav-user" maxlength="200" />
+            </div>
+            <div id="integration-dropbox-fields">
+              <label for="integration-root-path">Dropbox folder path</label>
+              <input id="integration-root-path" maxlength="1000" placeholder="/Simon" />
+              <p class="muted">Files under this folder and all its subfolders are available.</p>
+            </div>
+            <div id="integration-box-fields">
+              <label for="integration-root-folder"
+                >Box folder ID (0 for all accessible folders)</label
+              >
+              <input id="integration-root-folder" maxlength="30" placeholder="0" />
+            </div>
+            <div id="integration-onedrive-fields">
+              <label for="integration-drive">Microsoft drive ID</label>
+              <input id="integration-drive" maxlength="250" />
+              <label for="integration-root-item">Root folder item ID</label>
+              <input id="integration-root-item" maxlength="250" />
+              <label for="integration-download-hosts"
+                >Exact download hostnames (one per line)</label
+              >
+              <textarea
+                id="integration-download-hosts"
+                rows="2"
+                placeholder="tenant.sharepoint.com"
+              ></textarea>
+            </div>
+            <label id="integration-storage-write-label"
+              ><input id="integration-storage-write" type="checkbox" /> Allow file writes (Dropbox
+              or WebDAV)</label
+            >
+            <p class="muted">
+              The connection is tested against the selected folder before it is saved. Tokens may
+              expire; use Test and Reconnect here.
+            </p>
+          </fieldset>
+          <fieldset id="integration-github" hidden disabled>
+            <legend>GitHub repositories</legend>
+            <label for="integration-github-repositories">Permitted repositories</label>
+            <textarea
+              id="integration-github-repositories"
+              rows="4"
+              maxlength="26000"
+              required
+              placeholder="owner/repository, one per line"
+            ></textarea>
+            <label
+              ><input id="integration-github-write" type="checkbox" /> Allow agents to create issues
+              and draft pull requests</label
+            >
+            <p class="muted fine">
+              Enter a GitHub personal access token above. Grant access to these repositories, with
+              Contents, Issues and Pull requests read permissions. To enable creation, grant Issues
+              and Pull requests write permissions too. The token is encrypted and saved in Simon;
+              agents can access only the repositories listed here.
+            </p>
+          </fieldset>
+          <fieldset id="integration-email" hidden disabled>
+            <legend>Account email delivery</legend>
+            <label for="integration-email-transport">Delivery service</label>
+            <select id="integration-email-transport">
+              <option value="resend">Resend</option>
+              <option value="smtp">SMTP</option>
+            </select>
+            <label for="integration-email-from">Verified sender address</label>
+            <input id="integration-email-from" type="email" maxlength="254" required />
+            <fieldset id="integration-smtp" disabled hidden>
+              <label for="integration-smtp-host">SMTP server</label>
+              <input id="integration-smtp-host" maxlength="253" required />
+              <label for="integration-smtp-port">Secure SMTP port</label>
+              <select id="integration-smtp-port">
+                <option value="587">587 (STARTTLS)</option>
+                <option value="465">465 (TLS)</option>
+              </select>
+              <label for="integration-smtp-user">SMTP username</label>
+              <input id="integration-smtp-user" maxlength="254" autocomplete="off" required />
+            </fieldset>
+            <p class="muted fine">
+              Use a verified sender from your email provider. Save the API key or SMTP password in
+              the credential field above. Users can then verify a recovery email in Account
+              settings.
+            </p>
+          </fieldset>
+          <fieldset id="integration-google_app" hidden disabled>
+            <legend>Google OAuth application</legend>
+            <label for="integration-google-client">Client ID</label
+            ><input id="integration-google-client" maxlength="300" />
+            <p class="muted fine">
+              Create a Web application OAuth client in Google Cloud, enable Calendar, Gmail and
+              Drive, and add this authorized redirect address:
+            </p>
+            <p id="integration-google-redirect"></p>
+            <p class="muted fine">
+              After saving, use Connect Google above to authorize each account.
+            </p>
+          </fieldset>
+          <button id="integration-connect" class="primary" type="submit">Connect account</button>
+          <button id="integration-cancel" type="button" hidden>Cancel reconnect</button>
+          <p id="integration-status" role="status"></p>
+        </form>
       </div>
       <div class="memory-card">
         <h3>Reservations</h3>

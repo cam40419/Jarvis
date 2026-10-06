@@ -39,6 +39,7 @@ def test_work_project_creation_browse_read_upload_and_edit_prompt(postgres_url, 
             page.goto(origin + "/chat")
             expect(page.locator("#new-chat")).to_be_enabled()
             page.locator("#work-open").click()
+            page.locator("#work-background-open").click()
             page.locator("#work-project-name").fill("Browser project")
             page.locator("#work-project-detail").fill("Test live project files")
             page.locator('#work-project-form button[type="submit"]').click()

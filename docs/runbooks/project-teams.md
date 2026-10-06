@@ -14,22 +14,29 @@ They do not need a separate model provider or a permanently running agent for ea
 
 Open **Work**, select a project, and use its workspace tabs:
 
-| Tab             | Contents                                                                                                                |
-| --------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| Overview        | Goal, task counts, current cycle, lead request, recent tasks and project resource shortcuts                             |
-| Execution tasks | Saved agent assignments, dependencies, progress and completed-task archive                                              |
-| Files           | Project files on the local server, configured Google Drive folder and generated outputs                                 |
-| Run history     | All saved project runs, including earlier planning and execution cycles, with expandable results and artifact downloads |
-| Board           | Primary ClickUp board connection, import/publish review, synchronization and uncertain update recovery                  |
-| Knowledge       | Project brief, pinned decisions, searchable findings and project history                                                |
-| Activity        | Continuing project updates and older activity pages                                                                     |
-| Sessions        | Project conversations and background tasks                                                                              |
-| Team            | Team membership, responsibilities, lead and autonomy settings                                                           |
+| Tab             | Contents                                                                                               |
+| --------------- | ------------------------------------------------------------------------------------------------------ |
+| Overview        | Current request, project status, inline lead response or answer, and the next action                   |
+| Execution tasks | Saved agent assignments, dependencies, progress and completed-task archive                             |
+| Files           | Project files on the local server, configured Google Drive folder and generated outputs                |
+| Run history     | Previous planning and execution runs, readable answers, file previews and optional downloads           |
+| Board           | Primary ClickUp board connection, import/publish review, synchronization and uncertain update recovery |
+| Knowledge       | Project brief, pinned decisions, searchable findings and project history                               |
+| Activity        | Continuing project updates and older activity pages                                                    |
+| Sessions        | Project conversations and background tasks                                                             |
+| Team & access   | Team membership, individual skills, connection readiness, lead and autonomy settings                   |
 
 Run history loads newest first. Use **Load earlier runs** to continue through previous pages.
 Each record keeps its original run status and saved results. Removing an agent from the current
 configuration does not hide its historical results; current project and account permissions still
 apply. Starting new work requires a valid current team and configuration.
+
+The Overview shows the lead's response directly. A completed planning model call does
+not mean the project work completed: the project status distinguishes planning, a plan
+awaiting review, execution, and an outcome needing attention. Structured planning responses
+are shown as readable summaries; the raw JSON and its download are under technical details.
+Text and Markdown deliverables can be read in Simon, with copying and downloads as secondary
+actions. Supported image previews remain separate from executable HTML or other active files.
 
 The local file browser supports folder breadcrumbs, upload, download, previews and a file-name
 filter for the current page. Files remain on the server and are available through an authenticated
@@ -40,8 +47,16 @@ the project header across all sections; see [project boards](project-boards.md) 
 
 ## Choose the team and lead
 
+For guided setup, select **Describe a team** while creating a project or editing its
+team. Explain the work and refine the suggested roles in chat. The recommendation
+includes a lead, each member's responsibilities, individual skills, and connection
+requirements. **Use recommendation** replaces the open draft for review; save the
+project or team normally to keep it. Use the member editor's description assistant to
+design or revise one role without replacing the rest of the team. Related duties can
+belong to the same member. See [agent profiles](agent-profiles.md) for setup behavior.
+
 Every team member has its own role and individual skill selection within the project.
-Open **Team → Edit team**, then use **Configure** on the member you want to change. Edit
+Open **Team & access → Edit team**, then use **Configure** on the member you want to change. Edit
 its title and description, and check each skill it needs. For example, enable file search,
 file reading and file writing for a research-and-document owner, while a second member
 has only file reading. Changing the first member does not change the second.
@@ -65,14 +80,74 @@ and are used by the planner and executing worker. Integration readiness is shown
 skill; saving a selection does not connect its provider. Changed or removed server grants
 block affected capabilities. Reopening the member configuration allows correcting them.
 
+Under **Projects**, **Read project details** reads the project's name and description.
+**Edit project details** separately allows updating either field; select both when an
+agent should read and revise them. These skills apply only to the project assigned to
+the run. Edits use the current details version to prevent overwriting a concurrent
+change and retain revision history. They do not change the project brief, team,
+permissions, files, or connected Drive folder. The project brief remains in Knowledge.
+Existing members and the **Project findings and tasks** skill keep their saved grants;
+adding the new tools to the server does not give existing agents edit access. An
+administrator must install the tools and their source grants before they appear in
+the individual skill picker.
+
 The lead can assign up to eight tasks per cycle. Related research, writing and verification can
 belong to one agent and one task. Separate tasks when dependencies, independent deliverables or
 different permissions make that useful. The server adds a final lead review.
 Only selected team members and their currently configured tools are eligible. A task with no
 selected tools can reason from its supplied context, but cannot access a tool implicitly.
+The lead checks the entire team's available skills before declaring that access is missing.
+When another member has the required skill, the lead delegates the work to that member and
+reviews the result; the lead does not need to receive that member's permissions. For example,
+a lead with analysis skills can assign file editing or project-detail updates to an editor.
 Existing unfinished backlog tasks may be reused. Their saved prerequisites remain mandatory:
 an unfinished prerequisite must be included in the plan, while a completed prerequisite stays
 linked without being executed again. Invalid graphs and unavailable grants block delegation.
+Completed prerequisites also supply bounded saved results and their run references to the
+assigned worker. Source handoffs include exact file IDs and read context returned by tools;
+missing or truncated evidence is identified explicitly.
+
+During planning, the lead may use its explicitly selected, configured read-only tools to
+discover project files and context. It does not receive write permissions or other members'
+skills. A missing saved brief is optional context: the lead can inspect available source files
+or delegate discovery. File reads do not start an unrelated browser or coding container.
+
+OpenAI Responses workers with tools use one forced controller function with a strict schema,
+so accompanying model text cannot become another tool action. Planning additionally
+constrains each assignment to its selected member's ready tools and requires empty task lists
+for waiting/completed decisions. Runtime permission and dependency checks still apply.
+Other text transports retain strict controller validation and allow one format correction
+before any tool has run, within the existing step, timeout and budget limits. A malformed
+tool request, uncertain outcome or completed tool action is never replayed by that correction.
+Empty failed runs show a Simon status explanation and technical error details in Overview.
+
+A proposed tool call with schema-invalid arguments gets one correction opportunity per task,
+including after earlier successful reads. The rejected call is recorded as not executed;
+completed actions remain completed. The correction uses the same step, time and budget
+limits. Repeated invalid arguments stop the task, and authorization failures or uncertain
+actions cannot use this path to bypass review.
+
+Known read failures are recorded as failed tool calls and returned to the agent as a safe
+error result, allowing it to consult another granted source or explain the missing evidence.
+Authorization failures, failed writes and uncertain actions still stop execution for review.
+
+If planning stops before delegated work begins, **Retry with current access** creates a
+fresh plan from the original request and the current team permissions. The action clears
+that planning hold in one step; there is no separate acknowledge/resume sequence. It runs
+once in manual mode and leaves scheduled work off until you enable it again. Requests such
+as "continue" retain the last substantive instruction. Historical runs keep their original
+results. A run with uncertain actions or already started delegated work still requires its
+existing recovery review, rather than a blind retry.
+
+Use **New request** from any project tab to reach the request composer. For a failed planning
+attempt that is safe to replace, **Replace failed request** submits the new instruction and
+clears that planning hold together. It preserves the old run and checks that project state
+has not changed before accepting the replacement. Execution failures and uncertain actions
+retain their recovery requirements. Request drafts survive project refreshes and conflicts.
+
+Planning context is bounded as project history grows. Older activity, completed-task results
+and long reference text are shortened before current team capabilities or unfinished task
+dependencies. Full run history remains available in the project.
 
 Team changes use the current state version to detect conflicting edits. A team's revision
 changes when its membership, member roles or skills, lead, responsibilities, name or concurrency
@@ -98,8 +173,9 @@ For continuing work, select **scheduled** mode and save all of these limits:
 | Paused             | Prevents new planning and delegation while preserving saved work                      |
 
 Scheduled cycles automatically advance a valid delegated plan, within these limits. A command
-sent explicitly while scheduled mode is selected starts an immediate scheduled cycle and
-counts toward its allowance. Only one cycle can be active per project. An idle scheduled
+sent explicitly starts a manual cycle with a delegated plan for review, including when
+scheduled mode is selected. It does not consume the scheduled-cycle allowance. Only one cycle
+can be active per project. An idle scheduled
 project is first due one cadence after configuration; later due dates are measured after the
 previous cycle settles. There is no burst replay of every missed interval after downtime.
 
@@ -250,11 +326,37 @@ losing older findings behind a recent-history limit. Unpinning a decision preser
 source entry and the saved knowledge revision. Concurrent edits use a separate record
 version; a conflict preserves the draft and requires reloading the latest record.
 
+Write the brief for someone learning about the project: its purpose, audience, scope,
+product or strategy, supported facts, and unresolved questions about the subject. Keep
+it useful beyond the current run. Pinned decisions record choices and constraints the
+project will follow; discovering a file or completing a task does not create a decision.
+
+Save detailed research and exact source identifiers/read context as findings. The brief
+can cite source titles or other concise, readable references. Send execution status,
+success checklists, run/version/account IDs, and permission troubleshooting to a progress
+entry instead of the brief or pins. Agents use `project.record_finding` with `kind=finding`
+for evidence and `kind=progress` for process updates. These are writing instructions;
+the service preserves authorized text without keyword-based rejection or rewriting.
+
 The lead's planning context and delegated execution/review context include bounded brief
 and decision summaries. A lead explicitly granted `project.knowledge_read` and
 `project.history_search` can retrieve the full brief, individual decisions, and older
 findings. Saved content is reference data; it never grants permissions or authorizes an
 external action. Original entries and every brief/decision revision remain in PostgreSQL.
+
+**Edit project brief and decisions** is a separate write skill from **Read project knowledge**
+and **Edit project details**. Select it for the member responsible for maintaining the saved
+brief and pinned decisions. It updates only the supplied fields using the current knowledge
+version, keeps revision history, and preserves fields omitted from the edit. A member can
+have this skill without permission to rename the project or change its description.
+
+Tool descriptions are stored in the operator manifest. Changing the installed
+`project_work_tool_definitions()` updates newly generated starter manifests, but an
+existing private manifest retains its saved descriptions. Deploy these wording changes
+by replacing only the affected descriptions in that manifest, preserving schemas,
+scopes, action policies, enabled flags and profile grants; restart workers and create a
+new plan. Existing plan snapshots remain historical records, and the configuration
+change invalidates their execution approval rather than silently changing a running plan.
 
 **Files → Generated outputs** lists immutable deliverables from current and previous
 project runs. **Save to project** creates an editable local copy with source provenance.

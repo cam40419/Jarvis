@@ -60,10 +60,13 @@ class ConnectedService:
     def __init__(
         self, store: Store, audit: AuditService, settings: Settings, identity: IdentityService
     ) -> None:
-        self.store, self.audit, self.settings, self.identity = store, audit, settings, identity
-        self.api = GoogleAPI(settings)
+        self.store, self.audit, self._settings, self.identity = store, audit, settings, identity
+        from simon.services.integrations import IntegrationService
+
+        self.integrations = IntegrationService(store, settings)
+        self.api = GoogleAPI(settings, settings_provider=self.integrations.google_settings)
         self.conversations = ConversationService(store, audit)
-        self.home = HomeClient(settings)
+        self.home = HomeClient(settings, settings_provider=self.integrations.home_settings)
         self.memories = MemoryService(store, audit)
         self.recall = RecallService(store)
         from simon.services.project_files import ProjectFileService
@@ -73,6 +76,15 @@ class ConnectedService:
 
         self.local_files = LocalFileService(self)
         self.tasks: AssistantTaskService | None = None
+
+    @property
+    def settings(self) -> Settings:
+        return self.integrations.google_settings()
+
+    @settings.setter
+    def settings(self, value: Settings) -> None:
+        self._settings = value
+        self.integrations.settings = value
 
     @property
     def configured(self) -> bool:
@@ -86,7 +98,7 @@ class ConnectedService:
     def cipher(self) -> Fernet:
         if not self.configured:
             raise ConnectedError(
-                "Google is not configured. Follow the Google setup guide on this server."
+                "Google is not configured. Open Connections to set up the Google application."
             )
         assert self.settings.google_token_key
         return Fernet(self.settings.google_token_key.get_secret_value().encode())
@@ -127,7 +139,7 @@ class ConnectedService:
 
     def status(self, actor: ActorContext) -> dict[str, object]:
         self.conversations.authorize(actor, "threads:read")
-        connections = self.store.google_connections(actor.household_id, actor.actor_id)
+        connections = self.store.google_connections(actor.workspace_id, actor.actor_id)
         return {
             "configured": self.configured,
             "connected": bool(connections),
@@ -145,10 +157,10 @@ class ConnectedService:
 
     def set_default(self, actor: ActorContext, account: str) -> None:
         self.conversations.authorize(actor, "threads:write")
-        with self.store.transaction(actor.household_id):
+        with self.store.transaction(actor.workspace_id):
             connection = self.connection(actor, account=account)
             self.store.set_default_google_connection(
-                actor.household_id, actor.actor_id, connection.id
+                actor.workspace_id, actor.actor_id, connection.id
             )
             self.audit.record(
                 event_type="google.default_changed",
@@ -158,6 +170,27 @@ class ConnectedService:
                 payload={},
             )
 
+    def test_connection(self, actor: ActorContext, account: str) -> dict[str, str]:
+        """Validate account authentication without reading files or sending content."""
+        self.conversations.authorize(actor, "threads:write")
+        connection = self.connection(actor, account=account)
+        status, message = "passed", "Google account authentication passed. Saved permissions apply."
+        try:
+            email = self.api.account_email(self.access_token(actor, connection)).strip().casefold()
+            if email != connection.email.casefold():
+                raise ConnectedError("Google returned a different account")
+        except ConnectedError:
+            status, message = "failed", "Google authentication failed. Reconnect this account."
+        checked = {"status": status, "message": message, "checked_at": utc_now().isoformat()}
+        self.audit.record(
+            event_type="google.connection_tested",
+            actor=actor,
+            resource_type="google_connection",
+            resource_id=str(connection.id),
+            payload={"status": status, "message": message, "checked_at": checked["checked_at"]},
+        )
+        return checked
+
     def available(self, actor: ActorContext) -> tuple[ToolName, ...]:
         tools: list[ToolName] = ["web_search"] if self.settings.web_search_enabled else []
         if "threads:read" in actor.scopes:
@@ -166,7 +199,7 @@ class ConnectedService:
             tools.extend(("memory_remember", "memory_forget"))
         if self.tasks and {"jobs:read", "jobs:write"} <= actor.scopes:
             tools.extend(("task_create", "task_list", "task_control", "task_steer"))
-        connections = self.store.google_connections(actor.household_id, actor.actor_id)
+        connections = self.store.google_connections(actor.workspace_id, actor.actor_id)
         scopes = {scope for c in connections for scope in c.scopes}
         if self.configured and connections:
             tools.append("google_accounts_list")
@@ -184,8 +217,7 @@ class ConnectedService:
                 tools.extend(("gmail_search_messages", "gmail_read_message"))
             if {DRIVE_READ_SCOPE, DRIVE_WRITE_SCOPE} & set(scopes):
                 tools.extend(("drive_search_files", "drive_read_file", "drive_list_folder"))
-        if self.home.configured:
-            tools.extend(self.home.available(actor))
+        tools.extend(self.home.available(actor))
         if {"jobs:read", "jobs:write", "memories:read", "memories:write"} <= actor.scopes:
             tools.extend(("project_list", "project_create", "project_unlink_drive"))
             if self.configured and connections and DRIVE_WRITE_SCOPE in scopes:
@@ -283,13 +315,13 @@ class ConnectedService:
                 "No Calendar, Gmail or Drive permission was granted. "
                 "Connect again and select a tool."
             )
-        with self.store.transaction(IDENTITY_LOCK), self.store.transaction(actor.household_id):
+        with self.store.transaction(IDENTITY_LOCK), self.store.transaction(actor.workspace_id):
             _, current = self.identity.resolve(data["session"])
             self.conversations.authorize(current, "threads:write")
             self.store.save_google_connection(
                 GoogleConnection(
                     actor_id=actor.actor_id,
-                    household_id=actor.household_id,
+                    workspace_id=actor.workspace_id,
                     email=email,
                     scopes=scopes,
                     encrypted_tokens=self.encrypt(tokens.model_dump_json()),
@@ -305,9 +337,9 @@ class ConnectedService:
 
     def disconnect(self, actor: ActorContext, account: str = "") -> None:
         self.conversations.authorize(actor, "threads:write")
-        with self.store.transaction(actor.household_id):
+        with self.store.transaction(actor.workspace_id):
             connection = self.connection(actor, account=account)
-            self.store.delete_google_connection(actor.household_id, actor.actor_id, connection.id)
+            self.store.delete_google_connection(actor.workspace_id, actor.actor_id, connection.id)
             self.audit.record(
                 event_type="google.disconnected",
                 actor=actor,
@@ -319,7 +351,7 @@ class ConnectedService:
     def connection(
         self, actor: ActorContext, expected: UUID | None = None, *, account: str = ""
     ) -> GoogleConnection:
-        connections = self.store.google_connections(actor.household_id, actor.actor_id)
+        connections = self.store.google_connections(actor.workspace_id, actor.actor_id)
         if expected:
             connection = next((c for c in connections if c.id == expected), None)
         elif account:
@@ -356,7 +388,7 @@ class ConnectedService:
         tokens = GoogleTokens.model_validate_json(self.decrypt(connection.encrypted_tokens))
         if tokens.expires_at <= time() + 60:
             tokens = self.api.refresh(tokens)
-            with self.store.transaction(actor.household_id):
+            with self.store.transaction(actor.workspace_id):
                 self.connection(actor, connection.id)
                 self.store.save_google_connection(
                     connection.model_copy(
@@ -381,7 +413,7 @@ class ConnectedService:
             end=draft.end.astimezone(UTC).isoformat(),
         )
         action_id = uuid5(run_id, "calendar.create:" + digest(canonical))
-        with self.store.transaction(IDENTITY_LOCK), self.store.transaction(actor.household_id):
+        with self.store.transaction(IDENTITY_LOCK), self.store.transaction(actor.workspace_id):
             current = revalidate()
             self._calendar_access(actor, current, run_id)
             existing = self.store.action(action_id)
@@ -397,7 +429,7 @@ class ConnectedService:
             action = ActionProposal(
                 id=action_id,
                 actor_id=actor.actor_id,
-                household_id=actor.household_id,
+                workspace_id=actor.workspace_id,
                 run_id=run_id,
                 connection_id=connection.id,
                 account_email=connection.email,
@@ -423,13 +455,13 @@ class ConnectedService:
         return self._dispatch(actor, action, connection, check_active)
 
     def _calendar_access(self, actor: ActorContext, current: ActorContext, run_id: UUID) -> None:
-        if (current.actor_id, current.household_id) != (actor.actor_id, actor.household_id):
+        if (current.actor_id, current.workspace_id) != (actor.actor_id, actor.workspace_id):
             raise AuthorizationError("Google access changed")
         self.conversations.authorize(current, "threads:write")
         attempt = self.store.attempt(run_id)
         if (
             not attempt
-            or attempt.household_id != actor.household_id
+            or attempt.workspace_id != actor.workspace_id
             or attempt.run.actor_id != actor.actor_id
             or attempt.status != "pending"
             or attempt.expires_at <= utc_now()
@@ -450,7 +482,7 @@ class ConnectedService:
     ) -> Callable[[str, str], str]:
         def execute(name: str, arguments: str) -> str:
             checked = revalidate()
-            if (checked.actor_id, checked.household_id) != (actor.actor_id, actor.household_id):
+            if (checked.actor_id, checked.workspace_id) != (actor.actor_id, actor.workspace_id):
                 raise AuthorizationError("Tool access changed")
             self.conversations.authorize(checked, "threads:write")
             if name not in self.available(checked) or name == "web_search":
@@ -482,12 +514,12 @@ class ConnectedService:
                 }:
                     with (
                         self.store.transaction(IDENTITY_LOCK),
-                        self.store.transaction(actor.household_id),
+                        self.store.transaction(actor.workspace_id),
                     ):
                         current = revalidate()
-                        if (current.actor_id, current.household_id) != (
+                        if (current.actor_id, current.workspace_id) != (
                             actor.actor_id,
-                            actor.household_id,
+                            actor.workspace_id,
                         ):
                             raise AuthorizationError("Context access changed")
                         attempt = self.store.attempt(run_id)
@@ -496,7 +528,7 @@ class ConnectedService:
                             or attempt.status != "pending"
                             or attempt.expires_at <= utc_now()
                             or attempt.run.actor_id != actor.actor_id
-                            or attempt.household_id != actor.household_id
+                            or attempt.workspace_id != actor.workspace_id
                         ):
                             raise NotFoundError("active request not found")
                         thread = self.conversations.get(current, attempt.run.thread_id)
@@ -560,15 +592,15 @@ class ConnectedService:
                         ).model_dump_json()
                 if name.startswith(("home_", "display_")):
                     current = revalidate()
-                    if (current.actor_id, current.household_id) != (
+                    if (current.actor_id, current.workspace_id) != (
                         actor.actor_id,
-                        actor.household_id,
+                        actor.workspace_id,
                     ):
                         raise AuthorizationError("Tool access changed")
                     attempt = self.store.attempt(run_id)
                     if (
                         not attempt
-                        or attempt.household_id != actor.household_id
+                        or attempt.workspace_id != actor.workspace_id
                         or attempt.run.actor_id != actor.actor_id
                         or attempt.run.parent_run_id is not None
                         or attempt.status != "pending"
@@ -619,9 +651,9 @@ class ConnectedService:
                         result = read_method(self.access_token(checked, connection), item)
                     # Do not release private results after access changes during network I/O.
                     current = revalidate()
-                    if (current.actor_id, current.household_id) != (
+                    if (current.actor_id, current.workspace_id) != (
                         actor.actor_id,
-                        actor.household_id,
+                        actor.workspace_id,
                     ):
                         raise AuthorizationError("Google access changed")
                     self.conversations.authorize(current, "threads:write")
@@ -635,9 +667,9 @@ class ConnectedService:
                     query = CalendarQuery.model_validate_json(arguments)
                     result = self.api.events(self.access_token(checked, connection), query)
                     current = revalidate()
-                    if (current.actor_id, current.household_id) != (
+                    if (current.actor_id, current.workspace_id) != (
                         actor.actor_id,
-                        actor.household_id,
+                        actor.workspace_id,
                     ):
                         raise AuthorizationError("Google access changed")
                     self.conversations.authorize(current, "threads:write")
@@ -680,7 +712,7 @@ class ConnectedService:
                     )
                 proposal = ActionProposal(
                     actor_id=actor.actor_id,
-                    household_id=actor.household_id,
+                    workspace_id=actor.workspace_id,
                     run_id=run_id,
                     connection_id=connection.id,
                     account_email=connection.email,
@@ -713,16 +745,16 @@ class ConnectedService:
     def get_action(self, actor: ActorContext, action_id: UUID) -> ActionProposal:
         self.conversations.authorize(actor, "threads:read")
         action = self.store.action(action_id)
-        if not action or (action.actor_id, action.household_id) != (
+        if not action or (action.actor_id, action.workspace_id) != (
             actor.actor_id,
-            actor.household_id,
+            actor.workspace_id,
         ):
             raise NotFoundError("action not found")
         if self.store.run(action.run_id):
             self.conversations.run(actor, action.run_id)
         else:
             attempt = self.store.attempt(action.run_id)
-            if not attempt or attempt.household_id != actor.household_id:
+            if not attempt or attempt.workspace_id != actor.workspace_id:
                 raise NotFoundError("action request not found")
             self.conversations.get(actor, attempt.run.thread_id)
         return action
@@ -743,11 +775,11 @@ class ConnectedService:
         existing = self.get_action(actor, action_id)
         if existing.kind == "home.set":
             raise AuthorizationError("This legacy preview is retired. Request a new home action.")
-        with self.store.transaction(IDENTITY_LOCK), self.store.transaction(actor.household_id):
+        with self.store.transaction(IDENTITY_LOCK), self.store.transaction(actor.workspace_id):
             current_actor = revalidate()
-            if (current_actor.actor_id, current_actor.household_id) != (
+            if (current_actor.actor_id, current_actor.workspace_id) != (
                 actor.actor_id,
-                actor.household_id,
+                actor.workspace_id,
             ):
                 raise AuthorizationError("Google access changed")
             self.conversations.authorize(current_actor, "threads:write")
@@ -789,7 +821,7 @@ class ConnectedService:
         try:
             token = self.access_token(actor, connection)
             checked = revalidate()
-            if (checked.actor_id, checked.household_id) != (actor.actor_id, actor.household_id):
+            if (checked.actor_id, checked.workspace_id) != (actor.actor_id, actor.workspace_id):
                 raise AuthorizationError("Google access changed")
             self.conversations.authorize(checked, "threads:write")
             self.connection(actor, action.connection_id)
@@ -812,7 +844,7 @@ class ConnectedService:
                     else "Google action could not be completed.",
                 }
             )
-        with self.store.transaction(actor.household_id):
+        with self.store.transaction(actor.workspace_id):
             self.store.save_action(action)
             self.audit.record(
                 event_type="action." + action.status,

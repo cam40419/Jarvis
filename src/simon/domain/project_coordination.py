@@ -1,20 +1,32 @@
 """Small model-authored plans, validated before they acquire execution grants."""
 
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from simon.domain.models import StrictModel
 
+LocalTaskID = Annotated[str, Field(pattern=r"^[a-z][a-z0-9_-]{0,39}$")]
+
 
 class DelegatedTask(StrictModel):
-    id: str = Field(pattern=r"^[a-z][a-z0-9_-]{0,39}$")
+    id: LocalTaskID
     title: str = Field(min_length=1, max_length=160)
     agent_id: str = Field(min_length=1, max_length=63)
     objective: str = Field(min_length=1, max_length=6000)
-    depends_on: tuple[str, ...] = Field(default=(), max_length=8)
+    depends_on: tuple[LocalTaskID, ...] = Field(
+        default=(),
+        max_length=8,
+        description="Local task.id values from this plan only; never saved todo IDs.",
+    )
     tool_ids: tuple[str, ...] = Field(default=(), max_length=30)
     todo_id: str | None = Field(default=None, max_length=100)
+
+    @field_validator("tool_ids")
+    @classmethod
+    def unique_tools(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        # Repeated permissions add no authority; keep the model's first-use order.
+        return tuple(dict.fromkeys(value))
 
 
 class LeadDecision(StrictModel):

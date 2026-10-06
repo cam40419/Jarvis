@@ -1,4 +1,4 @@
-"""Opt-in, billed WebRTC check using silence and a disposable household database."""
+"""Opt-in, billed WebRTC check using silence and a disposable workspace database."""
 
 import os
 import wave

@@ -25,7 +25,7 @@ def test_workspace_import_preserves_source_and_rejects_other_roots(tmp_path, mon
                 update={
                     "workspace_path": workspace,
                     "request": lease.plan.request.model_copy(
-                        update={"workspace_id": actor.household_id}
+                        update={"workspace_id": actor.workspace_id}
                     ),
                 }
             ),
@@ -39,7 +39,7 @@ def test_workspace_import_preserves_source_and_rejects_other_roots(tmp_path, mon
     definition = workspace_file_definition()
     context = ToolExecutionContext(
         actor_id=actor.actor_id,
-        household_id=actor.household_id,
+        workspace_id=actor.workspace_id,
         run_id=uuid4(),
         agent_id=lease.plan.request.agent_id,
         allowed_tool_ids=frozenset({definition.id}),
@@ -93,7 +93,7 @@ def test_workspace_import_preserves_source_and_rejects_other_roots(tmp_path, mon
         mismatched(
             definition,
             {"root": "workspace", "path": "source.csv"},
-            context.model_copy(update={"household_id": other_workspace}),
+            context.model_copy(update={"workspace_id": other_workspace}),
         )
 
     original_blob = files.blob

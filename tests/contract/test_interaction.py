@@ -66,9 +66,9 @@ def test_preferences_are_personal_scoped_and_versioned(model_setup):
     assert interactions.save_preferences(actor, request) == newer
     other = actor.model_copy(update={"actor_id": uuid4()})
     assert interactions.preferences(other).version == 0
-    other_home = actor.model_copy(update={"household_id": uuid4()})
+    other_home = actor.model_copy(update={"workspace_id": uuid4()})
     service.store.put_membership(
-        Membership(actor_id=actor.actor_id, household_id=other_home.household_id, role="owner")
+        Membership(actor_id=actor.actor_id, workspace_id=other_home.workspace_id, role="owner")
     )
     assert interactions.preferences(other_home).version == 0
     interactions.save_preferences(other_home, request)
@@ -141,7 +141,7 @@ def test_feedback_can_change_clear_and_survive_replays(model_setup):
     assert interactions.answers(actor, thread.id, 2, 1) == ()
     other = actor.model_copy(update={"actor_id": uuid4()})
     service.store.put_membership(
-        Membership(actor_id=other.actor_id, household_id=actor.household_id, role="member")
+        Membership(actor_id=other.actor_id, workspace_id=actor.workspace_id, role="member")
     )
     with pytest.raises(NotFoundError):
         interactions.answers(other, thread.id)
@@ -161,10 +161,10 @@ def test_feedback_can_change_clear_and_survive_replays(model_setup):
         )
     with pytest.raises(NotFoundError):
         interactions.save_feedback(
-            actor.model_copy(update={"household_id": uuid4()}), run.id, request
+            actor.model_copy(update={"workspace_id": uuid4()}), run.id, request
         )
     with pytest.raises(NotFoundError):
-        interactions.answers(actor.model_copy(update={"household_id": uuid4()}), thread.id)
+        interactions.answers(actor.model_copy(update={"workspace_id": uuid4()}), thread.id)
     assert service.run(actor, run.id) == run and len(model.requests) == 2
 
 
@@ -172,7 +172,7 @@ def test_interaction_writes_rollback_with_audit(model_setup, monkeypatch):
     service, actor, _model, thread = model_setup
     interactions = InteractionService(service.store, service.audit)
     run = service.submit(actor, thread.id, body())
-    before = tuple(service.store.audit_events(actor.household_id))
+    before = tuple(service.store.audit_events(actor.workspace_id))
 
     def fail(**kwargs):
         raise RuntimeError("audit unavailable")
@@ -185,7 +185,7 @@ def test_interaction_writes_rollback_with_audit(model_setup, monkeypatch):
             interactions.save_feedback(actor, run.id, feedback_request())
     assert interactions.preferences(actor).version == 0
     assert interactions.answers(actor, thread.id)[0].feedback is None
-    assert tuple(service.store.audit_events(actor.household_id)) == before
+    assert tuple(service.store.audit_events(actor.workspace_id)) == before
     assert interactions.save_preferences(actor, preference_request()).version == 1
     assert interactions.save_feedback(actor, run.id, feedback_request()).version == 1
 

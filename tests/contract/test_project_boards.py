@@ -163,10 +163,10 @@ def board(project_work):
         id="company",
         name="Company",
         enabled=True,
-        household_id=h.actor.household_id,
+        workspace_id=h.actor.workspace_id,
         actor_ids=frozenset({h.actor.actor_id}),
         credential_env="CLICKUP_TOKEN",
-        workspace_id="123",
+        clickup_workspace_id="123",
         list_ids=frozenset({"456"}),
     )
     h.bridge = ProjectBoardService(
@@ -229,7 +229,7 @@ def import_remote(h, identifiers, key="import-selected"):
 
 def runtime(h, identifier, **changes):
     # Same atomic service path used by a coordinator after the real worker reports.
-    with h.store.transaction(h.actor.household_id):
+    with h.store.transaction(h.actor.workspace_id):
         row = h.work._job(h.actor, h.project_id)
         state = h.work.view(row)
         h.work._save(
@@ -532,7 +532,9 @@ def test_cycle_pause_and_changed_binding_fence_before_auto_publication(board, mo
     original = h.bridge._operation
 
     def changed(*args, **kwargs):
-        h.bridge.configured_connections = (h.connection.model_copy(update={"workspace_id": "999"}),)
+        h.bridge.configured_connections = (
+            h.connection.model_copy(update={"clickup_workspace_id": "999"}),
+        )
         return original(*args, **kwargs)
 
     monkeypatch.setattr(h.bridge, "_operation", changed)

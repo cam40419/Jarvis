@@ -1,9 +1,15 @@
 # Optional GitHub and WebDAV tools
 
-Simon can use an operator-managed GitHub service account and a WebDAV folder, including
-Nextcloud storage. These are real REST/WebDAV adapters. They are disabled until the operator
-supplies the account grant, endpoint, credential environment variable, and agent permissions.
-They do not connect through plugins installed in the coding application.
+Simon can connect GitHub through **Connections → GitHub**. Enter a personal access token and
+the permitted repositories, one `owner/name` per line. Credentials are encrypted and saved in
+the backend. Users do not edit manifests or environment files. GitHub tools report **Needs setup**
+until the current user links an account. Enable the connection's creation checkbox to permit
+issue and draft pull request creation; the token must grant the corresponding write permissions.
+Disconnects, token rotations and repository changes take effect in the API and workers without
+restarting. These adapters do not use plugins installed in the coding application.
+
+WebDAV/Nextcloud and existing operator-managed GitHub grants remain supported by the legacy
+configuration described below. Explicit operator repository grants and disabling are preserved.
 
 ## Operations
 

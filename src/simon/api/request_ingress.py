@@ -160,6 +160,7 @@ class RequestIngressMiddleware:
     def authentication_path(path: str) -> bool:
         return (
             path == "/auth/dev-login"
+            or path.startswith("/auth/email")
             or path == "/auth/password"
             or path.startswith(("/auth/password/", "/auth/passkeys/"))
         )

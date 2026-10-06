@@ -1,5 +1,6 @@
 """Optional RobbinsHome HTTP integration. No hardware or shared database access."""
 
+from collections.abc import Callable
 from typing import Any, cast
 from urllib.parse import urlsplit
 from uuid import UUID
@@ -27,7 +28,13 @@ TOOL_SCOPES = {
 
 
 class HomeClient:
-    def __init__(self, settings: Settings) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        *,
+        settings_provider: Callable[[ActorContext], Settings] | None = None,
+    ) -> None:
+        self.settings_provider = settings_provider
         self.url = settings.home_api_url.rstrip("/")
         self.token = settings.home_api_token
         if self.url:
@@ -46,18 +53,24 @@ class HomeClient:
             ):
                 raise ValueError("home_api_url requires HTTPS or loopback HTTP without credentials")
 
+    def for_actor(self, actor: ActorContext) -> "HomeClient":
+        return HomeClient(self.settings_provider(actor)) if self.settings_provider else self
+
     @property
     def configured(self) -> bool:
         return bool(self.url and self.token and self.token.get_secret_value().strip())
 
     def available(self, actor: ActorContext) -> tuple[ToolName, ...]:
-        if not self.configured:
+        client = self.for_actor(actor)
+        if not client.configured:
             return ()
         return tuple(
             cast(ToolName, name) for name, scopes in TOOL_SCOPES.items() if scopes <= actor.scopes
         )
 
     def request(self, actor: ActorContext, path: str, body: dict[str, Any]) -> Any:
+        if self.settings_provider:
+            return self.for_actor(actor).request(actor, path, body)
         if not self.configured or self.token is None:
             raise ConnectedError("RobbinsHome is not connected.")
         try:
@@ -74,7 +87,7 @@ class HomeClient:
                     headers={
                         "Authorization": "Bearer " + self.token.get_secret_value(),
                         "X-Actor-ID": str(actor.actor_id),
-                        "X-Household-ID": str(actor.household_id),
+                        "X-Household-ID": str(actor.workspace_id),
                     },
                 ) as response:
                     if not 200 <= response.status_code < 300:
@@ -140,7 +153,7 @@ class HomeClient:
                 HomeCommand.model_validate(row)
                 for row in rows
                 if row.get("actor_id") == str(actor.actor_id)
-                and row.get("household_id") == str(actor.household_id)
+                and row.get("household_id") == str(actor.workspace_id)
                 and (run_id is None or row.get("run_id") == str(run_id))
                 and (thread_id is None or row.get("thread_id") == str(thread_id))
             )

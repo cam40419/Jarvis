@@ -12,7 +12,7 @@ from simon.domain.models import StrictModel
 class AgentRoleDefinition(StrictModel):
     name: str = Field(min_length=1, max_length=160)
     description: str = Field(min_length=1, max_length=4000)
-    skill_ids: tuple[str, ...] = Field(min_length=1, max_length=128)
+    skill_ids: tuple[str, ...] = Field(default=(), max_length=128)
 
     @field_validator("name", "description")
     @classmethod

@@ -160,7 +160,7 @@ def project_router(
             "activity": [
                 service.receipt(item)
                 for item in service.store.project_file_operations(
-                    actor.household_id, actor.actor_id, identifier, 30
+                    actor.workspace_id, actor.actor_id, identifier, 30
                 )
             ],
         }
@@ -173,7 +173,7 @@ def project_router(
         return [
             service.receipt(item)
             for item in service.store.project_file_operations(
-                actor.household_id, actor.actor_id, identifier, 100
+                actor.workspace_id, actor.actor_id, identifier, 100
             )
         ]
 

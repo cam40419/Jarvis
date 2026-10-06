@@ -99,7 +99,7 @@ def setup() -> tuple[
     )
     context = ToolExecutionContext(
         actor_id=uuid4(),
-        household_id=request.workspace_id,
+        workspace_id=request.workspace_id,
         run_id=uuid4(),
         agent_id="artist",
         allowed_tool_ids=frozenset({tool.id}),
@@ -141,7 +141,7 @@ def test_bound_transport_uses_only_lease_with_fixed_executable() -> None:
     )
 
 
-@pytest.mark.parametrize("field", ["actor_id", "household_id", "run_id", "agent_id"])
+@pytest.mark.parametrize("field", ["actor_id", "workspace_id", "run_id", "agent_id"])
 def test_cross_assignment_context_is_rejected(field: str) -> None:
     manager, _, tool, context, transport = setup()
     other: Any = "other-agent" if field == "agent_id" else uuid4()

@@ -3,6 +3,8 @@
 let googleConnection;
 async function connections() {
   await homeConnection();
+  await integrationAccounts();
+  await connectionReadiness();
   googleConnection = await api('/v1/connections/google');
   el('web-connection').textContent = assistant.web_search
     ? 'Ready · Public web search is enabled'
@@ -50,14 +52,29 @@ async function connections() {
     reconnect.onclick = () => beginGoogle(account.id);
     const remove = make('button', 'Disconnect', 'text-button');
     remove.onclick = () => change('disconnect');
-    row.append(reconnect, remove);
+    const test = make('button', 'Test');
+    test.type = 'button';
+    const result = make('p', '', 'muted');
+    test.onclick = async () => {
+      test.disabled = true;
+      result.textContent = 'Testing Google account...';
+      try {
+        const checked = await api('/v1/connections/google/test', { account: account.id });
+        result.textContent = checked.message;
+      } catch (error) {
+        result.textContent = error.message;
+      } finally {
+        test.disabled = false;
+      }
+    };
+    row.append(test, reconnect, remove, result);
     if (account.needs_reconnect)
       row.append(make('p', 'Reconnect this account to grant missing Google permissions.', 'muted'));
     list.append(row);
   }
   el('google-setup').textContent = googleConnection.configured
     ? 'Add each account separately. For reconnecting, choose the same Google account. Chat uses the default unless you name another account. Project folders keep their linked account.'
-    : 'Server setup needed: follow docs/runbooks/google.md, then restart Simon. OAuth redirect: ' +
+    : 'Set up the Google application below, then connect your Google account. Redirect address: ' +
       googleConnection.redirect_uri;
 }
 
@@ -308,3 +325,380 @@ async function homeConnection() {
     target.textContent = error.message;
   }
 }
+
+let reconnectIntegration = null;
+let connectionAccounts = [];
+function integrationFields() {
+  const provider = el('integration-provider').value;
+  for (const kind of ['twilio', 'gateway', 'home', 'google_app', 'email', 'github']) {
+    el('integration-' + kind).hidden = provider !== kind;
+    el('integration-' + kind).disabled = provider !== kind;
+  }
+  const storage = ['dropbox', 'box', 'onedrive', 'webdav'].includes(provider);
+  el('integration-storage').hidden = !storage;
+  el('integration-storage').disabled = !storage;
+  for (const kind of ['dropbox', 'box', 'onedrive', 'webdav'])
+    el('integration-' + kind + '-fields').hidden = provider !== kind;
+  el('integration-storage-write-label').hidden = !['dropbox', 'webdav'].includes(provider);
+  const smtp = provider === 'email' && el('integration-email-transport').value === 'smtp';
+  el('integration-smtp').hidden = !smtp;
+  el('integration-smtp').disabled = !smtp;
+  el('integration-credential-label').textContent =
+    provider === 'email'
+      ? smtp
+        ? 'SMTP password'
+        : 'Resend API key'
+      : provider === 'clickup'
+        ? 'Personal API token'
+        : provider === 'twilio'
+          ? 'Auth token'
+          : provider === 'google_app'
+            ? 'Client secret'
+            : 'API credential';
+  el('integration-help').textContent =
+    provider === 'openai'
+      ? 'Save the site API key here. Changes reach agents, model generation and web search without editing config files.'
+      : ['dropbox', 'box', 'onedrive', 'webdav'].includes(provider)
+        ? 'Enter an access token from your storage provider and select the folder scope below. Test the connection here before starting work.'
+        : provider === 'github'
+          ? 'Link your GitHub token and choose permitted repositories here. Reading and creation permissions follow your connection settings.'
+          : provider === 'email'
+            ? 'Site administrator setup for verification and password-reset email. Choose Resend or your existing SMTP provider.'
+            : provider === 'clickup'
+              ? 'In ClickUp, open Settings / Apps and copy your personal API token. No List IDs needed.'
+              : provider === 'twilio'
+                ? 'Use your Twilio account credentials and an originating phone number. Phone messages use the existing review flow.'
+                : provider === 'home'
+                  ? 'Connect your RobbinsHome server using its API credential.'
+                  : provider === 'google_app'
+                    ? 'Site administrator setup. Save the OAuth application here, then authorize Google accounts above.'
+                    : 'Connect your booking or purchase service. Commitments still use the existing review flow.';
+}
+el('integration-provider').onchange = integrationFields;
+el('integration-email-transport').onchange = integrationFields;
+el('integration-cancel').onclick = () => {
+  reconnectIntegration = null;
+  el('integration-form').reset();
+  el('integration-provider').disabled = false;
+  el('integration-cancel').hidden = true;
+  el('integration-connect').textContent = 'Connect account';
+  integrationFields();
+};
+async function integrationAccounts() {
+  const [accounts, setup] = await Promise.all([
+    api('/v1/connections/integrations'),
+    api('/v1/connections/integrations/setup'),
+  ]);
+  connectionAccounts = accounts;
+  el('integration-email-option').hidden = !setup.can_configure_email;
+  el('integration-email-option').disabled = !setup.can_configure_email;
+  el('integration-openai-option').hidden = !setup.can_configure_google_app;
+  el('integration-openai-option').disabled = !setup.can_configure_google_app;
+  el('integration-google-option').hidden = !setup.can_configure_google_app;
+  el('integration-google-option').disabled = !setup.can_configure_google_app;
+  el('integration-google-redirect').textContent = setup.google_redirect_uri;
+  const list = el('integration-accounts');
+  list.replaceChildren();
+  for (const account of accounts) {
+    const row = make('section', undefined, 'memory-card');
+    row.append(make('strong', account.name));
+    if (account.provider === 'clickup')
+      row.append(
+        make('p', 'All accessible Workspaces and Lists. New Lists are discovered automatically.'),
+      );
+    const reconnect = make('button', 'Reconnect');
+    reconnect.type = 'button';
+    reconnect.onclick = () => {
+      reconnectIntegration = account;
+      el('integration-provider').value = account.provider;
+      el('integration-provider').disabled = true;
+      el('integration-name').value = account.name;
+      el('integration-credential').value = '';
+      el('integration-sid').value = account.settings.account_sid || '';
+      el('integration-phone').value = account.settings.from_number || '';
+      el('integration-endpoint').value = account.settings.endpoint || '';
+      el('integration-home-endpoint').value = account.settings.endpoint || '';
+      el('integration-google-client').value = account.settings.client_id || '';
+      el('integration-github-repositories').value = (account.settings.repositories || []).join(
+        '\n',
+      );
+      el('integration-github-write').checked = account.settings.write_enabled === true;
+      el('integration-webdav-endpoint').value = account.settings.endpoint || '';
+      el('integration-webdav-user').value = account.settings.username || '';
+      el('integration-root-path').value = account.settings.root_path || '';
+      el('integration-root-folder').value = account.settings.root_folder_id || '';
+      el('integration-drive').value = account.settings.drive_id || '';
+      el('integration-root-item').value = account.settings.root_item_id || '';
+      el('integration-download-hosts').value = (account.settings.download_hosts || []).join('\n');
+      el('integration-storage-write').checked = account.settings.write_enabled === true;
+      el('integration-email-transport').value = account.settings.transport || 'resend';
+      el('integration-email-from').value = account.settings.from_email || '';
+      el('integration-smtp-host').value = account.settings.smtp_host || '';
+      el('integration-smtp-port').value = String(account.settings.smtp_port || 587);
+      el('integration-smtp-user').value = account.settings.smtp_username || '';
+      el('integration-recipients').value = (account.settings.call_recipients || []).join('\n');
+      el('integration-merchants').value = Object.entries(account.settings.merchant_names || {})
+        .map(([id, name]) => id + ' = ' + name)
+        .join('\n');
+      el('integration-cancel').hidden = false;
+      el('integration-connect').textContent = 'Save reconnect';
+      integrationFields();
+      el('integration-credential').focus();
+    };
+    const remove = make('button', 'Disconnect', 'text-button');
+    remove.type = 'button';
+    remove.onclick = async () => {
+      remove.disabled = true;
+      try {
+        await api(
+          '/v1/connections/integrations/' + encodeURIComponent(account.id),
+          undefined,
+          'DELETE',
+        );
+        if (reconnectIntegration?.id === account.id) el('integration-cancel').click();
+        await connections();
+        window.dispatchEvent(new Event('simon-connections-change'));
+      } catch (error) {
+        el('integration-status').textContent = error.message;
+        remove.disabled = false;
+      }
+    };
+    const test = make('button', 'Test');
+    test.type = 'button';
+    const result = make(
+      'p',
+      account.settings.connection_test
+        ? account.settings.connection_test.message +
+            ' - ' +
+            new Date(account.settings.connection_test.checked_at).toLocaleString()
+        : 'Not tested yet',
+      'muted',
+    );
+    test.onclick = async () => {
+      test.disabled = true;
+      result.textContent = 'Testing connection...';
+      try {
+        const checked = await api(
+          '/v1/connections/integrations/' + encodeURIComponent(account.id) + '/test',
+          {},
+        );
+        result.textContent = checked.message;
+        await connections();
+        window.dispatchEvent(new Event('simon-connections-change'));
+      } catch (error) {
+        result.textContent = error.message;
+      } finally {
+        test.disabled = false;
+      }
+    };
+    row.append(test, reconnect, remove, result);
+    list.append(row);
+  }
+}
+el('integration-form').onsubmit = async (event) => {
+  event.preventDefault();
+  const provider = el('integration-provider').value;
+  const body = {
+    name: el('integration-name').value.trim(),
+    credential: el('integration-credential').value,
+  };
+  if (['dropbox', 'box', 'onedrive', 'webdav'].includes(provider)) {
+    if (provider === 'webdav') {
+      body.endpoint = el('integration-webdav-endpoint').value.trim();
+      body.username = el('integration-webdav-user').value.trim();
+    }
+    body.root_path = el('integration-root-path').value.trim() || null;
+    body.root_folder_id = el('integration-root-folder').value.trim() || null;
+    body.drive_id = el('integration-drive').value.trim() || null;
+    body.root_item_id = el('integration-root-item').value.trim() || null;
+    body.download_hosts = el('integration-download-hosts')
+      .value.split(/\r?\n/)
+      .map((v) => v.trim())
+      .filter(Boolean);
+    body.storage_write_enabled = el('integration-storage-write').checked;
+  } else if (provider === 'github') {
+    body.repositories = el('integration-github-repositories')
+      .value.split(/\r?\n/)
+      .map((value) => value.trim())
+      .filter(Boolean);
+    body.github_write_enabled = el('integration-github-write').checked;
+  } else if (provider === 'email') {
+    body.email_transport = el('integration-email-transport').value;
+    body.from_email = el('integration-email-from').value.trim();
+    if (body.email_transport === 'smtp') {
+      body.smtp_host = el('integration-smtp-host').value.trim();
+      body.smtp_port = Number(el('integration-smtp-port').value);
+      body.smtp_username = el('integration-smtp-user').value.trim();
+    }
+  } else if (provider === 'twilio') {
+    body.account_sid = el('integration-sid').value.trim();
+    body.from_number = el('integration-phone').value.trim();
+    body.call_recipients = el('integration-recipients')
+      .value.split(/\r?\n/)
+      .map((value) => value.trim())
+      .filter(Boolean);
+  } else if (provider === 'home') {
+    body.endpoint = el('integration-home-endpoint').value.trim();
+  } else if (provider === 'google_app') {
+    body.client_id = el('integration-google-client').value.trim();
+  } else if (provider === 'gateway') {
+    body.endpoint = el('integration-endpoint').value.trim();
+    body.merchant_names = {};
+    for (const line of el('integration-merchants')
+      .value.split(/\r?\n/)
+      .filter((value) => value.trim())) {
+      const split = line.indexOf('=');
+      if (split < 1 || !line.slice(split + 1).trim()) {
+        el('integration-status').textContent = 'Enter each merchant as identifier = display name.';
+        return;
+      }
+      body.merchant_names[line.slice(0, split).trim()] = line.slice(split + 1).trim();
+    }
+  }
+  el('integration-connect').disabled = true;
+  el('integration-status').textContent = 'Connecting...';
+  try {
+    const suffix = reconnectIntegration ? '/' + encodeURIComponent(reconnectIntegration.id) : '';
+    await api('/v1/connections/integrations/' + provider + suffix, body);
+    el('integration-cancel').click();
+    await connections();
+    el('integration-status').textContent = 'Connected. Your account is ready to use.';
+    window.dispatchEvent(new Event('simon-connections-change'));
+  } catch (error) {
+    el('integration-status').textContent = error.message;
+  } finally {
+    el('integration-credential').value = '';
+    el('integration-connect').disabled = false;
+  }
+};
+
+let readinessCatalog = null;
+async function connectionReadiness() {
+  readinessCatalog = await api('/v1/agent-platform/catalog');
+  renderConnectionReadiness();
+}
+function renderConnectionReadiness() {
+  const target = el('connections-catalog');
+  target.replaceChildren();
+  const query = el('connections-search').value.toLowerCase();
+  const groups = new Map();
+  for (const option of el('integration-provider').options) {
+    if (!query || option.textContent.toLowerCase().includes(query)) groups.set(option.value, []);
+  }
+  for (const tool of readinessCatalog?.tool_statuses || []) {
+    if (
+      query &&
+      !(tool.id + ' ' + tool.description + ' ' + tool.transport).toLowerCase().includes(query)
+    )
+      continue;
+    if (!groups.has(tool.transport)) groups.set(tool.transport, []);
+    groups.get(tool.transport).push(tool);
+  }
+  for (const [provider, tools] of [...groups].sort((a, b) => a[0].localeCompare(b[0]))) {
+    const card = make('details');
+    const ready = tools.filter((tool) => tool.state === 'configured').length;
+    const account = connectionAccounts.find((item) => item.provider === provider);
+    const label =
+      [...el('integration-provider').options]
+        .find((option) => option.value === provider)
+        ?.textContent.trim() || provider.replaceAll('_', ' ');
+    card.append(
+      make(
+        'summary',
+        label +
+          ' - ' +
+          (tools.length
+            ? ready + '/' + tools.length + ' tools ready'
+            : account
+              ? 'Connected'
+              : 'Needs setup'),
+      ),
+    );
+    if (account?.settings.connection_test)
+      card.append(make('p', account.settings.connection_test.message));
+    if (!tools.length && !account)
+      card.append(make('p', 'Connect this service below before requesting work that needs it.'));
+    if (provider === 'google_app' || provider === 'email' || provider === 'openai')
+      card.append(make('p', 'Shared application settings are managed by the site administrator.'));
+    const selectable = [...el('integration-provider').options].some(
+      (option) => option.value === provider && !option.disabled,
+    );
+    if (selectable) {
+      const configure = make('button', 'Configure ' + provider);
+      configure.type = 'button';
+      configure.onclick = () => {
+        el('integration-cancel').click();
+        el('integration-provider').value = provider;
+        integrationFields();
+        el('integration-form').scrollIntoView({ block: 'start' });
+        el('integration-credential').focus();
+      };
+      card.append(configure);
+    }
+    for (const tool of tools) {
+      const name =
+        readinessCatalog.individual_skills?.find((skill) => skill.tool_ids?.includes(tool.id))
+          ?.name || tool.id;
+      card.append(
+        make('strong', name),
+        make(
+          'p',
+          tool.state === 'configured'
+            ? 'Ready'
+            : (tool.blocked_reasons || []).join(' ') || tool.state,
+        ),
+      );
+    }
+    target.append(card);
+  }
+  for (const model of readinessCatalog?.models || []) {
+    const card = make('details');
+    card.append(
+      make('summary', 'Model: ' + model.model),
+      make('p', model.state === 'configured' ? 'Ready' : model.blocked_reasons.join(' ')),
+    );
+    target.append(card);
+  }
+  for (const environment of readinessCatalog?.environments || []) {
+    const card = make('details');
+    card.append(
+      make('summary', 'Runtime: ' + environment.id),
+      make(
+        'p',
+        environment.enabled ? 'Enabled - ' + environment.capabilities.join(', ') : 'Disabled',
+      ),
+    );
+    const test = make('button', 'Test runtime');
+    test.type = 'button';
+    const result = make('p', '');
+    test.onclick = async () => {
+      test.disabled = true;
+      result.textContent = 'Checking runtime...';
+      try {
+        const checked = await api(
+          '/v1/agent-platform/environments/' + encodeURIComponent(environment.id) + '/test',
+          {},
+        );
+        result.textContent = checked.message;
+      } catch (error) {
+        result.textContent = error.message;
+      } finally {
+        test.disabled = false;
+      }
+    };
+    card.append(test, result);
+    target.append(card);
+  }
+}
+el('connections-refresh').onclick = () => connectionReadiness().catch(report);
+el('connections-search').oninput = renderConnectionReadiness;
+window.addEventListener('simon-connections-change', async () => {
+  try {
+    await connectionReadiness();
+    window.dispatchEvent(
+      new CustomEvent('simon-agent-library-updated', { detail: { catalog: readinessCatalog } }),
+    );
+  } catch (error) {
+    report(error);
+  }
+});

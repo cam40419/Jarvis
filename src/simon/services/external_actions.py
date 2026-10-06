@@ -27,6 +27,7 @@ from simon.domain.ports import Store
 from simon.domain.tool_catalog import ToolCatalogError, ToolExecutionError
 from simon.services.audit import AuditService
 from simon.services.canonical import digest
+from simon.services.integrations import IntegrationService
 
 ACTION_JOB = "platform.external_action"
 ACTION_RUN_JOB = "platform.external_action_run."
@@ -50,7 +51,10 @@ class ExternalActionService:
         audit: AuditService,
         definitions: Sequence[ExternalProviderDefinition],
         providers: ExternalActionProviders,
+        *,
+        integrations: IntegrationService | None = None,
     ) -> None:
+        self.integrations = integrations
         self.store, self.audit, self.providers = store, audit, providers
         self.definitions = {value.id: value.model_copy(deep=True) for value in definitions}
         if len(self.definitions) != len(definitions):
@@ -68,9 +72,12 @@ class ExternalActionService:
         actor: ActorContext,
         identifier: str,
     ) -> ExternalProviderDefinition | None:
-        definition = self.definitions.get(identifier)
+        managed = self.integrations.external_connections(actor) if self.integrations else ()
+        definition = next(
+            (row for row in managed if row.id == identifier), self.definitions.get(identifier)
+        )
         if definition is not None and (
-            actor.household_id != definition.household_id
+            actor.workspace_id != definition.workspace_id
             or actor.actor_id not in definition.actor_ids
         ):
             raise NotFoundError("External provider is not available for this account")
@@ -96,8 +103,14 @@ class ExternalActionService:
                     "reservation",
                 ],
             }
-            for value in sorted(self.definitions.values(), key=lambda item: item.id)
-            if value.household_id == actor.household_id and actor.actor_id in value.actor_ids
+            for value in sorted(
+                (
+                    *self.definitions.values(),
+                    *(self.integrations.external_connections(actor) if self.integrations else ()),
+                ),
+                key=lambda item: item.id,
+            )
+            if value.workspace_id == actor.workspace_id and actor.actor_id in value.actor_ids
         )
 
     def quote(self, actor: ActorContext, request: ExternalQuoteRequest) -> ExternalActionDraft:
@@ -112,7 +125,7 @@ class ExternalActionService:
         if (
             job is None
             or job.kind != ACTION_JOB
-            or (job.household_id, job.created_by) != (actor.household_id, actor.actor_id)
+            or (job.workspace_id, job.created_by) != (actor.workspace_id, actor.actor_id)
         ):
             raise NotFoundError("External action not found")
         return job
@@ -121,10 +134,10 @@ class ExternalActionService:
     def _action(job: Job) -> ExternalActionProposal:
         value = (job.result or job.input).get("proposal")
         action = ExternalActionProposal.model_validate(value)
-        if (action.id, action.actor_id, action.household_id) != (
+        if (action.id, action.actor_id, action.workspace_id) != (
             job.id,
             job.created_by,
-            job.household_id,
+            job.workspace_id,
         ):
             raise InvalidTransitionError("External action journal identity does not match")
         if (
@@ -174,7 +187,7 @@ class ExternalActionService:
         return tuple(
             self.get(actor, job.id)
             for job in self.store.jobs(
-                actor.household_id,
+                actor.workspace_id,
                 actor.actor_id,
                 ACTION_JOB,
                 offset,
@@ -199,7 +212,7 @@ class ExternalActionService:
         review_hash = digest({"draft": draft_hash, "provider": fingerprint})
         now = utc_now()
         action = ExternalActionProposal(
-            household_id=actor.household_id,
+            workspace_id=actor.workspace_id,
             actor_id=actor.actor_id,
             run_id=run_id,
             idempotency_key=idempotency_key,
@@ -219,7 +232,7 @@ class ExternalActionService:
         )
         job = Job(
             id=action.id,
-            household_id=actor.household_id,
+            workspace_id=actor.workspace_id,
             created_by=actor.actor_id,
             kind=ACTION_JOB,
             status=JobStatus.NEEDS_HUMAN,
@@ -236,14 +249,14 @@ class ExternalActionService:
                 }
             ),
         )
-        with self.store.transaction(actor.household_id):
+        with self.store.transaction(actor.workspace_id):
             saved, created = self.store.create_job(job)
             if created:
                 if run_id is not None:
                     link = {"action_id": str(action.id), "run_id": str(run_id)}
                     self.store.create_job(
                         Job(
-                            household_id=actor.household_id,
+                            workspace_id=actor.workspace_id,
                             created_by=actor.actor_id,
                             kind=ACTION_RUN_JOB + run_id.hex,
                             status=JobStatus.SUCCEEDED,
@@ -262,7 +275,7 @@ class ExternalActionService:
         offset = 0
         while True:
             links = self.store.jobs(
-                actor.household_id, actor.actor_id, ACTION_RUN_JOB + run_id.hex, offset, 100
+                actor.workspace_id, actor.actor_id, ACTION_RUN_JOB + run_id.hex, offset, 100
             )
             for link in links:
                 action = self.get(actor, UUID(link.input["action_id"]))
@@ -302,7 +315,7 @@ class ExternalActionService:
         revalidate: Callable[[], ActorContext],
     ) -> ActorContext:
         current = revalidate()
-        if (current.actor_id, current.household_id) != (actor.actor_id, actor.household_id):
+        if (current.actor_id, current.workspace_id) != (actor.actor_id, actor.workspace_id):
             raise AuthorizationError("External action access changed")
         self._authorize(current, write=True, decision=True)
         return current
@@ -317,7 +330,7 @@ class ExternalActionService:
         revalidate: Callable[[], ActorContext],
     ) -> ExternalActionProposal:
         self._authorize(actor, write=True, decision=True)
-        with self.store.transaction(actor.household_id):
+        with self.store.transaction(actor.workspace_id):
             actor = self._revalidate(actor, revalidate)
             job = self._job(actor, identifier)
             action = self._action(job)
@@ -394,7 +407,7 @@ class ExternalActionService:
                     ),
                 }
             )
-        with self.store.transaction(actor.household_id):
+        with self.store.transaction(actor.workspace_id):
             job = self._job(actor, action.id)
             if self._action(job).status == "executing":
                 self._save(actor, job, action)
@@ -411,7 +424,7 @@ class ExternalActionService:
         if definition is None or self._blockers(actor, action):
             raise ToolCatalogError("Provider access changed; reconcile its receipt manually")
         receipt = self.providers.refresh(definition, action)
-        with self.store.transaction(actor.household_id):
+        with self.store.transaction(actor.workspace_id):
             job = self._job(actor, identifier)
             current = self._action(job)
             if current.status != "accepted":
@@ -432,7 +445,7 @@ class ExternalActionService:
     ) -> ExternalActionProposal:
         """Explicit operator reconciliation of stale claims; never executes a provider request."""
         self._authorize(actor, write=True, decision=True)
-        with self.store.transaction(actor.household_id):
+        with self.store.transaction(actor.workspace_id):
             job = self._job(actor, identifier)
             action = self._action(job)
             if (
@@ -464,7 +477,7 @@ class ExternalActionService:
         """Record a user's provider investigation without sending another commitment."""
         self._authorize(actor, write=True, decision=True)
         body = ReconcileExternalAction.model_validate(body.model_dump())
-        with self.store.transaction(actor.household_id):
+        with self.store.transaction(actor.workspace_id):
             actor = self._revalidate(actor, revalidate)
             job = self._job(actor, identifier)
             action = self._action(job)

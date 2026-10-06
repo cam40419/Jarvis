@@ -1,0 +1,109 @@
+.pc-continuity {
+  border-top: 1px solid var(--line);
+  margin-top: 24px;
+  padding-top: 24px;
+}
+.pc-continuity[hidden],
+.pc-continuity [hidden] {
+  display: none !important;
+}
+.pc-continuity h4 {
+  font-size: 13px;
+  margin: 20px 0 8px;
+}
+.pc-continuity p,
+.pc-continuity small {
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.pc-continuity small,
+.pc-upcoming-empty,
+.pc-schedule-help {
+  color: var(--muted);
+}
+.pc-upcoming-row {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+.pc-upcoming-row small,
+.pc-upcoming-row strong {
+  display: block;
+}
+.pc-upcoming-row p {
+  margin: 0 0 5px;
+  white-space: pre-wrap;
+}
+.pc-upcoming-row button {
+  margin-top: 8px;
+}
+.pc-wait {
+  border-left: 2px solid var(--accent);
+  padding: 0 0 0 16px;
+  margin: 18px 0;
+}
+.pc-wait p {
+  white-space: pre-wrap;
+}
+.pc-continuity label {
+  display: grid;
+  gap: 7px;
+  font-size: 12px;
+}
+.pc-continuity input,
+.pc-continuity textarea,
+.pc-continuity select {
+  width: 100%;
+  min-width: 0;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font: inherit;
+  padding: 9px 10px;
+}
+.pc-continuity textarea {
+  resize: vertical;
+}
+.pc-continuity form {
+  display: grid;
+  gap: 12px;
+  max-width: 740px;
+}
+.pc-continuity form button {
+  justify-self: start;
+}
+.pc-schedule-editor {
+  margin-top: 20px;
+}
+.pc-schedule-editor > summary {
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--accent-text);
+}
+.pc-schedule-form {
+  padding-top: 16px;
+}
+.pc-schedule-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+}
+.pc-weekdays {
+  border: 0;
+  padding: 0;
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.pc-weekdays label {
+  display: flex;
+  align-items: center;
+}
+.pc-weekdays input {
+  width: auto;
+}
+.pc-weekdays legend {
+  font-size: 12px;
+  margin-bottom: 8px;
+}

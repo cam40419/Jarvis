@@ -57,6 +57,13 @@ def test_google_connection_callback_and_confirm_api(client, container, auth_head
     status = client.get("/v1/connections/google").json()
     assert status["email"] == "owner@example.com" and status["calendar"] and status["email_send"]
     assert "secret" not in str(status)
+    account = status["accounts"][0]["id"]
+    assert client.post("/v1/connections/google/test", json={"account": account}).status_code == 403
+    checked = client.post(
+        "/v1/connections/google/test", headers=auth_headers, json={"account": account}
+    )
+    assert checked.status_code == 200 and checked.json()["status"] == "passed"
+    assert "secret" not in checked.text
     assert (
         client.get(
             "/auth/google/callback",
@@ -142,6 +149,6 @@ def test_unconfigured_google_is_actionable_and_unauthenticated_is_denied(client,
         headers=auth_headers,
         json={"shared_chat_acknowledged": True},
     )
-    assert response.status_code == 400 and "setup guide" in response.json()["error"]["message"]
+    assert response.status_code == 400 and "Open Connections" in response.json()["error"]["message"]
     client.cookies.clear()
     assert client.get("/v1/connections/google").status_code == 401

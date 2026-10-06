@@ -2,7 +2,7 @@ from uuid import uuid4
 
 from simon.config import Settings
 from simon.domain.context import CreateMemory
-from simon.domain.identity import DEV_ACTOR_ID, DEV_HOUSEHOLD_ID, Membership
+from simon.domain.identity import DEV_ACTOR_ID, DEV_WORKSPACE_ID, Membership
 from simon.domain.models import ActorContext, Channel
 from simon.domain.tasks import CreateAssistantTask
 from simon.services.audit import AuditService
@@ -17,13 +17,13 @@ def test_worker_completes_a_durable_task_and_saves_its_private_thread(store):
     store.put_membership(
         Membership(
             actor_id=DEV_ACTOR_ID,
-            household_id=DEV_HOUSEHOLD_ID,
+            workspace_id=DEV_WORKSPACE_ID,
             role="owner",
         )
     )
     actor = ActorContext(
         actor_id=DEV_ACTOR_ID,
-        household_id=DEV_HOUSEHOLD_ID,
+        workspace_id=DEV_WORKSPACE_ID,
         channel=Channel.API,
         scopes=ROLE_SCOPES["owner"],
     )
@@ -57,13 +57,13 @@ def test_linked_task_publishes_result_and_generated_files_to_project(store):
     store.put_membership(
         Membership(
             actor_id=DEV_ACTOR_ID,
-            household_id=DEV_HOUSEHOLD_ID,
+            workspace_id=DEV_WORKSPACE_ID,
             role="owner",
         )
     )
     actor = ActorContext(
         actor_id=DEV_ACTOR_ID,
-        household_id=DEV_HOUSEHOLD_ID,
+        workspace_id=DEV_WORKSPACE_ID,
         channel=Channel.API,
         scopes=ROLE_SCOPES["owner"],
     )

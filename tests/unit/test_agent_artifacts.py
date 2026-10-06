@@ -18,7 +18,7 @@ import pytest
 
 from simon.domain.artifacts import Artifact, ArtifactError
 from simon.domain.errors import DomainError
-from simon.services.artifacts import ArtifactStore
+from simon.services.artifacts import MAX_TEXT_PREVIEW_BYTES, ArtifactStore
 
 
 def publish(store: ArtifactStore, text: str = "An answer.") -> Artifact:
@@ -42,6 +42,58 @@ def test_constructor_does_not_create_storage(tmp_path: Path) -> None:
     root = tmp_path / "artifacts"
     ArtifactStore(root)
     assert not root.exists()
+
+
+def test_text_preview_preserves_content_and_checks_integrity(tmp_path: Path) -> None:
+    store = ArtifactStore(tmp_path / "artifacts")
+    artifact = publish(store, "## Saved answer\n<script>untrusted()</script>")
+    preview = store.preview(artifact)
+    assert preview.format == "markdown"
+    assert preview.text == "## Saved answer\n<script>untrusted()</script>"
+    assert preview.artifact_id == artifact.id
+    content_path(store.root, artifact).write_bytes(b"A different answer")
+    with pytest.raises(ArtifactError, match="integrity"):
+        store.preview(artifact)
+
+
+@pytest.mark.parametrize(
+    ("media_type", "content", "error"),
+    [
+        ("text/plain", b"x" * (MAX_TEXT_PREVIEW_BYTES + 1), "too large"),
+        ("text/plain", b"\xff\xfe", "not UTF-8"),
+        ("application/octet-stream", b"binary", "no text preview"),
+    ],
+    ids=["oversized", "invalid-utf8", "binary"],
+)
+def test_text_preview_rejects_large_binary_and_invalid_encoding(
+    tmp_path: Path, media_type: str, content: bytes, error: str
+) -> None:
+    store = ArtifactStore(tmp_path / "artifacts")
+    artifact = store.publish_bytes(
+        workspace_id=uuid4(),
+        actor_id=uuid4(),
+        run_id=uuid4(),
+        task_id=uuid4(),
+        name="result.txt",
+        media_type=media_type,
+        content=content,
+    )
+    with pytest.raises(ArtifactError, match=error):
+        store.preview(artifact)
+
+
+def test_html_preview_is_inert_source_text(tmp_path: Path) -> None:
+    store = ArtifactStore(tmp_path / "artifacts")
+    artifact = store.publish_bytes(
+        workspace_id=uuid4(),
+        actor_id=uuid4(),
+        run_id=uuid4(),
+        task_id=uuid4(),
+        name="report.html",
+        media_type="text/html",
+        content=b"<script>untrusted()</script>",
+    )
+    assert store.preview(artifact).format == "text"
 
 
 def test_publish_source_bundle_preserves_paths_and_hashes(tmp_path: Path) -> None:

@@ -75,7 +75,7 @@ def test_stream_before_commit_and_cancel_preserves_original(model_setup):
     assert service.store.latest_run(thread.id) == first
     service.cancel(actor, active[0].id)
     with pytest.raises(NotFoundError):
-        service.cancel(actor.model_copy(update={"household_id": uuid4()}), active[0].id)
+        service.cancel(actor.model_copy(update={"workspace_id": uuid4()}), active[0].id)
     with pytest.raises(AuthorizationError):
         service.cancel(actor.model_copy(update={"actor_id": uuid4()}), active[0].id)
 

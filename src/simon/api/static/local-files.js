@@ -182,6 +182,7 @@
       }
       const rows = [];
       for (const file of listing.files) {
+        const wordDocument = file.kind !== 'folder' && /\.docx$/i.test(file.name);
         const row = node('article');
         row.className = 'lf-row';
         row.setAttribute('aria-label', file.name);
@@ -196,7 +197,10 @@
         const info = node('div');
         info.className = 'lf-file-info';
         info.append(node('strong', file.name));
-        const metadata = [file.kind === 'folder' ? 'Folder' : sizeLabel(file.bytes)];
+        const metadata = [
+          ...(wordDocument ? ['Word document'] : []),
+          file.kind === 'folder' ? 'Folder' : sizeLabel(file.bytes),
+        ];
         if (Number.isFinite(file.modified_at)) {
           const date = new Date(file.modified_at * 1000);
           if (!Number.isNaN(date.getTime()))
@@ -219,11 +223,19 @@
         row.append(controls);
         if (file.kind === 'folder') button(controls, 'Open folder', () => open(root, file.path));
         else {
-          const link = node('a', 'Download');
+          const link = node('a', wordDocument ? 'Download Word document' : 'Download');
           link.href = appPath(
             '/v1/local-files/download?' + new URLSearchParams({ root, path: file.path }),
           );
           controls.append(link);
+          if (wordDocument) {
+            const note = node(
+              'p',
+              'Open the downloaded document in Word or a compatible editor to view its formatting.',
+            );
+            note.className = 'lf-file-meta';
+            row.append(note);
+          }
           const previewUrl = appPath(
             '/v1/local-files/preview?' + new URLSearchParams({ root, path: file.path }),
           );
@@ -272,10 +284,10 @@
             nextOffset = result.next_offset;
             more.hidden = nextOffset == null;
           };
-          button(controls, 'Read', () => read(0));
+          if (!wordDocument) button(controls, 'Read', () => read(0));
           const more = button(controls, 'Next text', () => read(nextOffset));
           more.hidden = true;
-          button(controls, 'Edit with Simon', () => ask(root, file.path));
+          if (!wordDocument) button(controls, 'Edit with Simon', () => ask(root, file.path));
           if (file.name.toLowerCase().endsWith('.zip')) {
             button(controls, 'Inspect ZIP', async () => {
               const result = await action('local_zip_inspect', {
@@ -347,5 +359,5 @@
   launcher.id = 'local-files-open';
   launcher.type = 'button';
   launcher.onclick = () => open();
-  document.getElementById('work-refresh').after(launcher);
+  document.querySelector('.work-home-nav').append(launcher);
 })();

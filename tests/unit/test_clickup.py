@@ -29,9 +29,9 @@ def connection(**updates):
         id="company",
         name="Company ClickUp",
         enabled=True,
-        household_id=actor().household_id,
+        workspace_id=actor().workspace_id,
         actor_ids=frozenset({actor().actor_id}),
-        workspace_id="123",
+        clickup_workspace_id="123",
         list_ids=frozenset({"456"}),
         credential_env="CLICKUP_TOKEN",
     ).model_copy(update=updates)
@@ -113,13 +113,13 @@ def test_lists_are_allowlisted_and_belong_to_verified_workspace():
     ]
 
 
-@pytest.mark.parametrize("grant", ["actor", "household", "scope", "list", "disabled", "secret"])
+@pytest.mark.parametrize("grant", ["actor", "workspace", "scope", "list", "disabled", "secret"])
 def test_local_unauthorized_or_unconfigured_connections_never_make_requests(grant):
     configured, who, list_id, environ = connection(), actor(), "456", {"CLICKUP_TOKEN": TOKEN}
     if grant == "actor":
         who = who.model_copy(update={"actor_id": uuid4()})
-    elif grant == "household":
-        who = who.model_copy(update={"household_id": uuid4()})
+    elif grant == "workspace":
+        who = who.model_copy(update={"workspace_id": uuid4()})
     elif grant == "scope":
         who = who.model_copy(update={"scopes": frozenset()})
     elif grant == "list":

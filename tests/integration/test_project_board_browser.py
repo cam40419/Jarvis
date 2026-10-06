@@ -98,10 +98,10 @@ def board_ui(project_ui):
             id="company",
             name="Company ClickUp",
             enabled=True,
-            household_id=workspace_id,
+            workspace_id=workspace_id,
             actor_ids=frozenset({actor_id}),
             credential_env="PRIVATE_BOARD_TOKEN",
-            workspace_id="123",
+            clickup_workspace_id="123",
             list_ids=frozenset({"456"}),
         ),
     )

@@ -159,7 +159,6 @@ def test_create_edit_reload_and_preview_combined_agent(client, profile_api, auth
         {"skill_ids": ["invented-skill"]},
         {"name": "   "},
         {"description": "  "},
-        {"skill_ids": []},
     ],
 )
 def test_agent_builder_cannot_invent_grants(client, profile_api, auth_headers, extra):
@@ -180,7 +179,7 @@ def test_other_account_cannot_read_or_edit_custom_agent(client, profile_api, aut
 
     other = ActorContext(
         actor_id=uuid4(),
-        household_id=UUID("00000000-0000-4000-8000-000000000001"),
+        workspace_id=UUID("00000000-0000-4000-8000-000000000001"),
         channel=Channel.API,
         scopes=frozenset({"jobs:read", "jobs:write"}),
     )

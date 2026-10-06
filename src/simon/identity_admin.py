@@ -17,25 +17,25 @@ def main() -> None:
         "enroll", help="Issue a one-use enrollment token, valid for 15 minutes"
     )
     enroll.add_argument("--actor-id", type=UUID, required=True)
-    enroll.add_argument("--household-id", type=UUID, required=True)
+    enroll.add_argument("--workspace-id", type=UUID, required=True)
     recovery = commands.add_parser(
         "password-recovery", help="Issue a one-use password recovery code, valid for 15 minutes"
     )
     recovery.add_argument("--actor-id", type=UUID, required=True)
-    recovery.add_argument("--household-id", type=UUID, required=True)
+    recovery.add_argument("--workspace-id", type=UUID, required=True)
     revoke = commands.add_parser("revoke-sessions")
     revoke.add_argument("--actor-id", type=UUID, required=True)
     remove = commands.add_parser("revoke-passkey")
     remove.add_argument("--credential-id", required=True)
-    member = commands.add_parser("membership", help="Create or update a household membership")
+    member = commands.add_parser("membership", help="Create or update a workspace membership")
     member.add_argument("--actor-id", type=UUID, required=True)
-    member.add_argument("--household-id", type=UUID, required=True)
+    member.add_argument("--workspace-id", type=UUID, required=True)
     member.add_argument("--role", choices=["owner", "member", "guest"], required=True)
     member.add_argument("--display-name", default="Simon user")
-    member.add_argument("--household-name", default="Household")
+    member.add_argument("--workspace-name", default="Workspace")
     remove_member = commands.add_parser("remove-membership")
     remove_member.add_argument("--actor-id", type=UUID, required=True)
-    remove_member.add_argument("--household-id", type=UUID, required=True)
+    remove_member.add_argument("--workspace-id", type=UUID, required=True)
     args = parser.parse_args()
     settings = get_settings()
     if settings.storage_backend != "postgres":
@@ -44,16 +44,16 @@ def main() -> None:
     service = IdentityService(store, settings)
     with store.transaction(IDENTITY_LOCK):
         if args.command == "enroll":
-            secret = service.enroll(args.actor_id, args.household_id)
+            secret = service.enroll(args.actor_id, args.workspace_id)
         elif args.command == "password-recovery":
             if store.password_for_actor(args.actor_id) is None:
                 raise InvalidTransitionError("Account has no password to reset.")
-            secret = service.enroll(args.actor_id, args.household_id)
+            secret = service.enroll(args.actor_id, args.workspace_id)
         elif args.command == "revoke-sessions":
             store.revoke_sessions(args.actor_id)
             for membership in store.memberships(args.actor_id):
                 service.operator_audit(
-                    "identity.sessions_revoked", args.actor_id, membership.household_id
+                    "identity.sessions_revoked", args.actor_id, membership.workspace_id
                 )
         elif args.command == "revoke-passkey":
             credential = store.get_passkey(args.credential_id)
@@ -63,24 +63,24 @@ def main() -> None:
             store.revoke_sessions(credential.actor_id)
             for membership in store.memberships(credential.actor_id):
                 service.operator_audit(
-                    "identity.passkey_revoked", credential.actor_id, membership.household_id
+                    "identity.passkey_revoked", credential.actor_id, membership.workspace_id
                 )
         elif args.command == "remove-membership":
-            service.membership(args.actor_id, args.household_id)
-            store.delete_membership(args.actor_id, args.household_id)
+            service.membership(args.actor_id, args.workspace_id)
+            store.delete_membership(args.actor_id, args.workspace_id)
             store.revoke_sessions(args.actor_id)
-            service.operator_audit("identity.membership_removed", args.actor_id, args.household_id)
+            service.operator_audit("identity.membership_removed", args.actor_id, args.workspace_id)
         else:
             store.put_membership(
                 Membership(
                     actor_id=args.actor_id,
-                    household_id=args.household_id,
+                    workspace_id=args.workspace_id,
                     role=args.role,
                     display_name=args.display_name,
-                    household_name=args.household_name,
+                    workspace_name=args.workspace_name,
                 )
             )
-            service.operator_audit("identity.membership_updated", args.actor_id, args.household_id)
+            service.operator_audit("identity.membership_updated", args.actor_id, args.workspace_id)
     if args.command in {"enroll", "password-recovery"}:
         print("One-use code (expires in 15 minutes):\n" + secret)
     else:

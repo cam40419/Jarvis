@@ -129,7 +129,7 @@ class LocalFileService:
     def authorize(self, actor: ActorContext, *, write: bool = False) -> None:
         if not self.connected.settings.local_files_enabled:
             raise AuthorizationError("Local file tools are disabled.")
-        member = self.connected.identity.membership(actor.actor_id, actor.household_id)
+        member = self.connected.identity.membership(actor.actor_id, actor.workspace_id)
         scope = "jobs:write" if write else "jobs:read"
         if scope not in actor.scopes or scope not in ROLE_SCOPES[member.role]:
             raise AuthorizationError("Local file access is unavailable.")
@@ -137,7 +137,7 @@ class LocalFileService:
     def workspace(self, actor: ActorContext) -> Path:
         return (
             self.connected.settings.local_files_dir.absolute()
-            / str(actor.household_id)
+            / str(actor.workspace_id)
             / str(actor.actor_id)
         )
 
@@ -557,9 +557,9 @@ class LocalFileService:
             raw = projects.api.download(token, request.file_id)
             check()
             projects.assert_binding(actor, binding)
-            with self.store.transaction(actor.household_id):
+            with self.store.transaction(actor.workspace_id):
                 saved, _ = self.store.execute_once(
-                    f"local-import:{actor.household_id}:{actor.actor_id}",
+                    f"local-import:{actor.workspace_id}:{actor.actor_id}",
                     key,
                     digest(request.model_dump(mode="json")),
                     lambda: self.publish(actor, request.root, request.path, raw),
@@ -599,7 +599,7 @@ class LocalFileService:
 
         def checked() -> ActorContext:
             current = check()
-            if (current.actor_id, current.household_id) != (actor.actor_id, actor.household_id):
+            if (current.actor_id, current.workspace_id) != (actor.actor_id, actor.workspace_id):
                 raise AuthorizationError("Local file access changed.")
             self.authorize(current, write=name not in READS)
             return current
@@ -623,9 +623,9 @@ class LocalFileService:
             if name in READS or name in {"local_file_import_drive", "local_file_export_drive"}:
                 return operation()
             # Serialize local mutations across API/worker processes and deduplicate tool retries.
-            with self.store.transaction(actor.household_id):
+            with self.store.transaction(actor.workspace_id):
                 result, _ = self.store.execute_once(
-                    f"local-files:{actor.household_id}:{actor.actor_id}",
+                    f"local-files:{actor.workspace_id}:{actor.actor_id}",
                     key,
                     digest({"name": name, "values": values}),
                     operation,
@@ -653,7 +653,7 @@ class LocalFileService:
     ) -> str:
         def check() -> ActorContext:
             current = revalidate()
-            if (current.actor_id, current.household_id) != (actor.actor_id, actor.household_id):
+            if (current.actor_id, current.workspace_id) != (actor.actor_id, actor.workspace_id):
                 raise AuthorizationError("Local file access changed.")
             attempt = self.store.attempt(run_id)
             if (
@@ -661,7 +661,7 @@ class LocalFileService:
                 or attempt.status != "pending"
                 or attempt.expires_at <= utc_now()
                 or attempt.run.actor_id != actor.actor_id
-                or attempt.household_id != actor.household_id
+                or attempt.workspace_id != actor.workspace_id
                 or name not in attempt.run.capability_manifest
             ):
                 raise AuthorizationError("Active local file request not found.")

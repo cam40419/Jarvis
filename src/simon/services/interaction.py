@@ -17,7 +17,7 @@ from simon.services.conversations import ConversationService
 
 
 class InteractionService:
-    """Personal settings and feedback within the active household; no model side effects."""
+    """Personal settings and feedback within the active workspace; no model side effects."""
 
     def __init__(self, store: Store, audit: AuditService, home: HomeClient | None = None) -> None:
         self.home = home
@@ -28,7 +28,7 @@ class InteractionService:
     def preferences(self, actor: ActorContext) -> ResponsePreferences:
         self.conversations.authorize(actor, "threads:read")
         return (
-            self.store.response_preferences(actor.household_id, actor.actor_id)
+            self.store.response_preferences(actor.workspace_id, actor.actor_id)
             or ResponsePreferences()
         )
 
@@ -36,7 +36,7 @@ class InteractionService:
         self, actor: ActorContext, request: SavePreferences
     ) -> ResponsePreferences:
         self.conversations.authorize(actor, "threads:write")
-        with self.store.transaction(actor.household_id):
+        with self.store.transaction(actor.workspace_id):
 
             def operation() -> dict[str, object]:
                 current = self.preferences(actor)
@@ -52,7 +52,7 @@ class InteractionService:
                     version=current.version + 1,
                 )
                 self.store.save_response_preferences(
-                    actor.household_id, actor.actor_id, preferences
+                    actor.workspace_id, actor.actor_id, preferences
                 )
                 self.audit.record(
                     event_type="response_preferences.updated",
@@ -64,7 +64,7 @@ class InteractionService:
                 return preferences.model_dump(mode="json")
 
             self.store.execute_once(
-                f"preferences:{actor.household_id}:{actor.actor_id}",
+                f"preferences:{actor.workspace_id}:{actor.actor_id}",
                 request.idempotency_key,
                 digest(request.model_dump(mode="json", exclude={"idempotency_key"})),
                 operation,
@@ -78,10 +78,10 @@ class InteractionService:
         self.conversations.get(actor, thread_id)
         commands = (
             self.home.commands(actor, thread_id=thread_id)
-            if (self.home and self.home.configured and "home:read" in actor.scopes)
+            if (self.home and self.home.for_actor(actor).configured and "home:read" in actor.scopes)
             else ()
         )
-        with self.store.transaction(actor.household_id):
+        with self.store.transaction(actor.workspace_id):
             self.conversations.get(actor, thread_id)
             result = []
             for run in self.store.answer_runs(thread_id, offset, limit):
@@ -91,17 +91,19 @@ class InteractionService:
                     AnswerReference(
                         run_id=run.id,
                         output_message_id=run.output_message_id,
-                        feedback=self.store.feedback(actor.household_id, actor.actor_id, run.id),
+                        feedback=self.store.feedback(actor.workspace_id, actor.actor_id, run.id),
                         web_sources=run.web_sources,
                         home_commands=tuple(c for c in commands if c.run_id == run.id)
-                        if self.home and self.home.configured and "home:read" in actor.scopes
+                        if self.home
+                        and self.home.for_actor(actor).configured
+                        and "home:read" in actor.scopes
                         else (),
                         actions=tuple(
                             action
                             for action_id in run.action_ids
                             if (action := self.store.action(action_id))
                             and action.actor_id == actor.actor_id
-                            and action.household_id == actor.household_id
+                            and action.workspace_id == actor.workspace_id
                         ),
                     )
                 )
@@ -111,18 +113,18 @@ class InteractionService:
         self, actor: ActorContext, run_id: UUID, request: SaveFeedback
     ) -> RunFeedback:
         self.conversations.authorize(actor, "threads:write")
-        with self.store.transaction(actor.household_id):
+        with self.store.transaction(actor.workspace_id):
             self.conversations.run(actor, run_id)
 
             def operation() -> dict[str, object]:
-                current = self.store.feedback(actor.household_id, actor.actor_id, run_id)
+                current = self.store.feedback(actor.workspace_id, actor.actor_id, run_id)
                 version = current.version if current else 0
                 if version != request.expected_version:
                     raise InvalidTransitionError(
                         "Feedback changed elsewhere. Reload before saving."
                     )
                 feedback = RunFeedback(run_id=run_id, rating=request.rating, version=version + 1)
-                self.store.save_feedback(actor.household_id, actor.actor_id, feedback)
+                self.store.save_feedback(actor.workspace_id, actor.actor_id, feedback)
                 self.audit.record(
                     event_type="run.feedback_updated",
                     actor=actor,
@@ -133,11 +135,11 @@ class InteractionService:
                 return feedback.model_dump(mode="json")
 
             self.store.execute_once(
-                f"feedback:{actor.household_id}:{actor.actor_id}:{run_id}",
+                f"feedback:{actor.workspace_id}:{actor.actor_id}:{run_id}",
                 request.idempotency_key,
                 digest(request.model_dump(mode="json", exclude={"idempotency_key"})),
                 operation,
             )
-            saved = self.store.feedback(actor.household_id, actor.actor_id, run_id)
+            saved = self.store.feedback(actor.workspace_id, actor.actor_id, run_id)
             assert saved is not None
             return saved

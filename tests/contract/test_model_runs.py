@@ -8,7 +8,7 @@ import pytest
 from simon.config import Settings
 from simon.domain.conversations import CreateThread, SubmitRun
 from simon.domain.errors import AuthenticationError, ModelBusyError, ModelError
-from simon.domain.identity import DEV_ACTOR_ID, DEV_HOUSEHOLD_ID
+from simon.domain.identity import DEV_ACTOR_ID, DEV_WORKSPACE_ID
 from simon.domain.model import ModelAnswer
 from simon.domain.models import ActorContext, Channel, utc_now
 from simon.services.audit import AuditService
@@ -42,7 +42,7 @@ class FakeModel:
 def model_setup(store):
     actor = ActorContext(
         actor_id=DEV_ACTOR_ID,
-        household_id=DEV_HOUSEHOLD_ID,
+        workspace_id=DEV_WORKSPACE_ID,
         channel=Channel.API,
         scopes=frozenset({"threads:read", "threads:write", "memories:read"}),
     )
@@ -89,7 +89,7 @@ def test_network_call_releases_transaction_and_concurrent_retry(model_setup):
         future = pool.submit(service.submit, actor, thread.id, body())
         assert entered.wait(5)
         try:
-            # This would deadlock or time out if generation held the household transaction.
+            # This would deadlock or time out if generation held the workspace transaction.
             assert service.get(actor, thread.id) == thread
             with pytest.raises(ModelBusyError):
                 service.submit(actor, thread.id, body())
@@ -139,7 +139,7 @@ def test_crash_expiry_is_not_reexecuted(model_setup):
 
     with pytest.raises(ModelBusyError):
         ConversationService(service.store, service.audit).submit(actor, thread.id, body())
-    with service.store.transaction(actor.household_id):
+    with service.store.transaction(actor.workspace_id):
         service.store.save_attempt(
             attempt.model_copy(update={"expires_at": utc_now() - timedelta(seconds=1)})
         )
@@ -194,7 +194,7 @@ def test_late_provider_answer_cannot_publish_after_expiry(model_setup):
 
     def expire():
         attempt = service.store.pending_attempt(thread.id)
-        with service.store.transaction(actor.household_id):
+        with service.store.transaction(actor.workspace_id):
             service.store.save_attempt(
                 attempt.model_copy(update={"expires_at": utc_now() - timedelta(seconds=1)})
             )

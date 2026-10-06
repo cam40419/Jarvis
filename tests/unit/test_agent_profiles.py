@@ -26,7 +26,7 @@ from simon.services.agent_profiles import AgentProfileService
 def actor():
     return ActorContext(
         actor_id=uuid4(),
-        household_id=uuid4(),
+        workspace_id=uuid4(),
         channel=Channel.API,
         scopes=frozenset({"jobs:read", "jobs:write", "memories:read", "threads:read"}),
     )
@@ -124,7 +124,7 @@ def test_owner_and_workspace_isolation_include_idempotency_namespace(actor, mani
     record = service.create(actor, request())
     for other in (
         actor.model_copy(update={"actor_id": uuid4()}),
-        actor.model_copy(update={"household_id": uuid4()}),
+        actor.model_copy(update={"workspace_id": uuid4()}),
     ):
         assert service.list(other) == ()
         assert service.profiles(other) == ()
@@ -564,7 +564,6 @@ def test_custom_profile_count_is_bounded_and_existing_profiles_remain_editable(
         {"name": " "},
         {"description": " "},
         {"description": "x" * 4001},
-        {"skill_ids": ()},
         {"skill_ids": ("analysis", "analysis")},
         {"skill_ids": tuple(f"skill-{number}" for number in range(129))},
         {"tool_ids": ("test.write",)},
@@ -628,6 +627,200 @@ def test_individual_read_write_selection_does_not_pull_in_neighboring_tools(acto
     assert "required user confirmation" in record.profile.instructions
 
 
+def test_calendar_and_clickup_are_individual_skills_with_separate_write_grants(actor, manifest):
+    service = AgentProfileService(InMemoryStore(), manifest)
+    skills = {item["id"]: item for item in service.individual_skills(actor)}
+    calendar = {
+        "native.calendar_list_events",
+        "native.calendar_create_event",
+        "native.calendar_action_status",
+    }
+    clickup = {
+        "clickup.project_read",
+        "clickup.tasks_list",
+        "clickup.task_read",
+        "clickup.tasks_publish",
+        "clickup.tasks_import",
+        "clickup.sync",
+        "clickup.status_sync",
+        "clickup.progress_sync",
+    }
+    for category, identifiers in (("Calendar", calendar), ("ClickUp", clickup)):
+        for identifier in identifiers:
+            assert skills["tool." + identifier]["category"] == category
+            assert skills["tool." + identifier]["tool_ids"] == [identifier]
+    record = service.create(
+        actor,
+        request(
+            skill_ids=(
+                "tool.native.calendar_list_events",
+                "tool.clickup.tasks_list",
+            )
+        ),
+    )
+    assert set(record.profile.tool_ids) == {"native.calendar_list_events", "clickup.tasks_list"}
+    assert record.profile.max_action == "read"
+    assert record.profile.tool_scopes == {"jobs:read", "threads:read", "memories:read"}
+
+    owner = actor.model_copy(update={"scopes": actor.scopes | {"threads:write"}})
+    writer = service.create(
+        owner,
+        request(
+            skill_ids=("tool.native.calendar_create_event", "tool.clickup.tasks_publish"),
+            idempotency_key="calendar-clickup-writes",
+        ),
+    )
+    assert set(writer.profile.tool_ids) == {"native.calendar_create_event", "clickup.tasks_publish"}
+    assert writer.profile.max_action == "write"
+
+
+def test_project_details_are_individual_skills_with_separate_read_and_edit_grants(actor, manifest):
+    service = AgentProfileService(InMemoryStore(), manifest)
+    owner = actor.model_copy(update={"scopes": actor.scopes | {"memories:write"}})
+    skills = {item["id"]: item for item in service.individual_skills(owner)}
+    for identifier, name in (
+        ("project.details_read", "Read project details"),
+        ("project.details_update", "Edit project details"),
+    ):
+        skill = skills["tool." + identifier]
+        assert skill["name"] == name
+        assert skill["category"] == "Projects"
+        assert skill["tool_ids"] == [identifier]
+        assert skill["state"] == "configured"
+        assert "name" in skill["description"] and "description" in skill["description"]
+
+    reader = service.capture_role(
+        owner,
+        "project-reader",
+        "Reader",
+        "Read the project description.",
+        ("tool.project.details_read",),
+        1,
+    )
+    reader_profile = service.resolve_role(owner, reader)
+    assert reader_profile.tool_ids == ("project.details_read",)
+    assert reader_profile.max_action == "read"
+    assert "memories:write" not in reader_profile.tool_scopes
+
+    editor = service.capture_role(
+        owner,
+        "project-editor",
+        "Editor",
+        "Maintain the project description.",
+        ("tool.project.details_update",),
+        1,
+    )
+    editor_profile = service.resolve_role(owner, editor)
+    assert editor_profile.tool_ids == ("project.details_update",)
+    assert editor_profile.max_action == "write"
+    assert "memories:write" in editor_profile.tool_scopes
+    assert service.resolve_role(owner, reader) == reader_profile
+
+    limited = {item["id"]: item for item in service.individual_skills(actor)}
+    assert limited["tool.project.details_read"]["state"] == "configured"
+    assert limited["tool.project.details_update"]["state"] == "permission_required"
+    with pytest.raises(AuthorizationError):
+        service.resolve_role(actor, editor)
+
+    knowledge = skills["tool.project.knowledge_update"]
+    assert knowledge["name"] == "Edit project brief and decisions"
+    assert knowledge["category"] == "Projects"
+    assert knowledge["tool_ids"] == ["project.knowledge_update"]
+    knowledge_editor = service.capture_role(
+        owner,
+        "knowledge-editor",
+        "Knowledge editor",
+        "Maintain the saved project brief.",
+        ("tool.project.knowledge_update",),
+        1,
+    )
+    knowledge_profile = service.resolve_role(owner, knowledge_editor)
+    assert knowledge_profile.tool_ids == ("project.knowledge_update",)
+    assert knowledge_profile.max_action == "write"
+
+
+def test_project_reporting_and_saved_roles_never_gain_new_detail_edit_grants(actor, manifest):
+    owner = actor.model_copy(update={"scopes": actor.scopes | {"memories:write"}})
+    lead = next(profile for profile in manifest.agents if profile.id == "project-lead")
+    original = change_profile(
+        manifest,
+        "project-lead",
+        tool_ids=tuple(
+            key
+            for key in lead.tool_ids
+            if not key.startswith("project.details_") and key != "project.knowledge_update"
+        ),
+        tool_scopes=lead.tool_scopes - {"memories:write"},
+    )
+    service = AgentProfileService(InMemoryStore(), original)
+    assert not any(
+        item["id"].startswith("tool.project.details_") for item in service.individual_skills(owner)
+    )
+    snapshot = service.capture_role(
+        owner,
+        "reporter",
+        "Reporter",
+        "Save project findings and next tasks.",
+        ("project-reporting",),
+        1,
+    )
+    before = service.resolve_role(owner, snapshot)
+    upgraded = AgentProfileService(service.store, manifest)
+    assert upgraded.resolve_role(owner, snapshot).tool_ids == before.tool_ids
+    assert not any(key.startswith("project.details_") for key in before.tool_ids)
+    assert "project.knowledge_update" not in before.tool_ids
+    fresh_reporting = upgraded.capture_role(
+        owner,
+        "reporter",
+        "Reporter",
+        "Save project findings and next tasks.",
+        ("project-reporting",),
+        2,
+    )
+    assert upgraded.resolve_role(owner, fresh_reporting).tool_ids == before.tool_ids
+
+
+def test_connected_skills_show_setup_and_permission_blockers_without_disappearing(actor, manifest):
+    service = AgentProfileService(InMemoryStore(), manifest)
+    owner = actor.model_copy(update={"scopes": actor.scopes | {"threads:write"}})
+    statuses = [
+        {
+            "id": "native.calendar_create_event",
+            "state": "unavailable",
+            "blocked_reasons": ["Connect Google Calendar with event write access"],
+        },
+        {
+            "id": "clickup.tasks_list",
+            "state": "unconfigured",
+            "blocked_reasons": ["Configure a ClickUp connection"],
+        },
+    ]
+    skills = {item["id"]: item for item in service.individual_skills(owner, statuses)}
+    assert skills["tool.native.calendar_create_event"]["state"] == "unavailable"
+    assert skills["tool.clickup.tasks_list"]["state"] == "unconfigured"
+    assert skills["tool.clickup.tasks_list"]["blocked_reasons"] == [
+        "Configure a ClickUp connection"
+    ]
+    reader = actor.model_copy(update={"scopes": actor.scopes - {"jobs:write"}})
+    limited = {item["id"]: item for item in service.individual_skills(reader)}
+    assert limited["tool.native.calendar_create_event"]["state"] == "permission_required"
+    assert limited["tool.clickup.tasks_publish"]["state"] == "permission_required"
+    assert limited["tool.native.calendar_list_events"]["state"] == "configured"
+
+
+def test_saved_google_bundle_retains_original_tools_after_new_calendar_skills(actor, manifest):
+    service = AgentProfileService(InMemoryStore(), manifest)
+    record = service.create(actor, request(skill_ids=("google-context",)))
+    assert set(record.profile.tool_ids) == {
+        "native.google_accounts_list",
+        "native.gmail_search_messages",
+        "native.gmail_read_message",
+        "native.calendar_list_events",
+    }
+    assert record.profile.max_action == "read"
+    assert service.get(actor, record.id) == record
+
+
 def test_native_individual_skill_descriptions_explain_user_actions_without_api_parameters(
     actor,
     manifest,
@@ -683,7 +876,7 @@ def test_project_capture_reuses_stock_member_id_without_creating_global_agent(ac
     assert "native.local_file_write" not in original.tool_ids
 
 
-@pytest.mark.parametrize("owner_field", ["actor_id", "household_id"])
+@pytest.mark.parametrize("owner_field", ["actor_id", "workspace_id"])
 def test_project_role_snapshot_is_account_and_workspace_bound(actor, manifest, owner_field):
     service = AgentProfileService(InMemoryStore(), manifest)
     snapshot = service.capture_role(

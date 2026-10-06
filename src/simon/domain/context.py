@@ -8,11 +8,11 @@ from simon.domain.models import StrictModel, utc_now
 
 class ExplicitMemory(StrictModel):
     id: UUID = Field(default_factory=uuid4)
-    household_id: UUID
+    workspace_id: UUID
     created_by: UUID
     subject: str
     content: str
-    scope: Literal["household", "personal"] = "household"
+    scope: Literal["workspace", "personal"] = "workspace"
     category: Literal["fact", "preference", "project"] = "fact"
     source_message_id: UUID | None = None
     supersedes: UUID | None = None
@@ -27,7 +27,7 @@ class CreateMemory(StrictModel):
     subject: str = Field(min_length=1, max_length=200, pattern=r"\S")
     content: str = Field(min_length=1, max_length=1000, pattern=r"\S")
     idempotency_key: str = Field(min_length=8, max_length=200)
-    scope: Literal["household", "personal"] = "household"
+    scope: Literal["workspace", "personal"] = "workspace"
     category: Literal["fact", "preference", "project"] = "fact"
 
 
@@ -61,7 +61,7 @@ class MemoryContext(StrictModel):
     source_memory_id: UUID
     subject: str
     text: str
-    scope: Literal["household", "personal"] = "household"
+    scope: Literal["workspace", "personal"] = "workspace"
     category: Literal["fact", "preference", "project"] = "fact"
     trust: Literal["untrusted"] = "untrusted"
 

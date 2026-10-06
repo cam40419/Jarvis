@@ -1,4 +1,4 @@
-from simon.domain.identity import DEV_ACTOR_ID, DEV_HOUSEHOLD_ID, Membership
+from simon.domain.identity import DEV_ACTOR_ID, DEV_WORKSPACE_ID, Membership
 
 
 def test_memory_api_csrf_scopes_and_context(client, auth_headers, container):
@@ -20,7 +20,7 @@ def test_memory_api_csrf_scopes_and_context(client, auth_headers, container):
     assert client.post(path, headers=auth_headers).json()["accepted"] is False
     assert client.get("/v1/memories").json() == []
     container.store.put_membership(
-        Membership(actor_id=DEV_ACTOR_ID, household_id=DEV_HOUSEHOLD_ID, role="guest")
+        Membership(actor_id=DEV_ACTOR_ID, workspace_id=DEV_WORKSPACE_ID, role="guest")
     )
     assert client.get("/v1/memories").status_code == 403
     assert client.post("/v1/memories", json=body, headers=auth_headers).status_code == 403

@@ -50,6 +50,7 @@ def test_folder_picker_search_root_link_and_unlink(postgres_url, tmp_path):
             page.goto(origin + "/chat")
             expect(page.locator("#new-chat")).to_be_enabled()
             page.locator("#work-open").click()
+            page.locator("#work-background-open").click()
             page.get_by_role("button", name="Link existing folder").click()
             panel = page.locator("#project-files-panel")
             expect(panel).to_contain_text("Simon - Build")

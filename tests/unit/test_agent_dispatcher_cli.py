@@ -8,6 +8,7 @@ from uuid import uuid4
 import pytest
 
 from simon import agent_dispatcher as cli
+from simon.adapters.memory import InMemoryStore
 from simon.config import Settings
 from simon.domain.agent_platform import PlatformManifest
 from simon.domain.agent_runs import AgentRun
@@ -43,7 +44,7 @@ def runtime(monkeypatch, tmp_path):
     manifest = PlatformManifest(max_parallel=3)
     monkeypatch.setattr(cli, "load_manifest", lambda path: manifest)
 
-    class Store:
+    class Store(InMemoryStore):
         def close(self):
             records.closed = True
 
@@ -53,7 +54,8 @@ def runtime(monkeypatch, tmp_path):
 
     monkeypatch.setattr(cli, "_store", store)
 
-    def platform(store, configured, *, state_dir, available_transports):
+    def platform(store, configured, *, state_dir, available_transports, integrations):
+        records.integrations = integrations
         records.state_dir = state_dir
         records.available_transports = available_transports
         return SimpleNamespace(

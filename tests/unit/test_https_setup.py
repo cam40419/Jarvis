@@ -25,7 +25,8 @@ def deployment(tmp_path, monkeypatch):
         "SIMON_MODEL_PROVIDER=local\nSIMON_STORAGE_BACKEND=postgres\n"
         "SIMON_DATABASE_URL=postgresql://test:synthetic@localhost/test\n"
         "SIMON_PUBLIC_ORIGIN=http://localhost:8000\nSIMON_RP_ID=localhost\n"
-        "SIMON_PUBLIC_PATH=\nSIMON_OPENAI_API_KEY=synthetic-private-key\n",
+        "SIMON_PUBLIC_PATH=\nSIMON_OPENAI_API_KEY=synthetic-private-key\n"
+        f"SIMON_ACCOUNT_ADMIN_ACTOR_ID={uuid4()}\n",
         encoding="utf-8",
     )
     credentials = tmp_path / "private-tunnel.json"

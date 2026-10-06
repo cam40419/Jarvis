@@ -8,7 +8,7 @@ from simon.services.audit import AuditService
 def test_audit_events_form_a_hash_chain() -> None:
     store = InMemoryStore()
     service = AuditService(store)
-    actor = ActorContext(actor_id=uuid4(), household_id=uuid4(), channel=Channel.API)
+    actor = ActorContext(actor_id=uuid4(), workspace_id=uuid4(), channel=Channel.API)
     first = service.record(
         event_type="test.one",
         actor=actor,

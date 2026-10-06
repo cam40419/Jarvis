@@ -8,7 +8,7 @@ import pytest
 
 from simon.adapters.postgres import PostgresStore
 from simon.domain.conversations import Thread
-from simon.domain.identity import DEV_ACTOR_ID, DEV_HOUSEHOLD_ID
+from simon.domain.identity import DEV_ACTOR_ID, DEV_WORKSPACE_ID
 from simon.domain.models import utc_now
 from simon.domain.voice import VoiceFragment, VoiceSession
 from simon.seed import seed_development_identity
@@ -23,7 +23,7 @@ def test_live_model_saves_personal_context_and_recalls_voice(postgres_url, tmp_p
     seed_development_identity(postgres_url)
     store = PostgresStore(postgres_url)
     thread = Thread(
-        household_id=DEV_HOUSEHOLD_ID,
+        workspace_id=DEV_WORKSPACE_ID,
         created_by=DEV_ACTOR_ID,
         visibility="personal",
         title="Voice workshop discussion",
@@ -31,7 +31,7 @@ def test_live_model_saves_personal_context_and_recalls_voice(postgres_url, tmp_p
     store.insert_thread(thread)
     store.save_voice_session(
         VoiceSession(
-            household_id=DEV_HOUSEHOLD_ID,
+            workspace_id=DEV_WORKSPACE_ID,
             actor_id=DEV_ACTOR_ID,
             thread_id=thread.id,
             request_key=uuid4(),

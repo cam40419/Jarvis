@@ -35,12 +35,12 @@ def test_live_browser_assistant_uses_saved_memory(postgres_url, tmp_path):
             expect(page.locator("#assistant-mode")).to_contain_text("Simon")
             page.locator("#memory-open").click()
             page.locator("#memory-subject").fill("Planning codename")
-            page.locator("#memory-content").fill("Our household planning codename is Maple.")
+            page.locator("#memory-content").fill("Our workspace planning codename is Maple.")
             page.get_by_role("button", name="Save shared memory").click()
             expect(page.locator("#memory-status")).to_have_text("Shared memory saved.")
             page.get_by_role("button", name="Close memories", exact=True).click()
             page.locator("#text").fill(
-                "What is our saved household planning codename? Reply with just the codename."
+                "What is our saved workspace planning codename? Reply with just the codename."
             )
             with page.expect_response(
                 lambda response: "/runs" in response.url and response.request.method == "POST",

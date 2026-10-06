@@ -30,7 +30,7 @@ def test_upload_image_preview_and_pdf_link_use_authenticated_routes(request, tmp
     panel.get_by_role("button", name="Preview image").click()
     image = panel.get_by_role("img", name="preview.png")
     expect(image).to_be_visible()
-    page.wait_for_function("document.querySelector('.local-file-image')?.naturalWidth === 1")
+    expect(image).to_have_js_property("naturalWidth", 1)
     assert "/v1/local-files/preview?" in image.get_attribute("src")
     panel.locator("#local-file-upload").set_input_files(
         {
@@ -51,3 +51,38 @@ def test_upload_image_preview_and_pdf_link_use_authenticated_routes(request, tmp
     expect(panel.get_by_text("No file names match on this page.")).to_be_visible()
     panel.get_by_label("Filter this page").fill("")
     expect(panel.get_by_role("article", name="preview.png", exact=True)).to_be_visible()
+
+
+def test_word_file_offers_download_without_text_read_or_edit(request, tmp_path):
+    from pathlib import Path
+
+    from playwright.sync_api import expect
+
+    from simon.services.document_rendering import render_report
+
+    page, _, container = request.getfixturevalue("agent_ui")
+    container.connected.settings = container.connected.settings.model_copy(
+        update={"local_files_enabled": True, "local_files_dir": tmp_path / "files"}
+    )
+    content = render_report(
+        "# Supplier comparison\n\nA formatted report with **checked assumptions**.",
+        title="Supplier comparison",
+        project_name="Launch planning",
+    )
+    page.locator("#local-files-open").click()
+    panel = page.locator("#local-files-panel")
+    panel.locator("#local-file-upload").set_input_files(
+        {
+            "name": "Supplier comparison.docx",
+            "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "buffer": content,
+        }
+    )
+    row = panel.get_by_role("article", name="Supplier comparison.docx", exact=True)
+    expect(row).to_contain_text("Word document")
+    expect(row).to_contain_text("view its formatting")
+    expect(row.get_by_role("button", name="Read", exact=True)).to_have_count(0)
+    expect(row.get_by_role("button", name="Edit with Simon", exact=True)).to_have_count(0)
+    with page.expect_download() as saved:
+        row.get_by_role("link", name="Download Word document", exact=True).click()
+    assert Path(saved.value.path()).read_bytes() == content

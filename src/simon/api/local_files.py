@@ -53,7 +53,7 @@ def local_file_router(
         raw = service.blob(target)
         current = authenticate(request)
         service.authorize(current)
-        if (current.actor_id, current.household_id) != (actor.actor_id, actor.household_id):
+        if (current.actor_id, current.workspace_id) != (actor.actor_id, actor.workspace_id):
             raise AuthorizationError("Local access changed.")
         # Recheck project visibility and root configuration after reading the bytes.
         if service.path(current, values.root, values.path) != target:
@@ -160,11 +160,11 @@ def local_file_router(
         def save() -> dict[str, Any]:
             current = authenticate(request)
             service.authorize(current, write=True)
-            if (current.actor_id, current.household_id) != (actor.actor_id, actor.household_id):
+            if (current.actor_id, current.workspace_id) != (actor.actor_id, actor.workspace_id):
                 raise AuthorizationError("Local access changed.")
-            with service.store.transaction(actor.household_id):
+            with service.store.transaction(actor.workspace_id):
                 result, _ = service.store.execute_once(
-                    f"local-upload:{actor.household_id}:{actor.actor_id}",
+                    f"local-upload:{actor.workspace_id}:{actor.actor_id}",
                     idempotency_key,
                     digest({**values.model_dump(), "revision": revision(bytes(raw))}),
                     lambda: service.publish(actor, root, path, bytes(raw)),

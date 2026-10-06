@@ -35,7 +35,7 @@ from simon.domain.external_actions import (
     ExternalQuoteRequest,
     ReconcileExternalAction,
 )
-from simon.domain.identity import DEV_ACTOR_ID, DEV_HOUSEHOLD_ID
+from simon.domain.identity import DEV_ACTOR_ID, DEV_WORKSPACE_ID
 from simon.domain.models import ActorContext, Channel, JobStatus, utc_now
 from simon.domain.tool_catalog import ToolCatalogError, ToolExecutionContext, ToolExecutionError
 from simon.services.audit import AuditService
@@ -49,7 +49,7 @@ CALL = "CA" + "2" * 32
 def actor(**updates):
     return ActorContext(
         actor_id=DEV_ACTOR_ID,
-        household_id=DEV_HOUSEHOLD_ID,
+        workspace_id=DEV_WORKSPACE_ID,
         channel=Channel.API,
         scopes=frozenset({"jobs:read", "jobs:write"}),
     ).model_copy(update=updates)
@@ -73,7 +73,7 @@ def phone(**updates):
         name="Configured phone",
         kind="twilio",
         enabled=True,
-        household_id=DEV_HOUSEHOLD_ID,
+        workspace_id=DEV_WORKSPACE_ID,
         actor_ids=frozenset({DEV_ACTOR_ID}),
         credential_env="PHONE_SECRET",
         account_sid=SID,
@@ -152,7 +152,7 @@ def test_run_index_is_durable_owned_and_returns_current_state(store):
     )
     assert len(recreated.list_for_run(actor(), run_id)) == 1
     assert recreated.list_for_run(actor(actor_id=uuid4()), run_id) == ()
-    assert recreated.list_for_run(actor(household_id=uuid4()), run_id) == ()
+    assert recreated.list_for_run(actor(workspace_id=uuid4()), run_id) == ()
     assert recreated.list_for_run(actor(), uuid4()) == ()
     cancelled = recreated.decide(
         actor(),
@@ -287,7 +287,7 @@ def test_confirmation_binds_digest_actor_scope_and_current_identity():
     with pytest.raises(NotFoundError):
         service.get(actor(actor_id=uuid4()), proposal.id)
     with pytest.raises(NotFoundError):
-        service.get(actor(household_id=uuid4()), proposal.id)
+        service.get(actor(workspace_id=uuid4()), proposal.id)
     with pytest.raises(AuthorizationError):
         confirm(service, proposal, revalidate=lambda: actor(actor_id=uuid4()))
     assert not requests and service.get(actor(), proposal.id).status == "pending"
@@ -389,7 +389,7 @@ def gateway():
         name="Merchant gateway",
         kind="gateway",
         enabled=True,
-        household_id=DEV_HOUSEHOLD_ID,
+        workspace_id=DEV_WORKSPACE_ID,
         actor_ids=frozenset({DEV_ACTOR_ID}),
         endpoint="https://merchant.example/api",
         credential_env="PHONE_SECRET",
@@ -531,7 +531,7 @@ def test_worker_can_only_prepare_and_read_reviews_never_confirm():
         ExternalActionToolTransport(
             service,
             actor_id=DEV_ACTOR_ID,
-            household_id=DEV_HOUSEHOLD_ID,
+            workspace_id=DEV_WORKSPACE_ID,
             run_id=run_id,
             revalidate=actor,
         ),
@@ -544,7 +544,7 @@ def test_worker_can_only_prepare_and_read_reviews_never_confirm():
     }
     context = ToolExecutionContext(
         actor_id=DEV_ACTOR_ID,
-        household_id=DEV_HOUSEHOLD_ID,
+        workspace_id=DEV_WORKSPACE_ID,
         run_id=run_id,
         agent_id="planner",
         scopes=actor().scopes,
@@ -576,7 +576,7 @@ def test_worker_can_only_prepare_and_read_reviews_never_confirm():
     handler = ExternalActionToolTransport(
         service,
         actor_id=DEV_ACTOR_ID,
-        household_id=DEV_HOUSEHOLD_ID,
+        workspace_id=DEV_WORKSPACE_ID,
         run_id=run_id,
         revalidate=lambda: actor(scopes=frozenset()),
     )

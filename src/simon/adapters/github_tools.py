@@ -6,7 +6,7 @@ import base64
 import binascii
 import json
 import re
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import Any
 from urllib.parse import quote
 from uuid import UUID
@@ -174,12 +174,24 @@ def _summary(value: dict[str, Any], *, repository: bool = False) -> dict[str, An
 
 
 class GitHubTransport(BoundedHTTP):
+    def __init__(
+        self,
+        *,
+        definition_resolver: Callable[[ToolDefinition, ToolExecutionContext], ToolDefinition]
+        | None = None,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(**kwargs)
+        self.definition_resolver = definition_resolver
+
     def __call__(
         self,
         definition: ToolDefinition,
         arguments: dict[str, Any],
         context: ToolExecutionContext,
     ) -> dict[str, Any]:
+        if self.definition_resolver is not None:
+            definition = self.definition_resolver(definition, context)
         operation = definition.settings.get("operation")
         if not isinstance(operation, str) or operation not in _DESCRIPTIONS:
             raise ToolCatalogError("Unsupported GitHub operation")

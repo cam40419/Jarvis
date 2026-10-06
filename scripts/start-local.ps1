@@ -3,7 +3,7 @@ param(
     [switch]$DatabaseOnly,
     [switch]$Supervised,
     [string]$DatabaseUrl = 'postgresql://jarvis:local-development-only@127.0.0.1:5432/jarvis',
-    [guid]$HouseholdId = 'eff4172f-8892-5123-821a-55fed2969246',
+    [guid]$WorkspaceId = 'eff4172f-8892-5123-821a-55fed2969246',
     [guid]$ActorId = '31de7ca5-7ea4-5614-b2b6-099dacc91b0e'
 )
 
@@ -65,7 +65,7 @@ try {
     $env:SIMON_DEV_LOGIN_ENABLED = 'false'
     Remove-Item Env:SIMON_DEV_LOGIN_TOKEN -ErrorAction SilentlyContinue
     $env:SIMON_MODEL_PROVIDER = if ($DatabaseOnly) { 'local' } else { 'openai' }
-    $env:SIMON_ACCOUNT_HOUSEHOLD_ID = $HouseholdId.ToString()
+    $env:SIMON_ACCOUNT_WORKSPACE_ID = $WorkspaceId.ToString()
     $env:SIMON_ACCOUNT_ADMIN_ACTOR_ID = $ActorId.ToString()
 
     Push-Location $repoRoot

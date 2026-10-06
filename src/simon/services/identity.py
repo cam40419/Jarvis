@@ -32,7 +32,7 @@ from simon.config import Settings
 from simon.domain.errors import AuthenticationError, AuthorizationError, ValidationError
 from simon.domain.identity import (
     DEV_ACTOR_ID,
-    DEV_HOUSEHOLD_ID,
+    DEV_WORKSPACE_ID,
     Challenge,
     Enrollment,
     Membership,
@@ -123,20 +123,20 @@ class IdentityService:
         self.settings = settings
         self.audit = AuditService(store)
 
-    def membership(self, actor_id: UUID, household_id: UUID) -> Membership:
+    def membership(self, actor_id: UUID, workspace_id: UUID) -> Membership:
         account = self.store.managed_account(actor_id)
         if account and account.disabled:
             raise AuthorizationError("Account access has been disabled.")
         for membership in self.store.memberships(actor_id):
-            if membership.household_id == household_id:
+            if membership.workspace_id == workspace_id:
                 return membership
-        raise AuthorizationError("household membership required")
+        raise AuthorizationError("workspace membership required")
 
     def actor(self, session: Session) -> ActorContext:
-        membership = self.membership(session.actor_id, session.household_id)
+        membership = self.membership(session.actor_id, session.workspace_id)
         return ActorContext(
             actor_id=session.actor_id,
-            household_id=session.household_id,
+            workspace_id=session.workspace_id,
             scopes=ROLE_SCOPES[membership.role],
             channel=Channel.API,
         )
@@ -155,17 +155,17 @@ class IdentityService:
     def _issue(
         self,
         actor_id: UUID,
-        household_id: UUID,
+        workspace_id: UUID,
         method: Literal["passkey", "development", "password"],
         previous_token: str | None = None,
         previous_session: Session | None = None,
     ) -> tuple[str, Session]:
-        self.membership(actor_id, household_id)
+        self.membership(actor_id, workspace_id)
         token = secrets.token_urlsafe(32)
         session = Session(
             token_hash=token_hash(token),
             actor_id=actor_id,
-            household_id=household_id,
+            workspace_id=workspace_id,
             method=method,
             expires_at=(
                 utc_now() + timedelta(hours=self.settings.session_hours)
@@ -201,7 +201,7 @@ class IdentityService:
         ):
             raise AuthenticationError("development login unavailable or token invalid")
         with self.store.transaction(IDENTITY_LOCK):
-            return self._issue(DEV_ACTOR_ID, DEV_HOUSEHOLD_ID, "development", previous_token)
+            return self._issue(DEV_ACTOR_ID, DEV_WORKSPACE_ID, "development", previous_token)
 
     def password_username(self, token: str) -> str | None:
         session, _actor = self.resolve(token)
@@ -220,10 +220,12 @@ class IdentityService:
             raise ValidationError("Password must be between 15 and 128 characters.")
         if password.casefold() in COMMON_PASSWORDS or password.casefold() == normalized:
             raise ValidationError("Choose a less common password.")
+        previous = self.store.password_for_actor(actor_id)
         return PasswordCredential(
             actor_id=actor_id,
             username=normalized,
             password_hash=PASSWORD_HASHER.hash(password),
+            email=previous.email if previous else None,
         )
 
     def register_password(
@@ -239,10 +241,10 @@ class IdentityService:
             self.store.save_password(credential)
             self.store.delete_enrollment(enrollment.token_hash)
             self.operator_audit(
-                "identity.password_registered", enrollment.actor_id, enrollment.household_id
+                "identity.password_registered", enrollment.actor_id, enrollment.workspace_id
             )
             return self._issue(
-                enrollment.actor_id, enrollment.household_id, "password", previous_token
+                enrollment.actor_id, enrollment.workspace_id, "password", previous_token
             )
 
     def reset_password(
@@ -262,19 +264,19 @@ class IdentityService:
             self.store.delete_enrollment(enrollment.token_hash)
             self.store.revoke_sessions(enrollment.actor_id)
             self.operator_audit(
-                "identity.password_recovered", enrollment.actor_id, enrollment.household_id
+                "identity.password_recovered", enrollment.actor_id, enrollment.workspace_id
             )
             return self._issue(
-                enrollment.actor_id, enrollment.household_id, "password", previous_token
+                enrollment.actor_id, enrollment.workspace_id, "password", previous_token
             )
 
     def set_password(
         self, token: str, username: str, password: str, current_password: str | None
     ) -> str:
         _session, actor = self.resolve(token)
-        credential = self._password_credential(actor.actor_id, username, password)
         with self.store.transaction(IDENTITY_LOCK):
             session, actor = self.resolve(token)
+            credential = self._password_credential(actor.actor_id, username, password)
             previous = self.store.password_for_actor(actor.actor_id)
             if previous and session.method == "password":
                 if not current_password:
@@ -313,7 +315,7 @@ class IdentityService:
                     memberships = self.store.memberships(credential.actor_id)
                     if memberships:
                         try:
-                            self.membership(credential.actor_id, memberships[0].household_id)
+                            self.membership(credential.actor_id, memberships[0].workspace_id)
                         except AuthorizationError:
                             pass
                         else:
@@ -324,7 +326,7 @@ class IdentityService:
                             )
                             issued = self._issue(
                                 credential.actor_id,
-                                memberships[0].household_id,
+                                memberships[0].workspace_id,
                                 "password",
                                 previous_token,
                             )
@@ -359,32 +361,32 @@ class IdentityService:
                 payload={},
             )
 
-    def switch_household(self, token: str, household_id: UUID) -> tuple[str, Session]:
+    def switch_workspace(self, token: str, workspace_id: UUID) -> tuple[str, Session]:
         with self.store.transaction(IDENTITY_LOCK):
             session, _actor = self.resolve(token)
-            return self._issue(session.actor_id, household_id, session.method, token, session)
+            return self._issue(session.actor_id, workspace_id, session.method, token, session)
 
-    def enroll(self, actor_id: UUID, household_id: UUID) -> str:
+    def enroll(self, actor_id: UUID, workspace_id: UUID) -> str:
         with self.store.transaction(IDENTITY_LOCK):
-            self.membership(actor_id, household_id)
+            self.membership(actor_id, workspace_id)
             secret = secrets.token_urlsafe(32)
             self.store.save_enrollment(
                 Enrollment(
                     token_hash=token_hash(secret),
                     actor_id=actor_id,
-                    household_id=household_id,
+                    workspace_id=workspace_id,
                     expires_at=utc_now() + timedelta(minutes=15),
                 )
             )
-            self.operator_audit("identity.enrollment_issued", actor_id, household_id)
+            self.operator_audit("identity.enrollment_issued", actor_id, workspace_id)
             return secret
 
-    def operator_audit(self, event_type: str, actor_id: UUID, household_id: UUID) -> None:
+    def operator_audit(self, event_type: str, actor_id: UUID, workspace_id: UUID) -> None:
         self.audit.record(
             event_type=event_type,
             actor=ActorContext(
                 actor_id=UUID("00000000-0000-4000-8000-000000000002"),
-                household_id=household_id,
+                workspace_id=workspace_id,
                 channel=Channel.API,
             ),
             resource_type="user",
@@ -396,13 +398,13 @@ class IdentityService:
         enrollment = self.store.get_enrollment(hashed_token)
         if enrollment is None or enrollment.expires_at <= utc_now():
             raise AuthenticationError("enrollment token expired or invalid")
-        self.membership(enrollment.actor_id, enrollment.household_id)
+        self.membership(enrollment.actor_id, enrollment.workspace_id)
         return enrollment
 
     def registration_options(self, enrollment_token: str) -> tuple[dict[str, Any], str]:
         with self.store.transaction(IDENTITY_LOCK):
             enrollment = self._enrollment(token_hash(enrollment_token))
-            membership = self.membership(enrollment.actor_id, enrollment.household_id)
+            membership = self.membership(enrollment.actor_id, enrollment.workspace_id)
             options = generate_registration_options(
                 rp_id=self.settings.rp_id,
                 rp_name="Simon",
@@ -441,7 +443,7 @@ class IdentityService:
                 kind=kind,
                 challenge=options["challenge"],
                 actor_id=enrollment.actor_id if enrollment else None,
-                household_id=enrollment.household_id if enrollment else None,
+                workspace_id=enrollment.workspace_id if enrollment else None,
                 enrollment_hash=enrollment.token_hash if enrollment else None,
                 expires_at=utc_now() + timedelta(minutes=5),
             )
@@ -494,7 +496,7 @@ class IdentityService:
                 event_type="identity.passkey_registered",
                 actor=ActorContext(
                     actor_id=enrollment.actor_id,
-                    household_id=enrollment.household_id,
+                    workspace_id=enrollment.workspace_id,
                     channel=Channel.API,
                 ),
                 resource_type="passkey",
@@ -502,7 +504,7 @@ class IdentityService:
                 payload={},
             )
             return self._issue(
-                enrollment.actor_id, enrollment.household_id, "passkey", previous_token
+                enrollment.actor_id, enrollment.workspace_id, "passkey", previous_token
             )
 
     def authenticate(
@@ -537,7 +539,7 @@ class IdentityService:
                 raise AuthenticationError("passkey verification failed")
             memberships = self.store.memberships(key.actor_id)
             if not memberships:
-                raise AuthorizationError("household membership required")
+                raise AuthorizationError("workspace membership required")
             self.store.update_passkey(
                 key.model_copy(
                     update={
@@ -546,4 +548,4 @@ class IdentityService:
                     }
                 )
             )
-            return self._issue(key.actor_id, memberships[0].household_id, "passkey", previous_token)
+            return self._issue(key.actor_id, memberships[0].workspace_id, "passkey", previous_token)

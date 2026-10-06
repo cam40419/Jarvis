@@ -66,7 +66,7 @@ class EnvironmentCommandTransport:
         assignment = self.lease.plan.request
         if (
             context.actor_id != self.actor_id
-            or context.household_id != assignment.workspace_id
+            or context.workspace_id != assignment.workspace_id
             or context.run_id != self.run_id
             or context.agent_id != assignment.agent_id
         ):

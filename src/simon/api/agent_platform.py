@@ -17,8 +17,10 @@ from simon.domain.artifact_reviews import (
     ArtifactReview,
     RecordArtifactReview,
 )
+from simon.domain.artifacts import ArtifactPreview
 from simon.domain.errors import NotFoundError
 from simon.domain.models import ActorContext, StrictModel
+from simon.services.agent_calendar import AgentCalendarReceipt, AgentCalendarService
 from simon.services.agent_platform import AgentPlatformService
 from simon.services.agent_prompts import PreparedAgentPrompt, render_agent_prompt
 from simon.services.agent_runs import AgentRunService
@@ -36,6 +38,7 @@ def agent_platform_router(
     service: AgentPlatformService,
     authenticate: Callable[[Request], ActorContext],
     runs: AgentRunService | None = None,
+    calendar: AgentCalendarService | None = None,
 ) -> APIRouter:
     router = APIRouter(prefix="/v1/agent-platform", tags=["agent platform"])
 
@@ -44,6 +47,14 @@ def agent_platform_router(
         result = service.catalog(actor)
         result["execution_enabled"] = runs.enabled if runs else False
         return result
+
+    @router.post("/environments/{identifier}/test")
+    def test_environment(
+        identifier: str,
+        actor: Annotated[ActorContext, Depends(authenticate)],
+    ) -> dict[str, Any]:
+        service.authorize(actor, write=True)
+        return service.test_environment(actor, identifier)
 
     @router.post("/agents", status_code=201)
     def create_agent(
@@ -113,6 +124,16 @@ def agent_platform_router(
 
     if runs is not None:
         reviews = ArtifactReviewService(runs)
+
+        if calendar is not None:
+
+            @router.get("/runs/{identifier}/calendar-actions")
+            def calendar_actions(
+                identifier: UUID,
+                actor: Annotated[ActorContext, Depends(authenticate)],
+            ) -> tuple[AgentCalendarReceipt, ...]:
+                runs.get(actor, identifier)
+                return calendar.list_for_run(actor, identifier)
 
         @router.get("/runs/{identifier}/reviews")
         def list_reviews(
@@ -205,5 +226,22 @@ def agent_platform_router(
                     )
                 },
             )
+
+        @router.get("/runs/{identifier}/artifacts/{artifact_id}/preview")
+        def artifact_preview(
+            identifier: UUID,
+            artifact_id: UUID,
+            actor: Annotated[ActorContext, Depends(authenticate)],
+            response: Response,
+        ) -> ArtifactPreview:
+            run = runs.get(actor, identifier)
+            reference = next(
+                (item for task in run.tasks for item in task.artifacts if item.id == artifact_id),
+                None,
+            )
+            if reference is None:
+                raise NotFoundError("Agent artifact not found")
+            response.headers["Cache-Control"] = "no-store"
+            return ArtifactStore(service.state_dir / "artifacts").preview(reference)
 
     return router

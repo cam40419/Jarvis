@@ -78,5 +78,5 @@ def test_no_home_dispatch_without_an_active_assistant_run(store, monkeypatch):
     )
     with pytest.raises(AuthorizationError):
         connected.executor(
-            actor, uuid4(), [], lambda: actor.model_copy(update={"household_id": uuid4()})
+            actor, uuid4(), [], lambda: actor.model_copy(update={"workspace_id": uuid4()})
         )("home_list_devices", "{}")

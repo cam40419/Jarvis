@@ -4,19 +4,19 @@ from uuid import uuid4
 from simon.domain.connected_tools import ActionProposal
 from simon.domain.conversations import Run, Thread
 from simon.domain.external_home import HomeChange
-from simon.domain.identity import DEV_ACTOR_ID, DEV_HOUSEHOLD_ID
+from simon.domain.identity import DEV_ACTOR_ID, DEV_WORKSPACE_ID
 from simon.domain.models import utc_now
 
 
 def test_recent_actions_uses_current_thread_and_completed_run_receipts(store):
-    first = Thread(household_id=DEV_HOUSEHOLD_ID, created_by=DEV_ACTOR_ID, title="Office")
-    other = Thread(household_id=DEV_HOUSEHOLD_ID, created_by=DEV_ACTOR_ID, title="Kitchen")
+    first = Thread(workspace_id=DEV_WORKSPACE_ID, created_by=DEV_ACTOR_ID, title="Office")
+    other = Thread(workspace_id=DEV_WORKSPACE_ID, created_by=DEV_ACTOR_ID, title="Kitchen")
     started = utc_now()
 
     def record(thread: Thread, seconds: int) -> tuple[Run, ActionProposal]:
         run_id = uuid4()
         action = ActionProposal(
-            household_id=DEV_HOUSEHOLD_ID,
+            workspace_id=DEV_WORKSPACE_ID,
             actor_id=DEV_ACTOR_ID,
             run_id=run_id,
             connection_id=uuid4(),

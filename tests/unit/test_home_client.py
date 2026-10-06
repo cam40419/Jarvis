@@ -18,7 +18,7 @@ def setup_client(monkeypatch, handler):
     )
     actor = ActorContext(
         actor_id=uuid4(),
-        household_id=uuid4(),
+        workspace_id=uuid4(),
         channel=Channel.CHAT,
         scopes=frozenset({"home:read", "home:control"}),
     )
@@ -47,7 +47,7 @@ def test_external_tool_sends_identity_and_stable_run_without_device_credentials(
     assert request.url.path == "/v1/tools/execute"
     assert request.headers["authorization"] == "Bearer synthetic-service-token"
     assert request.headers["x-actor-id"] == str(actor.actor_id)
-    assert request.headers["x-household-id"] == str(actor.household_id)
+    assert request.headers["x-household-id"] == str(actor.workspace_id)
     assert json.loads(request.content) == {
         "name": "home_control",
         "arguments": {"all_lights": True, "on": False},
@@ -86,7 +86,7 @@ def test_uncertain_writes_are_never_retried(monkeypatch, failure):
 def test_unconfigured_home_does_not_contact_network(monkeypatch):
     monkeypatch.setattr(httpx, "Client", lambda **kw: pytest.fail("unexpected network"))
     client = HomeClient(Settings(_env_file=None))
-    actor = ActorContext(actor_id=uuid4(), household_id=uuid4(), channel=Channel.CHAT)
+    actor = ActorContext(actor_id=uuid4(), workspace_id=uuid4(), channel=Channel.CHAT)
     assert not client.configured and client.available(actor) == ()
     with pytest.raises(ConnectedError):
         client.execute(actor, "home_list_devices", {}, run_id=uuid4(), thread_id=uuid4())
@@ -100,7 +100,7 @@ def test_offline_home_does_not_break_assistant_history(monkeypatch):
     assert client.commands(actor, uuid4()) == ()
 
 
-def test_cross_household_receipts_are_not_exposed(monkeypatch):
+def test_cross_workspace_receipts_are_not_exposed(monkeypatch):
     client, actor = setup_client(
         monkeypatch,
         lambda request: httpx.Response(
@@ -108,7 +108,7 @@ def test_cross_household_receipts_are_not_exposed(monkeypatch):
             json=[
                 {
                     "actor_id": str(uuid4()),
-                    "household_id": str(uuid4()),
+                    "workspace_id": str(uuid4()),
                     "run_id": str(uuid4()),
                 }
             ],

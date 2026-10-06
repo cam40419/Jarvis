@@ -34,7 +34,7 @@
   const panel = node('section', undefined, 'pc-file-section po-panel');
   panel.id = 'project-outputs';
   panel.innerHTML =
-    '<div class="pc-section-heading"><div><h3>Generated outputs</h3><p>Files from every project run. Save a local project copy to use in later work.</p></div><button id="po-refresh" type="button" class="pc-button">Refresh outputs</button></div><p id="po-status" role="status" aria-live="polite"></p><div id="po-list"></div><button id="po-more" type="button" class="pc-button" hidden>Load earlier outputs</button>';
+    '<div class="pc-section-heading"><div><h3>Deliverable files</h3><p>Documents, spreadsheets, and other files created for this project. Conversation answers stay in Overview and Run history.</p></div><button id="po-refresh" type="button" class="pc-button">Refresh outputs</button></div><button id="po-history" type="button" class="pc-button pc-text-button po-history">Read answers in Run history</button><p id="po-status" role="status" aria-live="polite"></p><div id="po-list"></div><button id="po-more" type="button" class="pc-button" hidden>Load earlier outputs</button>';
   const local = (id) => panel.querySelector('#' + id);
   const outputKey = (id, runId, artifactId) => id + ':' + runId + ':' + artifactId;
   function select(id) {
@@ -86,7 +86,7 @@
     const current = epoch,
       token = ++request,
       previous = page;
-    const params = new URLSearchParams({ limit: '20' });
+    const params = new URLSearchParams({ limit: '20', kind: 'deliverable' });
     if (cursor) params.set('cursor', cursor);
     loading = true;
     error = '';
@@ -115,7 +115,7 @@
         ? 'Loading saved outputs…'
         : page?.promotion_blocked_reason ||
           (!canWrite()
-            ? 'You can download outputs. Saving a project copy requires project write access.'
+            ? 'You can download outputs. Creating an editable copy requires project write access.'
             : ''));
     local('po-status').classList.toggle('error', Boolean(error));
     local('po-more').hidden = !page?.next_cursor;
@@ -126,34 +126,94 @@
     if (target.dataset.fingerprint === fingerprint) return;
     target.dataset.fingerprint = fingerprint;
     target.replaceChildren();
-    for (const item of page?.items || []) {
+    const files = (page?.items || []).filter(
+      (item) => item.kind !== 'response' || Boolean(item.document_url && item.document_name),
+    );
+    for (const item of files) {
+      const namedReport = Boolean(item.document_url && item.document_name);
+      const wordDocument =
+        item.media_type ===
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+        /\.docx$/i.test(item.name);
       const row = node('article', undefined, 'po-output');
       row.dataset.output = item.id;
       const top = node('div', undefined, 'pc-resource-row');
       const copy = node('div');
       copy.append(
-        node('strong', item.name),
+        node('strong', namedReport ? item.document_name : item.title || item.name),
         node(
           'small',
           [
+            wordDocument || namedReport ? 'Word document' : null,
+            !namedReport && item.title && item.title !== item.name ? item.name : null,
             item.task_id?.replaceAll('_', ' ').replaceAll('-', ' '),
             date(item.created_at),
-            size(item.size),
+            namedReport && !wordDocument ? null : size(item.size),
           ]
             .filter(Boolean)
             .join(' · '),
         ),
       );
+      const outputState = item.status || 'accepted';
+      const statusLabel = {
+        accepted: 'Saved file',
+        draft: 'Draft file - awaiting review',
+        partial: 'Partial file - needs attention',
+      };
+      copy.append(
+        node('span', statusLabel[outputState] || 'Saved file', 'po-output-status ' + outputState),
+      );
       const controls = node('div', undefined, 'pc-resource-actions');
-      controls.append(download('Download original', item.download_url, item.name));
+      if (item.document_url && !wordDocument) {
+        const document = download(
+          'Download Word document',
+          item.document_url,
+          item.document_name || item.name.replace(/\.[^.]+$/, '') + '.docx',
+        );
+        document.classList.add('po-document-download');
+        controls.append(document);
+      }
+      controls.append(
+        download(
+          wordDocument
+            ? 'Download Word document'
+            : namedReport
+              ? 'Download source'
+              : 'Download original',
+          item.download_url,
+          item.name,
+        ),
+      );
       if (!item.project_copy && canWrite() && page.can_promote !== false)
         controls.append(saveButton(projectId, item.run_id, item));
       top.append(copy, controls);
       row.append(top);
+      if (
+        !wordDocument &&
+        window.SimonResults &&
+        (item.media_type?.startsWith('text/') ||
+          [
+            'application/json',
+            'application/xml',
+            'image/png',
+            'image/jpeg',
+            'image/webp',
+            'image/gif',
+          ].includes(item.media_type))
+      ) {
+        const preview = window.SimonResults.artifactCard(item.run_id, item, {
+          hideName: true,
+          hideDownload: true,
+        });
+        const control = preview.querySelector('.sr-file-actions button');
+        if (control) controls.prepend(control);
+        preview.querySelector('.sr-file-row').remove();
+        row.append(preview);
+      }
       if (item.project_copy) {
         const savedCopy = node('div', undefined, 'po-saved-copy');
         savedCopy.append(
-          node('strong', 'Saved project copy'),
+          node('strong', 'Editable local copy'),
           node('span', item.project_copy.path),
           node(
             'small',
@@ -192,13 +252,13 @@
       }
       target.append(row);
     }
-    if (page && !page.items.length)
+    if (page && !files.length)
       target.append(
         node(
           'p',
           page.next_cursor
-            ? 'No accessible outputs on this page. Load earlier outputs to continue.'
-            : 'No generated files yet. Completed task outputs will appear here.',
+            ? 'No deliverable files on this page. Load earlier outputs to continue.'
+            : 'No deliverable files yet. Requested documents and other created files will appear here.',
           'pc-section-empty',
         ),
       );
@@ -210,7 +270,11 @@
     const feedback = node('span', undefined, 'po-action-status');
     feedback.setAttribute('role', 'status');
     const button = action(
-      saved.has(key) ? 'Saved to project' : pending.has(key) ? 'Saving…' : 'Save to project',
+      saved.has(key)
+        ? 'Editable copy created'
+        : pending.has(key)
+          ? 'Saving…'
+          : 'Create editable copy',
       async () => {
         feedback.textContent = '';
         button.textContent = 'Saving…';
@@ -232,7 +296,7 @@
           }
           const item = await operation;
           saved.set(key, item);
-          button.textContent = 'Saved to project';
+          button.textContent = 'Editable copy created';
           button.dataset.saved = 'true';
           if (id === projectId && page) {
             page = {
@@ -249,7 +313,7 @@
             }),
           );
         } catch (failure) {
-          button.textContent = 'Save to project';
+          button.textContent = 'Create editable copy';
           feedback.textContent = /destination already exists|file changed/i.test(failure.message)
             ? 'A different file already exists here. Existing files are kept. Open local files to review it before saving again.'
             : failure.message + ' Existing files are kept. Check local files before trying again.';
@@ -260,13 +324,15 @@
               const control = element.querySelector('button');
               control.disabled = saved.has(key);
               control.dataset.saved = String(saved.has(key));
-              control.textContent = saved.has(key) ? 'Saved to project' : 'Save to project';
+              control.textContent = saved.has(key)
+                ? 'Editable copy created'
+                : 'Create editable copy';
             }
         }
       },
       'pc-text-button',
     );
-    button.setAttribute('aria-label', 'Save to project: ' + artifact.name);
+    button.setAttribute('aria-label', 'Create editable copy: ' + artifact.name);
     button.disabled = saved.has(key) || pending.has(key) || !canWrite();
     button.dataset.saved = String(saved.has(key));
     wrap.append(button, feedback);
@@ -277,6 +343,7 @@
     if (panel.parentElement !== target) target.replaceChildren(panel);
     if (!page && !loading) load();
   }
+  local('po-history').onclick = () => window.SimonProjectCommand?.navigate('history');
   local('po-refresh').onclick = () => load();
   local('po-more').onclick = () => load(page?.next_cursor);
   window.addEventListener('simon-project-changing', (event) => {

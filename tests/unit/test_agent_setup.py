@@ -4,9 +4,11 @@ from simon.adapters.memory import InMemoryStore
 from simon.agent_setup import starter_manifest
 from simon.config import Settings
 from simon.domain.agent_platform import PlatformManifest
-from simon.domain.identity import DEV_ACTOR_ID, DEV_HOUSEHOLD_ID
+from simon.domain.identity import DEV_ACTOR_ID, DEV_WORKSPACE_ID
+from simon.domain.model_routing import RoutingRequest
 from simon.domain.models import ActorContext, Channel
 from simon.services.agent_platform import AgentPlatformService
+from simon.services.model_router import ModelRouter, ModelRoutingError
 
 
 def test_starter_manifest_has_working_contracts_without_secret_values():
@@ -35,6 +37,34 @@ def test_starter_manifest_has_working_contracts_without_secret_values():
     assert all(tools[tool].required_scopes <= developer.tool_scopes for tool in developer.tool_ids)
     for profile in parsed.agents:
         assert all(tools[key].required_scopes <= profile.tool_scopes for key in profile.tool_ids)
+
+
+def test_default_starter_model_can_route_expanded_project_planning_input():
+    manifest = starter_manifest(Settings(model_provider="openai", openai_model="gpt-5.4-mini"))
+    model = manifest.models[0]
+    assert model.context_window_tokens == 400000
+    assert model.max_output_tokens == 4096
+    request = RoutingRequest(
+        input_tokens=31592, output_tokens=2000, required_capabilities=frozenset({"text", "tools"})
+    )
+    routed = ModelRouter(manifest.models, environ={"SIMON_OPENAI_API_KEY": "synthetic"}).route(
+        request
+    )
+    assert routed.endpoint_id == model.id
+
+
+def test_custom_starter_model_keeps_conservative_unverified_context_limit():
+    manifest = starter_manifest(
+        Settings(model_provider="openai", openai_model="custom-provider-model")
+    )
+    model = manifest.models[0]
+    assert model.context_window_tokens == 32768
+    assert model.max_output_tokens == 4096
+    with pytest.raises(ModelRoutingError) as caught:
+        ModelRouter(manifest.models, environ={"SIMON_OPENAI_API_KEY": "synthetic"}).route(
+            RoutingRequest(input_tokens=31592, output_tokens=2000)
+        )
+    assert caught.value.rejections[0].reasons == ("context_window_exceeded",)
 
 
 @pytest.mark.parametrize(
@@ -154,15 +184,18 @@ def test_default_document_teams_use_complete_deliverable_owners():
         assert teams[team_id].version == 2
 
     lead = next(agent for agent in manifest.agents if agent.id == "project-lead")
-    assert lead.version == 3
+    assert lead.version == 4
     assert set(lead.tool_ids) == {
         "project.snapshot",
         "project.record_finding",
         "project.add_todo",
         "project.knowledge_read",
+        "project.knowledge_update",
         "project.history_search",
         "project.outputs",
         "project.output_read",
+        "project.details_read",
+        "project.details_update",
     }
 
 
@@ -176,7 +209,7 @@ def test_optional_research_team_keeps_preserved_profiles_visible_in_catalog(tmp_
     )
     actor = ActorContext(
         actor_id=DEV_ACTOR_ID,
-        household_id=DEV_HOUSEHOLD_ID,
+        workspace_id=DEV_WORKSPACE_ID,
         channel=Channel.API,
         scopes=frozenset({"jobs:read", "jobs:write", "memories:read", "threads:read"}),
     )

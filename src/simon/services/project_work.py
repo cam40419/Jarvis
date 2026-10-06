@@ -31,7 +31,7 @@ from simon.services.canonical import digest
 from simon.services.identity import ROLE_SCOPES
 
 WORK_KIND = "platform.project_work"
-TERMINAL_PHASES = frozenset({"completed", "blocked", "unknown", "cancelled"})
+TERMINAL_PHASES = frozenset({"completed", "blocked", "unknown", "cancelled", "waiting"})
 BLOCKING_PHASES = frozenset({"blocked", "unknown"})
 RUNTIME_TODO_FIELDS = ("cycle_id", "plan_id", "run_id", "run_task_id")
 
@@ -54,6 +54,10 @@ class ProjectWorkService:
         )
         self.actor_resolver, self.clock = actor_resolver or self._resolve_actor, clock
         self.cycle_recovery_validator = cycle_recovery_validator
+        self.cycle_retry_validator: Callable[[ActorContext, ProjectCycle], None] | None = None
+        self.instruction_resolver: Callable[[ActorContext, UUID], str | None] | None = None
+        self.wait_recorder: Callable[[ActorContext, UUID, ProjectCycle], None] | None = None
+        self.auto_execution_validator: Callable[[ActorContext, ProjectCycle], bool] | None = None
         self.role_capture: (
             Callable[[ActorContext, str, str, str, tuple[str, ...], int], dict[str, Any]] | None
         ) = None
@@ -68,7 +72,7 @@ class ProjectWorkService:
         if scope not in actor.scopes:
             raise AuthorizationError("Project work requires " + scope)
 
-    def _resolve_actor(self, actor_id: UUID, household_id: UUID) -> ActorContext:
+    def _resolve_actor(self, actor_id: UUID, workspace_id: UUID) -> ActorContext:
         account = self.store.managed_account(actor_id)
         if account is not None and account.disabled:
             raise AuthorizationError("Account access has been disabled")
@@ -76,7 +80,7 @@ class ProjectWorkService:
             (
                 item
                 for item in self.store.memberships(actor_id)
-                if item.household_id == household_id
+                if item.workspace_id == workspace_id
             ),
             None,
         )
@@ -84,14 +88,14 @@ class ProjectWorkService:
             raise AuthorizationError("Project workspace membership required")
         return ActorContext(
             actor_id=actor_id,
-            household_id=household_id,
+            workspace_id=workspace_id,
             channel=Channel.WORKER,
             scopes=ROLE_SCOPES[membership.role],
         )
 
     def live_actor(self, job: Job) -> ActorContext:
-        actor = self.actor_resolver(job.created_by, job.household_id)
-        if (actor.actor_id, actor.household_id) != (job.created_by, job.household_id):
+        actor = self.actor_resolver(job.created_by, job.workspace_id)
+        if (actor.actor_id, actor.workspace_id) != (job.created_by, job.workspace_id):
             raise AuthorizationError("Project actor resolver returned a different owner")
         actor = actor.model_copy(
             update={
@@ -104,7 +108,7 @@ class ProjectWorkService:
 
     @staticmethod
     def identifier(actor: ActorContext, project_id: UUID) -> UUID:
-        return uuid5(project_id, f"project-work:{actor.household_id}:{actor.actor_id}")
+        return uuid5(project_id, f"project-work:{actor.workspace_id}:{actor.actor_id}")
 
     @staticmethod
     def activity_kind(project_id: UUID) -> str:
@@ -117,20 +121,20 @@ class ProjectWorkService:
         if job is not None and (
             job.kind != WORK_KIND
             or job.created_by != actor.actor_id
-            or job.household_id != actor.household_id
+            or job.workspace_id != actor.workspace_id
         ):
             raise NotFoundError("Project work not found")
         if job is None and create:
             state = ProjectWorkState(
                 project_id=project_id,
-                workspace_id=actor.household_id,
+                workspace_id=actor.workspace_id,
                 actor_id=actor.actor_id,
                 updated_at=self.clock(),
             )
             job, _ = self.store.create_job(
                 Job(
                     id=identifier,
-                    household_id=actor.household_id,
+                    workspace_id=actor.workspace_id,
                     created_by=actor.actor_id,
                     kind=WORK_KIND,
                     idempotency_key=identifier.hex,
@@ -161,7 +165,7 @@ class ProjectWorkService:
             if job
             else ProjectWorkState(
                 project_id=project_id,
-                workspace_id=actor.household_id,
+                workspace_id=actor.workspace_id,
                 actor_id=actor.actor_id,
                 updated_at=self.clock(),
             )
@@ -316,7 +320,7 @@ class ProjectWorkService:
         self.store.create_job(
             Job(
                 id=identifier,
-                household_id=actor.household_id,
+                workspace_id=actor.workspace_id,
                 created_by=actor.actor_id,
                 kind=self.activity_kind(state.project_id),
                 idempotency_key=identifier.hex,
@@ -339,7 +343,7 @@ class ProjectWorkService:
         body: ConfigureProjectWork,
     ) -> ProjectWorkState:
         self.authorize(actor, write=True)
-        with self.store.transaction(actor.household_id):
+        with self.store.transaction(actor.workspace_id):
             current = self.get(actor, project_id)
             self._expected(current, body.expected_version)
             existing_job = self._job(actor, project_id)
@@ -447,7 +451,7 @@ class ProjectWorkService:
         if not 0 <= offset <= 10_000_000 or not 1 <= limit <= 100:
             raise ValidationError("Invalid project activity page")
         rows = self.store.jobs(
-            actor.household_id, actor.actor_id, self.activity_kind(project_id), offset, limit + 1
+            actor.workspace_id, actor.actor_id, self.activity_kind(project_id), offset, limit + 1
         )
         return {
             "items": [
@@ -469,7 +473,7 @@ class ProjectWorkService:
     ) -> ProjectWorkState:
         self.authorize(actor, write=True)
         self._key(idempotency_key)
-        with self.store.transaction(actor.household_id):
+        with self.store.transaction(actor.workspace_id):
             job = self._job(actor, project_id, create=True)
             assert job is not None
             current = self.view(job)
@@ -524,7 +528,7 @@ class ProjectWorkService:
             raise ValidationError("Task execution links are assigned by the project coordinator")
         if todo.status in {"running", "unknown", "archived"}:
             raise ValidationError("New tasks cannot claim a worker outcome or archived state")
-        with self.store.transaction(actor.household_id):
+        with self.store.transaction(actor.workspace_id):
             payload = todo.model_dump(mode="json", exclude={"created_at", "updated_at"})
             if "id" not in todo.model_fields_set:
                 payload.pop("id")
@@ -564,7 +568,7 @@ class ProjectWorkService:
                 return {"id": selected.id}
 
             self.store.execute_once(
-                f"project-todo:{actor.household_id}:{actor.actor_id}:{project_id}",
+                f"project-todo:{actor.workspace_id}:{actor.actor_id}:{project_id}",
                 idempotency_key,
                 digest(payload),
                 operation,
@@ -580,7 +584,7 @@ class ProjectWorkService:
         expected_version: int,
     ) -> ProjectWorkState:
         self.authorize(actor, write=True)
-        with self.store.transaction(actor.household_id):
+        with self.store.transaction(actor.workspace_id):
             job = self._job(actor, project_id)
             if job is None:
                 raise NotFoundError("Project task not found")
@@ -613,7 +617,7 @@ class ProjectWorkService:
                 self.store.create_job(
                     Job(
                         id=identifier,
-                        household_id=actor.household_id,
+                        workspace_id=actor.workspace_id,
                         created_by=actor.actor_id,
                         kind="platform.project_archive." + project_id.hex,
                         idempotency_key=identifier.hex,
@@ -644,6 +648,34 @@ class ProjectWorkService:
             )
             return self._save(job, state)
 
+    @staticmethod
+    def is_continuation(instruction: str) -> bool:
+        return instruction.strip().lower().strip(".!? ") in {
+            "continue",
+            "proceed",
+            "resume",
+            "retry",
+            "try again",
+            "please continue",
+            "please proceed",
+            "continue please",
+        }
+
+    def continuation_instruction(self, actor: ActorContext, state: ProjectWorkState) -> str | None:
+        self.authorize(actor)
+        self.project_resolver(actor, state.project_id)
+        for instruction in (
+            state.last_instruction,
+            state.last_cycle.instruction if state.last_cycle else None,
+        ):
+            if instruction and not self.is_continuation(instruction):
+                return instruction
+        return (
+            self.instruction_resolver(actor, state.project_id)
+            if self.instruction_resolver is not None
+            else None
+        )
+
     def request_cycle(
         self,
         actor: ActorContext,
@@ -653,12 +685,19 @@ class ProjectWorkService:
         *,
         automatic: bool = False,
         expected_version: int | None = None,
+        replace_failed: bool = False,
+        target_agent_id: str | None = None,
+        request_id: UUID | None = None,
+        bounded_execution: bool = False,
+        model_budget_usd: float | None = None,
     ) -> ProjectWorkState:
         self.authorize(actor, write=True)
         self._key(idempotency_key)
         if not instruction.strip():
             raise ValidationError("A project instruction is required")
-        with self.store.transaction(actor.household_id):
+        if replace_failed and (automatic or expected_version is None):
+            raise ValidationError("Replacing failed planning requires a current manual request")
+        with self.store.transaction(actor.workspace_id):
 
             def create() -> dict[str, Any]:
                 job = self._job(actor, project_id, create=True)
@@ -676,6 +715,38 @@ class ProjectWorkService:
                     raise ValidationError("Select a project team before asking its lead to work")
                 if self.team_validator:
                     self.team_validator(actor, state.team)
+                if target_agent_id is not None and target_agent_id not in state.team.agent_ids:
+                    raise ValidationError("The selected agent must belong to this project team")
+                if replace_failed:
+                    previous = state.last_cycle
+                    if (
+                        state.active_cycle is not None
+                        or previous is None
+                        or previous.phase != "blocked"
+                        or previous.execution_run_id is not None
+                        or not state.blocked_reasons
+                        or self.cycle_retry_validator is None
+                    ):
+                        raise InvalidTransitionError(
+                            "Only settled failed planning can be replaced with a new request"
+                        )
+                    self.cycle_retry_validator(actor, previous)
+                    state = state.model_copy(
+                        update={
+                            "blocked_reasons": (),
+                            "autonomy": state.autonomy.model_copy(update={"paused": False}),
+                        }
+                    )
+                    state = self._activity(
+                        actor,
+                        state,
+                        ProjectActivityDraft(
+                            kind="decision",
+                            text="Replaced failed planning with a new request; the previous "
+                            "attempt remains in history.",
+                        ),
+                        "replace-request:" + idempotency_key,
+                    )
                 if state.active_cycle or state.autonomy.paused:
                     raise InvalidTransitionError("Project is paused or already has an active cycle")
                 if state.blocked_reasons:
@@ -690,19 +761,35 @@ class ProjectWorkService:
                     raise InvalidTransitionError(
                         "Scheduled project work has reached its configured limits"
                     )
+                resolved_instruction = instruction
+                if not automatic and self.is_continuation(instruction):
+                    resolved_instruction = self.continuation_instruction(actor, state) or ""
+                    if not resolved_instruction:
+                        raise ValidationError(
+                            "Describe the work to continue; no previous request is saved"
+                        )
                 cycle = ProjectCycle(
                     number=state.cycle_count + 1,
-                    instruction=instruction,
+                    instruction=resolved_instruction,
                     automatic=automatic,
-                    model_budget_usd=state.autonomy.model_budget_usd,
+                    model_budget_usd=model_budget_usd
+                    if model_budget_usd is not None
+                    else state.autonomy.model_budget_usd,
+                    bounded_execution=bounded_execution
+                    or state.autonomy.execution_policy == "bounded",
+                    target_agent_id=target_agent_id,
+                    request_id=request_id,
                     started_at=self.clock(),
                     updated_at=self.clock(),
                 )
+                if cycle.bounded_execution and cycle.model_budget_usd is None:
+                    raise ValidationError("Bounded execution requires a finite model budget")
                 state = state.model_copy(
                     update={
                         "active_cycle": cycle,
                         "cycle_count": cycle.number,
                         "scheduled_cycles_used": state.scheduled_cycles_used + int(automatic),
+                        "last_instruction": resolved_instruction,
                     }
                 )
                 state = self._activity(
@@ -714,13 +801,27 @@ class ProjectWorkService:
                     ),
                     "cycle-request:" + idempotency_key,
                 )
+                if not automatic:
+                    job = job.model_copy(
+                        update={"input": {**job.input, "scopes": sorted(actor.scopes)}}
+                    )
                 saved = self._save(job, state)
                 return {"cycle_id": str(cycle.id), "version": saved.version}
 
             self.store.execute_once(
-                f"project-cycle:{actor.household_id}:{actor.actor_id}:{project_id}",
+                f"project-cycle:{actor.workspace_id}:{actor.actor_id}:{project_id}",
                 idempotency_key,
-                digest({"instruction": instruction, "automatic": automatic}),
+                digest(
+                    {
+                        "instruction": instruction,
+                        "automatic": automatic,
+                        **({"replace_failed": True} if replace_failed else {}),
+                        **({"target_agent_id": target_agent_id} if target_agent_id else {}),
+                        **({"request_id": str(request_id)} if request_id else {}),
+                        **({"bounded_execution": True} if bounded_execution else {}),
+                        **({"model_budget_usd": model_budget_usd} if model_budget_usd else {}),
+                    }
+                ),
                 create,
             )
             return self.get(actor, project_id)
@@ -732,14 +833,70 @@ class ProjectWorkService:
         body: ProjectWorkControl,
     ) -> ProjectWorkState:
         self.authorize(actor, write=True)
-        with self.store.transaction(actor.household_id):
+        with self.store.transaction(actor.workspace_id):
             job = self._job(actor, project_id)
             if job is None:
                 raise NotFoundError("Project work not found")
             state = self.view(job)
             self._expected(state, body.expected_version)
             cycle = state.active_cycle
-            if body.action in {"pause", "resume"}:
+            if body.action == "retry":
+                previous = state.last_cycle
+                if (
+                    cycle is not None
+                    or previous is None
+                    or previous.phase != "blocked"
+                    or previous.execution_run_id is not None
+                    or not state.blocked_reasons
+                ):
+                    raise InvalidTransitionError(
+                        "Retry is available only for blocked planning before delegated work starts"
+                    )
+                if self.cycle_retry_validator is None:
+                    raise InvalidTransitionError("Planning retry validation is unavailable")
+                self.cycle_retry_validator(actor, previous)
+                if state.team is None:
+                    raise ValidationError("Select a project team before retrying")
+                if self.team_validator is not None:
+                    self.team_validator(actor, state.team)
+                instruction = self.continuation_instruction(actor, state)
+                if instruction is None:
+                    raise ValidationError("Describe the original request before retrying")
+                cycle = ProjectCycle(
+                    number=state.cycle_count + 1,
+                    instruction=instruction,
+                    model_budget_usd=state.autonomy.model_budget_usd,
+                    started_at=self.clock(),
+                    updated_at=self.clock(),
+                )
+                state = state.model_copy(
+                    update={
+                        "active_cycle": cycle,
+                        "cycle_count": cycle.number,
+                        "last_instruction": instruction,
+                        "blocked_reasons": (),
+                        "next_cycle_at": None,
+                        "todos": tuple(
+                            todo.model_copy(
+                                update={
+                                    "status": "ready",
+                                    "error": None,
+                                    "updated_at": self.clock(),
+                                }
+                            )
+                            if todo.cycle_id == previous.id and todo.status in {"ready", "blocked"}
+                            else todo
+                            for todo in state.todos
+                        ),
+                        "autonomy": state.autonomy.model_copy(
+                            update={"paused": False, "mode": "manual"}
+                        ),
+                    }
+                )
+                job = job.model_copy(
+                    update={"input": {**job.input, "scopes": sorted(actor.scopes)}}
+                )
+            elif body.action in {"pause", "resume"}:
                 paused = body.action == "pause"
                 if not paused and state.blocked_reasons:
                     raise InvalidTransitionError("Acknowledge blocked outcomes before resuming")
@@ -839,12 +996,31 @@ class ProjectWorkService:
         current, cycle = state.active_cycle, update.cycle
         if current is None or cycle.id != current.id or cycle.revision != current.revision:
             raise InvalidTransitionError("Project cycle changed; stale coordinator result rejected")
-        immutable = {"id", "number", "instruction", "automatic", "model_budget_usd", "started_at"}
+        immutable = {
+            "id",
+            "number",
+            "instruction",
+            "automatic",
+            "model_budget_usd",
+            "started_at",
+            "bounded_execution",
+            "target_agent_id",
+            "request_id",
+            "parent_cycle_id",
+        }
         if any(getattr(cycle, name) != getattr(current, name) for name in immutable):
             raise ValidationError("Coordinator cannot change the cycle's original authorization")
         allowed = {
             "starting": {"starting", "planning", "blocked", "unknown", "cancelled"},
-            "planning": {"planning", "ready", "completed", "blocked", "unknown", "cancelled"},
+            "planning": {
+                "planning",
+                "ready",
+                "completed",
+                "blocked",
+                "unknown",
+                "cancelled",
+                "waiting",
+            },
             "ready": {"ready", "executing", "blocked", "unknown", "cancelled"},
             "executing": {"executing", "completed", "blocked", "unknown", "cancelled"},
         }
@@ -871,7 +1047,16 @@ class ProjectWorkService:
                 raise AuthorizationError("Manual delegated work requires plan approval")
         if current.execution_approved and not cycle.execution_approved:
             raise ValidationError("Coordinator cannot remove saved execution approval")
-        if cycle.execution_approved and not current.execution_approved and not current.automatic:
+        if (
+            cycle.execution_approved
+            and not current.execution_approved
+            and not current.automatic
+            and not (
+                current.bounded_execution
+                and self.auto_execution_validator is not None
+                and self.auto_execution_validator(actor, cycle)
+            )
+        ):
             raise AuthorizationError("Manual delegated work requires the user's plan approval")
         if cycle.model_reserved_usd < current.model_reserved_usd:
             raise ValidationError("Reserved model budget cannot be released or forgotten")
@@ -891,6 +1076,10 @@ class ProjectWorkService:
         if cycle.phase in TERMINAL_PHASES:
             cycle = cycle.model_copy(update={"finished_at": self.clock()})
             updates.update(active_cycle=None, last_cycle=cycle)
+            if cycle.phase == "waiting":
+                if self.wait_recorder is None:
+                    raise ValidationError("Durable project waits are unavailable")
+                self.wait_recorder(actor, state.project_id, cycle)
             if cycle.phase in BLOCKING_PHASES:
                 updates["blocked_reasons"] = (
                     cycle.error or "Review the interrupted project cycle.",
@@ -914,7 +1103,7 @@ class ProjectWorkService:
         update: ProjectCycleUpdate,
     ) -> ProjectWorkState:
         self.authorize(actor, write=True)
-        with self.store.transaction(actor.household_id):
+        with self.store.transaction(actor.workspace_id):
             job = self._job(actor, project_id)
             if job is None:
                 raise NotFoundError("Project work not found")
@@ -929,7 +1118,7 @@ class ProjectWorkService:
     ) -> ProjectWorkState:
         """Atomically enqueue a DB-backed plan/run and save its link; never do network I/O here."""
         self.authorize(actor, write=True)
-        with self.store.transaction(actor.household_id):
+        with self.store.transaction(actor.workspace_id):
             job = self._job(actor, project_id)
             if job is None:
                 raise NotFoundError("Project work not found")
@@ -944,7 +1133,7 @@ class ProjectWorkService:
 
     def halt(self, candidate: Job, reason: str, *, uncertain: bool = False) -> ProjectWorkState:
         """Internal fail-closed recovery; never starts, retries or cancels a provider operation."""
-        with self.store.transaction(candidate.household_id):
+        with self.store.transaction(candidate.workspace_id):
             job = self.store.get_job(candidate.id)
             if job is None or job.kind != WORK_KIND:
                 raise NotFoundError("Project work not found")
@@ -984,7 +1173,7 @@ class ProjectWorkService:
                 )
             state = state.model_copy(update=changes)
             actor = ActorContext(
-                actor_id=job.created_by, household_id=job.household_id, channel=Channel.WORKER
+                actor_id=job.created_by, workspace_id=job.workspace_id, channel=Channel.WORKER
             )
             state = self._activity(
                 actor,
@@ -1007,7 +1196,7 @@ class ProjectWorkService:
         if not 0 <= offset <= 10_000_000 or not 1 <= limit <= 100:
             raise ValidationError("Invalid archived task page")
         rows = self.store.jobs(
-            actor.household_id,
+            actor.workspace_id,
             actor.actor_id,
             "platform.project_archive." + project_id.hex,
             offset,

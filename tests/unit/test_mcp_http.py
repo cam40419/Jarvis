@@ -36,7 +36,7 @@ def definition(*, write=False, **changes):
 def context(*, write=False):
     return ToolExecutionContext(
         actor_id=uuid4(),
-        household_id=uuid4(),
+        workspace_id=uuid4(),
         run_id=uuid4(),
         agent_id="worker",
         scopes=frozenset({"jobs:read", "jobs:write"}),

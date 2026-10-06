@@ -2,7 +2,7 @@ param(
     [string]$PublicOrigin = 'https://www.camrobbins.com',
     [string]$PublicPath = '/simon',
     [string]$DatabaseUrl = 'postgresql://jarvis:local-development-only@127.0.0.1:5432/jarvis',
-    [guid]$HouseholdId = 'eff4172f-8892-5123-821a-55fed2969246',
+    [guid]$WorkspaceId = 'eff4172f-8892-5123-821a-55fed2969246',
     [guid]$ActorId = '31de7ca5-7ea4-5614-b2b6-099dacc91b0e',
     [switch]$Enroll,
     [switch]$Check
@@ -21,7 +21,7 @@ try {
     $env:SIMON_DATABASE_URL = $DatabaseUrl
     $env:SIMON_DEV_LOGIN_ENABLED = 'false'
     $env:SIMON_MODEL_PROVIDER = 'openai'
-    $env:SIMON_ACCOUNT_HOUSEHOLD_ID = $HouseholdId.ToString()
+    $env:SIMON_ACCOUNT_WORKSPACE_ID = $WorkspaceId.ToString()
     $env:SIMON_ACCOUNT_ADMIN_ACTOR_ID = $ActorId.ToString()
     & $python -c "from simon.config import Settings; s=Settings(); print('Configuration valid:', s.public_origin + s.public_path)"
     if ($LASTEXITCODE -ne 0) { throw 'Server configuration is invalid.' }
@@ -31,8 +31,8 @@ try {
     & $python -m simon.migrate
     if ($LASTEXITCODE -ne 0) { throw 'Database migration failed.' }
     if ($Enroll) {
-        & $python -m simon.identity_admin enroll --actor-id $ActorId --household-id $HouseholdId
-        if ($LASTEXITCODE -ne 0) { throw 'Enrollment failed. Check the existing household and actor IDs.' }
+        & $python -m simon.identity_admin enroll --actor-id $ActorId --workspace-id $WorkspaceId
+        if ($LASTEXITCODE -ne 0) { throw 'Enrollment failed. Check the existing workspace and actor IDs.' }
         return
     }
     Write-Host "Simon origin ready for the tunnel: $PublicOrigin$PublicPath/login"

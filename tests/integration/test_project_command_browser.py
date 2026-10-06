@@ -24,6 +24,7 @@ from simon.services.agent_dispatcher import AgentDispatcher
 from simon.services.agent_platform import AgentPlatformService
 from simon.services.agent_worker import AgentWorker
 from simon.services.project_autonomy import ProjectAutonomyService
+from tests.completion_review_fixtures import reference_check, review_text
 
 pytestmark = pytest.mark.browser
 
@@ -101,6 +102,7 @@ def project_ui(tmp_path):
                     "objective": "Outline the evidence needed.",
                     "depends_on": [],
                     "tool_ids": [],
+                    "todo_id": None,
                 },
                 {
                     "id": "brief",
@@ -109,19 +111,58 @@ def project_ui(tmp_path):
                     "objective": "Use the research to write a brief.",
                     "depends_on": ["research"],
                     "tool_ids": [],
+                    "todo_id": None,
                 },
             ],
         }
     }
 
+    synthetic_report = (
+        "## Completed report\nA useful, saved launch brief.\n\n"
+        "Audience: design-conscious customers seeking durable everyday apparel.\n"
+        "Evidence to collect: customer interviews, supplier fabric specifications, "
+        "sample fit checks, and landed unit costs.\n"
+        "Next steps: compare supplier samples, confirm target pricing, and run a small "
+        "customer fit review before choosing the launch assortment."
+    )
+
     class Model:
         def generate(self, decision, request):
+            if "tool-free reviewer" in request.system:
+                candidate = review_text(request.prompt, "candidate")
+                assert candidate == synthetic_report
+                text = json.dumps(
+                    {
+                        "status": "complete",
+                        "summary": "The synthetic launch report includes evidence and next steps.",
+                        "checks": [
+                            reference_check(
+                                request.prompt,
+                                "Provide the launch brief and evidence checklist",
+                                text="Evidence to collect: customer interviews, "
+                                "supplier fabric specifications, sample fit checks, "
+                                "and landed unit costs.",
+                            ),
+                            reference_check(
+                                request.prompt,
+                                "Identify the next launch decisions",
+                                text="Next steps: compare supplier samples, "
+                                "confirm target pricing, and run a small customer "
+                                "fit review before choosing the launch assortment.",
+                            ),
+                        ],
+                    }
+                )
+            else:
+                text = (
+                    json.dumps(synthetic["decision"])
+                    if "Plan the next useful" in request.prompt
+                    else synthetic_report
+                )
             return TextGenerationResult(
                 endpoint_id=decision.endpoint_id,
                 model=decision.model,
-                text=json.dumps(synthetic["decision"])
-                if "Plan the next useful" in request.prompt
-                else "## Completed report\nA useful, saved launch brief.",
+                text=text,
                 input_tokens=20,
                 output_tokens=8,
             )
@@ -223,7 +264,8 @@ def test_lead_delegation_review_results_and_return(project_ui, tmp_path):
     page.locator("#pc-command").fill("Research the launch and write our brief.")
     page.get_by_role("button", name="Ask the lead", exact=True).click()
     expect(page.locator("#pc-cycle")).to_contain_text("waiting for the coordinator")
-    expect(page.locator("#pc-command-submit")).to_be_disabled()
+    expect(page.locator("#pc-command-submit")).to_be_enabled()
+    expect(page.locator("#pc-command-submit")).to_have_text("Queue request")
     assert scheduler.tick() == 1
     refresh(page)
     expect(page.locator("#pc-cycle")).to_contain_text("preparing a plan")
@@ -264,14 +306,19 @@ def test_lead_delegation_review_results_and_return(project_ui, tmp_path):
         "() => { window.scrollTo(0, 0); document.getElementById('work-view').scrollTop = 0; }"
     )
     page.screenshot(path=str(tmp_path / "project-command-desktop.png"), animations="disabled")
-    page.set_viewport_size({"width": 390, "height": 844})
-    assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
-    page.screenshot(path=str(tmp_path / "project-command-mobile.png"), animations="disabled")
     page.locator("#pc-tab-tasks").press("ArrowRight")
     expect(page.locator("#pc-tab-files")).to_be_focused()
     expect(page.locator("#pc-tab-files")).to_have_attribute("aria-selected", "true")
     page.locator("#pc-tab-files").press("End")
     expect(page.locator("#pc-tab-team")).to_be_focused()
+    page.locator("#pc-tab-overview").click()
+    page.set_viewport_size({"width": 390, "height": 844})
+    assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
+    page.screenshot(path=str(tmp_path / "project-command-mobile.png"), animations="disabled")
+    page.get_by_label("Project section", exact=True).select_option("files")
+    expect(page.locator("#pc-tab-files")).to_have_attribute("aria-selected", "true")
+    page.get_by_label("Project section", exact=True).select_option("team")
+    expect(page.locator("#pc-team-panel")).to_be_visible()
 
 
 def test_project_files_full_run_history_and_sessions_navigation(project_ui, tmp_path):
@@ -296,7 +343,7 @@ def test_project_files_full_run_history_and_sessions_navigation(project_ui, tmp_
     )
     connected.store.save_google_connection(
         GoogleConnection(
-            household_id=actor.household_id,
+            workspace_id=actor.workspace_id,
             actor_id=actor.actor_id,
             email="synthetic@example.com",
             scopes=(DRIVE_WRITE_SCOPE,),
@@ -360,7 +407,8 @@ def test_project_files_full_run_history_and_sessions_navigation(project_ui, tmp_
         has_text="Team execution"
     )
     pending_execution.get_by_text("View results & files", exact=True).click()
-    expect(pending_execution).to_contain_text("Output will appear when this task finishes")
+    expect(pending_execution).to_contain_text("The answer will appear here as soon as it is ready")
+    pending_execution.get_by_text("Run activity & technical details", exact=True).last.click()
     expect(
         pending_execution.get_by_role("region", name="Activity for lead-summary")
     ).to_be_visible()
@@ -389,7 +437,7 @@ def test_project_files_full_run_history_and_sessions_navigation(project_ui, tmp_
     execution.get_by_text("View results & files", exact=True).click()
     expect(execution).to_contain_text("saved launch brief")
     with page.expect_download() as old_output:
-        execution.get_by_role("link", name="answer.txt", exact=True).first.click()
+        execution.get_by_role("link", name="Download answer.txt", exact=True).first.click()
     assert "saved launch brief" in Path(old_output.value.path()).read_text(encoding="utf-8")
     page.locator("#pc-tab-sessions").click()
     expect(page.get_by_role("button", name="Start a session", exact=True)).to_be_visible()
@@ -406,11 +454,11 @@ def test_project_files_full_run_history_and_sessions_navigation(project_ui, tmp_
     expect(page.locator("#sidebar")).not_to_be_in_viewport()
     page.screenshot(path=str(tmp_path / "project-files-mobile.png"), animations="disabled")
     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
-    page.locator("#pc-tab-overview").click()
+    page.get_by_label("Project section", exact=True).select_option("overview")
     page.locator("#pc-command").fill("Preserve this draft across project sections.")
-    page.locator("#pc-tab-team").click()
+    page.get_by_label("Project section", exact=True).select_option("team")
     expect(page.get_by_role("button", name="Pause project", exact=True)).to_be_visible()
-    page.locator("#pc-tab-overview").click()
+    page.get_by_label("Project section", exact=True).select_option("overview")
     expect(page.locator("#pc-command")).to_have_value(
         "Preserve this draft across project sections."
     )
@@ -525,7 +573,7 @@ def test_backlog_notes_settings_and_pause_are_durable(project_ui):
     )
     page.get_by_role("button", name="Save entry", exact=True).click()
     expect(page.locator("#pc-panel-content")).to_contain_text("Keep the first release small")
-    page.get_by_role("button", name="Team & autonomy", exact=True).click()
+    page.get_by_role("button", name="Team & access", exact=True).click()
     expect(page.locator("#pc-settings-team-fields")).to_contain_text(
         "Research evidence, draft documents, and check the finished results."
     )
@@ -541,7 +589,7 @@ def test_backlog_notes_settings_and_pause_are_durable(project_ui):
         "required", ""
     )
     page.get_by_label("Standing objective", exact=True).fill("Continue preparing the launch brief.")
-    page.get_by_label("Check-in interval (minutes)").fill("30")
+    page.locator("#pc-settings-dialog").get_by_label("Check-in interval (minutes)").fill("30")
     page.get_by_label("Maximum cycles", exact=True).fill("3")
     page.get_by_label("Model budget per cycle (USD, required)").fill("2.50")
     page.get_by_role("button", name="Save settings", exact=True).click()
@@ -557,19 +605,19 @@ def test_backlog_notes_settings_and_pause_are_durable(project_ui):
     page.get_by_role("button", name="Resume project", exact=True).click()
     expect(page.locator("#pc-command-submit")).to_be_enabled()
     page.set_viewport_size({"width": 390, "height": 844})
-    page.get_by_role("button", name="Team & autonomy", exact=True).click()
+    page.get_by_role("button", name="Team & access", exact=True).click()
     assert page.locator("#pc-settings-dialog").evaluate("el => el.scrollWidth <= el.clientWidth")
     expect(page.get_by_label("Report writer responsibilities")).to_have_value(responsibilities)
     expect(page.locator("#pc-settings-team-fields [data-pc-member]:checked")).to_have_count(1)
     page.keyboard.press("Escape")
-    expect(page.get_by_role("button", name="Team & autonomy", exact=True)).to_be_focused()
+    expect(page.get_by_role("button", name="Team & access", exact=True)).to_be_focused()
 
 
-def test_blocked_lead_plan_requires_a_recorded_review(project_ui):
+def test_lead_question_is_saved_without_pausing_the_project(project_ui):
     from playwright.sync_api import expect
 
     page, dispatcher, scheduler, _, synthetic = project_ui
-    create_project(page)
+    project_id = create_project(page)
     synthetic["decision"] = {
         "status": "waiting",
         "summary": "A target market is needed before research.",
@@ -582,21 +630,19 @@ def test_blocked_lead_plan_requires_a_recorded_review(project_ui):
     dispatcher.tick()
     scheduler.tick()
     refresh(page)
-    expect(page.locator("#pc-blockers")).to_contain_text("target market")
-    expect(page.locator("#pc-command-submit")).to_be_disabled()
-    expect(page.get_by_role("button", name="Start delegated work", exact=True)).to_have_count(0)
-    page.get_by_role("button", name="Review and clear hold", exact=True).click()
-    page.get_by_label("What did you verify?", exact=True).fill(
-        "No external action ran. We will specify the target market in the next request."
-    )
-    page.get_by_role("button", name="Record review and clear hold", exact=True).click()
-    expect(page.locator("#pc-review-dialog")).not_to_be_visible()
-    expect(page.locator("#pc-command-submit")).to_be_disabled()
-    page.get_by_role("button", name="Resume project", exact=True).click()
-    expect(page.locator("#pc-command-submit")).to_be_enabled()
+    expect(page.locator("#pc-project-state")).to_have_text("Waiting for input")
     expect(page.locator("#pc-blockers")).not_to_be_visible()
-    page.locator("#pc-tab-activity").click()
-    expect(page.locator("#pc-panel-content")).to_contain_text("No external action ran")
+    expect(page.locator(".pc-wait")).to_contain_text("target market")
+    state = page.evaluate("id=>api('/v1/projects/'+id+'/command')", project_id)["state"]
+    assert state["autonomy"]["paused"] is False
+    expect(page.locator("#pc-command-submit")).to_be_enabled()
+    expect(page.get_by_role("button", name="Start delegated work", exact=True)).to_have_count(0)
+    page.locator(".pc-wait textarea").fill(
+        "Target independent artists launching small collections."
+    )
+    page.get_by_role("button", name="Send reply", exact=True).click()
+    expect(page.locator(".pc-wait")).to_have_count(0)
+    expect(page.locator(".pc-queued")).to_contain_text("Target independent artists")
 
 
 def test_archive_activity_pagination_and_stale_settings(project_ui):
@@ -619,7 +665,7 @@ def test_archive_activity_pagination_and_stale_settings(project_ui):
     page.get_by_role("button", name="Load archived tasks", exact=True).click()
     expect(page.locator("#pc-panel-content")).to_contain_text("Finished milestone")
     expect(page.locator("#pc-panel-content .pc-status.archived")).to_have_count(1)
-    page.get_by_role("button", name="Team & autonomy", exact=True).click()
+    page.get_by_role("button", name="Team & access", exact=True).click()
     page.locator("#pc-settings-team-name").fill("An outdated team change")
     page.evaluate(
         """async project => {
@@ -674,7 +720,10 @@ def test_earlier_cycle_files_remain_available(project_ui):
     dispatcher.tick()
     scheduler.tick()
     refresh(page)
-    expect(page.locator("#pc-cycle")).to_contain_text("Last cycle · 2")
+    expect(page.locator("#pc-cycle")).to_contain_text("Check whether we need anything else.")
+    assert (
+        page.evaluate("() => SimonProjectCommand.getSnapshot().detail.state.last_cycle.number") == 2
+    )
     page.get_by_role("button", name="Load saved files", exact=True).first.click()
     with page.expect_download() as downloaded:
         page.locator("#pc-panel-content").get_by_role("link", name="answer.txt").first.click()
@@ -719,7 +768,8 @@ def test_project_external_review_is_reachable_and_blocks_continuation(project_ui
     dispatcher.tick()
     scheduler.tick()
     page.reload()
-    expect(page.locator("#pc-cycle")).to_contain_text("external action needs review")
+    expect(page.locator("#pc-blockers")).to_contain_text("external action needs review")
+    expect(page.locator("#pc-cycle")).to_contain_text("Needs your review")
     expect(page.locator("#pc-command-submit")).to_be_disabled()
     page.locator("#pc-cycle").get_by_role(
         "button", name="Review external action", exact=True

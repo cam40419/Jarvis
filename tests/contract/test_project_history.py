@@ -16,7 +16,7 @@ from simon.domain.agent_platform import (
 from simon.domain.agent_runs import AgentRun, TaskExecution
 from simon.domain.artifacts import Artifact
 from simon.domain.errors import AuthorizationError, NotFoundError, ValidationError
-from simon.domain.identity import DEV_ACTOR_ID, DEV_HOUSEHOLD_ID, Membership
+from simon.domain.identity import DEV_ACTOR_ID, DEV_WORKSPACE_ID, Membership
 from simon.domain.models import ActorContext, Channel, Job, JobStatus
 from simon.services.agent_platform import AgentPlatformService
 from simon.services.agent_runs import AgentRunService
@@ -42,7 +42,7 @@ def saved_run(
     """Pre-index durable storage format; no coordinator, provider or backfill required."""
     actor = actor or ActorContext(
         actor_id=DEV_ACTOR_ID,
-        household_id=DEV_HOUSEHOLD_ID,
+        workspace_id=DEV_WORKSPACE_ID,
         channel=Channel.API,
         scopes=frozenset({"jobs:read", "jobs:write"}),
     )
@@ -51,7 +51,7 @@ def saved_run(
     key = f"project:{cycle_id}:{phase}" if phase else "manual-project-run"
     plan = AgentTeamPlan(
         id=plan_id,
-        workspace_id=actor.household_id,
+        workspace_id=actor.workspace_id,
         actor_id=actor.actor_id,
         team_id="studio",
         team_version=1,
@@ -75,7 +75,7 @@ def saved_run(
     )
     artifact = Artifact(
         id=uuid4(),
-        workspace_id=actor.household_id,
+        workspace_id=actor.workspace_id,
         actor_id=actor.actor_id,
         run_id=run_id,
         task_id=task_id,
@@ -89,7 +89,7 @@ def saved_run(
         from simon.services.artifacts import ArtifactStore
 
         artifact = ArtifactStore(state_dir / "artifacts").publish_text(
-            workspace_id=actor.household_id,
+            workspace_id=actor.workspace_id,
             actor_id=actor.actor_id,
             run_id=run_id,
             task_id=task_id,
@@ -99,7 +99,7 @@ def saved_run(
     state = AgentRun(
         id=run_id,
         plan_id=plan_id,
-        workspace_id=actor.household_id,
+        workspace_id=actor.workspace_id,
         actor_id=actor.actor_id,
         status=JobStatus.SUCCEEDED,
         started_at=when,
@@ -118,7 +118,7 @@ def saved_run(
     store.create_job(
         Job(
             id=plan.id,
-            household_id=actor.household_id,
+            workspace_id=actor.workspace_id,
             created_by=actor.actor_id,
             kind="platform.plan",
             idempotency_key=plan.id.hex,
@@ -134,7 +134,7 @@ def saved_run(
     store.create_job(
         Job(
             id=run_id,
-            household_id=actor.household_id,
+            workspace_id=actor.workspace_id,
             created_by=actor.actor_id,
             kind="platform.run",
             idempotency_key=run_id.hex,
@@ -151,7 +151,7 @@ def saved_run(
 def history(store, tmp_path):
     actor = ActorContext(
         actor_id=DEV_ACTOR_ID,
-        household_id=DEV_HOUSEHOLD_ID,
+        workspace_id=DEV_WORKSPACE_ID,
         channel=Channel.API,
         scopes=frozenset({"jobs:read", "jobs:write"}),
     )
@@ -162,7 +162,7 @@ def history(store, tmp_path):
         if (
             not visible["allowed"]
             or identifier not in project_ids
-            or (current.actor_id, current.household_id) != (actor.actor_id, actor.household_id)
+            or (current.actor_id, current.workspace_id) != (actor.actor_id, actor.workspace_id)
         ):
             raise NotFoundError("Project not found")
         return SimpleNamespace(id=identifier)
@@ -226,16 +226,16 @@ def test_all_older_cycles_with_stable_tied_time_cursor_and_concurrent_new_run(hi
     assert "artifacts" not in first.items[0].model_dump()
 
 
-def test_project_actor_household_and_plan_join_boundaries(history):
+def test_project_actor_workspace_and_plan_join_boundaries(history):
     h = history
     good = saved_run(h.store, h.projects[0], number=1)
     saved_run(h.store, h.projects[1], number=2)
-    for number, changes in ((3, {"actor_id": uuid4()}), (4, {"household_id": uuid4()})):
+    for number, changes in ((3, {"actor_id": uuid4()}), (4, {"workspace_id": uuid4()})):
         other = h.actor.model_copy(update=changes)
         h.store.put_membership(
             Membership(
                 actor_id=other.actor_id,
-                household_id=other.household_id,
+                workspace_id=other.workspace_id,
                 role="owner",
             )
         )
@@ -245,7 +245,7 @@ def test_project_actor_household_and_plan_join_boundaries(history):
         h.store.create_job(
             Job(
                 id=forged_id,
-                household_id=h.actor.household_id,
+                workspace_id=h.actor.workspace_id,
                 created_by=h.actor.actor_id,
                 kind="platform.run",
                 idempotency_key=forged_id.hex,
@@ -255,7 +255,7 @@ def test_project_actor_household_and_plan_join_boundaries(history):
         )
         assert (
             h.store.project_run_jobs(
-                other.household_id,
+                other.workspace_id,
                 other.actor_id,
                 h.projects[0],
                 None,

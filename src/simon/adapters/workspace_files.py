@@ -116,8 +116,8 @@ class WorkspaceFileTransport:
         owner = self.lease.plan.request
         if (
             context.actor_id != self.actor.actor_id
-            or context.household_id != owner.workspace_id
-            or context.household_id != self.actor.household_id
+            or context.workspace_id != owner.workspace_id
+            or context.workspace_id != self.actor.workspace_id
             or context.run_id != self.run_id
             or context.agent_id != owner.agent_id
             or not context.scopes >= canonical.required_scopes
@@ -139,7 +139,7 @@ class WorkspaceFileTransport:
         ):
             raise ToolCatalogError("Workspace import requires an active writable Docker assignment")
         actor = self.revalidate()
-        if (actor.actor_id, actor.household_id) != (self.actor.actor_id, self.actor.household_id):
+        if (actor.actor_id, actor.workspace_id) != (self.actor.actor_id, self.actor.workspace_id):
             raise AuthorizationError("Workspace import account changed")
         actor = actor.model_copy(
             update={
@@ -180,7 +180,7 @@ class WorkspaceFileTransport:
         destination = self.lease.plan.workspace_path / filename
         reject_links(destination)
         current = self.revalidate()
-        if (current.actor_id, current.household_id) != (actor.actor_id, actor.household_id):
+        if (current.actor_id, current.workspace_id) != (actor.actor_id, actor.workspace_id):
             raise AuthorizationError("Workspace import account changed")
         current = current.model_copy(
             update={

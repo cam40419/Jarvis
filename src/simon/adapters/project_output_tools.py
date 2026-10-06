@@ -121,10 +121,10 @@ class ProjectOutputToolTransport:
         if reason := project_output_configuration_reason(definition):
             raise ToolCatalogError(reason)
         if (
-            (context.actor_id, context.household_id, context.run_id)
+            (context.actor_id, context.workspace_id, context.run_id)
             != (
                 self.actor.actor_id,
-                self.actor.household_id,
+                self.actor.workspace_id,
                 self.run_id,
             )
             or not definition.enabled
@@ -136,9 +136,9 @@ class ProjectOutputToolTransport:
 
         def checked() -> ActorContext:
             current = self.revalidate()
-            if (current.actor_id, current.household_id) != (
+            if (current.actor_id, current.workspace_id) != (
                 self.actor.actor_id,
-                self.actor.household_id,
+                self.actor.workspace_id,
             ):
                 raise AuthorizationError("Project output account changed")
             current = current.model_copy(

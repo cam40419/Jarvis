@@ -66,7 +66,7 @@ class MCPHttpTransport:
             "Accept": "application/json, text/event-stream",
             "Accept-Encoding": "identity",
             "X-Actor-ID": str(context.actor_id),
-            "X-Household-ID": str(context.household_id),
+            "X-Workspace-ID": str(context.workspace_id),
             "X-Run-ID": str(context.run_id),
             "X-Agent-ID": context.agent_id,
             "X-Invocation-ID": str(context.invocation_id),

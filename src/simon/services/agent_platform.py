@@ -10,6 +10,7 @@ from pydantic import ValidationError as PydanticError
 
 from simon.adapters.execution_backends import DockerBackend, MachineBackend
 from simon.adapters.tool_preflight import integration_status, uses_network
+from simon.adapters.ui_tool_binding import with_ui_tools
 from simon.domain.agent_platform import (
     AgentProfile,
     AgentTaskSpec,
@@ -26,16 +27,17 @@ from simon.domain.errors import (
     NotFoundError,
     ValidationError,
 )
-from simon.domain.execution import EnvironmentRequest, ExecutionError
+from simon.domain.execution import EnvironmentDefinition, EnvironmentRequest, ExecutionError
 from simon.domain.model_routing import RoutingRequest
 from simon.domain.models import ActorContext, Job, JobStatus
 from simon.domain.ports import Store
-from simon.domain.tool_catalog import ToolCatalogError
+from simon.domain.tool_catalog import ToolCatalogError, ToolDefinition, ToolExecutionContext
 from simon.services.agent_profiles import AgentProfileService
 from simon.services.agent_prompts import render_agent_prompt
 from simon.services.audit import AuditService
 from simon.services.canonical import canonical_json, digest
 from simon.services.execution import EnvironmentManager
+from simon.services.integrations import IntegrationService
 from simon.services.model_router import ModelRouter, ModelRoutingError
 from simon.services.tool_catalog import ToolCatalog, builtin_tool_templates
 
@@ -88,19 +90,36 @@ class AgentPlatformService:
         environ: Mapping[str, str] | None = None,
         available_transports: Sequence[str] = ("http", "environment"),
         tool_availability: Callable[[ActorContext, str], dict[str, Any]] | None = None,
+        integrations: IntegrationService | None = None,
     ) -> None:
+        self.integrations = integrations
+        if integrations is not None:
+            manifest = with_ui_tools(manifest)
         self.store, self.manifest = store, manifest
-        self.agent_profiles = AgentProfileService(store, manifest)
+        self.shared_tools = integrations is not None
+        self.agent_profiles = AgentProfileService(store, manifest, shared_tools=self.shared_tools)
         self.state_dir = state_dir
         self.audit = AuditService(store)
         self.available_transports = frozenset(available_transports)
         self.tool_availability = tool_availability
+        self.project_tool_availability: (
+            Callable[[ActorContext, UUID, str], dict[str, Any]] | None
+        ) = None
         self.project_team_resolver: Callable[[ActorContext, UUID], TeamTemplate] | None = None
         self.project_visibility_resolver: Callable[[ActorContext, UUID], Any] | None = None
         self.project_profile_resolver: (
             Callable[[ActorContext, UUID], dict[str, AgentProfile | None]] | None
         ) = None
-        self._environ = platform_credentials() if environ is None else environ
+        self.project_tool_filter_factory: (
+            Callable[[ActorContext, UUID], Callable[[ToolDefinition], bool]] | None
+        ) = None
+        self._environ = (
+            integrations.credentials
+            if integrations is not None and environ is None
+            else platform_credentials()
+            if environ is None
+            else environ
+        )
         self.models = ModelRouter(manifest.models, environ=self._environ)
         self.tools = ToolCatalog(manifest.tools, available_transports=available_transports)
         self.environments = EnvironmentManager(
@@ -120,18 +139,56 @@ class AgentPlatformService:
             return
         if not any(
             context.id == context_id
-            and context.workspace_id == actor.household_id
+            and context.workspace_id == actor.workspace_id
             and (not context.actor_ids or actor.actor_id in context.actor_ids)
             for context in self.manifest.contexts
         ):
             raise NotFoundError("Work context not found")
 
-    def tool_statuses(self, actor: ActorContext) -> list[dict[str, Any]]:
+    def tool_statuses(
+        self, actor: ActorContext, project_id: UUID | None = None
+    ) -> list[dict[str, Any]]:
         """Configuration preflight only: never contact a provider while opening the UI."""
         result = []
+        project_filter = (
+            self.project_tool_filter_factory(actor, project_id)
+            if project_id and self.project_tool_filter_factory
+            else None
+        )
         for tool in self.manifest.tools:
             reasons = []
             state = "configured"
+            if project_filter and not project_filter(tool):
+                result.append(
+                    {
+                        "id": tool.id,
+                        "state": "unavailable",
+                        "blocked_reasons": [],
+                        "description": tool.description,
+                        "categories": sorted(tool.categories),
+                        "capabilities": sorted(tool.capabilities),
+                        "transport": tool.transport,
+                        "side_effect": tool.side_effect,
+                    }
+                )
+                continue
+            if self.integrations and tool.settings.get("ui_managed") is True:
+                try:
+                    tool = self.integrations.bind_tool(tool, actor)
+                except ToolCatalogError as error:
+                    result.append(
+                        {
+                            "id": tool.id,
+                            "description": tool.description,
+                            "categories": sorted(tool.categories),
+                            "capabilities": sorted(tool.capabilities),
+                            "transport": tool.transport,
+                            "side_effect": tool.side_effect,
+                            "state": "unconfigured",
+                            "blocked_reasons": [str(error)],
+                        }
+                    )
+                    continue
             if not tool.enabled:
                 state = "disabled"
                 reasons.append("Disabled by the server configuration")
@@ -150,6 +207,7 @@ class AgentPlatformService:
             elif self.tool_availability is not None and tool.transport in {
                 "native",
                 "external_actions",
+                "project_boards",
             }:
                 availability = self.tool_availability(actor, tool.id)
                 if not availability["available"]:
@@ -171,6 +229,59 @@ class AgentPlatformService:
                 }
             )
         return result
+
+    def resolve_connected_tool(
+        self, definition: ToolDefinition, context: ToolExecutionContext
+    ) -> ToolDefinition:
+        if self.integrations is None:
+            return definition
+        from simon.domain.models import Channel
+
+        actor = ActorContext(
+            actor_id=context.actor_id,
+            workspace_id=context.workspace_id,
+            scopes=context.scopes,
+            channel=Channel.WORKER,
+        )
+        return self.integrations.bind_tool(definition, actor)
+
+    def test_environment(self, actor: ActorContext, identifier: str) -> dict[str, Any]:
+        """Check a runtime without allocating a workspace or running project commands."""
+        self.authorize(actor)
+        environment = next(
+            (env for env in self.manifest.environments if env.id == identifier), None
+        )
+        if environment is None:
+            raise NotFoundError("Execution runtime not found")
+        if not environment.enabled:
+            return {"status": "failed", "message": "Runtime is disabled."}
+        if environment.kind != "docker":
+            return {
+                "status": "configuration_only",
+                "message": "Machine runner configured; a read-only health check is not available.",
+            }
+        import subprocess
+
+        try:
+            checked = subprocess.run(
+                ["docker", "image", "inspect", str(environment.container_image)],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=8,
+                check=False,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+            if checked.returncode == 0:
+                return {
+                    "status": "passed",
+                    "message": "Docker is reachable and this runtime image is installed.",
+                }
+        except (OSError, subprocess.SubprocessError):
+            pass
+        return {
+            "status": "failed",
+            "message": "Start Docker and install this runtime image, then test again.",
+        }
 
     def profiles(
         self,
@@ -198,14 +309,113 @@ class AgentPlatformService:
                 *(profile for profile in profiles if profile.id not in members),
                 *(profile for profile in members.values() if profile is not None),
             )
+        if self.shared_tools:
+            profiles = tuple(self.shared_profile(actor, profile) for profile in profiles)
         return profiles
+
+    def shared_profile(self, actor: ActorContext, profile: AgentProfile) -> AgentProfile:
+        return profile.model_copy(
+            update={
+                "tool_access": "shared",
+                "tool_ids": tuple(
+                    tool.id for tool in self.manifest.tools if tool.required_scopes <= actor.scopes
+                ),
+                "tool_scopes": actor.scopes,
+                "environment_ids": tuple(
+                    env.id for env in self.manifest.environments if env.enabled
+                ),
+                "max_action": "write",
+                "max_tool_calls": max(20, profile.max_tool_calls),
+                "model_capabilities": profile.model_capabilities,
+            }
+        )
+
+    def task_tool_selection(
+        self,
+        actor: ActorContext,
+        profile: AgentProfile,
+        task: AgentTaskSpec,
+        project_id: UUID | None,
+    ) -> tuple[tuple[str, ...], str | None]:
+        """Roles share tools; the scheduler chooses a compatible runtime for each task."""
+        statuses = {item["id"]: item["state"] for item in self.tool_statuses(actor, project_id)}
+        candidates = [
+            tool
+            for tool in self.manifest.tools
+            if tool.id in profile.tool_ids
+            and statuses.get(tool.id) == "configured"
+            and tool.action_policy != "external_commitment"
+            and (profile.privacy != "local_only" or not uses_network(tool))
+            and (
+                project_id is not None
+                or tool.transport
+                not in {
+                    "project_work",
+                    "project_outputs",
+                    "project_journal",
+                    "project_boards",
+                    "project_storage",
+                }
+            )
+        ]
+        text = (task.objective + " " + profile.description).lower()
+        keywords = {
+            "cad": ("3d", "cad", "stl", "model a", "solid", "freecad"),
+            "pcb": ("pcb", "circuit", "kicad", "gerber"),
+            "processing": (
+                "pdf",
+                "document",
+                "report",
+                "spreadsheet",
+                "image",
+                "video",
+                "audio",
+                "ocr",
+            ),
+            "browser": ("web", "research", "https://", "screenshot", "website", "browse"),
+            "git": ("code", "repository", "software", "program", "script", "git"),
+        }
+
+        def compatible(tool: ToolDefinition, environment: EnvironmentDefinition) -> bool:
+            if not tool.environment_capabilities:
+                return True
+            if not tool.environment_capabilities <= environment.capabilities:
+                return False
+            if tool.transport == "browser":
+                return environment.network == (
+                    "none" if tool.id == "browser.render_html" else "bridge"
+                )
+            return tool.transport not in {"cad", "pcb"} or environment.network == "none"
+
+        choices = []
+        for environment in self.manifest.environments:
+            if not environment.enabled or environment.id not in profile.environment_ids:
+                continue
+            if task.environment_id and environment.id != task.environment_id:
+                continue
+            supported = [tool for tool in candidates if compatible(tool, environment)]
+            score = sum(
+                1
+                for transport, words in keywords.items()
+                if any(word in text for word in words)
+                and any(
+                    tool.transport == transport and tool.environment_capabilities
+                    for tool in supported
+                )
+            )
+            if score or task.environment_id:
+                choices.append((score, len(supported), environment.id, supported))
+        if choices:
+            _, _, identifier, supported = max(choices, key=lambda item: (item[0], item[1], item[2]))
+            return tuple(tool.id for tool in supported), identifier
+        return tuple(tool.id for tool in candidates if not tool.environment_capabilities), None
 
     def teams(self, actor: ActorContext) -> tuple[TeamTemplate, ...]:
         self.authorize(actor)
         visible = tuple(
             team
             for team in self.manifest.teams
-            if not team.allowed_workspace_ids or actor.household_id in team.allowed_workspace_ids
+            if not team.allowed_workspace_ids or actor.workspace_id in team.allowed_workspace_ids
         )
         custom = self.agent_profiles.profiles(actor)
         if custom:
@@ -221,7 +431,7 @@ class AgentPlatformService:
                     name="My agents",
                     agent_ids=tuple(item.id for item in custom),
                     max_parallel=self.manifest.max_parallel,
-                    allowed_workspace_ids=frozenset({actor.household_id}),
+                    allowed_workspace_ids=frozenset({actor.workspace_id}),
                 ),
             )
         return visible
@@ -229,7 +439,7 @@ class AgentPlatformService:
     def plan_profiles(self, actor: ActorContext, plan: AgentTeamPlan) -> dict[str, AgentProfile]:
         """Fence execution to the reviewed profiles, including durable custom versions."""
         self.authorize(actor)
-        if (plan.actor_id, plan.workspace_id) != (actor.actor_id, actor.household_id):
+        if (plan.actor_id, plan.workspace_id) != (actor.actor_id, actor.workspace_id):
             raise NotFoundError("Agent plan not found")
         job = self.store.get_job(plan.id)
         if job is None or job.kind != PLAN_KIND:
@@ -246,13 +456,18 @@ class AgentPlatformService:
         required = {task.agent_id for task in plan.tasks}
         if required != set(saved) or any(
             identifier not in current
-            or stable_configuration(current[identifier].model_dump(mode="python"))
-            != stable_configuration(saved[identifier].model_dump(mode="python"))
+            or (
+                not self.shared_tools
+                and stable_configuration(current[identifier].model_dump(mode="python"))
+                != stable_configuration(saved[identifier].model_dump(mode="python"))
+            )
             for identifier in required
         ):
             raise InvalidTransitionError(
                 "Agent profile changed or is unavailable; create a new plan"
             )
+        if self.shared_tools:
+            return {key: self.shared_profile(actor, profile) for key, profile in saved.items()}
         return saved
 
     def catalog(self, actor: ActorContext) -> dict[str, Any]:
@@ -278,7 +493,7 @@ class AgentPlatformService:
             "contexts": [
                 context.model_dump(mode="json")
                 for context in self.manifest.contexts
-                if context.workspace_id == actor.household_id
+                if context.workspace_id == actor.workspace_id
                 and (not context.actor_ids or actor.actor_id in context.actor_ids)
             ],
             "models": [
@@ -351,6 +566,23 @@ class AgentPlatformService:
         task_id = uuid5(plan_id, task.id)
         attempt_id = uuid5(task_id, "initial-attempt")
         selected_tools = task.tool_ids if task.tool_ids is not None else profile.tool_ids
+        if profile.tool_access == "shared" and task.tool_ids is not None:
+            authorized = {
+                tool.id for tool in self.manifest.tools if tool.required_scopes <= actor.scopes
+            }
+            if not set(selected_tools) <= authorized:
+                raise AuthorizationError("Task tools exceed the account's grant")
+            ready = {
+                item["id"]
+                for item in self.tool_statuses(actor, project_id)
+                if item["state"] == "configured"
+            }
+            selected_tools = tuple(key for key in selected_tools if key in ready)
+        automatic_environment = None
+        if profile.tool_access == "shared" and task.tool_ids is None:
+            selected_tools, automatic_environment = self.task_tool_selection(
+                actor, profile, task, project_id
+            )
         if not set(selected_tools) <= set(profile.tool_ids):
             raise AuthorizationError("Task tools exceed the selected agent's grant")
         if task.environment_id and task.environment_id not in profile.environment_ids:
@@ -361,7 +593,8 @@ class AgentPlatformService:
         project_output_tools = {
             key
             for key, tool in definitions.items()
-            if tool.transport == "project_outputs" or key == "workspace.import_artifact"
+            if tool.transport in {"project_outputs", "project_journal"}
+            or key == "workspace.import_artifact"
         }
         if project_id is None and task.tool_ids is None:
             # Optional project context is absent from standalone runs. Do not make
@@ -373,7 +606,20 @@ class AgentPlatformService:
                 blocked.append("Project output tools require a project-assigned plan")
             if tool.transport == "project_work" and project_id is None:
                 blocked.append("Project reporting tools require a project-assigned plan")
-            state, reasons = integration_status(tool, actor, self._environ)
+            if tool.transport == "project_storage" and project_id is None:
+                blocked.append("Project storage tools require a project-assigned plan")
+            if tool.transport == "project_boards":
+                if project_id is None:
+                    blocked.append("ClickUp tools require a project-assigned plan")
+                elif self.project_tool_availability is not None:
+                    availability = self.project_tool_availability(actor, project_id, key)
+                    if not availability["available"]:
+                        blocked.append(f"{key}: {availability['reason']}")
+            try:
+                bound = self.integrations.bind_tool(tool, actor) if self.integrations else tool
+                state, reasons = integration_status(bound, actor, self._environ)
+            except ToolCatalogError as error:
+                state, reasons = "unconfigured", (str(error),)
             if state != "configured":
                 blocked.extend(f"{key}: {reason}" for reason in reasons)
             if tool.action_policy == "external_commitment" or (
@@ -383,6 +629,7 @@ class AgentPlatformService:
             if self.tool_availability is not None and tool.transport in {
                 "native",
                 "external_actions",
+                "project_boards",
             }:
                 availability = self.tool_availability(actor, key)
                 if not availability["available"]:
@@ -403,9 +650,43 @@ class AgentPlatformService:
             for requirement in definitions[tool_id].environment_capabilities
         )
         environment = None
-        choices = (task.environment_id,) if task.environment_id else profile.environment_ids
+        # Explicit tool subsets can run without the profile's optional containers.
+        # Planning and connected-file reads should not acquire a browser workspace
+        # merely because that agent also has browser skills. An explicit environment
+        # or the profile's default task configuration still retains its requirements.
+        choices = (
+            (task.environment_id,)
+            if task.environment_id
+            else (automatic_environment,)
+            if automatic_environment
+            else profile.environment_ids
+            if needed or task.tool_ids is None
+            else ()
+        )
+        if profile.tool_access == "shared" and task.tool_ids is None and not automatic_environment:
+            choices = ()
+        browser_networks = {
+            "none" if key == "browser.render_html" else "bridge"
+            for key in selected_tools
+            if definitions[key].transport == "browser"
+        }
         for identifier in choices:
             definition = next(item for item in self.manifest.environments if item.id == identifier)
+            # Browser environments share capability names but have deliberately
+            # different network policies. Choose a compatible existing grant,
+            # rather than selecting the first match and rejecting it afterward.
+            # Explicit environment choices still receive their normal blockers.
+            if (
+                task.environment_id is None
+                and browser_networks
+                and (
+                    len(browser_networks) != 1
+                    or definition.network not in browser_networks
+                    or definition.kind != "docker"
+                    or definition.os != "linux"
+                )
+            ):
+                continue
             if (
                 definition.credential_env
                 and not self._environ.get(definition.credential_env, "").strip()
@@ -414,7 +695,7 @@ class AgentPlatformService:
             try:
                 environment = self.environments.plan(
                     EnvironmentRequest(
-                        workspace_id=actor.household_id,
+                        workspace_id=actor.workspace_id,
                         agent_id=profile.id,
                         task_id=task_id,
                         attempt_id=attempt_id,
@@ -447,6 +728,9 @@ class AgentPlatformService:
                     ):
                         blocked.append(f"{key} requires an offline Linux Docker environment")
                 if tool.transport == "browser":
+                    definition = self.environments.definitions[environment.environment_id]
+                    if definition.kind != "docker" or definition.os != "linux":
+                        blocked.append(f"{key} requires a Linux Docker browser environment")
                     network = "none" if tool.id == "browser.render_html" else "bridge"
                     if environment.network != network:
                         blocked.append(
@@ -517,7 +801,7 @@ class AgentPlatformService:
             return project_team
         team = next((team for team in self.teams(actor) if team.id == team_id), None)
         if team is None or (
-            team.allowed_workspace_ids and actor.household_id not in team.allowed_workspace_ids
+            team.allowed_workspace_ids and actor.workspace_id not in team.allowed_workspace_ids
         ):
             raise NotFoundError("Team template not found")
         return team
@@ -529,7 +813,7 @@ class AgentPlatformService:
         if not {task.agent_id for task in request.tasks} <= set(team.agent_ids):
             raise AuthorizationError("Task agent is not part of the selected team")
         identifier = uuid5(
-            actor.actor_id, f"{actor.household_id}:platform:{request.idempotency_key}"
+            actor.actor_id, f"{actor.workspace_id}:platform:{request.idempotency_key}"
         )
         fingerprint = digest(stable_configuration(request.model_dump(mode="python")))
         existing = self.store.get_job(identifier)
@@ -552,7 +836,7 @@ class AgentPlatformService:
         waves = self._waves(tasks, limit)
         plan = AgentTeamPlan(
             id=identifier,
-            workspace_id=actor.household_id,
+            workspace_id=actor.workspace_id,
             actor_id=actor.actor_id,
             team_id=team.id,
             team_version=team.version,
@@ -566,7 +850,7 @@ class AgentPlatformService:
         )
         job = Job(
             id=identifier,
-            household_id=actor.household_id,
+            workspace_id=actor.workspace_id,
             created_by=actor.actor_id,
             kind=PLAN_KIND,
             idempotency_key=digest(
@@ -610,7 +894,7 @@ class AgentPlatformService:
             input_digest=fingerprint,
             status=JobStatus.WAITING,
         )
-        with self.store.transaction(actor.household_id):
+        with self.store.transaction(actor.workspace_id):
             saved, created = self.store.create_job(job)
             if created:
                 self.audit.record(
@@ -656,7 +940,7 @@ class AgentPlatformService:
         if (
             job is None
             or job.kind != PLAN_KIND
-            or (job.household_id, job.created_by) != (actor.household_id, actor.actor_id)
+            or (job.workspace_id, job.created_by) != (actor.workspace_id, actor.actor_id)
         ):
             raise NotFoundError("Agent plan not found")
         try:
@@ -674,7 +958,7 @@ class AgentPlatformService:
     def list(self, actor: ActorContext) -> tuple[AgentTeamPlan, ...]:
         self.authorize(actor)
         visible = []
-        for job in self.store.jobs(actor.household_id, actor.actor_id, PLAN_KIND, 0, 100):
+        for job in self.store.jobs(actor.workspace_id, actor.actor_id, PLAN_KIND, 0, 100):
             try:
                 visible.append(self.get(actor, job.id))
             except NotFoundError:

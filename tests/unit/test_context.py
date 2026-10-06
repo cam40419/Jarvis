@@ -56,7 +56,7 @@ def test_memory_budget_and_excerpts_are_explicitly_bounded():
     messages = history(33, "x" * 500)
     candidates = tuple(
         ExplicitMemory(
-            household_id=uuid4(), created_by=uuid4(), subject="Fact", content="🌍" * 1000
+            workspace_id=uuid4(), created_by=uuid4(), subject="Fact", content="🌍" * 1000
         )
         for _ in range(100)
     )
@@ -100,14 +100,14 @@ def test_active_memory_limit_and_retraction_free_capacity():
     service = MemoryService(store, AuditService(store))
     actor = ActorContext(
         actor_id=uuid4(),
-        household_id=uuid4(),
+        workspace_id=uuid4(),
         channel=Channel.API,
         scopes=frozenset({"memories:read", "memories:write"}),
     )
     for i in range(100):
         store.insert_memory(
             ExplicitMemory(
-                household_id=actor.household_id,
+                workspace_id=actor.workspace_id,
                 created_by=actor.actor_id,
                 subject=str(i),
                 content="A fact",

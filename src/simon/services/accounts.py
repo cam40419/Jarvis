@@ -22,7 +22,7 @@ class AccountService:
     def is_admin(self, actor: ActorContext) -> bool:
         return (
             actor.actor_id == self.identity.settings.account_admin_actor_id
-            and self.identity.membership(actor.actor_id, actor.household_id).role == "owner"
+            and self.identity.membership(actor.actor_id, actor.workspace_id).role == "owner"
         )
 
     def authorize(self, actor: ActorContext) -> None:
@@ -66,7 +66,7 @@ class AccountService:
             )
         if account.enrollment_hash:
             self.store.delete_enrollment(account.enrollment_hash)
-        token = self.identity.enroll(account.actor_id, account.household_id)
+        token = self.identity.enroll(account.actor_id, account.workspace_id)
         account = account.model_copy(
             update={"enrollment_hash": token_hash(token), "version": account.version + 1}
         )
@@ -90,17 +90,17 @@ class AccountService:
                 )
             account = ManagedAccount(
                 actor_id=identifier,
-                household_id=uuid5(identifier, "private-workspace"),
+                workspace_id=uuid5(identifier, "private-workspace"),
                 invited_by=actor.actor_id,
                 display_name=request.display_name,
             )
             self.store.put_membership(
                 Membership(
                     actor_id=identifier,
-                    household_id=account.household_id,
+                    workspace_id=account.workspace_id,
                     role="owner",
                     display_name=request.display_name,
-                    household_name=request.display_name + "'s workspace",
+                    workspace_name=request.display_name + "'s workspace",
                 )
             )
             self.store.save_managed_account(account)
@@ -109,7 +109,7 @@ class AccountService:
                 actor=actor,
                 resource_type="user",
                 resource_id=str(identifier),
-                payload={"private_workspace": str(account.household_id)},
+                payload={"private_workspace": str(account.workspace_id)},
             )
             return self.issue(account)
 
@@ -134,7 +134,7 @@ class AccountService:
                 raise InvalidTransitionError("This account has no password to reset.")
             if account.enrollment_hash:
                 self.store.delete_enrollment(account.enrollment_hash)
-            token = self.identity.enroll(identifier, account.household_id)
+            token = self.identity.enroll(identifier, account.workspace_id)
             self.store.save_managed_account(
                 account.model_copy(
                     update={

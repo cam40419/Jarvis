@@ -37,6 +37,7 @@ class ProjectTeam(StrictModel):
 
 class ProjectAutonomy(StrictModel):
     mode: Literal["manual", "scheduled"] = "manual"
+    execution_policy: Literal["review", "bounded"] = "review"
     objective: str = Field(default="", max_length=16000)
     cadence_minutes: int = Field(default=60, ge=5, le=10080)
     max_cycles: int = Field(default=10, ge=1, le=100)
@@ -49,6 +50,8 @@ class ProjectAutonomy(StrictModel):
             not self.objective.strip() or self.model_budget_usd is None
         ):
             raise ValueError("Scheduled work requires a standing objective and finite model budget")
+        if self.execution_policy == "bounded" and self.model_budget_usd is None:
+            raise ValueError("Bounded automatic execution requires a finite model budget")
         return self
 
 
@@ -99,10 +102,23 @@ class ProjectCycle(StrictModel):
     revision: int = Field(default=1, ge=1)
     instruction: str = Field(min_length=1, max_length=16000)
     phase: Literal[
-        "starting", "planning", "ready", "executing", "completed", "blocked", "unknown", "cancelled"
+        "starting",
+        "planning",
+        "ready",
+        "executing",
+        "completed",
+        "blocked",
+        "unknown",
+        "cancelled",
+        "waiting",
     ] = "starting"
     automatic: bool = False
     execution_approved: bool = False
+    # Snapshot authorization and provenance; never inferred from model output.
+    bounded_execution: bool = False
+    target_agent_id: str | None = Field(default=None, max_length=63)
+    request_id: UUID | None = None
+    parent_cycle_id: UUID | None = None
     model_budget_usd: float | None = Field(default=None, gt=0, le=10000, allow_inf_nan=False)
     model_reserved_usd: float = Field(default=0, ge=0, allow_inf_nan=False)
     planning_plan_id: UUID | None = None
@@ -132,6 +148,8 @@ class ProjectWorkState(StrictModel):
     todos: tuple[ProjectTodo, ...] = Field(default=(), max_length=500)
     active_cycle: ProjectCycle | None = None
     last_cycle: ProjectCycle | None = None
+    # A short follow-up such as "continue" must not replace the actual request.
+    last_instruction: str | None = Field(default=None, min_length=1, max_length=16000)
     cycle_count: int = Field(default=0, ge=0)
     scheduled_cycles_used: int = Field(default=0, ge=0)
     activity_count: int = Field(default=0, ge=0)
@@ -148,5 +166,5 @@ class ConfigureProjectWork(StrictModel):
 
 class ProjectWorkControl(StrictModel):
     expected_version: int = Field(ge=0)
-    action: Literal["pause", "resume", "run_ready", "discard", "acknowledge"]
+    action: Literal["pause", "resume", "run_ready", "discard", "acknowledge", "retry"]
     note: str = Field(default="", max_length=2000)

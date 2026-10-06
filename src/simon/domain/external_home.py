@@ -3,7 +3,7 @@
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 
 class HomeChange(BaseModel):
@@ -26,7 +26,7 @@ class HomeStatus(BaseModel):
 class HomeCommand(BaseModel):
     model_config = ConfigDict(extra="allow")
     id: UUID
-    household_id: UUID
+    workspace_id: UUID = Field(validation_alias=AliasChoices("workspace_id", "household_id"))
     actor_id: UUID
     run_id: UUID | None = None
     thread_id: UUID | None = None
