@@ -333,13 +333,14 @@ def source_tools(h, tmp_path, *, privacy="allow_cloud"):
 
 
 def blocked(h):
-    h.decision = {
-        "status": "waiting",
-        "summary": "Grant source file access before assessment.",
-        "tasks": [],
-    }
+    # An invalid plan blocks execution. A valid waiting decision instead creates
+    # a durable question and leaves unrelated project work available.
+    h.decision["tasks"][0]["agent_id"] = "unavailable-agent"
     state = planning(h)
     assert state.last_cycle.phase == "blocked" and state.autonomy.paused
+    run = h.runs.get(h.actor, state.last_cycle.planning_run_id)
+    assert run.tasks[0].error_code == "invalid_json_output"
+    assert state.last_cycle.execution_plan_id is None
     return state
 
 
@@ -465,12 +466,17 @@ def test_invalid_plan_shape_is_known_blocked_with_actionable_summary(tmp_path, d
     assert "Retry planning" in state.last_cycle.error
 
 
-def test_long_waiting_summary_does_not_turn_known_blocker_into_unknown(tmp_path):
+def test_long_waiting_summary_preserves_durable_question_without_blocking_project(tmp_path):
     h = harness(tmp_path)
     h.decision = {"status": "waiting", "summary": "A" * 4000, "tasks": []}
     state = planning(h)
-    assert state.last_cycle.phase == "blocked"
+    assert state.last_cycle.phase == "waiting"
     assert len(state.last_cycle.error) == 2000
+    assert state.active_cycle is None and not state.autonomy.paused
+    assert state.blocked_reasons == ()
+    wait = h.coordinator.continuity.snapshot(h.actor, h.project.id)["waits"][0]
+    assert wait["question"] == state.last_cycle.error
+    assert not h.coordinator.retry_readiness(h.actor, h.project.id)["can_retry"]
 
 
 def test_retry_replans_original_request_with_current_grants_and_single_version_fence(tmp_path):

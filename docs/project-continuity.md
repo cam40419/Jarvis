@@ -87,16 +87,16 @@ outside projects and inbox digests remain roadmap work.
 All routes are under `/v1/projects/{project_id}` and use normal authentication,
 project ownership/visibility, CSRF protection and current permissions.
 
-| Route | Purpose |
-| --- | --- |
-| `GET /continuity` | Queue, questions, schedules and safe continuation readiness |
-| `POST /requests` | Save a follow-up, optionally targeting one team member |
-| `POST /requests/{id}/cancel` or `/retry` | Version-checked queue controls |
-| `POST /waits` | Save a question and its continuation instruction |
-| `POST /waits/{id}/reply` or `/cancel` | Resolve a question without erasing it |
-| `POST /schedules` | Create a bounded calendar rule |
-| `PATCH /schedules/{id}` | Version-checked pause/resume |
-| `POST /continue` | Continue a safe settled execution using current project version |
+| Route                                    | Purpose                                                         |
+| ---------------------------------------- | --------------------------------------------------------------- |
+| `GET /continuity`                        | Queue, questions, schedules and safe continuation readiness     |
+| `POST /requests`                         | Save a follow-up, optionally targeting one team member          |
+| `POST /requests/{id}/cancel` or `/retry` | Version-checked queue controls                                  |
+| `POST /waits`                            | Save a question and its continuation instruction                |
+| `POST /waits/{id}/reply` or `/cancel`    | Resolve a question without erasing it                           |
+| `POST /schedules`                        | Create a bounded calendar rule                                  |
+| `PATCH /schedules/{id}`                  | Version-checked pause/resume                                    |
+| `POST /continue`                         | Continue a safe settled execution using current project version |
 
 `GET /command` includes the same continuity snapshot for the project workspace.
 Permission/team changes remain explicit configuration changes; autosaving ordinary

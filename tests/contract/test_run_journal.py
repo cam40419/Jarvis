@@ -2,14 +2,17 @@
 
 import hashlib
 import json
-from uuid import uuid4
+from uuid import uuid4, uuid5
 
 import pytest
 
+from simon.domain.agent_runs import StartAgentRun
 from simon.domain.errors import AuthorizationError, InvalidTransitionError, NotFoundError
 from simon.domain.models import JobStatus
 from simon.services.project_outputs import ProjectOutputService
 from simon.services.run_journal import RunJournalService
+from tests.contract.test_agent_run_store import RecordingModel
+from tests.contract.test_agent_run_store import run_fixture as run_fixture
 from tests.contract.test_project_outputs import create_output, output_setup
 
 
@@ -45,6 +48,61 @@ def append(h, run, task, executor, kind, step, **payload):
         step=step,
         payload=payload,
     )
+
+
+@pytest.mark.parametrize("legacy_first_run", [False, True])
+def test_repeated_compiled_plan_keeps_each_runs_journal(run_fixture, monkeypatch, legacy_first_run):
+    h = run_fixture
+    task_id = h.plan.tasks[0].task_id
+    recorded = []
+
+    def old_identifier(namespace, name):
+        prefix = f"{task_id}:"
+        return (
+            uuid5(task_id, name.removeprefix(prefix))
+            if name.startswith(prefix)
+            else uuid5(namespace, name)
+        )
+
+    for attempt in range(2):
+        queued = h.runs.start(
+            h.actor, h.plan.id, StartAgentRun(idempotency_key=f"repeat-journal-{attempt}")
+        )
+        dispatcher = h.dispatcher(h.runs, RecordingModel())
+        with monkeypatch.context() as patch:
+            if legacy_first_run and attempt == 0:
+                patch.setattr("simon.services.run_journal.uuid5", old_identifier)
+            completed = dispatcher.execute(queued.id)
+        assert completed.status == JobStatus.SUCCEEDED
+        entries = dispatcher.journal._entries(h.actor, completed)
+        assert entries and all(entry.run_id == completed.id for entry in entries)
+        recorded.append((completed, entries))
+    assert {entry.id for entry in recorded[0][1]}.isdisjoint(entry.id for entry in recorded[1][1])
+    for run, entries in recorded:
+        assert RunJournalService(h.reconstruct())._entries(h.actor, run) == entries
+
+
+def test_legacy_journal_same_run_retry_keeps_original_identity(store, tmp_path, monkeypatch):
+    h = output_setup(store, tmp_path)
+    run, task, executor = running(h)
+    legacy_id = uuid5(task.task_id, "journal:candidate:1")
+    original_uuid5 = uuid5
+
+    def legacy_identifier(namespace, name):
+        if name == f"{task.task_id}:journal:candidate:1":
+            return legacy_id
+        return original_uuid5(namespace, name)
+
+    with monkeypatch.context() as patch:
+        patch.setattr("simon.services.run_journal.uuid5", legacy_identifier)
+        first = append(h, run, task, executor, "candidate", 1, text="Preserved draft")
+    assert first.id == legacy_id
+    assert append(h, run, task, executor, "candidate", 1, text="Preserved draft") == first
+    independent = RunJournalService(h.runs)
+    assert independent.list_run(h.actor, h.projects[0].id, run.id) == (first,)
+    assert independent.artifacts.read(first.artifact) == b"Preserved draft"
+    with pytest.raises(InvalidTransitionError, match="different content"):
+        append(h, run, task, executor, "candidate", 1, text="Changed draft")
 
 
 def test_candidate_saved_before_terminal_result_and_readable_after_restart(store, tmp_path):

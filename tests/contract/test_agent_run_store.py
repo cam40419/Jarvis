@@ -183,6 +183,7 @@ def test_review_acceptance_roundtrip_and_replacement(run_fixture: RunFixture) ->
         )
         completed = fixture.dispatcher(fixture.runs, RecordingModel()).execute(queued.id)
         assert completed is not None
+        assert completed.status == JobStatus.SUCCEEDED
         artifact = completed.tasks[0].artifacts[0]
         review = service.record(
             fixture.actor,

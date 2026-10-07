@@ -150,9 +150,11 @@ by that comparison. Composition could clarify this boundary; it is not a confirm
 | Legacy configuration aliases                          | Remove after installations have upgraded and historical snapshots have a supported migration path. Removing aliases now would break existing saved records.                                                                                                                                                                                                                                            |
 | One-off migration/backfill/cleanup scripts            | Consolidate completed operations into an operator-only maintenance area with usage dates and prerequisites. They are candidates for later removal, not proven dead code; some are needed for recovery.                                                                                                                                                                                                 |
 
-The legacy `start-server.ps1` wrapper duplicates configured startup and embeds domain,
-database and identity defaults. Consolidate on the configured launcher after updating
-installation paths and preserving upgrade compatibility.
+The obsolete `start-server.ps1` wrapper was removed during the October 7 core
+implementation. It embedded deployment-specific domain, database and identity defaults
+and forced a paid model provider. Repository startup paths use
+`scripts/start-configured-server.ps1`; no repository callers required migration.
+Use the configured launcher for any externally maintained startup command.
 
 No optional browser, desktop, CAD, Adobe, or connector capability was classified as dead
 merely because it is not needed by the first hosted deployment. Exclude these dependencies

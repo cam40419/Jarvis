@@ -349,11 +349,15 @@ class RunJournalService:
         payload: dict[str, Any],
         artifact: Artifact | None = None,
     ) -> JournalEntry:
-        identifier = uuid5(task.task_id, f"journal:{kind}:{step}")
+        key = f"journal:{kind}:{step}"
         validate_writer()
         if kind == "evidence":
             assert artifact is not None
-            identifier = uuid5(task.task_id, f"journal:evidence:{artifact.id}")
+            key = f"journal:evidence:{artifact.id}"
+        # Compiled plans retain their task IDs when executed again. Journal
+        # identity must distinguish those runs while keeping retries idempotent.
+        identifier = uuid5(run_id, f"{task.task_id}:{key}")
+        legacy_identifier = uuid5(task.task_id, key)
         clean, redacted = self._sanitize(payload)
         title, title_redacted = self._sanitize(
             (task.objective.strip().splitlines() or [task.id])[0]
@@ -396,8 +400,15 @@ class RunJournalService:
         with self.store.transaction(actor.workspace_id):
             run = validate_writer()
             existing = self.store.get_job(identifier)
+            if existing is None:
+                legacy = self.store.get_job(legacy_identifier)
+                entry = legacy.input.get("entry") if legacy else None
+                if isinstance(entry, dict) and entry.get("run_id") == str(run_id):
+                    # Preserve prior IDs for same-run retries. A different run
+                    # may share the old ID but must never inherit its record.
+                    existing = legacy
             if existing:
-                _, saved = self._record(actor, run, identifier)
+                _, saved = self._record(actor, run, existing.id)
                 if saved.artifact != artifact:
                     raise InvalidTransitionError("Execution record already has different content")
                 return saved

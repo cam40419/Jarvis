@@ -134,9 +134,7 @@ def test_legacy_extension_placeholders_do_not_advertise_installed_integrations(s
 
     service, platform, requests, _handle = setup
     templates = builtin_tool_templates()
-    legacy = platform.manifest.model_copy(
-        update={"tools": (*platform.manifest.tools, *templates)}
-    )
+    legacy = platform.manifest.model_copy(update={"tools": (*platform.manifest.tools, *templates)})
     updated = AgentPlatformService(
         service.store,
         legacy,

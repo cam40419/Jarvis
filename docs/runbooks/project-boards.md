@@ -55,16 +55,16 @@ account or organize an existing company workspace. The example is disabled.
 In **Work > Agents** or a project's member configuration, filter skills by **ClickUp**.
 Grant each operation independently:
 
-| Skill | Operation |
-| --- | --- |
-| Read the linked ClickUp board | Inspect the saved binding, mappings and sync state. |
-| List ClickUp tasks | Read a bounded page from the linked List. |
-| Read a ClickUp task | Read one task after verifying its List. |
-| Publish project tasks to ClickUp | Publish existing local todos and their dependencies. |
-| Import ClickUp tasks | Import selected tasks while no project cycle is active. |
-| Synchronize the ClickUp board | Pull a bounded batch and push a permitted update while idle. |
-| Sync task status to ClickUp | Push one saved execution status when status sync is enabled. |
-| Post project progress to ClickUp | Post one saved progress update when comments are enabled. |
+| Skill                            | Operation                                                    |
+| -------------------------------- | ------------------------------------------------------------ |
+| Read the linked ClickUp board    | Inspect the saved binding, mappings and sync state.          |
+| List ClickUp tasks               | Read a bounded page from the linked List.                    |
+| Read a ClickUp task              | Read one task after verifying its List.                      |
+| Publish project tasks to ClickUp | Publish existing local todos and their dependencies.         |
+| Import ClickUp tasks             | Import selected tasks while no project cycle is active.      |
+| Synchronize the ClickUp board    | Pull a bounded batch and push a permitted update while idle. |
+| Sync task status to ClickUp      | Push one saved execution status when status sync is enabled. |
+| Post project progress to ClickUp | Post one saved progress update when comments are enabled.    |
 
 Tools use the calling run's project and cannot select another project's board. They
 recheck the run's current permissions before writes and use the bridge's durable

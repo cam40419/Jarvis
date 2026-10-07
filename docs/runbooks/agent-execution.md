@@ -165,6 +165,8 @@ Content-Type: application/json
 
 Normal authentication, Origin and CSRF headers are required for mutations. This explicit start can incur provider/tool costs when the dispatcher processes it. A successful response means queued, not completed. Reusing the same key and settings returns the same run; changing settings with that key returns a conflict. A new key deliberately creates another run and a new execution attempt/workspace for each task.
 
+Execution journal entries are scoped to both run and task, so repeated executions of a compiled plan retain separate records; historical entries remain readable and retries preserve their original IDs only within the same run.
+
 | Endpoint                                                   | Purpose                                                                           |
 | ---------------------------------------------------------- | --------------------------------------------------------------------------------- |
 | `GET /v1/agent-platform/runs`                              | List the caller's visible runs                                                    |
