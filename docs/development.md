@@ -82,6 +82,8 @@ files does not create a new identity solely because the clock or input order cha
 `tests/conftest.py` applies isolated runtime settings in `pytest_configure`, before test modules can import the application. Runtime app imports in fixtures occur after that setup. Keep this ordering: an autouse fixture alone runs too late to protect import-time application construction from operator configuration.
 
 PostgreSQL tests require an explicitly configured disposable database ending in `_test`.
+Alternatively, the [isolated database runner](runbooks/database-testing.md) creates and
+stops its own local cluster using a supplied PostgreSQL installation.
 Browser tests require Playwright and `SIMON_BROWSER_TESTS=1`; optionally select installed
 Edge with `SIMON_BROWSER_CHANNEL=msedge`. Run live/paid checks only with explicit opt-in.
 Container smoke tests require their declared worker images. Skipped integration tests

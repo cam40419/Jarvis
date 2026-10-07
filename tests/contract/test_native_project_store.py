@@ -2,22 +2,27 @@
 
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
+from threading import Barrier
 from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
 
-from simon.domain.errors import InvalidTransitionError
+from simon.domain.errors import AuthorizationError, InvalidTransitionError
 from simon.domain.identity import Membership
 from simon.domain.models import ActorContext, Channel, utc_now
 from simon.domain.native_projects import (
+    CreateNativeTask,
     NativeProject,
     NativeProjectMember,
     NativeTask,
     TaskAssignment,
+    VersionedNativeCommand,
 )
 from simon.services.audit import AuditService
 from simon.services.canonical import digest
+from simon.services.identity import IDENTITY_LOCK, ROLE_SCOPES
+from simon.services.native_projects import NativeProjectService
 
 
 def seed_native_projects(store):
@@ -412,3 +417,119 @@ def test_database_foreign_keys_reject_cross_scope_rows(postgres_url):
         assert store.native_task(h.workspace, h.first.id, task.id) == task
     finally:
         store.close()
+
+
+@pytest.mark.postgres
+def test_separate_database_connections_claim_one_task_once(postgres_url):
+    from simon.adapters.postgres import PostgresStore
+
+    stores = [PostgresStore(postgres_url) for _ in range(3)]
+    try:
+        store, first_worker, second_worker = stores
+        h = seed_native_projects(store)
+        store.put_native_project_member(member_record(h))
+        actors = (
+            ActorContext(
+                workspace_id=h.workspace,
+                actor_id=actor_id,
+                channel=Channel.API,
+                scopes=ROLE_SCOPES[role],
+            )
+            for actor_id, role in ((h.owner, "owner"), (h.member, "member"))
+        )
+        owner, colleague = actors
+        service = NativeProjectService(store)
+        task = service.create_task(
+            owner,
+            h.first.id,
+            CreateNativeTask(title="One shared item", idempotency_key="postgres-claim-task"),
+        )
+        before_audit = len(store.audit_events(h.workspace))
+        before_outbox = len(store.outbox_events())
+        rendezvous = Barrier(2)
+
+        def claim(worker, actor):
+            rendezvous.wait(timeout=5)
+            try:
+                return NativeProjectService(worker).claim_task(
+                    actor,
+                    h.first.id,
+                    task.id,
+                    VersionedNativeCommand(
+                        expected_version=1, idempotency_key=f"claim-{actor.actor_id}"
+                    ),
+                )
+            except InvalidTransitionError:
+                return None
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            futures = (
+                executor.submit(claim, first_worker, owner),
+                executor.submit(claim, second_worker, colleague),
+            )
+            results = [future.result(timeout=15) for future in futures]
+        winners = [result for result in results if result is not None]
+        assert len(winners) == 1
+        assert winners[0].version == 2 and winners[0].status == "in_progress"
+        assert service.get_task(owner, h.first.id, task.id) == winners[0]
+        assert len(store.audit_events(h.workspace)) == before_audit + 1
+        assert len(store.outbox_events()) == before_outbox + 1
+    finally:
+        for store in stores:
+            store.close()
+
+
+@pytest.mark.postgres
+def test_simultaneous_claim_and_workspace_revocation_leave_no_revoked_assignee(postgres_url):
+    from simon.adapters.postgres import PostgresStore
+
+    stores = [PostgresStore(postgres_url) for _ in range(3)]
+    try:
+        store, claimant, revoker = stores
+        h = seed_native_projects(store)
+        store.put_native_project_member(member_record(h))
+        task = task_record(h)
+        store.insert_native_task(task)
+        actor = ActorContext(
+            actor_id=h.member,
+            workspace_id=h.workspace,
+            channel=Channel.API,
+            scopes=ROLE_SCOPES["member"],
+        )
+        rendezvous = Barrier(2)
+
+        def revoke():
+            rendezvous.wait(timeout=5)
+            # This is the same lock order as the identity administration command.
+            with revoker.transaction(IDENTITY_LOCK):
+                revoker.delete_membership(h.member, h.workspace)
+
+        def claim():
+            rendezvous.wait(timeout=5)
+            try:
+                return NativeProjectService(claimant).claim_task(
+                    actor,
+                    h.first.id,
+                    task.id,
+                    VersionedNativeCommand(expected_version=1, idempotency_key="racing-claim"),
+                )
+            except AuthorizationError:
+                return None
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            revoked = executor.submit(revoke)
+            claimed = executor.submit(claim)
+            revoked.result(timeout=15)
+            result = claimed.result(timeout=15)
+        saved = store.native_task(h.workspace, h.first.id, task.id)
+        assert saved.assignment == TaskAssignment() and saved.status == "todo"
+        assert saved.version == (3 if result is not None else 1)
+        assert store.memberships(h.member) == ()
+        assert store.native_project_member(h.workspace, h.first.id, h.member) is None
+        assert store.native_project(h.workspace, h.first.id).version == h.first.version + 1
+        assert len(store.audit_events(h.workspace)) == (1 if result is not None else 0)
+        with pytest.raises(AuthorizationError):
+            NativeProjectService(claimant).get_task(actor, h.first.id, task.id)
+    finally:
+        for store in stores:
+            store.close()

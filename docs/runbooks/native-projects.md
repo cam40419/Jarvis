@@ -41,6 +41,8 @@ All routes require the existing session cookie; mutations also require the same-
 
 Every mutation carries an `idempotency_key`. Updates, membership edits and claims also carry `expected_version`. Membership changes use the project version and advance it. Task edits advance the task version. A stale version or reused key with changed input returns HTTP 409; invisible project/task identifiers return 404. List pages are bounded to 100 projects/tasks. A replay returns the original command receipt; use GET to retrieve the latest state.
 
+Native project, membership and task timestamps serialize in UTC. Database connection timezone settings cannot change the JSON representation between the original write, a later read and a saved receipt.
+
 Task assignments currently support `{"kind":"pool"}` or `{"kind":"human","actor_id":"..."}`. Agent assignment is rejected until a scoped agent-principal registry and execution authority exist. A pool claim assigns the caller and changes `todo` to `in_progress`; concurrent claims cannot both succeed. This is board ownership, not a worker execution lease.
 
 Statuses are `todo`, `in_progress`, `in_review`, `blocked`, `done` and `cancelled`. A manual status change does not certify an artifact, approve spending or authorize publication. Those contracts belong to later core work. Archived projects remain readable and reject new board work until restored.
@@ -60,8 +62,8 @@ Audit records identify the actor, project/task, resulting version and state; mem
 .\venv\Scripts\python.exe -m pytest tests/contract/test_native_project_store.py -q -m postgres
 ```
 
-The PostgreSQL command requires an explicitly supplied disposable `SIMON_TEST_DATABASE_URL` whose database name ends in `_test`. It must not point at the deployed database. Contract tests cover persistence through a new adapter instance, raw SQL foreign-key failures, concurrent updates, rollback and workspace revocation.
+The direct PostgreSQL pytest command requires an explicitly supplied disposable `SIMON_TEST_DATABASE_URL` whose database name ends in `_test`. Alternatively, use the [isolated database runner](database-testing.md) to create, test and stop a fresh local cluster. Contract tests cover persistence through a new adapter instance, raw SQL foreign-key failures, concurrent updates, rollback and workspace revocation.
 
-Local memory/service/API checks cover shared work, two-workspace isolation, guest access, CSRF, current-role revocation, stale edits, retry conflicts and simultaneous claims. The local Docker engine was unavailable during this implementation, so PostgreSQL runtime acceptance remains outstanding. CI's disposable PostgreSQL service is configured to exercise those cases; no local skip establishes that result.
+Local memory/service/API checks cover shared work, two-workspace isolation, guest access, CSRF, current-role revocation, stale edits, retry conflicts and simultaneous claims. Native PostgreSQL acceptance passed on a portable PostgreSQL 16.15 server with pgvector 0.8.6. It additionally covers fresh migration/replay, upgrade preservation of legacy records, failed-DDL rollback/retry, persisted sessions and receipts, independent app/store instances, claim/revocation races and non-UTC database sessions. Docker remains unavailable locally. PostgreSQL 17 is still the CI/container target; its actual run remains a separate validation requirement.
 
 The test harness now establishes isolated settings before test-module collection. Optional browser, PostgreSQL and live-model checks remain separately selected. No paid model calls, new business integrations or deployment changes are part of this slice.

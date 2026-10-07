@@ -7,6 +7,12 @@ Migration `../migrations/0028_workspace_identity.sql` renames the legacy tenant 
 columns to workspaces without changing their UUIDs. Current application identity uses
 `workspace_id`; the historical reference below retains its original spelling.
 
+Migration `../migrations/0030_native_projects.sql` adds shared native projects,
+project membership and tasks. Its composite foreign keys keep project membership
+and assignments within the same workspace and project. These records do not replace
+or backfill legacy personal project memories. See the
+[native project contract](../../docs/runbooks/native-projects.md).
+
 Applied migrations are immutable: their recorded checksums must continue to match.
 The original foundation migration remains byte-compatible with the database initialized
 before the identity phase. Add a new numbered migration for schema changes.

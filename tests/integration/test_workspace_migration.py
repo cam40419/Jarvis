@@ -1,12 +1,15 @@
 from uuid import uuid4
 
 import psycopg
+import pytest
 from psycopg import sql
 from psycopg.conninfo import make_conninfo
 from psycopg.types.json import Jsonb
 
 from simon.adapters.postgres import PostgresStore
 from simon.migrate import migrate, migration_directory
+
+pytestmark = pytest.mark.postgres
 
 
 def test_upgrade_preserves_identity_sessions_snapshots_and_audit(postgres_base_url, tmp_path):

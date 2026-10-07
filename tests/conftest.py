@@ -134,10 +134,17 @@ def store(request: pytest.FixtureRequest):
     from simon.adapters.memory import InMemoryStore
 
     if request.param == "memory":
-        return InMemoryStore()
+        yield InMemoryStore()
+        return
     from simon.adapters.postgres import PostgresStore
     from simon.seed import seed_development_identity
 
     url = request.getfixturevalue("postgres_url")
     seed_development_identity(url)
-    return PostgresStore(url)
+    # Exercise the production pool path without opening a new Windows backend
+    # process for every assertion. Release the pool before dropping its schema.
+    store = PostgresStore(url, pool_size=4)
+    try:
+        yield store
+    finally:
+        store.close()
