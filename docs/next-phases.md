@@ -1,8 +1,8 @@
 # Simon roadmap
 
-Updated October 2, 2026. This is the authoritative delivery order for Simon. Detailed
+Updated October 7, 2026. This is the authoritative delivery order for Simon. Detailed
 architecture documents explain design choices; runbooks describe implemented behavior.
-The remaining subsystem plans provide design context and do not define the current backlog.
+The core-first sequence below supersedes the earlier private-pilot ordering. Existing implementation summaries and gaps remain evidence, not a second competing backlog.
 
 The [project continuity roadmap](project-roadmap.md) records the October 2 requirement
 for automatic saving of all project context and outputs, peer-system research, durable
@@ -10,19 +10,42 @@ response waits, and team/agent schedules. The first integrated persistence, team
 workspace-record, continuity and calendar wave is implemented; the roadmap distinguishes
 its tested boundaries from the remaining company-scale autonomy work.
 
-Simon is a local workspace for delegating outcomes to configurable teams. The next
-milestone is **reviewed project delivery**: submit a brief, receive validated files,
-request a revision, recover an interruption, and inspect the accumulated cost through
-one project experience.
+Simon is being designed for public SaaS, starting with local development and later hosted operation with optional local workers. The next milestone is **an accepted platform core**: create and steer a project/team, manage human and agent work, review versioned artifacts, enforce resource/model limits and recover interruptions. Real business tools follow individually after that gate.
 
-## Product boundaries
+**The AI platform is the primary deliverable. Stdout is its pilot and evaluation project.** Use the supplied brand archive to specify and test reusable platform behavior. Brand strategy, collection development and company operations become work performed through accepted platform capabilities; resolving those business decisions is not a prerequisite for architecture or core development. The prepared private review package is input evidence, not proof that Simon can produce it autonomously.
+
+## Confirmed direction and current delivery order
+
+The owner selected eventual public SaaS with configurable full administration; local development first and primarily hosted operation later; optional local workers; compute/storage subscription tiers; full project-board operations for both agents and humans; the stdout clothing-brand pilot; and interactive creative reviews configured per project. Future SaaS keeps a free default model profile with project paid API keys and cost limits. Paid OpenAI is allowed for stdout after secure key enrollment and an explicit cap.
+
+No meaningful Simon projects require migration, so a clean rebuild is permitted where justified. The separate stdout brand archive is valuable existing work: 218 source files remain preserved unchanged in `Downloads/stdout_context`. Private intake inventories, product details and review drafts stay outside committed platform documentation.
+
+**Complete and test the initial core, then implement and accept one business tool at a time.** Model transport, generic files and reference/test tools are necessary core infrastructure. They do not imply implementing all business adapters during the foundation build.
+
+| Order | Work                                                                                                  | Acceptance reference                                                                                                                      |
+| ----- | ----------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| 1     | PLAN-01 platform workflow contracts, evaluation scenarios and core backlog using stdout inputs        | [Pilot charter](architecture/clothing-brand-pilot-charter.md); platform acceptance does not depend on settling brand direction.           |
+| 2     | PLAN-02 board/hosting/workflow decisions and clean-build versus reuse prototype                       | [Platform plan](architecture/autonomous-work-platform-plan.md) and [hosting comparison](architecture/hosting-and-capacity-plan.md).       |
+| 3     | SaaS tenants/admin, projects/boards, model registry/keys/budgets, artifacts and entitlement contracts | Shared isolated state and enforceable human/agent/resource authority.                                                                     |
+| 4     | Core intake/staffing/execution/review UI, waits/schedules, optional runner and reference connector    | Actual workflows with deterministic fixtures, free/local policy tests and selected capped inference.                                      |
+| 5     | Security, concurrency, failure recovery, restoration, usability and model evaluation                  | All mandatory [core acceptance scenarios](architecture/clothing-brand-pilot-charter.md#core-acceptance-matrix) pass with recorded limits. |
+| 6     | Select, implement, test and accept one real tool; repeat based on clothing-pilot needs                | [Integration work packages](architecture/integration-delivery-plan.md); do not expose unaccepted capabilities as production-ready.        |
+| 7     | Hosted beta and commercial release, including billing as its own integration                          | Hosted capacity, tenant lifecycle, operations and supported tool acceptance.                                                              |
+
+Board provider, exact host/model and subscription prices remain design choices. Agents and humans having full board access is confirmed; it does not require a particular external tracker or give agents billing/publishing authority. Native boards are recommended for comparison. The source assessment favors retaining useful contracts and tests, while the implementation and schema can be replaced without mandatory historical backfill.
+
+The prior delivery estimate mixed several tools with a private pilot and does not estimate this new scope. Re-estimate from the core backlog. Product decisions above supersede any conflicting sequencing statement in older plans or the implementation gap inventory below.
+
+Immediate planning work: finish the intake-to-review workflow and its entity/state/permission contracts, define expected results and failure cases for the core evaluation set, and resolve the board/workflow/model/storage architecture choices. Use those decisions to create a dependency-ordered implementation backlog and a narrow end-to-end platform prototype. The private Stdout task register supplies candidate business work; this roadmap owns platform engineering priority.
+
+## Current implementation boundaries
 
 - Simon owns conversations, goals, project execution, team configuration, permissions,
   findings, deliverables, and the review experience. Standalone work and personal projects
   must remain usable without company or home configuration.
 - Connected project boards own their business task fields and human collaboration.
   The implemented ClickUp bridge maintains a bounded local execution mirror. Avoid
-  creating a competing company task authority inside Simon.
+  running two simultaneous task authorities for an existing binding. The replacement can use native Simon boards; select one canonical authority per new project after the comparison.
 - Managed files and artifacts remain local by default. New worker context, responses,
   evidence and drafts are journaled automatically for retained history. The Files view
   and Drive replication expose actual deliverables with descriptive filenames; answers
@@ -78,20 +101,24 @@ installation before marking them complete; historical test totals are not curren
   provider accounts, and scoped grants. A catalog entry or configuration check is not a
   successful live integration test.
 
-## Next application work
+## Existing gaps to map into core and individual tool work
+
+The sections below preserve the earlier implementation gap inventory. The delivery order above owns priority. Core behavior is tested with reference tools; specialized production validators and provider workflows are accepted later with their individual tool.
 
 ### 1 Automatic project persistence and reviewed outputs
 
-The first priority is the owner's October 2 requirement: project context, drafts, evidence
-and outputs are always saved and discoverable. Successful answers already have local
-artifact storage, but optional project-file copying, memory-only review candidates and
-separate evidence/cloud registries do not meet the complete requirement.
+The owner's October 2 requirement is that project context, drafts, evidence and outputs
+are always saved and discoverable. The first implementation wave now journals candidates
+before review and retains partial responses and evidence. Remaining work is unified
+authorized discovery, complete artifact/continuation records and stronger file inspection;
+optional editable copies are not the initial persistence step.
 
-- Persist candidates before review and enough context to continue unfinished work.
-- Register drafts, outputs and evidence in one authorized project inventory with stable
+- Preserve candidate-before-review journaling and add any missing continuation records.
+- Unify discovery of drafts, outputs and evidence through an authorized project inventory with stable
   links, meaningful names, source references and immutable versions.
-- Replace Save-to-project with automatic project ownership; retain explicit export and
-  deliberate editing actions. Backfill existing records without rewriting source bytes.
+- Preserve automatic history ownership and explicit export/editable-copy actions.
+  If old data is retained, backfill its inventory without rewriting source bytes or turning every
+  saved response into a deliverable file.
 - Keep local commitment independent of cloud availability; connect the unified registry
   to replication and complete backups as those operations are implemented.
 
@@ -191,38 +218,38 @@ accounted for or explicitly blocked by the configured spending policy.
 Acceptance: a supplier/reply or comparable process survives downtime, waits without model
 polling, resumes on the correct event, and never repeats an uncertain commitment.
 
-## Pilot workflows and measures
+## Pilot and measures
 
-Use these two workflows to drive the next milestone rather than implementing every target
-adapter at once:
+The selected pilot is **stdout**. Its archive and eventual identity, product, design and operating work provide realistic inputs for evaluating Simon. The [pilot charter](architecture/clothing-brand-pilot-charter.md) maps these inputs to reusable platform capabilities and acceptance evidence. The immediate review concerns the platform's intake, team creation, boards, visibility, model controls, output quality and recovery. Brand reviews occur within the pilot as the corresponding platform capabilities become ready. Source-art rules remain explicitly **OPEN**; unresolved brand choices should appear as human tasks and persisted waits, without blocking independent platform work.
 
-1. Research to decision package: sourced report, comparison spreadsheet, checked references
-   and calculations, recommendation, and unresolved owner decisions.
-2. Engineering brief to reviewed artifact package: editable sources, exports, previews,
-   validation reports, actual-file review, and a follow-up revision from a changed requirement.
+Use sanitized representative fixtures and generic reviewed artifacts to test the core. Intake must surface conflicting palette guidance and duplicate style identifiers without silently overwriting source evidence. Reviews must preserve exact artifact versions and unresolved decisions. Project schemas, staffing and approval mechanisms must also work for other company and task types; apparel details belong in project configuration and later tools. After core acceptance, choose one real tool at a time and validate it on the brand's actual work. Research, editable documents, costing spreadsheets, creative generation, apparel design, Git/code delivery and website operations are separate work packages.
 
-Measure first-pass acceptance, owner correction time, cost per accepted deliverable, artifact
-retrieval success, recovery success, and interactive latency under background load. Establish
-baselines before setting numerical targets or increasing concurrency.
+Git and local generator development are concrete pilot requirements after the core gate. Generator acceptance must reproduce approved files from the same versioned code, assets, parameters and seed, distinguish seed uniqueness from visual uniqueness, and retain curation and production evidence. These are future tool checks, not results established by intake or core fixtures. Website development and management likewise require reviewed repository changes and separate deployment/commerce acceptance.
 
-## Deferred expansion
+Measure first-pass acceptance, owner correction time, cost per accepted deliverable, artifact retrieval, recovery, tenant isolation and interactive latency under background load. Establish hardware/workload baselines before claiming capacity or setting subscription prices.
 
-| Work                                                                     | Revisit when                                                                                                 |
-| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
-| Additional board providers and company administration                    | A real organization cannot use the existing board boundary or needs a self-hosted provider.                  |
-| Broad authenticated browser and desktop automation                       | A selected workflow lacks a suitable API or scriptable adapter and has a defined validation contract.        |
-| More CAD/PCB applications and video generation                           | The pilot requires a concrete missing output or editing operation.                                           |
-| Remote Git publishing and richer coding runtimes                         | A repository workflow needs reviewed branch delivery beyond the implemented local Git and GitHub operations. |
-| Distributed runners, larger seat pools, and alternative storage backends | Measured resource pressure, placement, or artifact volume justifies the operational cost.                    |
-| Local inference infrastructure                                           | Representative evaluations demonstrate a quality, privacy, availability, or total-cost benefit.              |
-| General checkout and interactive phone agents                            | A specific provider/workflow and exact authorization/reconciliation contract are selected.                   |
-| Broader sharing, retention, and semantic memory extraction               | Explicit scope, deletion/retention semantics, and retrieval-quality acceptance tests are defined.            |
+## Expansion conditions
+
+Tenant/admin, model/local-worker and entitlement contracts now belong to the core. The table concerns additional production integrations, dedicated infrastructure and scale beyond that tested foundation.
+
+| Work                                                                  | Revisit when                                                                                                                                          |
+| --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Additional external board providers and business administration tools | A real organization cannot use the existing board boundary or needs a self-hosted provider.                                                           |
+| Broad authenticated browser and desktop automation                    | A selected workflow lacks a suitable API or scriptable adapter and has a defined validation contract.                                                 |
+| More CAD/PCB applications and video generation                        | The pilot requires a concrete missing output or editing operation.                                                                                    |
+| Remote Git publishing and richer coding runtimes                      | The stdout generator and website now supply concrete use cases; accept one Git/code package after the core, then expand from measured workflow needs. |
+| Larger distributed runner fleets, desktop seats, and storage backends | Measured resource pressure, placement, or artifact volume justifies the operational cost.                                                             |
+| Dedicated local GPU purchases and inference optimization              | Representative evaluations demonstrate a quality, privacy, availability, or total-cost benefit.                                                       |
+| General checkout and interactive phone agents                         | A specific provider/workflow and exact authorization/reconciliation contract are selected.                                                            |
+| Broader sharing, retention, and semantic memory extraction            | Explicit scope, deletion/retention semantics, and retrieval-quality acceptance tests are defined.                                                     |
 
 ## Document ownership and maintenance
 
 This roadmap owns priority and status. Runbooks own setup, operations, and current limits.
-The [platform design](architecture/multi-agent-company-platform-plan.md) remains the detailed
-target architecture; its original delivery table is design history, not a second backlog.
+The [October 7 platform proposal](architecture/autonomous-work-platform-plan.md) is the
+current proposed target and decision register. The
+[earlier platform design](architecture/multi-agent-company-platform-plan.md) supplies
+compatible background; its original delivery table is design history, not a second backlog.
 The [repository boundary](architecture/repository-separation.md) supersedes combined-system
 Home/Workshop plans.
 

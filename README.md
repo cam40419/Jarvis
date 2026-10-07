@@ -47,6 +47,10 @@ smoke run, or follow [identity setup](docs/runbooks/identity.md) and
 ## Other guides
 
 - [Current roadmap and delivery order](docs/next-phases.md)
+- [Autonomous work platform proposal](docs/architecture/autonomous-work-platform-plan.md)
+- [Integration and deliverable production plan](docs/architecture/integration-delivery-plan.md)
+- [Clothing-brand pilot and core acceptance](docs/architecture/clothing-brand-pilot-charter.md)
+- [Hosting costs and subscription capacity](docs/architecture/hosting-and-capacity-plan.md)
 - [Development standards and formatting](docs/development.md)
 - [October 1 code review and remaining findings](docs/code-review-2026-10-01.md)
 

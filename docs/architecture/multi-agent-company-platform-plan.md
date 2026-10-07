@@ -3,6 +3,11 @@
 > Target design and original implementation backlog. The [current roadmap](../next-phases.md)
 > owns delivery priority and reconciles the implemented features with remaining work.
 
+The [October 7 autonomous work platform proposal](autonomous-work-platform-plan.md)
+extends this design for AI-led staffing, shared agent/human boards, configurable model
+providers and company operations. Use its decision register for the new direction and
+the roadmap for current status; unconfirmed hosting and board changes remain proposals.
+
 Prepared September 30, 2026. Status: target architecture and original design backlog.
 The [Work platform](../runbooks/work-platform.md) now documents implemented project teams,
 concurrent execution, tool adapters, native file publication, and verified dependency-file
