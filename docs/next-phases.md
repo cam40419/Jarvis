@@ -32,11 +32,13 @@ No meaningful Simon projects require migration, so a clean rebuild is permitted 
 | 6     | Select, implement, test and accept one real tool; repeat based on clothing-pilot needs                | [Integration work packages](architecture/integration-delivery-plan.md); do not expose unaccepted capabilities as production-ready.        |
 | 7     | Hosted beta and commercial release, including billing as its own integration                          | Hosted capacity, tenant lifecycle, operations and supported tool acceptance.                                                              |
 
-Board provider, exact host/model and subscription prices remain design choices. Agents and humans having full board access is confirmed; it does not require a particular external tracker or give agents billing/publishing authority. Native boards are recommended for comparison. The source assessment favors retaining useful contracts and tests, while the implementation and schema can be replaced without mandatory historical backfill.
+The first implementation uses native project and board records, reusing Python/FastAPI, PostgreSQL and session identity. External board adapters remain optional, with one authority per project. Exact host/model and subscription prices remain design choices. Agents and humans having full board access is confirmed; it does not give agents billing/publishing authority. The source assessment favors retaining useful contracts and tests, while the implementation and schema can be replaced without mandatory historical backfill.
 
 The prior delivery estimate mixed several tools with a private pilot and does not estimate this new scope. Re-estimate from the core backlog. Product decisions above supersede any conflicting sequencing statement in older plans or the implementation gap inventory below.
 
-Immediate planning work: finish the intake-to-review workflow and its entity/state/permission contracts, define expected results and failure cases for the core evaluation set, and resolve the board/workflow/model/storage architecture choices. Use those decisions to create a dependency-ordered implementation backlog and a narrow end-to-end platform prototype. The private Stdout task register supplies candidate business work; this roadmap owns platform engineering priority.
+The [native project foundation](runbooks/native-projects.md) starts DATA-01/DATA-02: explicit shared projects, membership, human/pool tasks, optimistic edits, idempotent commands and atomic claims are implemented behind `/v2/projects`. Memory/service/API behavior is tested; PostgreSQL runtime acceptance is pending because the local engine is unavailable. This does not complete SAAS-01, automatic staffing, artifact review or the full core gate.
+
+Next implementation work: complete database acceptance, then build the native project/intake/board interface and scoped agent-principal contracts. Continue the intake-to-review UX, workflow/model/storage decisions and quality evaluation set alongside those slices. The existing Work UI and execution services retain their v1 authority until their replacements pass a tested cutover; native project IDs cannot invoke those legacy workers. The private Stdout task register supplies candidate business work; this roadmap owns platform engineering priority.
 
 ## Current implementation boundaries
 
@@ -45,7 +47,7 @@ Immediate planning work: finish the intake-to-review workflow and its entity/sta
   must remain usable without company or home configuration.
 - Connected project boards own their business task fields and human collaboration.
   The implemented ClickUp bridge maintains a bounded local execution mirror. Avoid
-  running two simultaneous task authorities for an existing binding. The replacement can use native Simon boards; select one canonical authority per new project after the comparison.
+  running two simultaneous task authorities for an existing binding. New v2 projects use native Simon records; their tasks are not mirrored into the legacy binding or actor-specific work state.
 - Managed files and artifacts remain local by default. New worker context, responses,
   evidence and drafts are journaled automatically for retained history. The Files view
   and Drive replication expose actual deliverables with descriptive filenames; answers
@@ -67,6 +69,8 @@ Immediate planning work: finish the intake-to-review workflow and its entity/sta
 | Deferred                    | Retained direction with an explicit condition for revisiting it.                                             |
 
 ## Implemented foundation
+
+The native project API is the first replacement slice, documented in the [native project runbook](runbooks/native-projects.md). The table below describes the earlier application capabilities that remain active pending their corresponding cutovers. Their presence does not imply that they support native v2 projects.
 
 | Area                      | Current behavior and limits                                                                                                                                                 | Reference                                                                                                                  |
 | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |

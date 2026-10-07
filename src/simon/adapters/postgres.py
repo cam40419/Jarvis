@@ -38,6 +38,7 @@ from simon.domain.identity import (
 from simon.domain.integrations import IntegrationConnection
 from simon.domain.interaction import ResponsePreferences, RunFeedback
 from simon.domain.models import AuditEvent, Job, JobStatus, OutboxEvent
+from simon.domain.native_projects import NativeProject, NativeProjectMember, NativeTask
 from simon.domain.project_files import ProjectDrive, ProjectFileOperation
 from simon.domain.tasks import ProjectArtifact
 from simon.domain.voice import VoiceSession
@@ -117,6 +118,253 @@ class PostgresStore(InMemoryStore):
 
     def _advisory_lock(self, key: str) -> None:
         self.connection.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", (key,))
+
+    def native_project(self, workspace_id: UUID, project_id: UUID) -> NativeProject | None:
+        with self.transaction():
+            row = self.connection.execute(
+                "SELECT * FROM native_projects WHERE workspace_id=%s AND id=%s",
+                (workspace_id, project_id),
+            ).fetchone()
+            return NativeProject.model_validate(row) if row else None
+
+    def native_projects(
+        self,
+        workspace_id: UUID,
+        actor_id: UUID,
+        offset: int,
+        limit: int,
+        *,
+        all_projects: bool = False,
+    ) -> tuple[NativeProject, ...]:
+        with self.transaction():
+            rows = self.connection.execute(
+                "SELECT p.* FROM native_projects p WHERE p.workspace_id=%s AND (%s OR EXISTS ("
+                "SELECT 1 FROM native_project_members m WHERE m.workspace_id=p.workspace_id "
+                "AND m.project_id=p.id AND m.actor_id=%s)) "
+                "ORDER BY p.created_at DESC,p.id DESC LIMIT %s OFFSET %s",
+                (workspace_id, all_projects, actor_id, limit, offset),
+            ).fetchall()
+            return tuple(NativeProject.model_validate(row) for row in rows)
+
+    def insert_native_project(self, project: NativeProject) -> None:
+        if project.version != 1:
+            raise InvalidTransitionError("Native projects must start at version one")
+        try:
+            with self.transaction():
+                result = self.connection.execute(
+                    "INSERT INTO native_projects (id,workspace_id,name,objective,status,"
+                    "board_authority,created_by,version,created_at,updated_at) "
+                    "SELECT %s,%s,%s,%s,%s,%s,%s,%s,%s,%s WHERE EXISTS ("
+                    "SELECT 1 FROM memberships WHERE workspace_id=%s AND user_id=%s)",
+                    (
+                        project.id,
+                        project.workspace_id,
+                        project.name,
+                        project.objective,
+                        project.status,
+                        project.board_authority,
+                        project.created_by,
+                        project.version,
+                        project.created_at,
+                        project.updated_at,
+                        project.workspace_id,
+                        project.created_by,
+                    ),
+                )
+                if result.rowcount != 1:
+                    raise InvalidTransitionError("Native project creator is unavailable")
+        except psycopg.IntegrityError as exc:
+            raise InvalidTransitionError(
+                "Native project already exists or creator is unavailable"
+            ) from exc
+
+    def update_native_project(self, project: NativeProject, expected_version: int) -> None:
+        if project.version != expected_version + 1:
+            raise InvalidTransitionError("Native project update must advance the version")
+        with self.transaction():
+            result = self.connection.execute(
+                "UPDATE native_projects SET name=%s,objective=%s,status=%s,"
+                "version=%s,updated_at=%s "
+                "WHERE workspace_id=%s AND id=%s AND version=%s "
+                "AND created_by=%s AND created_at=%s AND board_authority=%s",
+                (
+                    project.name,
+                    project.objective,
+                    project.status,
+                    project.version,
+                    project.updated_at,
+                    project.workspace_id,
+                    project.id,
+                    expected_version,
+                    project.created_by,
+                    project.created_at,
+                    project.board_authority,
+                ),
+            )
+            if result.rowcount != 1:
+                raise InvalidTransitionError("Native project missing or stale project version")
+
+    def native_project_members(
+        self, workspace_id: UUID, project_id: UUID
+    ) -> tuple[NativeProjectMember, ...]:
+        with self.transaction():
+            rows = self.connection.execute(
+                "SELECT * FROM native_project_members WHERE workspace_id=%s AND project_id=%s "
+                "ORDER BY created_at,actor_id",
+                (workspace_id, project_id),
+            ).fetchall()
+            return tuple(NativeProjectMember.model_validate(row) for row in rows)
+
+    def native_project_member(
+        self, workspace_id: UUID, project_id: UUID, actor_id: UUID
+    ) -> NativeProjectMember | None:
+        with self.transaction():
+            row = self.connection.execute(
+                "SELECT * FROM native_project_members "
+                "WHERE workspace_id=%s AND project_id=%s AND actor_id=%s",
+                (workspace_id, project_id, actor_id),
+            ).fetchone()
+            return NativeProjectMember.model_validate(row) if row else None
+
+    def put_native_project_member(self, member: NativeProjectMember) -> None:
+        try:
+            with self.transaction():
+                self.connection.execute(
+                    "INSERT INTO native_project_members "
+                    "(workspace_id,project_id,actor_id,role,created_at) VALUES (%s,%s,%s,%s,%s) "
+                    "ON CONFLICT (workspace_id,project_id,actor_id) "
+                    "DO UPDATE SET role=EXCLUDED.role",
+                    (
+                        member.workspace_id,
+                        member.project_id,
+                        member.actor_id,
+                        member.role,
+                        member.created_at,
+                    ),
+                )
+        except psycopg.IntegrityError as exc:
+            raise InvalidTransitionError(
+                "Native project or workspace member is unavailable"
+            ) from exc
+
+    def delete_native_project_member(
+        self, workspace_id: UUID, project_id: UUID, actor_id: UUID
+    ) -> None:
+        try:
+            with self.transaction():
+                self.connection.execute(
+                    "DELETE FROM native_project_members "
+                    "WHERE workspace_id=%s AND project_id=%s AND actor_id=%s",
+                    (workspace_id, project_id, actor_id),
+                )
+        except psycopg.errors.ForeignKeyViolation as exc:
+            raise InvalidTransitionError(
+                "Reassign this member's tasks before removing them"
+            ) from exc
+
+    def native_assigned_task_exists(
+        self, workspace_id: UUID, project_id: UUID, actor_id: UUID
+    ) -> bool:
+        with self.transaction():
+            row = self.connection.execute(
+                "SELECT EXISTS (SELECT 1 FROM native_tasks "
+                "WHERE workspace_id=%s AND project_id=%s AND assignee_actor_id=%s) AS present",
+                (workspace_id, project_id, actor_id),
+            ).fetchone()
+            return bool(row and row["present"])
+
+    @staticmethod
+    def _native_task(row: dict[str, Any]) -> NativeTask:
+        value = dict(row)
+        value["assignment"] = {
+            "kind": value.pop("assignment_kind"),
+            "actor_id": value.pop("assignee_actor_id"),
+        }
+        return NativeTask.model_validate(value)
+
+    def native_task(self, workspace_id: UUID, project_id: UUID, task_id: UUID) -> NativeTask | None:
+        with self.transaction():
+            row = self.connection.execute(
+                "SELECT * FROM native_tasks WHERE workspace_id=%s AND project_id=%s AND id=%s",
+                (workspace_id, project_id, task_id),
+            ).fetchone()
+            return self._native_task(row) if row else None
+
+    def native_tasks(
+        self, workspace_id: UUID, project_id: UUID, offset: int, limit: int
+    ) -> tuple[NativeTask, ...]:
+        with self.transaction():
+            rows = self.connection.execute(
+                "SELECT * FROM native_tasks WHERE workspace_id=%s AND project_id=%s "
+                "ORDER BY created_at,id LIMIT %s OFFSET %s",
+                (workspace_id, project_id, limit, offset),
+            ).fetchall()
+            return tuple(self._native_task(row) for row in rows)
+
+    def insert_native_task(self, task: NativeTask) -> None:
+        if task.version != 1:
+            raise InvalidTransitionError("Native tasks must start at version one")
+        try:
+            with self.transaction():
+                result = self.connection.execute(
+                    "INSERT INTO native_tasks (id,workspace_id,project_id,title,description,status,"
+                    "assignment_kind,assignee_actor_id,created_by,version,created_at,updated_at) "
+                    "SELECT %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s WHERE EXISTS ("
+                    "SELECT 1 FROM memberships WHERE workspace_id=%s AND user_id=%s)",
+                    (
+                        task.id,
+                        task.workspace_id,
+                        task.project_id,
+                        task.title,
+                        task.description,
+                        task.status,
+                        task.assignment.kind,
+                        task.assignment.actor_id,
+                        task.created_by,
+                        task.version,
+                        task.created_at,
+                        task.updated_at,
+                        task.workspace_id,
+                        task.created_by,
+                    ),
+                )
+                if result.rowcount != 1:
+                    raise InvalidTransitionError("Native task creator is unavailable")
+        except psycopg.IntegrityError as exc:
+            raise InvalidTransitionError(
+                "Native task exists or project/assignee is unavailable"
+            ) from exc
+
+    def update_native_task(self, task: NativeTask, expected_version: int) -> None:
+        if task.version != expected_version + 1:
+            raise InvalidTransitionError("Native task update must advance the version")
+        try:
+            with self.transaction():
+                result = self.connection.execute(
+                    "UPDATE native_tasks SET title=%s,description=%s,status=%s,assignment_kind=%s,"
+                    "assignee_actor_id=%s,version=%s,updated_at=%s "
+                    "WHERE workspace_id=%s AND project_id=%s AND id=%s AND version=%s "
+                    "AND created_by=%s AND created_at=%s",
+                    (
+                        task.title,
+                        task.description,
+                        task.status,
+                        task.assignment.kind,
+                        task.assignment.actor_id,
+                        task.version,
+                        task.updated_at,
+                        task.workspace_id,
+                        task.project_id,
+                        task.id,
+                        expected_version,
+                        task.created_by,
+                        task.created_at,
+                    ),
+                )
+                if result.rowcount != 1:
+                    raise InvalidTransitionError("Native task missing or stale task version")
+        except psycopg.IntegrityError as exc:
+            raise InvalidTransitionError("Native task project or assignee is unavailable") from exc
 
     def execute_once(
         self,
@@ -918,7 +1166,24 @@ class PostgresStore(InMemoryStore):
             )
 
     def delete_membership(self, actor_id: UUID, workspace_id: UUID) -> None:
-        with self.transaction():
+        with self.transaction(workspace_id):
+            # Revocation must preserve shared work and cannot depend on manual reassignment.
+            self.connection.execute(
+                "UPDATE native_projects p SET version=p.version+1,updated_at=now() "
+                "WHERE p.workspace_id=%s AND EXISTS (SELECT 1 FROM native_project_members m "
+                "WHERE m.workspace_id=p.workspace_id AND m.project_id=p.id AND m.actor_id=%s)",
+                (workspace_id, actor_id),
+            )
+            self.connection.execute(
+                "UPDATE native_tasks SET assignment_kind='pool',assignee_actor_id=NULL,"
+                "status=CASE WHEN status='in_progress' THEN 'todo' ELSE status END,"
+                "version=version+1,updated_at=now() WHERE workspace_id=%s AND assignee_actor_id=%s",
+                (workspace_id, actor_id),
+            )
+            self.connection.execute(
+                "DELETE FROM native_project_members WHERE workspace_id=%s AND actor_id=%s",
+                (workspace_id, actor_id),
+            )
             self.connection.execute(
                 "DELETE FROM memberships WHERE user_id = %s AND workspace_id = %s",
                 (actor_id, workspace_id),

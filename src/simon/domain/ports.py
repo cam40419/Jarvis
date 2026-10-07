@@ -30,6 +30,7 @@ from simon.domain.models import (
     JobStatus,
     OutboxEvent,
 )
+from simon.domain.native_projects import NativeProject, NativeProjectMember, NativeTask
 from simon.domain.project_files import ProjectDrive, ProjectFileOperation
 from simon.domain.tasks import ProjectArtifact
 from simon.domain.voice import VoiceSession
@@ -280,6 +281,54 @@ class ProjectDriveStore(TransactionStore, Protocol):
     def google_accounts(self) -> Sequence[tuple[UUID, UUID]]: ...
 
 
+class NativeProjectStore(TransactionStore, Protocol):
+    def native_project(self, workspace_id: UUID, project_id: UUID) -> NativeProject | None: ...
+
+    def native_projects(
+        self,
+        workspace_id: UUID,
+        actor_id: UUID,
+        offset: int,
+        limit: int,
+        *,
+        all_projects: bool = False,
+    ) -> tuple[NativeProject, ...]: ...
+
+    def insert_native_project(self, project: NativeProject) -> None: ...
+
+    def update_native_project(self, project: NativeProject, expected_version: int) -> None: ...
+
+    def native_project_members(
+        self, workspace_id: UUID, project_id: UUID
+    ) -> tuple[NativeProjectMember, ...]: ...
+
+    def native_project_member(
+        self, workspace_id: UUID, project_id: UUID, actor_id: UUID
+    ) -> NativeProjectMember | None: ...
+
+    def put_native_project_member(self, member: NativeProjectMember) -> None: ...
+
+    def delete_native_project_member(
+        self, workspace_id: UUID, project_id: UUID, actor_id: UUID
+    ) -> None: ...
+
+    def native_assigned_task_exists(
+        self, workspace_id: UUID, project_id: UUID, actor_id: UUID
+    ) -> bool: ...
+
+    def native_task(
+        self, workspace_id: UUID, project_id: UUID, task_id: UUID
+    ) -> NativeTask | None: ...
+
+    def native_tasks(
+        self, workspace_id: UUID, project_id: UUID, offset: int, limit: int
+    ) -> tuple[NativeTask, ...]: ...
+
+    def insert_native_task(self, task: NativeTask) -> None: ...
+
+    def update_native_task(self, task: NativeTask, expected_version: int) -> None: ...
+
+
 class Store(
     CapabilityStore,
     InvocationStore,
@@ -294,6 +343,7 @@ class Store(
     VoiceStore,
     ProjectArtifactStore,
     ProjectDriveStore,
+    NativeProjectStore,
     Protocol,
 ):
     """One transaction boundary for state, audit records, and delivery intents."""

@@ -477,6 +477,8 @@ Tenancy, admin policy and UI quality begin with the core. Actual payment-provide
 
 ### First implementation backlog
 
+Implementation checkpoint, October 7: the [native project foundation](../runbooks/native-projects.md) begins DATA-01 and DATA-02 with explicit shared records and a versioned API. Reuse FastAPI, PostgreSQL and session identity; native boards own new project work. Human/pool assignments are supported first. Agent principals, dependency graphs, native UI and execution integration remain open; PostgreSQL runtime acceptance is still pending. These partial results do not mark the core or PLAN-01 evaluation program complete.
+
 | ID          | Deliverable                                                                        | Acceptance and sequencing                                                                                                                  |
 | ----------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | PLAN-01     | Platform workflow contracts and pilot-based evaluation set                         | Stdout inputs map to reusable intake, staffing, boards, review, model, cost and recovery behavior with expected results and failure cases. |

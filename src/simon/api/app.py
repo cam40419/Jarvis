@@ -52,6 +52,7 @@ from simon.api.external_actions import external_actions_router
 from simon.api.integrations import integrations_router
 from simon.api.local_files import local_file_router
 from simon.api.model_stream import model_stream
+from simon.api.native_projects import native_projects_router
 from simon.api.project_boards import project_boards_router
 from simon.api.project_command import project_command_router
 from simon.api.project_files import project_router
@@ -98,6 +99,7 @@ from simon.services.interaction import InteractionService
 from simon.services.jobs import JobService
 from simon.services.memory import MemoryService
 from simon.services.model_conversations import ModelConversationService
+from simon.services.native_projects import NativeProjectService
 from simon.services.policy import PolicyEngine
 from simon.services.project_autonomy import ProjectAutonomyService
 from simon.services.project_coordinator import ProjectCoordinator
@@ -150,6 +152,7 @@ class AppContainer:
                 )
             )
         self.identity = IdentityService(self.store, self.settings)
+        self.native_projects = NativeProjectService(self.store)
         self.accounts = AccountService(self.identity)
         self.audit = AuditService(self.store)
         self.connected = ConnectedService(self.store, self.audit, self.settings, self.identity)
@@ -439,6 +442,7 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
             require_csrf(request, services.identity, token)
         return actor
 
+    app.include_router(native_projects_router(services.native_projects, checked_actor))
     app.include_router(task_router(services.tasks, checked_actor))
     app.include_router(
         agent_platform_router(

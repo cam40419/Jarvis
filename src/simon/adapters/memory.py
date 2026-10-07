@@ -41,6 +41,12 @@ from simon.domain.models import (
     OutboxEvent,
     utc_now,
 )
+from simon.domain.native_projects import (
+    NativeProject,
+    NativeProjectMember,
+    NativeTask,
+    TaskAssignment,
+)
 from simon.domain.ports import CapabilityHandler
 from simon.domain.project_files import ProjectDrive, ProjectFileOperation
 from simon.domain.tasks import ProjectArtifact
@@ -87,6 +93,9 @@ class InMemoryStore:
         self._project_artifacts: dict[UUID, tuple[ProjectArtifact, bytes]] = {}
         self._project_drive: dict[tuple[UUID, UUID, UUID], ProjectDrive] = {}
         self._project_file_ops: dict[UUID, ProjectFileOperation] = {}
+        self._native_projects: dict[UUID, NativeProject] = {}
+        self._native_project_members: dict[tuple[UUID, UUID, UUID], NativeProjectMember] = {}
+        self._native_tasks: dict[UUID, NativeTask] = {}
 
     @contextmanager
     def transaction(self, workspace_id: UUID | None = None) -> Iterator[None]:
@@ -122,6 +131,9 @@ class InMemoryStore:
                     self._project_artifacts,
                     self._project_drive,
                     self._project_file_ops,
+                    self._native_projects,
+                    self._native_project_members,
+                    self._native_tasks,
                 )
             )
             try:
@@ -157,8 +169,170 @@ class InMemoryStore:
                     self._project_artifacts,
                     self._project_drive,
                     self._project_file_ops,
+                    self._native_projects,
+                    self._native_project_members,
+                    self._native_tasks,
                 ) = snapshot
                 raise
+
+    def native_project(self, workspace_id: UUID, project_id: UUID) -> NativeProject | None:
+        with self._lock:
+            project = self._native_projects.get(project_id)
+            return project if project and project.workspace_id == workspace_id else None
+
+    def native_projects(
+        self,
+        workspace_id: UUID,
+        actor_id: UUID,
+        offset: int,
+        limit: int,
+        *,
+        all_projects: bool = False,
+    ) -> tuple[NativeProject, ...]:
+        with self._lock:
+            projects = (
+                project
+                for project in self._native_projects.values()
+                if project.workspace_id == workspace_id
+                and (
+                    all_projects
+                    or (workspace_id, project.id, actor_id) in self._native_project_members
+                )
+            )
+            return tuple(
+                sorted(projects, key=lambda p: (p.created_at, p.id), reverse=True)[
+                    offset : offset + limit
+                ]
+            )
+
+    def insert_native_project(self, project: NativeProject) -> None:
+        with self._lock:
+            if (
+                project.id in self._native_projects
+                or project.version != 1
+                or (project.created_by, project.workspace_id) not in self._memberships
+            ):
+                raise InvalidTransitionError(
+                    "Native project already exists or creator is unavailable"
+                )
+            self._native_projects[project.id] = project
+
+    def update_native_project(self, project: NativeProject, expected_version: int) -> None:
+        with self._lock:
+            previous = self.native_project(project.workspace_id, project.id)
+            if (
+                previous is None
+                or previous.version != expected_version
+                or project.version != expected_version + 1
+                or (project.created_by, project.created_at, project.board_authority)
+                != (previous.created_by, previous.created_at, previous.board_authority)
+            ):
+                raise InvalidTransitionError("Native project missing or stale project version")
+            self._native_projects[project.id] = project
+
+    def native_project_members(
+        self, workspace_id: UUID, project_id: UUID
+    ) -> tuple[NativeProjectMember, ...]:
+        with self._lock:
+            return tuple(
+                sorted(
+                    (
+                        member
+                        for member in self._native_project_members.values()
+                        if (member.workspace_id, member.project_id) == (workspace_id, project_id)
+                    ),
+                    key=lambda m: (m.created_at, m.actor_id),
+                )
+            )
+
+    def native_project_member(
+        self, workspace_id: UUID, project_id: UUID, actor_id: UUID
+    ) -> NativeProjectMember | None:
+        with self._lock:
+            return self._native_project_members.get((workspace_id, project_id, actor_id))
+
+    def put_native_project_member(self, member: NativeProjectMember) -> None:
+        with self._lock:
+            if (
+                self.native_project(member.workspace_id, member.project_id) is None
+                or (member.actor_id, member.workspace_id) not in self._memberships
+            ):
+                raise InvalidTransitionError("Native project or workspace member is unavailable")
+            key = (member.workspace_id, member.project_id, member.actor_id)
+            previous = self._native_project_members.get(key)
+            if previous:
+                member = member.model_copy(update={"created_at": previous.created_at})
+            self._native_project_members[key] = member
+
+    def delete_native_project_member(
+        self, workspace_id: UUID, project_id: UUID, actor_id: UUID
+    ) -> None:
+        with self._lock:
+            if self.native_assigned_task_exists(workspace_id, project_id, actor_id):
+                raise InvalidTransitionError("Reassign this member's tasks before removing them")
+            self._native_project_members.pop((workspace_id, project_id, actor_id), None)
+
+    def native_assigned_task_exists(
+        self, workspace_id: UUID, project_id: UUID, actor_id: UUID
+    ) -> bool:
+        with self._lock:
+            return any(
+                (task.workspace_id, task.project_id, task.assignment.actor_id)
+                == (workspace_id, project_id, actor_id)
+                for task in self._native_tasks.values()
+            )
+
+    def native_task(self, workspace_id: UUID, project_id: UUID, task_id: UUID) -> NativeTask | None:
+        with self._lock:
+            task = self._native_tasks.get(task_id)
+            return (
+                task
+                if task and (task.workspace_id, task.project_id) == (workspace_id, project_id)
+                else None
+            )
+
+    def native_tasks(
+        self, workspace_id: UUID, project_id: UUID, offset: int, limit: int
+    ) -> tuple[NativeTask, ...]:
+        with self._lock:
+            tasks = (
+                task
+                for task in self._native_tasks.values()
+                if (task.workspace_id, task.project_id) == (workspace_id, project_id)
+            )
+            return tuple(sorted(tasks, key=lambda t: (t.created_at, t.id))[offset : offset + limit])
+
+    def _check_native_task_references(self, task: NativeTask) -> None:
+        if self.native_project(task.workspace_id, task.project_id) is None:
+            raise InvalidTransitionError("Native project is unavailable")
+        if task.assignment.actor_id and not self.native_project_member(
+            task.workspace_id, task.project_id, task.assignment.actor_id
+        ):
+            raise InvalidTransitionError("Native task assignee is not a project member")
+
+    def insert_native_task(self, task: NativeTask) -> None:
+        with self._lock:
+            if (
+                task.id in self._native_tasks
+                or task.version != 1
+                or (task.created_by, task.workspace_id) not in self._memberships
+            ):
+                raise InvalidTransitionError("Native task already exists or creator is unavailable")
+            self._check_native_task_references(task)
+            self._native_tasks[task.id] = task
+
+    def update_native_task(self, task: NativeTask, expected_version: int) -> None:
+        with self._lock:
+            previous = self.native_task(task.workspace_id, task.project_id, task.id)
+            if (
+                previous is None
+                or previous.version != expected_version
+                or task.version != expected_version + 1
+                or (task.created_by, task.created_at) != (previous.created_by, previous.created_at)
+            ):
+                raise InvalidTransitionError("Native task missing or stale task version")
+            self._check_native_task_references(task)
+            self._native_tasks[task.id] = task
 
     def password_for_email(self, email: str) -> PasswordCredential | None:
         with self._lock:
@@ -774,6 +948,28 @@ class InMemoryStore:
 
     def delete_membership(self, actor_id: UUID, workspace_id: UUID) -> None:
         with self._lock:
+            revoked_at = utc_now()
+            for member in self._native_project_members.values():
+                if (member.workspace_id, member.actor_id) == (workspace_id, actor_id):
+                    project = self._native_projects[member.project_id]
+                    self._native_projects[project.id] = project.model_copy(
+                        update={"version": project.version + 1, "updated_at": revoked_at}
+                    )
+            for task_id, task in self._native_tasks.items():
+                if (task.workspace_id, task.assignment.actor_id) == (workspace_id, actor_id):
+                    self._native_tasks[task_id] = task.model_copy(
+                        update={
+                            "assignment": TaskAssignment(),
+                            "status": "todo" if task.status == "in_progress" else task.status,
+                            "version": task.version + 1,
+                            "updated_at": revoked_at,
+                        }
+                    )
+            self._native_project_members = {
+                key: member
+                for key, member in self._native_project_members.items()
+                if (member.workspace_id, member.actor_id) != (workspace_id, actor_id)
+            }
             self._memberships.pop((actor_id, workspace_id), None)
 
     def save_session(self, session: Session) -> None:

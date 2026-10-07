@@ -74,6 +74,7 @@ def test_upgrade_preserves_identity_sessions_snapshots_and_audit(postgres_base_u
             assert migrate(url) == [
                 "0028_workspace_identity.sql",
                 "0029_email_password_recovery.sql",
+                "0030_native_projects.sql",
             ]
             assert migrate(url) == []
             store = PostgresStore(url)
