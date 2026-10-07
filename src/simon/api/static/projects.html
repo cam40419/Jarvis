@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#f7f7f5" />
+    <title>Projects — Simon</title>
+    <link rel="icon" href="/assets/simon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/assets/theme.css" />
+    <link rel="stylesheet" href="/assets/projects.css" />
+    <script src="/assets/app-path.js" defer></script>
+    <script src="/assets/native-projects.js" defer></script>
+  </head>
+  <body class="projects-page">
+    <a class="np-skip" href="#np-main">Skip to projects</a>
+    <header class="np-header">
+      <a class="np-brand" href="/projects" aria-label="Simon projects">
+        <img src="/assets/simon.svg" width="30" height="30" alt="" />
+        <span>SIMON</span>
+      </a>
+      <nav class="np-nav" aria-label="Workspace">
+        <a href="/projects" aria-current="page">Projects</a>
+        <a href="/chat">Conversations</a>
+        <a href="/chat?view=work">Legacy work</a>
+      </nav>
+      <a class="np-account-link" href="/login">
+        <span id="np-account">Account</span>
+      </a>
+    </header>
+
+    <main id="np-main" class="np-main" tabindex="-1">
+      <div id="np-status" class="np-status" role="status" aria-live="polite" aria-atomic="true">
+        Loading your workspace…
+      </div>
+
+      <section id="np-list" aria-labelledby="np-list-heading">
+        <div class="np-heading-row">
+          <div>
+            <p class="np-eyebrow">Shared workspace</p>
+            <h1 id="np-list-heading" tabindex="-1">Projects</h1>
+            <p class="np-lead">Give your work a direction, a team, and a place to move forward.</p>
+          </div>
+          <button id="np-new" class="np-button np-primary" type="button" disabled>
+            <span aria-hidden="true">+</span> New project
+          </button>
+        </div>
+        <div class="np-toolbar">
+          <label class="np-search-label">
+            <span class="np-sr-only">Search projects</span>
+            <input id="np-search" type="search" placeholder="Search projects" autocomplete="off" />
+          </label>
+          <label class="np-inline-label" for="np-filter">Show</label>
+          <select id="np-filter">
+            <option value="active">Active projects</option>
+            <option value="all">All projects</option>
+            <option value="archived">Archived projects</option>
+          </select>
+        </div>
+        <div id="np-projects" class="np-projects" aria-label="Projects">
+          <p class="np-empty">Loading projects…</p>
+        </div>
+      </section>
+
+      <section id="np-detail" aria-labelledby="np-name" hidden>
+        <div class="np-detail-navigation">
+          <button id="np-back" class="np-button np-quiet" type="button">
+            <span aria-hidden="true">←</span> All projects
+          </button>
+          <button id="np-refresh" class="np-button np-quiet" type="button">Refresh</button>
+        </div>
+        <div class="np-heading-row np-detail-heading">
+          <div class="np-project-heading">
+            <p class="np-eyebrow">Project workspace</p>
+            <h1 id="np-name" tabindex="-1"></h1>
+            <p id="np-meta" class="np-meta"></p>
+          </div>
+          <div class="np-actions">
+            <button id="np-team" class="np-button" type="button">Team</button>
+            <button id="np-edit-project" class="np-button" type="button">Edit project</button>
+          </div>
+        </div>
+        <section class="np-brief" aria-labelledby="np-brief-heading">
+          <h2 id="np-brief-heading">Project brief</h2>
+          <p id="np-objective"></p>
+        </section>
+        <section class="np-work" aria-labelledby="np-work-heading">
+          <div class="np-heading-row np-board-heading">
+            <div>
+              <h2 id="np-work-heading">Task board</h2>
+              <p class="np-muted">A shared view of what needs doing and who is working on it.</p>
+            </div>
+            <button id="np-new-task" class="np-button np-primary" type="button">
+              <span aria-hidden="true">+</span> New task
+            </button>
+          </div>
+          <div class="np-toolbar">
+            <label class="np-search-label">
+              <span class="np-sr-only">Search tasks</span>
+              <input
+                id="np-task-search"
+                type="search"
+                placeholder="Search tasks"
+                autocomplete="off"
+              />
+            </label>
+            <label class="np-inline-label" for="np-task-filter">Show</label>
+            <select id="np-task-filter">
+              <option value="all">All tasks</option>
+              <option value="mine">Assigned to me</option>
+              <option value="pool">Unassigned tasks</option>
+            </select>
+          </div>
+          <div
+            id="np-board"
+            class="np-board"
+            role="region"
+            aria-label="Task board columns"
+            tabindex="0"
+          ></div>
+          <p class="np-board-note">
+            In review tracks work awaiting review; artifact approval will be added separately.
+          </p>
+        </section>
+      </section>
+
+      <footer class="np-footer">
+        Shared projects and task boards are ready to use. AI staffing, file intake, and project
+        model controls are upcoming.
+      </footer>
+    </main>
+
+    <dialog id="np-project-dialog" class="np-dialog" aria-labelledby="np-project-heading">
+      <form id="np-project-form">
+        <div class="np-dialog-heading">
+          <p class="np-eyebrow">Project direction</p>
+          <h2 id="np-project-heading">New project</h2>
+          <p class="np-muted">
+            Start with what you know. You can refine the brief as the project develops.
+          </p>
+        </div>
+        <fieldset>
+          <div class="np-field">
+            <label for="np-project-name">Project name</label>
+            <input id="np-project-name" name="name" required maxlength="200" autocomplete="off" />
+          </div>
+          <div class="np-field">
+            <label for="np-project-objective">Project brief</label>
+            <p id="np-project-guidance" class="np-field-help">
+              Describe the outcome, useful context, constraints, and decisions still to be made.
+              This brief gives everyone a shared starting point.
+            </p>
+            <textarea
+              id="np-project-objective"
+              name="objective"
+              required
+              maxlength="8000"
+              rows="8"
+              aria-describedby="np-project-guidance"
+            ></textarea>
+          </div>
+          <div id="np-project-state" class="np-field" hidden>
+            <label for="np-project-status">Project status</label>
+            <select id="np-project-status" name="status">
+              <option value="active">Active</option>
+              <option value="archived">Archived</option>
+            </select>
+            <p class="np-field-help">
+              Archived projects remain readable. Restore a project to edit its board.
+            </p>
+          </div>
+          <div
+            id="np-project-feedback"
+            class="np-feedback"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+          ></div>
+          <div id="np-project-conflict" class="np-conflict" hidden>
+            <h3>This project changed while you were editing</h3>
+            <p>Review the saved version below before applying your draft.</p>
+            <pre id="np-project-latest"></pre>
+            <button id="np-project-rebase" class="np-button" type="button">
+              Use latest version and keep my draft
+            </button>
+          </div>
+          <div class="np-dialog-actions">
+            <button class="np-button" type="button" data-close="np-project-dialog">Cancel</button>
+            <button id="np-project-save" class="np-button np-primary" type="submit">
+              Create project
+            </button>
+          </div>
+        </fieldset>
+      </form>
+    </dialog>
+
+    <dialog id="np-task-dialog" class="np-dialog" aria-labelledby="np-task-heading">
+      <form id="np-task-form">
+        <div class="np-dialog-heading">
+          <p class="np-eyebrow">Shared work</p>
+          <h2 id="np-task-heading">New task</h2>
+        </div>
+        <fieldset>
+          <div class="np-field">
+            <label for="np-task-title">Task title</label>
+            <input id="np-task-title" name="title" required maxlength="200" autocomplete="off" />
+          </div>
+          <div class="np-field">
+            <label for="np-task-description"
+              >Description <span class="np-optional">Optional</span></label
+            >
+            <p id="np-task-guidance" class="np-field-help">
+              Include the expected result and what good work looks like.
+            </p>
+            <textarea
+              id="np-task-description"
+              name="description"
+              maxlength="8000"
+              rows="6"
+              aria-describedby="np-task-guidance"
+            ></textarea>
+          </div>
+          <div class="np-field-pair">
+            <div class="np-field">
+              <label for="np-task-status">Status</label>
+              <select id="np-task-status" name="status">
+                <option value="todo">To do</option>
+                <option value="in_progress">In progress</option>
+                <option value="in_review">In review</option>
+                <option value="blocked">Blocked</option>
+                <option value="done">Done</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </div>
+            <div class="np-field">
+              <label for="np-task-assignee">Assigned to</label>
+              <select id="np-task-assignee" name="assignee">
+                <option value="pool">Available to claim</option>
+              </select>
+            </div>
+          </div>
+          <p class="np-field-help">
+            In review tracks work awaiting review; artifact approval will be added separately.
+          </p>
+          <div
+            id="np-task-feedback"
+            class="np-feedback"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+          ></div>
+          <div id="np-task-conflict" class="np-conflict" hidden>
+            <h3>This task changed while you were editing</h3>
+            <p>Review the saved version below before applying your draft.</p>
+            <pre id="np-task-latest"></pre>
+            <button id="np-task-rebase" class="np-button" type="button">
+              Use latest version and keep my draft
+            </button>
+          </div>
+          <div class="np-dialog-actions">
+            <button class="np-button" type="button" data-close="np-task-dialog">Cancel</button>
+            <button id="np-task-save" class="np-button np-primary" type="submit">
+              Create task
+            </button>
+          </div>
+        </fieldset>
+      </form>
+    </dialog>
+
+    <dialog id="np-team-dialog" class="np-dialog" aria-labelledby="np-team-heading">
+      <div class="np-dialog-heading">
+        <p class="np-eyebrow">People and access</p>
+        <h2 id="np-team-heading">Project team</h2>
+        <p class="np-muted">
+          Owners manage access and project status. Members collaborate on the brief and board.
+        </p>
+      </div>
+      <ul id="np-members" class="np-members" aria-label="Project members"></ul>
+      <form id="np-member-form">
+        <fieldset>
+          <h3>Add or update a member</h3>
+          <div class="np-field-pair np-member-fields">
+            <div class="np-field">
+              <label for="np-member-actor">Workspace member</label>
+              <select id="np-member-actor" name="actor" required></select>
+            </div>
+            <div class="np-field">
+              <label for="np-member-role">Project role</label>
+              <select id="np-member-role" name="role">
+                <option value="member">Member</option>
+                <option value="owner">Owner</option>
+              </select>
+            </div>
+          </div>
+          <button id="np-member-save" class="np-button np-primary" type="submit">
+            Save member
+          </button>
+        </fieldset>
+      </form>
+      <div
+        id="np-team-feedback"
+        class="np-feedback"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      ></div>
+      <div class="np-dialog-actions">
+        <button class="np-button" type="button" data-close="np-team-dialog">Done</button>
+      </div>
+    </dialog>
+  </body>
+</html>

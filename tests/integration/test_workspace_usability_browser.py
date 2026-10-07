@@ -90,7 +90,10 @@ def test_blocked_plan_explains_access_and_retries_original_request_once(
     page.locator("#pc-command-submit").click()
     expect(page.locator("#pc-cycle")).to_be_visible()
     scheduler.tick()
-    assert dispatcher.tick().status == "succeeded"
+    planning_result = dispatcher.tick()
+    assert planning_result.status == "succeeded", [
+        (task.id, task.error_code) for task in planning_result.tasks
+    ]
     scheduler.tick()
     refresh(page)
     expect(page.locator("#pc-project-state")).to_have_text("Needs attention")
@@ -133,9 +136,11 @@ def test_blocked_plan_explains_access_and_retries_original_request_once(
 
     page.get_by_role("button", name="Check team access", exact=True).click()
     expect(page.locator("#pc-team-panel")).to_be_visible()
-    page.get_by_role("button", name="Edit skills: Report writer", exact=True).click()
+    page.get_by_role("button", name="Edit role: Report writer", exact=True).click()
     member = page.locator("#pc-member-dialog")
-    member.get_by_role("checkbox", name="Read a local file", exact=True).check()
+    expect(member.locator("#pc-member-count")).to_have_text("All workspace tools")
+    instructions = "Read the available local evidence and write a reviewed launch recommendation."
+    member.get_by_label("Working instructions", exact=True).fill(instructions)
     member.get_by_role("button", name="Save team member", exact=True).click()
     page.locator("#pc-settings-dialog").get_by_role(
         "button", name="Save settings", exact=True
@@ -149,7 +154,7 @@ def test_blocked_plan_explains_access_and_retries_original_request_once(
     assert current["active_cycle"]["instruction"] == original
     assert current["autonomy"]["mode"] == "manual"
     assert not current["autonomy"]["paused"]
-    assert "tool.native.local_file_read" in current["team"]["members"]["writer"]["skill_ids"]
+    assert current["team"]["members"]["writer"]["description"] == instructions
     scheduler.tick()
     current = page.evaluate("id => api('/v1/projects/' + id + '/command')", project_id)
     assert current["state"]["active_cycle"] is not None, current["state"]["last_cycle"]["error"]

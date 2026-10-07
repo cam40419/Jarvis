@@ -863,6 +863,8 @@
   });
   window.addEventListener('simon-ready', () => {
     if (initialProject) openProject(initialProject);
+    else if (new URLSearchParams(location.search).get('view') === 'work')
+      window.SimonWork.showOverview();
     else if (!$('work-view').hidden) loadWork();
   });
   $('threads').addEventListener('click', (event) => {

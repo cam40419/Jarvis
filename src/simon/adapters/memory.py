@@ -942,6 +942,16 @@ class InMemoryStore:
                 )
             )
 
+    def workspace_members(
+        self, workspace_id: UUID, offset: int, limit: int
+    ) -> tuple[Membership, ...]:
+        with self._lock:
+            rows = sorted(
+                (m for m in self._memberships.values() if m.workspace_id == workspace_id),
+                key=lambda m: m.actor_id,
+            )
+            return tuple(rows[offset : offset + limit])
+
     def put_membership(self, membership: Membership) -> None:
         with self._lock:
             self._memberships[membership.actor_id, membership.workspace_id] = membership

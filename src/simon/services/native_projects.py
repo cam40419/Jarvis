@@ -11,9 +11,13 @@ from simon.domain.native_projects import (
     CreateNativeProject,
     CreateNativeTask,
     NativeCommand,
+    NativeMemberCandidate,
     NativeModel,
     NativeProject,
+    NativeProjectAccess,
     NativeProjectMember,
+    NativeProjectPermissions,
+    NativeProjectPerson,
     NativeTask,
     PutNativeProjectMember,
     TaskAssignment,
@@ -154,6 +158,92 @@ class NativeProjectService:
     def get_project(self, actor: ActorContext, project_id: UUID) -> NativeProject:
         with self.store.transaction(actor.workspace_id):
             return self._project(actor, project_id)
+
+    def access(
+        self,
+        actor: ActorContext,
+        project_id: UUID,
+        *,
+        candidates_offset: int = 0,
+        candidates_limit: int = 50,
+    ) -> NativeProjectAccess:
+        """Expose current display and form capabilities; mutations still enforce authorization."""
+        self._page(candidates_offset, candidates_limit)
+        with self.store.transaction(IDENTITY_LOCK), self.store.transaction(actor.workspace_id):
+            project = self._project(actor, project_id)
+            workspace = self._workspace(actor)
+            records = self.store.native_project_members(actor.workspace_id, project_id)
+            own_record = next((m for m in records if m.actor_id == actor.actor_id), None)
+            can_edit = "jobs:write" in actor.scopes and "jobs:write" in ROLE_SCOPES[workspace.role]
+            owner = workspace.role == "owner" or (
+                own_record is not None and own_record.role == "owner"
+            )
+            active_project = project.status == "active"
+            permissions = NativeProjectPermissions(
+                can_edit=can_edit,
+                can_manage_members=can_edit and owner and active_project,
+                can_archive=can_edit and owner,
+                can_claim=can_edit and active_project and own_record is not None,
+            )
+            people = []
+            for member in records:
+                membership = next(
+                    (
+                        m
+                        for m in self.store.memberships(member.actor_id)
+                        if m.workspace_id == actor.workspace_id
+                    ),
+                    None,
+                )
+                account = self.store.managed_account(member.actor_id)
+                active = membership is not None and not (account and account.disabled)
+                people.append(
+                    NativeProjectPerson(
+                        actor_id=member.actor_id,
+                        display_name=(
+                            membership.display_name
+                            if membership
+                            else account.display_name
+                            if account
+                            else "Project member"
+                        ),
+                        role=member.role,
+                        workspace_role=membership.role if membership else None,
+                        active=bool(active),
+                        can_assign=bool(
+                            active and membership and "jobs:write" in ROLE_SCOPES[membership.role]
+                        ),
+                    )
+                )
+            candidates = []
+            next_offset = None
+            if permissions.can_manage_members:
+                # Page workspace rows first; a page can become empty after authorization filters.
+                rows = self.store.workspace_members(
+                    actor.workspace_id, candidates_offset, candidates_limit
+                )
+                existing = {member.actor_id for member in records}
+                for membership in rows:
+                    account = self.store.managed_account(membership.actor_id)
+                    if membership.actor_id in existing or (account and account.disabled):
+                        continue
+                    candidates.append(
+                        NativeMemberCandidate(
+                            actor_id=membership.actor_id,
+                            display_name=membership.display_name,
+                            workspace_role=membership.role,
+                        )
+                    )
+                if len(rows) == candidates_limit:
+                    next_offset = candidates_offset + len(rows)
+            return NativeProjectAccess(
+                project_version=project.version,
+                actor_id=actor.actor_id,
+                permissions=permissions,
+                members=tuple(people),
+                member_candidates=tuple(candidates),
+                candidates_next_offset=next_offset,
+            )
 
     def create_project(self, actor: ActorContext, command: CreateNativeProject) -> NativeProject:
         # Existing identity changes share this lock. Keep this section to bounded DB work.

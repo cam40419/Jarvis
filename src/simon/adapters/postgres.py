@@ -1149,6 +1149,19 @@ class PostgresStore(InMemoryStore):
             )
             return tuple(Membership.model_validate(row) for row in rows)
 
+    def workspace_members(
+        self, workspace_id: UUID, offset: int, limit: int
+    ) -> tuple[Membership, ...]:
+        with self.transaction():
+            rows = self.connection.execute(
+                "SELECT m.user_id AS actor_id, m.workspace_id, m.role, u.display_name, "
+                "w.name AS workspace_name FROM memberships m JOIN users u ON u.id=m.user_id "
+                "JOIN workspaces w ON w.id=m.workspace_id WHERE m.workspace_id=%s "
+                "ORDER BY m.user_id LIMIT %s OFFSET %s",
+                (workspace_id, limit, offset),
+            )
+            return tuple(Membership.model_validate(row) for row in rows)
+
     def put_membership(self, membership: Membership) -> None:
         with self.transaction():
             self.connection.execute(

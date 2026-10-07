@@ -6,6 +6,7 @@ from uuid import UUID, uuid4
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from simon.domain.identity import Role
 from simon.domain.models import utc_now
 
 ProjectRole = Literal["owner", "member"]
@@ -79,6 +80,37 @@ class NativeTask(NativeModel):
     version: int = Field(default=1, ge=1, strict=True)
     created_at: AwareDatetime = Field(default_factory=utc_now)
     updated_at: AwareDatetime = Field(default_factory=utc_now)
+
+
+class NativeProjectPermissions(NativeModel):
+    can_edit: bool
+    can_manage_members: bool
+    can_archive: bool
+    can_claim: bool
+
+
+class NativeProjectPerson(NativeModel):
+    actor_id: UUID
+    display_name: str
+    role: ProjectRole
+    workspace_role: Role | None
+    active: bool
+    can_assign: bool
+
+
+class NativeMemberCandidate(NativeModel):
+    actor_id: UUID
+    display_name: str
+    workspace_role: Role
+
+
+class NativeProjectAccess(NativeModel):
+    project_version: int
+    actor_id: UUID
+    permissions: NativeProjectPermissions
+    members: tuple[NativeProjectPerson, ...]
+    member_candidates: tuple[NativeMemberCandidate, ...]
+    candidates_next_offset: int | None
 
 
 class NativeCommand(NativeModel):

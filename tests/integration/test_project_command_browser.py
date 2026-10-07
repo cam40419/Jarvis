@@ -159,6 +159,8 @@ def project_ui(tmp_path):
                     if "Plan the next useful" in request.prompt
                     else synthetic_report
                 )
+                if "You are executing a bounded tool controller." in request.system:
+                    text = json.dumps({"type": "final", "output": text})
             return TextGenerationResult(
                 endpoint_id=decision.endpoint_id,
                 model=decision.model,
@@ -167,12 +169,20 @@ def project_ui(tmp_path):
                 output_tokens=8,
             )
 
+    transports = TransportRegistry()
+
+    def unexpected_tool_execution(*args, **kwargs):
+        pytest.fail("Synthetic planning returns final decisions without executing tools")
+
+    # Library fixtures grant native tools to test access and planning. Bind the
+    # advertised transport while rejecting accidental real tool execution.
+    transports.register("native", unexpected_tool_execution)
     dispatcher = AgentDispatcher(
         container.agent_runs,
         worker_factory=lambda *_: AgentWorker(
             Model(),
             container.agent_platform.tools,
-            TransportRegistry(),
+            transports,
         ),
     )
     server = uvicorn.Server(
@@ -214,7 +224,7 @@ def project_ui(tmp_path):
             page.on("pageerror", lambda error: errors.append(str(error)))
             page.goto(origin + "/chat")
             expect(page.locator("#connections-open")).to_be_enabled()
-            page.get_by_role("button", name="Work", exact=True).click()
+            page.locator("#work-open").click()
             expect(page.locator("#pc-status")).to_contain_text("Saved work")
             try:
                 yield page, dispatcher, scheduler, container, synthetic

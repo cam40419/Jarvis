@@ -35,8 +35,6 @@ const pageGlobals = {
   'project-command.js': ['api', 'session', 'SimonMarkdown'],
   'project-knowledge.js': ['api', 'session', 'SimonMarkdown'],
   'project-workspace.js': ['api', 'session'],
-  'project-drafts.js': ['api', 'session'],
-  'project-continuity.js': ['api', 'session'],
   'project-outputs.js': ['api', 'session'],
   'result-view.js': ['api', 'session', 'SimonMarkdown'],
   'setup-assistant.js': ['api'],

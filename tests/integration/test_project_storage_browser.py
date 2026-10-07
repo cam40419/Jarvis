@@ -37,7 +37,7 @@ def test_project_file_locations_save_multiple_subfolders_and_survive_reload(proj
     )
     assert [row["path"] for row in saved["locations"]] == ["References", "Outputs"]
     page.reload()
-    page.get_by_role("button", name="Work", exact=True).click()
+    page.locator("#work-open").click()
     page.locator("#pc-project-list button").filter(has_text="Storage locations").click()
     page.get_by_role("tab", name="Files", exact=True).click()
     expect(section).to_contain_text("Project references")

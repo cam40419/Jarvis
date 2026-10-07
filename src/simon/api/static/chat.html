@@ -58,7 +58,8 @@
         <span aria-hidden="true">＋</span> New conversation <kbd>Alt N</kbd>
       </button>
       <nav class="sidebar-work-nav" aria-label="Workspace">
-        <button id="sidebar-projects" type="button" class="nav-button">Projects</button>
+        <a href="/projects" class="nav-button">Projects</a>
+        <button id="sidebar-projects" type="button" class="nav-button">Legacy work</button>
         <button id="sidebar-agents" type="button" class="nav-button">Agents &amp; skills</button>
         <button id="connections-open" type="button" class="nav-button" disabled>Connections</button>
       </nav>
@@ -90,7 +91,7 @@
       <header class="topbar">
         <div class="simon-subnav" role="group" aria-label="Simon views">
           <button id="chat-open" type="button" aria-current="page">Chat</button
-          ><button id="work-open" type="button">Work</button>
+          ><button id="work-open" type="button">Legacy work</button>
         </div>
         <button
           id="menu-toggle"
@@ -152,10 +153,13 @@
       <section id="work-view" class="work-view" aria-label="Work and projects" hidden>
         <div class="work-hero">
           <div class="work-home-heading">
-            <h1>Workspace</h1>
+            <h1>Legacy workspace</h1>
             <button id="work-refresh" type="button" class="pc-button">Refresh workspace</button>
           </div>
-          <p>Open a project for its requests, answers, files, and team.</p>
+          <p>
+            Existing projects, requests, files, and runs. Start shared project boards in
+            <a href="/projects">Projects</a>.
+          </p>
           <nav class="work-home-nav" aria-label="Workspace sections">
             <button id="work-projects-open" type="button">Projects</button>
             <button id="work-agents-open" type="button">Agents &amp; runs</button>

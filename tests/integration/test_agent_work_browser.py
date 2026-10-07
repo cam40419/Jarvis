@@ -126,7 +126,7 @@ def agent_ui(tmp_path):
             page.on("pageerror", lambda error: errors.append(str(error)))
             page.goto(origin + "/chat")
             expect(page.locator("#connections-open")).to_be_enabled()
-            page.get_by_role("button", name="Work", exact=True).click()
+            page.locator("#work-open").click()
             expect(page.locator("#agent-create")).to_be_enabled()
             try:
                 yield page, dispatcher, container
@@ -171,7 +171,7 @@ def test_create_plan_run_download_and_return_to_saved_result(agent_ui, tmp_path)
     page.get_by_role("button", name="Accept this revision", exact=True).click()
     expect(page.get_by_text("Accepted revision", exact=True)).to_be_visible()
     page.reload()
-    page.get_by_role("button", name="Work", exact=True).click()
+    page.locator("#work-open").click()
     expect(page.locator("#agent-detail")).to_contain_text("A useful, saved result.")
     page.get_by_role("button", name="Review answer.txt", exact=True).click()
     expect(page.get_by_text("Accepted revision", exact=True)).to_be_visible()

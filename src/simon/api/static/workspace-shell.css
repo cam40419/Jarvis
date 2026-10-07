@@ -7,6 +7,9 @@
   border-bottom: 1px solid var(--line);
 }
 .sidebar-work-nav .nav-button {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
   min-height: 38px;
   font-weight: 550;
 }

@@ -34,7 +34,7 @@ def test_phone_review_exact_details_confirmation_and_mobile(agent_ui, tmp_path):
     expect(review.get_by_role("button", name="Place reviewed call")).to_have_count(0)
     assert len(requests) == 1
     page.reload()
-    page.get_by_role("button", name="Work", exact=True).click()
+    page.locator("#work-open").click()
     expect(review).to_contain_text("Provider accepted")
     assert len(requests) == 1
     page.locator("#external-actions").screenshot(

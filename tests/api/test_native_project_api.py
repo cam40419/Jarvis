@@ -6,7 +6,9 @@ from uuid import UUID, uuid4
 import pytest
 
 from simon.api.auth import session_cookie
+from simon.domain.accounts import ManagedAccount
 from simon.domain.identity import DEV_ACTOR_ID, DEV_WORKSPACE_ID, Membership
+from simon.domain.native_projects import NativeProjectMember
 from simon.services.identity import csrf_token
 
 
@@ -349,3 +351,171 @@ def test_current_role_downgrade_blocks_writes_and_replays_with_cached_owner_scop
         )
         assert response.status_code == 403, response.text
     assert client.get(path + "/tasks").json() == [task]
+
+
+@pytest.mark.parametrize("role", ["owner", "member", "guest"])
+def test_project_access_reports_current_permissions_and_minimal_shared_people(
+    client, container, auth_headers, role
+):
+    project = create_project(client, auth_headers)
+    path = f"/v2/projects/{project['id']}"
+    actor_id = DEV_ACTOR_ID
+    if role != "owner":
+        actor_id, _ = sign_in(client, container, role=role)
+        container.store.put_native_project_member(
+            NativeProjectMember(
+                workspace_id=DEV_WORKSPACE_ID, project_id=UUID(project["id"]), actor_id=actor_id
+            )
+        )
+    candidate_id, foreign_id, disabled_id = uuid4(), uuid4(), uuid4()
+    for identifier, workspace_id, name in (
+        (candidate_id, DEV_WORKSPACE_ID, "Potential collaborator"),
+        (foreign_id, uuid4(), "Other tenant private name"),
+        (disabled_id, DEV_WORKSPACE_ID, "Disabled account"),
+    ):
+        container.store.put_membership(
+            Membership(
+                actor_id=identifier, workspace_id=workspace_id, role="member", display_name=name
+            )
+        )
+    container.store.save_managed_account(
+        ManagedAccount(
+            actor_id=disabled_id,
+            workspace_id=DEV_WORKSPACE_ID,
+            invited_by=DEV_ACTOR_ID,
+            display_name="Disabled account",
+            disabled=True,
+        )
+    )
+    response = client.get(path + "/access")
+    assert response.status_code == 200, response.text
+    value = response.json()
+    assert value["actor_id"] == str(actor_id)
+    assert value["project_version"] == project["version"]
+    assert value["permissions"] == {
+        "can_edit": role != "guest",
+        "can_manage_members": role == "owner",
+        "can_archive": role == "owner",
+        "can_claim": role != "guest",
+    }
+    people = {person["actor_id"]: person for person in value["members"]}
+    assert people[str(actor_id)]["can_assign"] == (role != "guest")
+    assert people[str(actor_id)]["workspace_role"] == role
+    assert people[str(actor_id)]["active"] is True
+    assert all(person["display_name"] for person in people.values())
+    assert value["member_candidates"] == (
+        [
+            {
+                "actor_id": str(candidate_id),
+                "display_name": "Potential collaborator",
+                "workspace_role": "member",
+            }
+        ]
+        if role == "owner"
+        else []
+    )
+    assert str(foreign_id) not in response.text
+    assert "Other tenant private name" not in response.text
+    assert str(disabled_id) not in response.text
+    assert "email" not in response.text and "password" not in response.text
+
+
+def test_access_directory_paginates_filtered_rows_and_archive_disables_board_actions(
+    client, container, auth_headers
+):
+    project = create_project(client, auth_headers)
+    path = f"/v2/projects/{project['id']}"
+    ids = [UUID(int=value) for value in (1, 2, 3)]
+    for identifier in ids:
+        container.store.put_membership(
+            Membership(actor_id=identifier, workspace_id=DEV_WORKSPACE_ID, role="guest")
+        )
+    container.store.put_native_project_member(
+        NativeProjectMember(
+            workspace_id=DEV_WORKSPACE_ID, project_id=UUID(project["id"]), actor_id=ids[0]
+        )
+    )
+    first = client.get(path + "/access?candidates_limit=1").json()
+    assert first["member_candidates"] == []
+    assert first["candidates_next_offset"] == 1
+    second = client.get(path + "/access?candidates_limit=1&candidates_offset=1").json()
+    assert [candidate["actor_id"] for candidate in second["member_candidates"]] == [str(ids[1])]
+    assert second["member_candidates"][0]["workspace_role"] == "guest"
+    assert second["candidates_next_offset"] == 2
+    final = client.get(path + "/access?candidates_limit=1&candidates_offset=4").json()
+    assert final["member_candidates"] == [] and final["candidates_next_offset"] is None
+    archived = client.put(
+        path,
+        headers=auth_headers,
+        json={
+            "name": project["name"],
+            "objective": project["objective"],
+            "status": "archived",
+            "expected_version": project["version"],
+            "idempotency_key": "archive-access-view",
+        },
+    )
+    assert archived.status_code == 200, archived.text
+    access = client.get(path + "/access").json()
+    assert access["project_version"] == archived.json()["version"]
+    assert access["permissions"] == {
+        "can_edit": True,
+        "can_manage_members": False,
+        "can_archive": True,
+        "can_claim": False,
+    }
+    assert access["member_candidates"] == []
+
+
+def test_access_view_rechecks_revocation_and_does_not_leak_to_other_tenants(
+    client, container, auth_headers
+):
+    project = create_project(client, auth_headers)
+    project_id = UUID(project["id"])
+    path = f"/v2/projects/{project_id}/access"
+    member_id, _ = sign_in(client, container)
+    container.store.put_native_project_member(
+        NativeProjectMember(
+            workspace_id=DEV_WORKSPACE_ID, project_id=project_id, actor_id=member_id
+        )
+    )
+    assert client.get(path).json()["permissions"]["can_claim"] is True
+    container.store.delete_native_project_member(DEV_WORKSPACE_ID, project_id, member_id)
+    assert client.get(path).status_code == 404
+    sign_in(client, container, workspace_id=uuid4(), role="owner")
+    assert client.get(path).status_code == 404
+
+
+def test_native_workspace_header_rejects_requests_after_another_tab_switches_workspace(
+    client, container, auth_headers
+):
+    original = create_project(client, auth_headers)
+    other_workspace = uuid4()
+    container.store.put_membership(
+        Membership(actor_id=DEV_ACTOR_ID, workspace_id=other_workspace, role="owner")
+    )
+    switched = client.post(
+        "/auth/workspace", headers=auth_headers, json={"workspace_id": str(other_workspace)}
+    )
+    assert switched.status_code == 200, switched.text
+    headers = {
+        "Origin": "http://localhost:8000",
+        "X-CSRF-Token": switched.json()["csrf_token"],
+        "X-Workspace-ID": str(DEV_WORKSPACE_ID),
+    }
+    body = {
+        "name": "Wrong workspace",
+        "objective": "Must not create",
+        "idempotency_key": "tab-switch-create",
+    }
+    for response in (
+        client.get("/v2/projects", headers=headers),
+        client.get(f"/v2/projects/{original['id']}/access", headers=headers),
+        client.post("/v2/projects", headers=headers, json=body),
+    ):
+        assert response.status_code == 403
+        assert response.json()["error"]["message"] == "Workspace changed. Reload before continuing."
+    assert container.store.native_projects(other_workspace, DEV_ACTOR_ID, 0, 100) == ()
+    headers["X-Workspace-ID"] = str(other_workspace)
+    assert client.get("/v2/projects", headers=headers).json() == []
+    assert client.post("/v2/projects", headers=headers, json=body).status_code == 201

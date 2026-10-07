@@ -372,6 +372,10 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
     def chat_page() -> HTMLResponse:
         return page("chat.html")
 
+    @app.get("/projects", include_in_schema=False)
+    def projects_page() -> HTMLResponse:
+        return page("projects.html")
+
     async def security_headers(request: Request, call_next: Any) -> Any:
         # One configured public origin controls redirects. Client-supplied proxy
         # headers never control origin, identity or auth throttling source keys.
@@ -422,9 +426,13 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
                 "default-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'none'"
                 "; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'"
             )
-        elif path in {"/login", "/chat", "/automations", "/displays"} or path.startswith(
-            "/assets/"
-        ):
+        elif path in {
+            "/login",
+            "/chat",
+            "/projects",
+            "/automations",
+            "/displays",
+        } or path.startswith("/assets/"):
             response.headers["Content-Security-Policy"] = (
                 "default-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'none'"
                 "; media-src 'self' blob:; connect-src 'self'"
