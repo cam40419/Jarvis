@@ -1,5 +1,6 @@
 """Native shared project contracts, independent of memory records and tool bindings."""
 
+from datetime import UTC, datetime
 from typing import Any, Literal, Self
 from uuid import UUID, uuid4
 
@@ -13,6 +14,13 @@ TaskStatus = Literal["todo", "in_progress", "in_review", "blocked", "done", "can
 
 class NativeModel(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, str_strip_whitespace=True)
+
+    @field_validator("created_at", "updated_at", check_fields=False)
+    @classmethod
+    def utc_timestamps(cls, value: datetime) -> datetime:
+        # PostgreSQL returns timestamptz using the connection's current timezone.
+        # Keep persisted reads, fresh writes and idempotency receipts byte-stable.
+        return value.astimezone(UTC)
 
     @field_validator("*")
     @classmethod
