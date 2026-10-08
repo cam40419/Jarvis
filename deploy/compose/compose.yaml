@@ -6,7 +6,7 @@ services:
     environment:
       POSTGRES_DB: jarvis
       POSTGRES_USER: jarvis
-      POSTGRES_PASSWORD: ${SIMON_DEV_DB_PASSWORD:-${JARVIS_DEV_DB_PASSWORD:-local-development-only}}
+      POSTGRES_PASSWORD: ${SIMON_DEV_DB_PASSWORD:-local-development-only}
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U jarvis -d jarvis']
       interval: 5s

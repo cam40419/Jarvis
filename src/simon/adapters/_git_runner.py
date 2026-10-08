@@ -323,7 +323,7 @@ def run(request: dict[str, Any], workspace: Path, *, executable: str = "/usr/bin
 if __name__ == "__main__":
     try:
         sys.exit(run(json.loads(sys.argv[1]), Path("/workspace")))
-    except (ValueError, OSError, configparser.Error):
+    except (ValueError, TypeError, KeyError, IndexError, OSError, configparser.Error):
         print(
             "Git operation rejected: invalid path or unsupported repository configuration",
             file=sys.stderr,

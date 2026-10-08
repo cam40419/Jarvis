@@ -4,10 +4,10 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from simon.domain.agent_platform import AgentProfile, AgentTaskSpec
-from simon.domain.agent_runs import TaskExecution
 from simon.domain.artifacts import Artifact, ArtifactError
 from simon.domain.models import ActorContext, Channel
+from simon.domain.task_execution import TaskExecution
+from simon.domain.worker_assignment import AgentProfile, AgentTaskSpec
 from simon.services.agent_prompts import render_agent_prompt
 from simon.services.artifact_handoff import prepare_dependency_artifacts
 from simon.services.artifacts import ArtifactStore

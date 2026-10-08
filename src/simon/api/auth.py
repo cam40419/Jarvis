@@ -3,7 +3,7 @@ from typing import Any
 from urllib.parse import urlsplit
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Request, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, Request, Response
 from pydantic import BaseModel, ConfigDict, Field
 
 from simon.domain.email_identity import (
@@ -12,7 +12,7 @@ from simon.domain.email_identity import (
     ResetPasswordWithEmail,
     VerifyRecoveryEmail,
 )
-from simon.domain.errors import AuthorizationError, ValidationError
+from simon.domain.errors import AuthenticationError, AuthorizationError, ValidationError
 from simon.domain.identity import Session
 from simon.domain.models import utc_now
 from simon.services.email_identity import EmailIdentityService
@@ -64,6 +64,11 @@ def session_cookie(identity: IdentityService) -> str:
 
 def ceremony_cookie(identity: IdentityService) -> str:
     return "__Host-simon_ceremony" if identity.settings.secure_cookies else "simon_ceremony"
+
+
+def require_human_credentials(request: Request) -> None:
+    if "authorization" in request.headers:
+        raise AuthenticationError("This endpoint accepts human sessions, not bearer credentials.")
 
 
 def same_origin(request: Request, identity: IdentityService) -> None:
@@ -136,7 +141,9 @@ def set_session(
 def auth_router(
     identity: IdentityService, email_identity: EmailIdentityService | None = None
 ) -> APIRouter:
-    router = APIRouter(prefix="/auth", tags=["identity"])
+    router = APIRouter(
+        prefix="/auth", tags=["identity"], dependencies=[Depends(require_human_credentials)]
+    )
 
     def email_service() -> EmailIdentityService:
         if email_identity is None:

@@ -1,15 +1,9 @@
 # Shared context: text, voice, and personal memory
 
-Verified September 16, 2026: 466 regression tests passed with PostgreSQL and browser checks,
-95.09% coverage; five opt-in paid tests skipped in that run. The real-model recall/extraction
-check passed separately. Ruff and strict mypy passed. Migration 0013 is applied locally; the
-running dev server exposes the recall endpoint, and local recall returns text and voice sources.
-
 ## Try it
 
 Run `./scripts/start-dev.ps1`, sign in at http://localhost:8000/login, and refresh the chat page.
-The launcher applies migrations, including `0013_personal_context.sql`. End an existing voice
-call and start a new one to receive the updated instructions and startup context.
+The launcher applies current migrations. Each voice call receives bounded startup context.
 
 1. Start a new chat and say: “My ongoing project is Atlas. It automates my Bambu A1 plate changer.”
    Simon can save useful durable context without requiring the word “remember” or a confirmation.
@@ -53,15 +47,15 @@ the separation of live conversation and backend work described in the
 
 ## Persistence and boundaries
 
-New conversations, including voice-linked threads, are private to their creator. Migration 0013
-preserves older threads as household-shared; those threads do not receive personal memories or
-private recall tools. Start a new conversation for those features. Read APIs, run inspection,
-feedback, and thread pagination enforce the new visibility boundary.
+New conversations, including voice-linked threads, are private to their creator.
+Read APIs, run inspection, feedback and pagination enforce thread visibility.
 
-Personal memories are scoped to both actor and workspace. Another workspace member, including an
-owner, cannot list, use, or retract them. Legacy shared memories retain their visibility. The
-manual memory API preserves its legacy household default for old clients; the updated UI and
-conversational tools select personal scope explicitly. Accounts do not share memory automatically.
+Personal memories are scoped to both actor and workspace. Another workspace member,
+including an owner, cannot list, use or retract them. The manual form and conversational
+tools choose personal scope. The memory API accepts an explicit `personal` or `workspace`
+scope and defaults to `workspace`; callers should choose deliberately. Accounts do not
+share personal memory automatically. A memory categorized as `project` is a descriptive
+context entry, not a native project, board or source of agent authority.
 
 `memory_remember` stores a fact only against an active request belonging to the actor, with a quote
 from that request as evidence. Earlier voice excerpts and tool/web results are not accepted as
@@ -77,7 +71,7 @@ thread visibility before executing. Memory and historical text never grant tool 
 
 ## Bounds and checks
 
-The original `context-v1` assembler retains at most eight recent complete text turns from the last
+The `context-v1` assembler retains at most eight recent complete text turns from the last
 32 messages and fits memories/excerpts within its UTF-8 byte budget. It now considers up to 500
 visible active memories; shared workspace entries retain their limit of 100. Additional recall
 has separate bounded excerpts (4 KB in text startup, 3.5 KB in voice startup; up to eight excerpts

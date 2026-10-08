@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="/assets/projects.css" />
     <script src="/assets/app-path.js" defer></script>
     <script src="/assets/native-projects.js" defer></script>
+    <script src="/assets/native-team.js" defer></script>
   </head>
   <body class="projects-page">
     <a class="np-skip" href="#np-main">Skip to projects</a>
@@ -21,7 +22,6 @@
       <nav class="np-nav" aria-label="Workspace">
         <a href="/projects" aria-current="page">Projects</a>
         <a href="/chat">Conversations</a>
-        <a href="/chat?view=work">Legacy work</a>
       </nav>
       <a class="np-account-link" href="/login">
         <span id="np-account">Account</span>
@@ -75,7 +75,8 @@
             <p id="np-meta" class="np-meta"></p>
           </div>
           <div class="np-actions">
-            <button id="np-team" class="np-button" type="button">Team</button>
+            <button id="np-agents" class="np-button" type="button">Agents</button>
+            <button id="np-team" class="np-button" type="button">People</button>
             <button id="np-edit-project" class="np-button" type="button">Edit project</button>
           </div>
         </div>
@@ -124,8 +125,8 @@
       </section>
 
       <footer class="np-footer">
-        Shared projects and task boards are ready to use. AI staffing, file intake, and project
-        model controls are upcoming.
+        Shared projects, agent roles, and task boards are ready to use. Automatic staffing, file
+        intake, and project model controls are upcoming.
       </footer>
     </main>
 
@@ -269,7 +270,7 @@
     <dialog id="np-team-dialog" class="np-dialog" aria-labelledby="np-team-heading">
       <div class="np-dialog-heading">
         <p class="np-eyebrow">People and access</p>
-        <h2 id="np-team-heading">Project team</h2>
+        <h2 id="np-team-heading">Project people</h2>
         <p class="np-muted">
           Owners manage access and project status. Members collaborate on the brief and board.
         </p>
@@ -305,6 +306,211 @@
       ></div>
       <div class="np-dialog-actions">
         <button class="np-button" type="button" data-close="np-team-dialog">Done</button>
+      </div>
+    </dialog>
+    <dialog id="nt-dialog" class="np-dialog nt-dialog" aria-labelledby="nt-heading">
+      <div class="np-dialog-heading">
+        <p class="np-eyebrow">Project agents</p>
+        <h2 id="nt-heading" tabindex="-1">Agent roles</h2>
+        <p class="np-muted">
+          Define responsibilities and what successful work looks like. Creating a role does not
+          start a worker or make paid model calls.
+        </p>
+      </div>
+      <div
+        id="nt-feedback"
+        class="np-feedback"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      ></div>
+      <section id="nt-overview" aria-label="Agent team">
+        <div class="nt-toolbar">
+          <p id="nt-summary" class="np-muted"></p>
+          <div class="np-actions">
+            <button id="nt-policy-open" class="np-button" type="button" hidden>Team limits</button>
+            <button id="nt-new-agent" class="np-button np-primary" type="button" hidden>
+              Add agent role
+            </button>
+          </div>
+        </div>
+        <ul id="nt-agents" class="nt-agents" aria-label="Agent roles"></ul>
+      </section>
+      <form id="nt-agent-form" hidden aria-labelledby="nt-editor-heading">
+        <h3 id="nt-editor-heading">Add agent role</h3>
+        <fieldset>
+          <div class="np-field-pair">
+            <div class="np-field">
+              <label for="nt-name">Role name</label>
+              <input id="nt-name" required maxlength="200" autocomplete="off" />
+            </div>
+            <div class="np-field" id="nt-role-key-field">
+              <label for="nt-role-key">Role identifier</label>
+              <input
+                id="nt-role-key"
+                required
+                maxlength="64"
+                pattern="[a-z][a-z0-9\-]{0,63}"
+                autocomplete="off"
+                aria-describedby="nt-role-key-help"
+              />
+              <p id="nt-role-key-help" class="np-field-help">
+                A permanent short name, such as design-lead. Use lowercase letters, numbers, and
+                hyphens.
+              </p>
+            </div>
+          </div>
+          <div class="np-field">
+            <label for="nt-instructions">Responsibilities and instructions</label>
+            <textarea id="nt-instructions" required maxlength="8000" rows="5"></textarea>
+          </div>
+          <div class="np-field">
+            <label for="nt-success">Success criteria</label>
+            <textarea id="nt-success" required maxlength="4000" rows="3"></textarea>
+          </div>
+          <div class="np-field">
+            <label for="nt-rationale">Why this role is needed</label>
+            <textarea id="nt-rationale" required maxlength="2000" rows="3"></textarea>
+          </div>
+          <div id="nt-state-field" class="np-field" hidden>
+            <label for="nt-state">Role status</label>
+            <select id="nt-state">
+              <option value="active">Active</option>
+              <option value="paused">Paused</option>
+              <option value="retired">Retired</option>
+            </select>
+            <p class="np-field-help">
+              Only active roles can receive new task assignments. Pausing or retiring preserves the
+              role's history.
+            </p>
+          </div>
+          <label class="nt-checkbox" for="nt-can-manage">
+            <input id="nt-can-manage" type="checkbox" />
+            Allow this agent to manage the project agent team
+          </label>
+          <p class="np-field-help">
+            This also requires permission in Team limits and an authorized worker credential.
+          </p>
+        </fieldset>
+      </form>
+      <form id="nt-policy-form" hidden aria-labelledby="nt-policy-heading">
+        <h3 id="nt-policy-heading">Team limits</h3>
+        <fieldset>
+          <div class="np-field">
+            <label for="nt-max-agents">Maximum active agents</label>
+            <input id="nt-max-agents" type="number" min="1" max="100" step="1" required />
+            <p class="np-field-help">
+              Limits the active roles in this project. This is a staffing limit, not a spending
+              budget.
+            </p>
+          </div>
+          <label class="nt-checkbox" for="nt-agents-manage">
+            <input id="nt-agents-manage" type="checkbox" />
+            Permit authorized agents to manage the agent team
+          </label>
+          <p class="np-field-help">
+            Each agent also needs its own team-management permission and an authorized worker
+            credential.
+          </p>
+        </fieldset>
+      </form>
+      <div id="nt-conflict" class="np-conflict" hidden>
+        <h3>The saved version has changed</h3>
+        <p>Compare the latest version with your draft before saving again.</p>
+        <pre id="nt-latest"></pre>
+        <button id="nt-rebase" class="np-button" type="button">
+          Use latest version and keep my draft
+        </button>
+      </div>
+      <div class="np-dialog-actions">
+        <button id="nt-cancel" class="np-button" type="button" hidden>Cancel edit</button>
+        <button id="nt-save" class="np-button np-primary" type="submit" form="nt-agent-form" hidden>
+          Save role
+        </button>
+        <button id="nt-close" class="np-button" type="button">Done</button>
+      </div>
+    </dialog>
+    <dialog id="nt-credentials-dialog" class="np-dialog" aria-labelledby="nt-credentials-heading">
+      <div class="np-dialog-heading">
+        <p class="np-eyebrow">Worker access</p>
+        <h2 id="nt-credentials-heading" tabindex="-1">Worker credentials</h2>
+        <p id="nt-credentials-role" class="np-muted"></p>
+        <p class="np-muted">
+          Credentials let a worker act as this agent within this project. Issuing one does not start
+          a worker.
+        </p>
+      </div>
+      <div
+        id="nt-credentials-feedback"
+        class="np-feedback"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      ></div>
+      <ul id="nt-credentials-list" class="np-members" aria-label="Worker credentials"></ul>
+      <form id="nt-credentials-form">
+        <fieldset>
+          <h3>Issue temporary access</h3>
+          <div class="np-field">
+            <label for="nt-credential-minutes">Valid for (minutes)</label>
+            <input
+              id="nt-credential-minutes"
+              type="number"
+              required
+              min="1"
+              max="60"
+              step="1"
+              value="15"
+            />
+          </div>
+          <label class="nt-checkbox"
+            ><input type="checkbox" checked disabled /> Read this project's board</label
+          >
+          <label class="nt-checkbox" for="nt-credential-write"
+            ><input id="nt-credential-write" type="checkbox" checked /> Create and update
+            tasks</label
+          >
+          <label class="nt-checkbox" for="nt-credential-team"
+            ><input id="nt-credential-team" type="checkbox" /> Manage this project's agent
+            team</label
+          >
+          <p class="np-field-help">
+            Team changes also require permission for this role and this project. Role changes
+            invalidate previously issued credentials.
+          </p>
+          <div class="np-dialog-actions">
+            <button id="nt-credential-issue" class="np-button np-primary" type="submit">
+              Issue credential
+            </button>
+          </div>
+        </fieldset>
+      </form>
+      <section
+        id="nt-credential-secret"
+        class="np-conflict"
+        hidden
+        aria-labelledby="nt-secret-heading"
+      >
+        <h3 id="nt-secret-heading">Copy your worker token now</h3>
+        <p>
+          The token is shown once. Closing this dialog clears it. Keep it in the worker's secret
+          configuration.
+        </p>
+        <label class="np-sr-only" for="nt-secret-value">Worker token</label>
+        <textarea
+          id="nt-secret-value"
+          readonly
+          rows="4"
+          autocomplete="off"
+          spellcheck="false"
+        ></textarea>
+        <button id="nt-secret-copy" class="np-button" type="button">Copy token</button>
+      </section>
+      <div class="np-dialog-actions">
+        <button id="nt-credential-retry" class="np-button np-primary" type="button" hidden>
+          Retry operation
+        </button>
+        <button id="nt-credentials-close" class="np-button" type="button">Done</button>
       </div>
     </dialog>
   </body>

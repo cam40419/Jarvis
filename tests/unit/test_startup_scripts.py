@@ -19,19 +19,12 @@ def configuration(monkeypatch):
     settings = SimpleNamespace(
         storage_backend="postgres",
         environment="production",
-        agent_execution_enabled=True,
-        agent_manifest_file="configured.json",
     )
     monkeypatch.setattr(startup, "Settings", lambda: settings)
-    monkeypatch.setattr(
-        startup,
-        "load_manifest",
-        lambda path: SimpleNamespace(teams=["configured"]),
-    )
     return settings
 
 
-@pytest.mark.parametrize("service", ["server", "agents"])
+@pytest.mark.parametrize("service", ["server"])
 def test_preflight_validates_settings_without_starting_services(configuration, service, capsys):
     assert startup.main([service]) == 0
     assert "validated" in capsys.readouterr().out
@@ -41,9 +34,7 @@ def test_preflight_validates_settings_without_starting_services(configuration, s
     ("service", "changes"),
     [
         ("server", {"storage_backend": "memory"}),
-        ("agents", {"storage_backend": "memory"}),
         ("server", {"environment": "development"}),
-        ("agents", {"agent_execution_enabled": False}),
     ],
 )
 def test_preflight_rejects_unready_settings(configuration, service, changes):
@@ -52,10 +43,7 @@ def test_preflight_rejects_unready_settings(configuration, service, changes):
     assert startup.main([service]) == 2
 
 
-def test_preflight_requires_manifest_and_redacts_parser_errors(configuration, monkeypatch, capsys):
-    monkeypatch.setattr(startup, "load_manifest", lambda path: SimpleNamespace(teams=[]))
-    assert startup.main(["agents"]) == 2
-
+def test_preflight_redacts_parser_errors(configuration, monkeypatch, capsys):
     def invalid():
         raise ValueError("settings input_value=provider-secret")
 
@@ -82,9 +70,8 @@ def test_powershell_launchers_parse_without_executing_or_registering_tasks(tmp_p
     scripts = [
         ROOT / "scripts" / name
         for name in (
-            "start-agent-dispatcher.ps1",
-            "install-agent-task.ps1",
             "start-configured-server.ps1",
+            "start-local.ps1",
             "start-tunnel.ps1",
             "stop-tunnel.ps1",
             "install-https-tasks.ps1",
@@ -115,7 +102,6 @@ def test_powershell_launchers_parse_without_executing_or_registering_tasks(tmp_p
 @pytest.mark.parametrize(
     ("script", "marker"),
     [
-        ("start-agent-dispatcher.ps1", "agent-dispatcher-stop.request"),
         ("start-configured-server.ps1", "simon-stop.request"),
     ],
 )
@@ -163,9 +149,7 @@ def test_launchers_honor_maintenance_and_reset_marker_only_on_restart(
 @pytest.mark.parametrize(
     ("script", "marker"),
     [
-        ("start-agent-dispatcher.ps1", "agent-dispatcher-stop.request"),
         ("start-assistant-worker.ps1", "assistant-worker-stop.request"),
-        ("start-workflow-worker.ps1", "assistant-worker-stop.request"),
         ("start-local.ps1", "simon-stop.request"),
         ("start-configured-server.ps1", "simon-stop.request"),
     ],
@@ -222,7 +206,7 @@ def test_explicit_resume_clears_only_selected_stopped_service(tmp_path, state, m
     shutil.copyfile(ROOT / "scripts" / copied.name, copied)
     local = tmp_path / ".local"
     local.mkdir()
-    stop = local / "agent-dispatcher-stop.request"
+    stop = local / "simon-stop.request"
     other = local / "assistant-worker-stop.request"
     stop.touch()
     other.touch()
@@ -238,7 +222,7 @@ def test_explicit_resume_clears_only_selected_stopped_service(tmp_path, state, m
         "function Get-ScheduledTask { param($TaskName,$ErrorAction)\n"
         "  if ($fixture.state) { [pscustomobject]@{ State = $fixture.state } }\n}\n"
         "function Start-ScheduledTask { param($TaskName) $started.Add($TaskName) }\n"
-        "try { & $ResumePath -Service agents 6>$null | Out-Null; $success = $true }\n"
+        "try { & $ResumePath -Service api 6>$null | Out-Null; $success = $true }\n"
         "catch { $success = $false }\n"
         "@{ success = $success; started = @($started.ToArray()) } | ConvertTo-Json -Compress\n",
         encoding="utf-8",
@@ -261,5 +245,5 @@ def test_explicit_resume_clears_only_selected_stopped_service(tmp_path, state, m
         check=True,
     )
     report = json.loads(result.stdout)
-    assert report == {"success": resume, "started": ["Simon-Agents"] if resume else []}
+    assert report == {"success": resume, "started": ["Simon-Local"] if resume else []}
     assert stop.exists() is not resume and other.exists()

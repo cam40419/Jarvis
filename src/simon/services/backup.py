@@ -120,18 +120,19 @@ def create_bundle(
         raise ValueError("Backup destination already exists")
     roots = {name: checked_path(path) for name, path in roots.items()}
     configuration = {name: checked_path(path) for name, path in (configuration or {}).items()}
-    if set(roots) != {"files", "agents"}:
-        raise ValueError("Both files and agents roots are required")
+    if set(roots) != {"files"}:
+        raise ValueError("Exactly the files root is required")
     if not set(configuration).issubset(
         {
-            "agent-platform.json",
             "external-providers.json",
-            "project-boards.json",
             "server.env",
+            "credentials.key",
         }
     ):
         raise ValueError("Unsupported configuration entry")
-    if ("server.env" in configuration) != includes_secrets:
+    if ("server.env" in configuration) != includes_secrets or (
+        "credentials.key" in configuration and not includes_secrets
+    ):
         raise ValueError("Secret inclusion must be explicit")
     for source in [*roots.values(), *configuration.values()]:
         if destination.is_relative_to(source) or source.is_relative_to(destination):

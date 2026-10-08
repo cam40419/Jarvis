@@ -1,40 +1,22 @@
-import json
 from uuid import uuid4
 
 import pytest
 
 from simon.adapters.google import CALENDAR_SCOPE, DRIVE_READ_SCOPE, ConnectedError
 from simon.adapters.memory import InMemoryStore
-from simon.adapters.model_endpoints import ModelEndpointClient
 from simon.adapters.native_tools import (
     NativeToolTransport,
+    bind_native_tools,
     native_tool_definitions,
     native_tool_status,
     native_transport_factory,
-    with_native_tools,
 )
 from simon.adapters.tool_transports import TransportRegistry
-from simon.domain.agent_platform import (
-    AgentProfile,
-    AgentTaskSpec,
-    PlanTeamRequest,
-    PlatformManifest,
-    TeamTemplate,
-)
-from simon.domain.agent_runs import StartAgentRun
-from simon.domain.context import CreateMemory
 from simon.domain.errors import AuthorizationError, NotFoundError, ValidationError
-from simon.domain.identity import Membership
-from simon.domain.model_routing import ModelEndpoint, TextGenerationResult
-from simon.domain.models import JobStatus
 from simon.domain.tool_catalog import ToolCatalogError, ToolExecutionContext, ToolExecutionError
-from simon.services.agent_dispatcher import AgentDispatcher
-from simon.services.agent_platform import AgentPlatformService
-from simon.services.agent_runs import AgentRunService
 from simon.services.agent_worker import WorkerCheckpointError
 from tests.contract.test_google_read_permissions import grant
 from tests.contract.test_local_files import local_setup
-from tests.contract.test_project_files import setup_project
 
 
 @pytest.fixture
@@ -92,13 +74,11 @@ def test_local_write_read_revision_and_invocation_idempotency(runtime):
     assert (files.workspace(transport.actor) / "reports/notes.md").read_text() == "Updated"
 
 
-def test_drive_read_guidance_preserves_listing_account_and_project_context():
+def test_drive_read_guidance_preserves_listing_account():
     definition = next(
         item for item in native_tool_definitions() if item.id == "native.drive_read_file"
     )
     assert "source_account_id or account_id as the account argument" in definition.description
-    assert "prefer project_file_read" in definition.description
-    assert "same project_id" in definition.description
 
 
 def test_action_and_profile_scopes_cannot_be_bypassed(runtime):
@@ -151,53 +131,8 @@ def test_agent_never_exposes_host_roots_even_for_server_owner(runtime):
         allowed_tool_ids=frozenset({definition.id}),
         scopes=actor.scopes,
     )
-    with pytest.raises(AuthorizationError, match="workspace and project"):
+    with pytest.raises(AuthorizationError, match="account workspace"):
         transport(definition, {"root": "downloads", "path": "host-only.txt"}, context)
-
-
-def test_project_roots_require_visible_project_and_retained_scopes(runtime):
-    connected, actor, _, _, _, invoke = runtime
-    project = connected.memories.create(
-        actor,
-        CreateMemory(
-            subject="Project",
-            content="Private work",
-            scope="personal",
-            category="project",
-            idempotency_key="native-project",
-        ),
-    )
-    path = {"root": f"project:{project.id}", "path": "notes.md", "content": "project"}
-    invoke("local_file_write", path)
-    with pytest.raises(AuthorizationError, match="Project access"):
-        invoke("local_file_write", path, scopes={"jobs:read", "jobs:write"})
-    other = actor.model_copy(update={"actor_id": uuid4()})
-    connected.store.put_membership(
-        Membership(
-            actor_id=other.actor_id,
-            workspace_id=other.workspace_id,
-            role="owner",
-            display_name="Other",
-            workspace_name="Workspace",
-        )
-    )
-    tool = NativeToolTransport(
-        connected,
-        actor=other,
-        run_id=uuid4(),
-        revalidate=lambda: other,
-    )
-    definition = next(t for t in native_tool_definitions() if t.id == "native.local_file_read")
-    context = ToolExecutionContext(
-        actor_id=other.actor_id,
-        workspace_id=other.workspace_id,
-        run_id=tool.run_id,
-        agent_id="worker",
-        allowed_tool_ids=frozenset({definition.id}),
-        scopes=other.scopes,
-    )
-    with pytest.raises(NotFoundError, match="Project not found"):
-        tool(definition, {"root": path["root"], "path": "notes.md"}, context)
 
 
 def test_revalidation_rejects_owner_changes_and_cancellation(runtime):
@@ -350,78 +285,7 @@ def test_unexpected_read_exception_is_not_classified_as_a_known_failure(runtime)
         invoke("drive_read_file", {"id": "resource"})
 
 
-def test_project_reads_do_not_create_cloud_folders_and_writes_keep_receipts():
-    store = InMemoryStore()
-    connected, actor, files, project_id = setup_project(store)
-    run_id = uuid4()
-    transport = NativeToolTransport(connected, actor=actor, run_id=run_id, revalidate=lambda: actor)
-    definitions = {item.id: item for item in native_tool_definitions(connected)}
-
-    def invoke(name, arguments, invocation=None, write=False):
-        definition = definitions["native." + name]
-        context = ToolExecutionContext(
-            actor_id=actor.actor_id,
-            workspace_id=actor.workspace_id,
-            run_id=run_id,
-            agent_id="worker",
-            allowed_tool_ids=frozenset({definition.id}),
-            scopes=actor.scopes,
-            invocation_id=invocation or uuid4(),
-            authorized_action="write" if write else "read",
-        )
-        return transport(definition, arguments, context)
-
-    arguments = {"project_id": str(project_id), "name": "report.md", "content": "Report"}
-    invocation = uuid4()
-    created = invoke("project_file_create", arguments, invocation, write=True)
-    assert created == invoke("project_file_create", arguments, invocation, write=True)
-    assert files.api.creates == 2  # One pre-existing project folder and one deliverable.
-    read = invoke(
-        "project_file_read",
-        {
-            "project_id": str(project_id),
-            "file_id": created["file_id"],
-        },
-    )
-    assert read["text"] == "Report"
-    binding = files.binding(actor, project_id)
-    store.save_project_drive(binding.model_copy(update={"folder_id": None}))
-    with pytest.raises(ToolExecutionError, match="Native read") as raised:
-        invoke("project_files_list", {"project_id": str(project_id)})
-    assert not raised.value.unknown
-    assert files.api.creates == 2
-
-
-def test_unknown_cloud_write_halts_worker_without_replaying():
-    # Use the real project operation receipt after a simulated lost upload response.
-    connected, actor, files, project_id = setup_project(InMemoryStore())
-    files.api.timeout_after_create = True
-    transport = NativeToolTransport(
-        connected,
-        actor=actor,
-        run_id=uuid4(),
-        revalidate=lambda: actor,
-    )
-    definition = next(t for t in native_tool_definitions() if t.id == "native.project_file_create")
-    context = ToolExecutionContext(
-        actor_id=actor.actor_id,
-        workspace_id=actor.workspace_id,
-        run_id=transport.run_id,
-        agent_id="worker",
-        allowed_tool_ids=frozenset({definition.id}),
-        scopes=actor.scopes,
-        authorized_action="write",
-    )
-    arguments = {"project_id": str(project_id), "name": "notes.md", "content": "Notes"}
-    with pytest.raises(ToolExecutionError) as raised:
-        transport(definition, arguments, context)
-    assert raised.value.unknown
-    with pytest.raises(ToolExecutionError):
-        transport(definition, arguments, context)
-    assert files.api.creates == 2
-
-
-def test_manifest_binding_installs_only_explicit_ids_and_cannot_weaken_contract(runtime):
+def test_binding_installs_only_explicit_ids_and_cannot_weaken_contract(runtime):
     connected, actor, _, _, _, _ = runtime
     canonical = next(t for t in native_tool_definitions() if t.id == "native.local_file_write")
     weak = canonical.model_copy(
@@ -431,102 +295,20 @@ def test_manifest_binding_installs_only_explicit_ids_and_cannot_weaken_contract(
             "required_scopes": frozenset(),
         }
     )
-    manifest = with_native_tools(PlatformManifest(tools=(weak,)), connected)
-    assert manifest.tools == (canonical,)
-    assert not with_native_tools(PlatformManifest(), connected).tools
+    manifest = bind_native_tools((weak,), connected)
+    assert manifest == (canonical,)
+    assert not bind_native_tools((), connected)
     assert native_tool_status(connected, actor, canonical.id)["available"]
     assert not native_tool_status(connected, actor, "native.drive_read_file")["available"]
     with pytest.raises(ToolCatalogError, match="Unknown native"):
-        with_native_tools(
-            PlatformManifest(
-                tools=(
-                    canonical.model_copy(
-                        update={
-                            "id": "native.execute_shell",
-                        }
-                    ),
-                )
-            ),
+        bind_native_tools(
+            (canonical.model_copy(update={"id": "native.execute_shell"}),),
             connected,
         )
     connected.settings = connected.settings.model_copy(update={"local_files_enabled": False})
-    bound = with_native_tools(PlatformManifest(tools=(canonical,)), connected)
-    assert not bound.tools[0].configured
+    bound = bind_native_tools((canonical,), connected)
+    assert not bound[0].configured
     assert "native" in native_transport_factory(connected)(actor, uuid4(), lambda: actor)
-
-
-def test_dispatcher_executes_native_tools_with_injected_services(runtime, tmp_path, monkeypatch):
-    connected, actor, _, _, _, _ = runtime
-    tool = next(t for t in native_tool_definitions() if t.id == "native.local_files_roots")
-    manifest = PlatformManifest(
-        tools=(tool,),
-        agents=(
-            AgentProfile(
-                id="worker",
-                instructions="List the local workspace roots.",
-                tool_ids=(tool.id,),
-                tool_scopes=frozenset({"jobs:read"}),
-            ),
-        ),
-        teams=(TeamTemplate(id="team", name="Native tools", agent_ids=("worker",)),),
-        models=(
-            ModelEndpoint(
-                id="local",
-                provider="openai_compatible",
-                model="test",
-                base_url="http://localhost:11434/v1",
-                local=True,
-                tier="economy",
-                capabilities=frozenset({"text", "tools"}),
-            ),
-        ),
-    )
-    platform = AgentPlatformService(
-        connected.store,
-        manifest,
-        state_dir=tmp_path / "agents",
-        available_transports=("native",),
-    )
-    runs = AgentRunService(platform, enabled=True, actor_resolver=lambda *_: actor)
-    plan = platform.plan(
-        actor,
-        PlanTeamRequest(
-            team_id="team",
-            tasks=(
-                AgentTaskSpec(
-                    id="roots",
-                    agent_id="worker",
-                    objective="List local roots",
-                ),
-            ),
-            idempotency_key="native-tool-plan",
-        ),
-    )
-    run = runs.start(actor, plan.id, StartAgentRun(idempotency_key="native-tool-run"))
-    replies = iter(
-        [
-            {"type": "tool", "tool_id": tool.id, "arguments": {}},
-            {"type": "final", "output": "The workspace is available."},
-        ]
-    )
-
-    def generate(self, decision, request):
-        return TextGenerationResult(
-            endpoint_id=decision.endpoint_id,
-            model=decision.model,
-            text=json.dumps(next(replies)),
-            input_tokens=10,
-            output_tokens=10,
-        )
-
-    monkeypatch.setattr(ModelEndpointClient, "generate", generate)
-    completed = AgentDispatcher(
-        runs,
-        transport_factory=native_transport_factory(connected),
-    ).execute(run.id)
-    assert completed.status == JobStatus.SUCCEEDED
-    assert completed.tasks[0].tool_calls == 1
-    assert completed.tasks[0].output == "The workspace is available."
 
 
 def test_cached_templates_are_owned_copies_and_settings_are_rechecked(runtime):

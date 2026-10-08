@@ -1,4 +1,4 @@
-"""Project-file saves are not Docker workspace exports or permission to publish paths."""
+"""Generic file saves are not Docker workspace exports or permission to publish paths."""
 
 import json
 from uuid import uuid4
@@ -6,8 +6,8 @@ from uuid import uuid4
 import pytest
 from jsonschema import Draft202012Validator
 
-from simon.adapters.project_output_tools import project_output_definitions
 from simon.adapters.tool_transports import TransportRegistry
+from simon.domain.tool_catalog import ToolDefinition
 from simon.services.agent_worker import AgentWorker, _controller_schema
 from simon.services.tool_catalog import ToolCatalog
 from tests.unit.test_agent_worker import Responses, assignment, profile
@@ -17,7 +17,7 @@ from tests.unit.test_agent_worker_completion import action
 
 
 @pytest.mark.parametrize("exportable", [False, True])
-@pytest.mark.parametrize("tool_ids", [(), ("project.output_save",)])
+@pytest.mark.parametrize("tool_ids", [(), ("files.save",)])
 def test_initial_and_final_only_schema_enforce_actual_workspace_availability(exportable, tool_ids):
     validator = Draft202012Validator(_controller_schema(tool_ids, exportable_workspace=exportable))
     control = {"action": {"type": "final", "output": "Useful answer.", "artifacts": []}}
@@ -33,12 +33,27 @@ def test_initial_and_final_only_schema_enforce_actual_workspace_availability(exp
 @pytest.mark.parametrize("provider", ["openai_responses", "openai_compatible"])
 @pytest.mark.parametrize("exportable", [False, True])
 @pytest.mark.parametrize("paths", [[], ["research/report.md"]])
-def test_project_save_and_final_answer_do_not_require_or_imply_a_workspace_export(
+def test_file_save_and_final_answer_do_not_require_or_imply_a_workspace_export(
     actor, endpoint, provider, exportable, paths
 ):
     endpoint = endpoint.model_copy(update={"provider": provider})
-    definition = next(
-        item for item in project_output_definitions() if item.id == "project.output_save"
+    definition = ToolDefinition(
+        id="files.save",
+        transport="test_files",
+        description="Save a file",
+        configured=True,
+        side_effect=True,
+        action_policy="write",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "run_id": {"type": "string"},
+                "artifact_id": {"type": "string"},
+                "path": {"type": "string"},
+            },
+            "required": ["run_id", "artifact_id", "path"],
+            "additionalProperties": False,
+        },
     )
     actor = actor.model_copy(update={"scopes": actor.scopes | definition.required_scopes})
     agent = profile(tools=True, max_action="write").model_copy(
@@ -64,12 +79,12 @@ def test_project_save_and_final_answer_do_not_require_or_imply_a_workspace_expor
 
     def save_file(_definition, arguments, context):
         calls.append(context.invocation_id)
-        return {"project_copy": {"path": arguments["path"], "revision": "a" * 64, "bytes": 321}}
+        return {"saved_file": {"path": arguments["path"], "revision": "a" * 64, "bytes": 321}}
 
     registry = TransportRegistry()
-    registry.register("project_outputs", save_file)
+    registry.register("test_files", save_file)
     worker = AgentWorker(
-        model, ToolCatalog((definition,), available_transports=("project_outputs",)), registry
+        model, ToolCatalog((definition,), available_transports=("test_files",)), registry
     )
     events = []
     result = worker.execute(

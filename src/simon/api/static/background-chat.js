@@ -3,7 +3,6 @@
   const running = new Map(),
     attempts = new Map();
   let timer,
-    projectId = null,
     syncing = false,
     submitting = false;
   const live = (job) => job && ['queued', 'running'].includes(job.status);
@@ -47,7 +46,6 @@
         const jobs = await api('/v1/work-sessions?thread_id=' + thread);
         if (activeThread !== thread) return;
         const job = jobs[0];
-        projectId = job?.project_id || projectId;
         const prior = running.get(thread);
         if (job) running.set(thread, job);
         if (job && !live(job) && (prior?.status !== job.status || prior?.id !== job.id))
@@ -66,7 +64,6 @@
     submitting = true;
     const original = text,
       ticket = loading;
-    const project = projectId;
     let thread = activeThread;
     setBusy(true);
     el('text').value = '';
@@ -92,7 +89,6 @@
         answer_length: el('answer-length').value,
         parent_run_id: parentRun,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        project_id: project,
       };
       const signature = JSON.stringify(body);
       if (attempts.get(thread)?.signature !== signature)
@@ -129,13 +125,8 @@
         report(error);
       }
     },
-    async project(id) {
-      await selectThread(null);
-      projectId = id;
-    },
   };
   window.addEventListener('simon-thread-selected', () => {
-    projectId = null;
     sync();
   });
   window.addEventListener('simon-ready', sync);

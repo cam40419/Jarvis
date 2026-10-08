@@ -4,7 +4,7 @@ from uuid import uuid4
 
 import pytest
 
-from simon.domain.artifacts import Artifact, ArtifactError
+from simon.domain.artifacts import ArtifactError
 from simon.domain.model_routing import TextGenerationResult
 from simon.domain.tool_catalog import ToolExecutionError
 from simon.services.agent_worker import WorkerCheckpointError
@@ -16,7 +16,6 @@ from simon.services.worker_context import (
     render_history,
 )
 from tests.completion_review_fixtures import review_text as review_source
-from tests.unit.test_agent_dispatcher import ControlledModel, make_harness, task
 from tests.unit.test_agent_worker import (
     actor as actor_fixture,
 )
@@ -193,10 +192,15 @@ class AdaptiveModel:
 
     def generate(self, decision, request):
         self.calls.append(request)
+        response = self.respond(len(self.calls), request)
+        if "tool-free reviewer" in request.system:
+            from tests.completion_review_fixtures import reference_review
+
+            response = reference_review(request.prompt, response)
         return TextGenerationResult(
             endpoint_id=decision.endpoint_id,
             model=decision.model,
-            text=self.respond(len(self.calls), request),
+            text=response,
             input_tokens=10,
             output_tokens=10,
         )
@@ -383,29 +387,6 @@ def test_archive_failure_keeps_known_successful_write_receipt_and_stops(actor, e
     assert len(model.calls) == result.tool_calls == 1
     receipts = [event for event in events if event["event"] == "tool_complete"]
     assert receipts[0]["status"] == "succeeded" and receipts[0]["output_sha256"]
-
-
-def test_dispatcher_archives_scoped_full_evidence_separately_from_deliverables(tmp_path):
-    harness = make_harness(tmp_path, tools=True)
-    responses = iter([controller(), final("A complete sourced answer.")])
-    dispatcher = harness.dispatcher(ControlledModel(lambda _: next(responses)))
-    run = harness.queue((task("research"),))
-    completed = dispatcher.execute(run.id)
-    saved = completed.tasks[0]
-    receipt = next(event for event in saved.events if event["event"] == "tool_complete")
-    evidence = Artifact.model_validate(receipt["evidence_artifact"])
-    assert evidence.actor_id == harness.actor.actor_id
-    assert evidence.workspace_id == harness.actor.workspace_id
-    assert evidence.run_id == run.id
-    assert evidence not in saved.artifacts
-    assert len(saved.artifacts) == 1 and saved.artifacts[0].name == "answer.txt"
-    content = json.loads(dispatcher.evidence.read(evidence))
-    assert content["output"] == {"value": "A tool result."}
-    assert content["arguments"] == {"query": "fact"}
-    assert content["status"] == "succeeded"
-    assert content["invocation_id"] == receipt["invocation_id"]
-    with pytest.raises(ArtifactError):
-        dispatcher.evidence.read(evidence.model_copy(update={"actor_id": uuid4()}))
 
 
 def test_large_candidate_with_dependencies_fails_review_safely_and_preserves_text(actor, endpoint):

@@ -1,9 +1,7 @@
 """Compose scoped services, HTTP routes, and process-owned background resources."""
 
-import asyncio
-import logging
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager, suppress
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Any
 from urllib.parse import urlsplit
@@ -25,41 +23,15 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from simon.adapters.account_email import AccountEmail
 from simon.adapters.external_action_binding import (
     external_action_service,
-    external_tool_status,
-    external_transport_factory,
 )
 from simon.adapters.memory import InMemoryStore
-from simon.adapters.native_tools import (
-    native_tool_status,
-    native_transport_factory,
-    with_native_tools,
-)
-from simon.adapters.project_board_binding import project_board_service
-from simon.adapters.project_board_tools import (
-    project_board_tool_status,
-    project_board_transport_factory,
-)
-from simon.adapters.project_journal_tools import project_journal_transport_factory
-from simon.adapters.project_output_tools import project_output_transport_factory
-from simon.adapters.project_runtime_tools import with_project_runtime_tools
-from simon.adapters.project_storage_tools import project_storage_transport_factory
-from simon.adapters.project_work_tools import project_transport_factory
-from simon.adapters.tool_preflight import INSTALLED_TRANSPORTS
-from simon.api.agent_platform import agent_platform_router
-from simon.api.agent_setup_assistant import agent_setup_assistant_router
-from simon.api.auth import auth_router, require_csrf, session_cookie
+from simon.api.auth import auth_router, require_csrf, require_human_credentials, session_cookie
 from simon.api.external_actions import external_actions_router
 from simon.api.integrations import integrations_router
 from simon.api.local_files import local_file_router
 from simon.api.model_stream import model_stream
 from simon.api.native_projects import native_projects_router
-from simon.api.project_boards import project_boards_router
-from simon.api.project_command import project_command_router
-from simon.api.project_files import project_router
-from simon.api.project_outputs import project_outputs_router
-from simon.api.project_workspace import project_workspace_router
 from simon.api.request_ingress import RequestIngressMiddleware
-from simon.api.tasks import task_router
 from simon.api.work_sessions import session_router
 from simon.config import Settings, get_settings
 from simon.domain.accounts import AccountAccess, InviteAccount
@@ -85,10 +57,6 @@ from simon.domain.models import (
 from simon.domain.ports import Store
 from simon.domain.voice import VoiceOffer
 from simon.services.accounts import AccountService
-from simon.services.agent_calendar import AgentCalendarService
-from simon.services.agent_platform import AgentPlatformService, load_manifest
-from simon.services.agent_runs import AgentRunService
-from simon.services.agent_setup_assistant import AgentSetupAssistantService
 from simon.services.audit import AuditService
 from simon.services.capabilities import CapabilityBroker
 from simon.services.connected import ConnectedService
@@ -100,15 +68,8 @@ from simon.services.jobs import JobService
 from simon.services.memory import MemoryService
 from simon.services.model_conversations import ModelConversationService
 from simon.services.native_projects import NativeProjectService
+from simon.services.native_teams import NativeTeamService
 from simon.services.policy import PolicyEngine
-from simon.services.project_autonomy import ProjectAutonomyService
-from simon.services.project_coordinator import ProjectCoordinator
-from simon.services.project_output_replication import ProjectOutputReplicationService
-from simon.services.project_outputs import ProjectOutputService
-from simon.services.project_storage import ProjectStorageService
-from simon.services.project_work import ProjectWorkService
-from simon.services.project_workspace import ProjectWorkspaceService
-from simon.services.tasks import AssistantTaskService
 from simon.services.voice import VoiceService
 from simon.services.work_sessions import WorkSessionService
 
@@ -153,6 +114,7 @@ class AppContainer:
             )
         self.identity = IdentityService(self.store, self.settings)
         self.native_projects = NativeProjectService(self.store)
+        self.native_teams = NativeTeamService(self.store, self.native_projects)
         self.accounts = AccountService(self.identity)
         self.audit = AuditService(self.store)
         self.connected = ConnectedService(self.store, self.audit, self.settings, self.identity)
@@ -182,104 +144,12 @@ class AppContainer:
                 self.settings,
                 self.connected,
             )
-        self.tasks = AssistantTaskService(
+        self.work_sessions = WorkSessionService(
             self.store,
             self.identity,
             self.conversations
             if isinstance(self.conversations, ModelConversationService)
             else None,
-        )
-        self.connected.tasks = self.tasks
-        self.work_sessions = WorkSessionService(self.tasks)
-        self.agent_platform = AgentPlatformService(
-            self.store,
-            with_native_tools(
-                with_project_runtime_tools(load_manifest(self.settings.agent_manifest_file)),
-                self.connected,
-            ),
-            state_dir=self.settings.agent_state_dir,
-            integrations=self.connected.integrations,
-            available_transports=INSTALLED_TRANSPORTS,
-            tool_availability=lambda actor, tool_id: (
-                native_tool_status(
-                    self.connected,
-                    actor,
-                    tool_id,
-                )
-                if tool_id.startswith("native.")
-                else project_board_tool_status(self.project_boards, actor, tool_id)
-                if tool_id.startswith("clickup.")
-                else external_tool_status(
-                    self.external_actions,
-                    actor,
-                    tool_id,
-                )
-            ),
-        )
-        self.agent_transport_factory = native_transport_factory(self.connected)
-        self.agent_runs = AgentRunService(
-            self.agent_platform,
-            enabled=self.settings.agent_execution_enabled,
-        )
-        self.agent_calendar = AgentCalendarService(self.connected)
-        self.project_outputs = ProjectOutputService(self.agent_runs, self.connected.local_files)
-        self.project_output_replication = ProjectOutputReplicationService(
-            self.project_outputs, self.connected.projects
-        )
-        self.connected.projects.output_sync = self.project_output_replication.sync
-        self.agent_transport_factory = project_output_transport_factory(
-            self.agent_transport_factory,
-            self.project_outputs,
-        )
-        self.agent_transport_factory = project_journal_transport_factory(
-            self.agent_transport_factory,
-            self.project_outputs,
-        )
-        self.project_work = ProjectWorkService(
-            self.store,
-            project_resolver=self.tasks.project,
-        )
-        self.project_workspace = ProjectWorkspaceService(self.project_work)
-        self.project_storage = ProjectStorageService(self.project_work, self.connected)
-        self.agent_platform.project_tool_filter_factory = self.project_storage.tool_filter
-        self.project_output_replication.destination_allowed = self.project_storage.primary_selected
-        self.agent_transport_factory = project_storage_transport_factory(
-            self.agent_transport_factory,
-            self.project_storage,
-            self.agent_runs,
-        )
-        self.project_boards = project_board_service(
-            self.settings, self.store, self.project_work, integrations=self.connected.integrations
-        )
-        self.agent_platform.project_tool_availability = lambda actor, project_id, tool_id: (
-            project_board_tool_status(self.project_boards, actor, tool_id, project_id)
-        )
-        self.agent_transport_factory = project_board_transport_factory(
-            self.agent_transport_factory,
-            self.project_boards,
-            self.agent_runs,
-        )
-        self.project_coordinator = ProjectCoordinator(
-            self.project_work,
-            self.agent_runs,
-            external_actions=self.external_actions,
-            boards=self.project_boards,
-        )
-        self.project_work.team_validator = self.project_coordinator.validate_team
-        self.agent_setup_assistant = AgentSetupAssistantService(self.agent_platform)
-        self.project_autonomy = ProjectAutonomyService(
-            self.project_work,
-            self.project_coordinator,
-            enabled=self.settings.agent_execution_enabled,
-        )
-        self.agent_transport_factory = project_transport_factory(
-            self.agent_transport_factory,
-            self.project_work,
-            self.agent_runs,
-        )
-        self.agent_transport_factory = external_transport_factory(
-            self.agent_transport_factory,
-            self.external_actions,
         )
         self.memories = MemoryService(self.store, self.audit)
         self.voice = VoiceService(
@@ -317,29 +187,10 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
-        async def project_sync() -> None:
-            while True:
-                try:
-                    await asyncio.to_thread(services.connected.projects.tick)
-                except Exception:
-                    logging.getLogger(__name__).warning(
-                        "Project Drive sync unavailable; retrying later."
-                    )
-                await asyncio.sleep(60)
-
-        project_task = (
-            asyncio.create_task(project_sync())
-            if services.settings.project_drive_sync_enabled
-            else None
-        )
         try:
             yield
         finally:
             await services.voice.shutdown()
-            if project_task:
-                project_task.cancel()
-                with suppress(asyncio.CancelledError):
-                    await project_task
             services.store.close()
 
     app = FastAPI(title="Simon API", version="0.1.0", lifespan=lifespan)
@@ -444,39 +295,19 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
         request: Request,
         x_csrf_token: Annotated[str | None, Header()] = None,
     ) -> ActorContext:
+        require_human_credentials(request)
         token = request.cookies.get(session_cookie(services.identity), "")
         _session, actor = services.identity.resolve(token)
         if request.method not in {"GET", "HEAD", "OPTIONS"}:
             require_csrf(request, services.identity, token)
         return actor
 
-    app.include_router(native_projects_router(services.native_projects, checked_actor))
-    app.include_router(task_router(services.tasks, checked_actor))
     app.include_router(
-        agent_platform_router(
-            services.agent_platform,
-            checked_actor,
-            services.agent_runs,
-            services.agent_calendar,
-        )
-    )
-    app.include_router(agent_setup_assistant_router(services.agent_setup_assistant, checked_actor))
-    app.include_router(project_router(services.connected.projects, checked_actor))
-    app.include_router(project_command_router(services.project_coordinator, checked_actor))
-    app.include_router(project_outputs_router(services.project_outputs, checked_actor))
-    app.include_router(
-        project_workspace_router(
-            services.project_workspace,
-            checked_actor,
-            replication=services.project_output_replication,
-            locations=services.project_storage,
-        )
+        native_projects_router(services.native_projects, checked_actor, services.native_teams)
     )
     app.include_router(external_actions_router(services.external_actions, checked_actor))
-    app.include_router(project_boards_router(services.project_boards, checked_actor))
-    assert services.project_boards.integrations is not None
-    app.include_router(integrations_router(services.project_boards.integrations, checked_actor))
-    if services.tasks.conversations:
+    app.include_router(integrations_router(services.connected.integrations, checked_actor))
+    if services.work_sessions.conversations:
         app.include_router(session_router(services.work_sessions, checked_actor))
     app.include_router(local_file_router(services.connected.local_files, checked_actor))
 
@@ -489,22 +320,6 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
             "url": services.connected.home.for_actor(actor).url
             if services.connected.home.for_actor(actor).configured
             else None,
-        }
-
-    @app.get("/v1/work/overview")
-    def work_overview(
-        actor: Annotated[ActorContext, Depends(checked_actor)],
-    ) -> dict[str, Any]:
-        projects = services.connected.projects.list(actor)
-        project_ids = {project["id"] for project in projects}
-        return {
-            "projects": projects,
-            "project_artifacts": [
-                artifact.model_dump(mode="json")
-                for artifact in services.tasks.artifacts(actor)
-                if str(artifact.project_id) in project_ids
-            ],
-            "tasks": [task.model_dump(mode="json") for task in services.tasks.list(actor)],
         }
 
     @app.exception_handler(RequestValidationError)

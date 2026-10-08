@@ -4,7 +4,15 @@ from datetime import UTC, datetime
 from typing import Any, Literal, Self
 from uuid import UUID, uuid4
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    AwareDatetime,
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_serializer,
+    field_validator,
+    model_validator,
+)
 
 from simon.domain.identity import Role
 from simon.domain.models import utc_now
@@ -16,12 +24,17 @@ TaskStatus = Literal["todo", "in_progress", "in_review", "blocked", "done", "can
 class NativeModel(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, str_strip_whitespace=True)
 
-    @field_validator("created_at", "updated_at", check_fields=False)
+    @field_serializer("scopes", when_used="json", check_fields=False)
+    def ordered_scopes(self, value: frozenset[str]) -> list[str]:
+        # Sets must serialize identically across processes for durable command digests.
+        return sorted(value)
+
+    @field_validator("created_at", "updated_at", "expires_at", "revoked_at", check_fields=False)
     @classmethod
-    def utc_timestamps(cls, value: datetime) -> datetime:
+    def utc_timestamps(cls, value: datetime | None) -> datetime | None:
         # PostgreSQL returns timestamptz using the connection's current timezone.
         # Keep persisted reads, fresh writes and idempotency receipts byte-stable.
-        return value.astimezone(UTC)
+        return value.astimezone(UTC) if value is not None else None
 
     @field_validator("*")
     @classmethod
@@ -37,13 +50,18 @@ class NativeModel(BaseModel):
 
 
 class TaskAssignment(NativeModel):
-    kind: Literal["human", "pool"] = "pool"
+    kind: Literal["human", "agent", "pool"] = "pool"
     actor_id: UUID | None = None
+    agent_id: UUID | None = None
 
     @model_validator(mode="after")
     def valid_target(self) -> Self:
-        if (self.kind == "human") != (self.actor_id is not None):
-            raise ValueError("Human assignments need an actor; pooled work has no assignee.")
+        if (self.kind == "human") != (self.actor_id is not None) or (self.kind == "agent") != (
+            self.agent_id is not None
+        ):
+            raise ValueError(
+                "Assignment must name exactly its human or agent; pooled work has neither."
+            )
         return self
 
 
@@ -76,10 +94,17 @@ class NativeTask(NativeModel):
     description: str = Field(default="", max_length=8000)
     status: TaskStatus = "todo"
     assignment: TaskAssignment = Field(default_factory=TaskAssignment)
-    created_by: UUID
+    created_by: UUID | None = None
+    created_by_agent_id: UUID | None = None
     version: int = Field(default=1, ge=1, strict=True)
     created_at: AwareDatetime = Field(default_factory=utc_now)
     updated_at: AwareDatetime = Field(default_factory=utc_now)
+
+    @model_validator(mode="after")
+    def one_creator(self) -> Self:
+        if (self.created_by is None) == (self.created_by_agent_id is None):
+            raise ValueError("A task must have exactly one human or agent creator.")
+        return self
 
 
 class NativeProjectPermissions(NativeModel):

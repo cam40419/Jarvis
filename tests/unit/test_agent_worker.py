@@ -8,10 +8,10 @@ import pytest
 
 from simon.adapters.model_endpoints import ModelEndpointClient, ModelEndpointError
 from simon.adapters.tool_transports import HttpJsonTransport, TransportRegistry
-from simon.domain.agent_platform import AgentProfile, AgentTaskSpec, PlannedAgentTask
 from simon.domain.model_routing import ModelEndpoint, RoutingRequest, TextGenerationResult
 from simon.domain.models import ActorContext, Channel
 from simon.domain.tool_catalog import ToolDefinition, ToolExecutionError
+from simon.domain.worker_assignment import AgentProfile, AgentTaskSpec, PlannedAgentTask
 from simon.services.agent_worker import AgentWorker, WorkerCheckpointError
 from simon.services.model_router import ModelRouter
 from simon.services.tool_catalog import ToolCatalog
@@ -102,6 +102,10 @@ class Responses:
             raise response
         if isinstance(response, TextGenerationResult):
             return response
+        if "tool-free reviewer" in request.system:
+            from tests.completion_review_fixtures import reference_review
+
+            response = reference_review(request.prompt, response)
         return TextGenerationResult(
             endpoint_id=decision.endpoint_id,
             model=decision.model,

@@ -38,9 +38,8 @@ from simon.domain.identity import (
 from simon.domain.integrations import IntegrationConnection
 from simon.domain.interaction import ResponsePreferences, RunFeedback
 from simon.domain.models import AuditEvent, Job, JobStatus, OutboxEvent
+from simon.domain.native_agents import NativeAgent, NativeAgentCredential, NativeTeamPolicy
 from simon.domain.native_projects import NativeProject, NativeProjectMember, NativeTask
-from simon.domain.project_files import ProjectDrive, ProjectFileOperation
-from simon.domain.tasks import ProjectArtifact
 from simon.domain.voice import VoiceSession
 
 
@@ -279,6 +278,7 @@ class PostgresStore(InMemoryStore):
         value["assignment"] = {
             "kind": value.pop("assignment_kind"),
             "actor_id": value.pop("assignee_actor_id"),
+            "agent_id": value.pop("assignee_agent_id"),
         }
         return NativeTask.model_validate(value)
 
@@ -308,8 +308,10 @@ class PostgresStore(InMemoryStore):
             with self.transaction():
                 result = self.connection.execute(
                     "INSERT INTO native_tasks (id,workspace_id,project_id,title,description,status,"
-                    "assignment_kind,assignee_actor_id,created_by,version,created_at,updated_at) "
-                    "SELECT %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s WHERE EXISTS ("
+                    "assignment_kind,assignee_actor_id,assignee_agent_id,created_by,"
+                    "created_by_agent_id,version,created_at,updated_at) "
+                    "SELECT %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s "
+                    "WHERE %s::uuid IS NULL OR EXISTS ("
                     "SELECT 1 FROM memberships WHERE workspace_id=%s AND user_id=%s)",
                     (
                         task.id,
@@ -320,10 +322,13 @@ class PostgresStore(InMemoryStore):
                         task.status,
                         task.assignment.kind,
                         task.assignment.actor_id,
+                        task.assignment.agent_id,
                         task.created_by,
+                        task.created_by_agent_id,
                         task.version,
                         task.created_at,
                         task.updated_at,
+                        task.created_by,
                         task.workspace_id,
                         task.created_by,
                     ),
@@ -342,15 +347,17 @@ class PostgresStore(InMemoryStore):
             with self.transaction():
                 result = self.connection.execute(
                     "UPDATE native_tasks SET title=%s,description=%s,status=%s,assignment_kind=%s,"
-                    "assignee_actor_id=%s,version=%s,updated_at=%s "
+                    "assignee_actor_id=%s,assignee_agent_id=%s,version=%s,updated_at=%s "
                     "WHERE workspace_id=%s AND project_id=%s AND id=%s AND version=%s "
-                    "AND created_by=%s AND created_at=%s",
+                    "AND created_by IS NOT DISTINCT FROM %s "
+                    "AND created_by_agent_id IS NOT DISTINCT FROM %s AND created_at=%s",
                     (
                         task.title,
                         task.description,
                         task.status,
                         task.assignment.kind,
                         task.assignment.actor_id,
+                        task.assignment.agent_id,
                         task.version,
                         task.updated_at,
                         task.workspace_id,
@@ -358,6 +365,7 @@ class PostgresStore(InMemoryStore):
                         task.id,
                         expected_version,
                         task.created_by,
+                        task.created_by_agent_id,
                         task.created_at,
                     ),
                 )
@@ -365,6 +373,245 @@ class PostgresStore(InMemoryStore):
                     raise InvalidTransitionError("Native task missing or stale task version")
         except psycopg.IntegrityError as exc:
             raise InvalidTransitionError("Native task project or assignee is unavailable") from exc
+
+    def native_agent(
+        self, workspace_id: UUID, project_id: UUID, agent_id: UUID
+    ) -> NativeAgent | None:
+        with self.transaction():
+            row = self.connection.execute(
+                "SELECT * FROM native_agents WHERE workspace_id=%s AND project_id=%s AND id=%s",
+                (workspace_id, project_id, agent_id),
+            ).fetchone()
+            return NativeAgent.model_validate(row) if row else None
+
+    def native_agents(
+        self, workspace_id: UUID, project_id: UUID, offset: int, limit: int
+    ) -> tuple[NativeAgent, ...]:
+        with self.transaction():
+            rows = self.connection.execute(
+                "SELECT * FROM native_agents WHERE workspace_id=%s AND project_id=%s "
+                "ORDER BY created_at,id LIMIT %s OFFSET %s",
+                (workspace_id, project_id, limit, offset),
+            ).fetchall()
+            return tuple(NativeAgent.model_validate(row) for row in rows)
+
+    def native_active_agent_count(self, workspace_id: UUID, project_id: UUID) -> int:
+        with self.transaction():
+            row = self.connection.execute(
+                "SELECT count(*) AS total FROM native_agents "
+                "WHERE workspace_id=%s AND project_id=%s AND status='active'",
+                (workspace_id, project_id),
+            ).fetchone()
+            return int(row["total"]) if row else 0
+
+    def insert_native_agent(self, agent: NativeAgent) -> None:
+        if agent.version != 1:
+            raise InvalidTransitionError("Native agents must start at version one")
+        try:
+            with self.transaction():
+                result = self.connection.execute(
+                    "INSERT INTO native_agents (id,workspace_id,project_id,name,role_key,"
+                    "instructions,success_criteria,rationale,status,can_manage_team,created_by,"
+                    "created_by_agent_id,version,created_at,updated_at) "
+                    "SELECT %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s "
+                    "WHERE %s::uuid IS NULL OR EXISTS (SELECT 1 FROM memberships "
+                    "WHERE workspace_id=%s AND user_id=%s)",
+                    (
+                        agent.id,
+                        agent.workspace_id,
+                        agent.project_id,
+                        agent.name,
+                        agent.role_key,
+                        agent.instructions,
+                        agent.success_criteria,
+                        agent.rationale,
+                        agent.status,
+                        agent.can_manage_team,
+                        agent.created_by,
+                        agent.created_by_agent_id,
+                        agent.version,
+                        agent.created_at,
+                        agent.updated_at,
+                        agent.created_by,
+                        agent.workspace_id,
+                        agent.created_by,
+                    ),
+                )
+                if result.rowcount != 1:
+                    raise InvalidTransitionError("Native agent creator is unavailable")
+        except psycopg.IntegrityError as exc:
+            raise InvalidTransitionError(
+                "Agent role exists or project/creator is unavailable"
+            ) from exc
+
+    def update_native_agent(self, agent: NativeAgent, expected_version: int) -> None:
+        if agent.version != expected_version + 1:
+            raise InvalidTransitionError("Native agent update must advance the version")
+        with self.transaction():
+            result = self.connection.execute(
+                "UPDATE native_agents SET name=%s,instructions=%s,success_criteria=%s,rationale=%s,"
+                "status=%s,can_manage_team=%s,version=%s,updated_at=%s "
+                "WHERE workspace_id=%s AND project_id=%s AND id=%s AND version=%s AND role_key=%s "
+                "AND created_by IS NOT DISTINCT FROM %s "
+                "AND created_by_agent_id IS NOT DISTINCT FROM %s AND created_at=%s",
+                (
+                    agent.name,
+                    agent.instructions,
+                    agent.success_criteria,
+                    agent.rationale,
+                    agent.status,
+                    agent.can_manage_team,
+                    agent.version,
+                    agent.updated_at,
+                    agent.workspace_id,
+                    agent.project_id,
+                    agent.id,
+                    expected_version,
+                    agent.role_key,
+                    agent.created_by,
+                    agent.created_by_agent_id,
+                    agent.created_at,
+                ),
+            )
+            if result.rowcount != 1:
+                raise InvalidTransitionError("Native agent missing or stale agent version")
+
+    def native_team_policy(self, workspace_id: UUID, project_id: UUID) -> NativeTeamPolicy | None:
+        with self.transaction():
+            row = self.connection.execute(
+                "SELECT * FROM native_team_policies WHERE workspace_id=%s AND project_id=%s",
+                (workspace_id, project_id),
+            ).fetchone()
+            return NativeTeamPolicy.model_validate(row) if row else None
+
+    def save_native_team_policy(self, policy: NativeTeamPolicy, expected_version: int) -> None:
+        if policy.version != expected_version + 1:
+            raise InvalidTransitionError("Native team policy must advance the version")
+        try:
+            with self.transaction():
+                if expected_version == 0:
+                    result = self.connection.execute(
+                        "INSERT INTO native_team_policies "
+                        "(workspace_id,project_id,max_active_agents,"
+                        "agents_can_manage_team,version,updated_at) VALUES (%s,%s,%s,%s,%s,%s) "
+                        "ON CONFLICT (workspace_id,project_id) DO NOTHING",
+                        (
+                            policy.workspace_id,
+                            policy.project_id,
+                            policy.max_active_agents,
+                            policy.agents_can_manage_team,
+                            policy.version,
+                            policy.updated_at,
+                        ),
+                    )
+                else:
+                    result = self.connection.execute(
+                        "UPDATE native_team_policies SET max_active_agents=%s,"
+                        "agents_can_manage_team=%s,version=%s,updated_at=%s "
+                        "WHERE workspace_id=%s AND project_id=%s AND version=%s",
+                        (
+                            policy.max_active_agents,
+                            policy.agents_can_manage_team,
+                            policy.version,
+                            policy.updated_at,
+                            policy.workspace_id,
+                            policy.project_id,
+                            expected_version,
+                        ),
+                    )
+                if result.rowcount != 1:
+                    raise InvalidTransitionError("Native team policy missing or stale version")
+        except psycopg.IntegrityError as exc:
+            raise InvalidTransitionError("Native team policy project is unavailable") from exc
+
+    def native_agent_credential(self, token_id: UUID) -> NativeAgentCredential | None:
+        with self.transaction():
+            row = self.connection.execute(
+                "SELECT * FROM native_agent_credentials WHERE id=%s", (token_id,)
+            ).fetchone()
+            return NativeAgentCredential.model_validate(row) if row else None
+
+    def native_agent_credentials(
+        self, workspace_id: UUID, project_id: UUID, agent_id: UUID
+    ) -> tuple[NativeAgentCredential, ...]:
+        with self.transaction():
+            rows = self.connection.execute(
+                "SELECT * FROM native_agent_credentials "
+                "WHERE workspace_id=%s AND project_id=%s AND agent_id=%s ORDER BY created_at,id",
+                (workspace_id, project_id, agent_id),
+            ).fetchall()
+            return tuple(NativeAgentCredential.model_validate(row) for row in rows)
+
+    def insert_native_agent_credential(self, credential: NativeAgentCredential) -> None:
+        try:
+            with self.transaction():
+                result = self.connection.execute(
+                    "INSERT INTO native_agent_credentials (id,workspace_id,project_id,agent_id,"
+                    "agent_version,token_hash,scopes,issued_by,expires_at,revoked_at,created_at) "
+                    "SELECT %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s WHERE EXISTS ("
+                    "SELECT 1 FROM native_agents WHERE workspace_id=%s AND project_id=%s "
+                    "AND id=%s AND version=%s AND status='active') AND EXISTS ("
+                    "SELECT 1 FROM memberships WHERE workspace_id=%s AND user_id=%s)",
+                    (
+                        credential.id,
+                        credential.workspace_id,
+                        credential.project_id,
+                        credential.agent_id,
+                        credential.agent_version,
+                        credential.token_hash,
+                        sorted(credential.scopes),
+                        credential.issued_by,
+                        credential.expires_at,
+                        credential.revoked_at,
+                        credential.created_at,
+                        credential.workspace_id,
+                        credential.project_id,
+                        credential.agent_id,
+                        credential.agent_version,
+                        credential.workspace_id,
+                        credential.issued_by,
+                    ),
+                )
+                if result.rowcount != 1:
+                    raise InvalidTransitionError("Agent credential authority is unavailable")
+        except psycopg.IntegrityError as exc:
+            raise InvalidTransitionError(
+                "Agent credential exists or authority is unavailable"
+            ) from exc
+
+    def revoke_native_agent_credential(
+        self,
+        workspace_id: UUID,
+        project_id: UUID,
+        agent_id: UUID,
+        token_id: UUID,
+        revoked_at: datetime,
+    ) -> bool:
+        try:
+            with self.transaction():
+                result = self.connection.execute(
+                    "UPDATE native_agent_credentials SET revoked_at=%s WHERE workspace_id=%s "
+                    "AND project_id=%s AND agent_id=%s AND id=%s AND revoked_at IS NULL",
+                    (revoked_at, workspace_id, project_id, agent_id, token_id),
+                )
+                return result.rowcount == 1
+        except psycopg.errors.CheckViolation as exc:
+            raise InvalidTransitionError("Credential revocation predates issuance") from exc
+
+    def native_release_agent_tasks(
+        self, workspace_id: UUID, project_id: UUID, agent_id: UUID
+    ) -> tuple[NativeTask, ...]:
+        with self.transaction(workspace_id):
+            rows = self.connection.execute(
+                "UPDATE native_tasks SET assignment_kind='pool',assignee_agent_id=NULL,"
+                "status=CASE WHEN status='in_progress' THEN 'todo' ELSE status END,"
+                "version=version+1,updated_at=now() WHERE workspace_id=%s AND project_id=%s "
+                "AND assignee_agent_id=%s AND status NOT IN ('done','cancelled') RETURNING *",
+                (workspace_id, project_id, agent_id),
+            ).fetchall()
+            return tuple(
+                sorted((self._native_task(row) for row in rows), key=lambda t: (t.created_at, t.id))
+            )
 
     def execute_once(
         self,
@@ -392,63 +639,6 @@ class PostgresStore(InMemoryStore):
                 (namespace, key, request_digest, Jsonb(output)),
             )
             return output, False
-
-    def save_project_artifact(self, artifact: ProjectArtifact, content: bytes) -> None:
-        with self.transaction():
-            cursor = self.connection.execute(
-                "INSERT INTO project_artifacts (id,workspace_id,actor_id,project_id,task_id,"
-                "name,media_type,byte_count,sha256,content,created_at) "
-                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING",
-                (
-                    artifact.id,
-                    artifact.workspace_id,
-                    artifact.actor_id,
-                    artifact.project_id,
-                    artifact.task_id,
-                    artifact.name,
-                    artifact.media_type,
-                    artifact.byte_count,
-                    artifact.sha256,
-                    content,
-                    artifact.created_at,
-                ),
-            )
-            if cursor.rowcount != 1:
-                row = self.connection.execute(
-                    "SELECT sha256 FROM project_artifacts WHERE id=%s", (artifact.id,)
-                ).fetchone()
-                if not row or row["sha256"] != artifact.sha256:
-                    raise InvalidTransitionError("project artifact already exists")
-
-    def project_artifact(self, identifier: UUID) -> tuple[ProjectArtifact, bytes] | None:
-        with self.transaction():
-            row = self.connection.execute(
-                "SELECT id,workspace_id,actor_id,project_id,task_id,name,media_type,"
-                "byte_count,sha256,created_at,content FROM project_artifacts WHERE id=%s",
-                (identifier,),
-            ).fetchone()
-            if not row:
-                return None
-            content = bytes(row.pop("content"))
-            return ProjectArtifact.model_validate(row), content
-
-    def project_artifacts(
-        self,
-        workspace_id: UUID,
-        actor_id: UUID,
-        project_id: UUID | None,
-        offset: int,
-        limit: int,
-    ) -> tuple[ProjectArtifact, ...]:
-        with self.transaction():
-            rows = self.connection.execute(
-                "SELECT id,workspace_id,actor_id,project_id,task_id,name,media_type,"
-                "byte_count,sha256,created_at FROM project_artifacts WHERE workspace_id=%s "
-                "AND actor_id=%s AND (%s::uuid IS NULL OR project_id=%s) "
-                "ORDER BY created_at DESC,id DESC LIMIT %s OFFSET %s",
-                (workspace_id, actor_id, project_id, project_id, limit, offset),
-            ).fetchall()
-            return tuple(ProjectArtifact.model_validate(row) for row in rows)
 
     def managed_accounts(self) -> tuple[ManagedAccount, ...]:
         with self.transaction():
@@ -1543,81 +1733,6 @@ class PostgresStore(InMemoryStore):
                 (state_hash, binding_hash),
             ).fetchone()
             return GoogleOAuthState.model_validate(row["snapshot"]) if row else None
-
-    def google_accounts(self) -> tuple[tuple[UUID, UUID], ...]:
-        with self.transaction():
-            rows = self.connection.execute(
-                "SELECT DISTINCT workspace_id, actor_id FROM google_connections ORDER BY actor_id"
-            ).fetchall()
-            return tuple((row["workspace_id"], row["actor_id"]) for row in rows)
-
-    def project_drive(
-        self,
-        workspace_id: UUID,
-        actor_id: UUID,
-        project_id: UUID,
-    ) -> ProjectDrive | None:
-        with self.transaction():
-            row = self.connection.execute(
-                "SELECT snapshot FROM project_drive "
-                "WHERE workspace_id = %s AND actor_id = %s AND project_id = %s",
-                (workspace_id, actor_id, project_id),
-            ).fetchone()
-            return ProjectDrive.model_validate(row["snapshot"]) if row else None
-
-    def save_project_drive(self, binding: ProjectDrive) -> None:
-        with self.transaction():
-            self.connection.execute(
-                "INSERT INTO project_drive (workspace_id, actor_id, project_id, snapshot) "
-                "VALUES (%s, %s, %s, %s) ON CONFLICT (workspace_id, actor_id, project_id) "
-                "DO UPDATE SET snapshot = EXCLUDED.snapshot",
-                (
-                    binding.workspace_id,
-                    binding.actor_id,
-                    binding.project_id,
-                    Jsonb(binding.model_dump(mode="json")),
-                ),
-            )
-
-    def project_file_operation(self, identifier: UUID) -> ProjectFileOperation | None:
-        with self.transaction():
-            row = self.connection.execute(
-                "SELECT snapshot FROM project_file_operations WHERE id = %s",
-                (identifier,),
-            ).fetchone()
-            return ProjectFileOperation.model_validate(row["snapshot"]) if row else None
-
-    def save_project_file_operation(self, operation: ProjectFileOperation) -> None:
-        with self.transaction():
-            self.connection.execute(
-                "INSERT INTO project_file_operations "
-                "(id, workspace_id, actor_id, project_id, snapshot) "
-                "VALUES (%s, %s, %s, %s, %s) ON CONFLICT (id) "
-                "DO UPDATE SET snapshot = EXCLUDED.snapshot",
-                (
-                    operation.id,
-                    operation.workspace_id,
-                    operation.actor_id,
-                    operation.project_id,
-                    Jsonb(operation.model_dump(mode="json")),
-                ),
-            )
-
-    def project_file_operations(
-        self,
-        workspace_id: UUID,
-        actor_id: UUID,
-        project_id: UUID,
-        limit: int,
-    ) -> tuple[ProjectFileOperation, ...]:
-        with self.transaction():
-            rows = self.connection.execute(
-                "SELECT snapshot FROM project_file_operations "
-                "WHERE workspace_id = %s AND actor_id = %s AND project_id = %s "
-                "ORDER BY snapshot->>'created_at' DESC, id DESC LIMIT %s",
-                (workspace_id, actor_id, project_id, limit),
-            ).fetchall()
-            return tuple(ProjectFileOperation.model_validate(row["snapshot"]) for row in rows)
 
     def action(self, action_id: UUID) -> ActionProposal | None:
         with self.transaction():

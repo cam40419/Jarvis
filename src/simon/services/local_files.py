@@ -18,7 +18,6 @@ from pydantic import ValidationError as PydanticError
 
 from simon.domain.errors import AuthorizationError, ValidationError
 from simon.domain.models import ActorContext, utc_now
-from simon.domain.project_files import ProjectFileCreate
 from simon.services.canonical import digest
 from simon.services.identity import ROLE_SCOPES
 from simon.services.local_tool_schema import MODELS, READS
@@ -158,11 +157,7 @@ class LocalFileService:
 
     def path(self, actor: ActorContext, root: str, value: str) -> Path:
         roots = self.roots(actor)
-        if root.startswith("project:"):
-            identifier = UUID(root.partition(":")[2])
-            self.connected.projects.project(actor, identifier)
-            base = self.workspace(actor) / "projects" / str(identifier)
-        elif root in roots:
+        if root in roots:
             base = roots[root]
         else:
             raise AuthorizationError("Unknown local root. Use local_files_roots first.")
@@ -172,7 +167,7 @@ class LocalFileService:
         if not resolved.is_relative_to(base.resolve()):
             raise AuthorizationError("Path is outside the selected folder.")
         # Host roots must never open Simon's credentials, runtime databases or source checkout.
-        if root != "workspace" and not root.startswith("project:"):
+        if root != "workspace":
             server = Path(__file__).resolve().parents[3]
             if resolved.is_relative_to(server) or resolved.is_relative_to(
                 self.connected.settings.local_files_dir.resolve()
@@ -215,9 +210,7 @@ class LocalFileService:
 
     def listing(self, actor: ActorContext, request: Any) -> dict[str, Any]:
         parent = self.path(actor, request.root, request.path)
-        if not parent.exists() and (
-            request.root == "workspace" or request.root.startswith("project:")
-        ):
+        if not parent.exists() and request.root == "workspace":
             return {"files": [], "next_offset": None}
         if not parent.is_dir():
             raise ValidationError("Folder not found.")
@@ -498,7 +491,7 @@ class LocalFileService:
                 "roots": [
                     {"root": root, "path": str(path)} for root, path in self.roots(actor).items()
                 ],
-                "note": "Files are on Simon's server. Projects use root project:<project_id>.",
+                "note": "Files are on Simon's server.",
             }
         if name == "local_files_list":
             return self.listing(actor, request)
@@ -548,35 +541,6 @@ class LocalFileService:
             return self.extract(actor, request, check)
         if name == "local_zip_create":
             return self.zip(actor, request, check)
-        if name == "local_file_import_drive":
-            projects = self.connected.projects
-            token, binding = projects.context(actor, request.project_id)
-            metadata = projects.within(token, binding, request.file_id)
-            if metadata["mimeType"].startswith("application/vnd.google-apps."):
-                raise ValidationError("Use project file tools for native Google Docs/Sheets.")
-            raw = projects.api.download(token, request.file_id)
-            check()
-            projects.assert_binding(actor, binding)
-            with self.store.transaction(actor.workspace_id):
-                saved, _ = self.store.execute_once(
-                    f"local-import:{actor.workspace_id}:{actor.actor_id}",
-                    key,
-                    digest(request.model_dump(mode="json")),
-                    lambda: self.publish(actor, request.root, request.path, raw),
-                )
-                return saved
-        if name == "local_file_export_drive":
-            path = self.path(actor, request.root, request.path)
-            raw = self.blob(path, 10 * 1024 * 1024)
-            return self.connected.projects.create_file(
-                actor,
-                ProjectFileCreate(
-                    project_id=request.project_id, name=path.name, folder_id=request.folder_id
-                ),
-                key,
-                check,
-                raw=raw,
-            )
         raise ValidationError("Unknown local file operation.")
 
     def run(

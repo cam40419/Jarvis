@@ -12,8 +12,8 @@ Discover provider resources through the connected account's permissions and let
 users select destinations by name. Keep connections scoped to the signed-in
 actor and workspace, protect mutations with session authentication and CSRF,
 and resolve current connections in both API and worker processes. Account
-changes take effect without a restart. Existing operator configuration is a
-compatibility path rather than a user onboarding requirement.
+changes take effect without a restart. Project tool enrollment must use these
+current account bindings and explicit project permissions.
 
 Use the shared integration connection store and explicit public views. Secrets
 must not appear in API responses, agent context, logs or validation errors.

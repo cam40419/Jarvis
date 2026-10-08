@@ -170,74 +170,6 @@ def test_repeated_promise_fails_and_preserves_candidate_after_one_repair(actor, 
     assert len(model.calls) == 4
 
 
-@pytest.mark.parametrize("unmet_status", ["missing", "unverified"])
-def test_negative_review_discards_invented_excerpt_and_repairs_without_replaying_write(
-    actor, endpoint, unmet_status
-):
-    receipt = "Saved competition.md revision 1"
-    comparison = "Brand A numbers editions of 20; Stdout uses a unique seed per garment."
-    final = "Competition comparison: " + comparison
-    invented_excerpt = "PRIVATE-REVIEWER-BODY: This sentence was never in the supplied evidence."
-    negative_review = verdict(
-        check("Present the competition comparison", status=unmet_status, text=invented_excerpt),
-        check("Save the document", kind="saved_result", source="task_context", text=receipt),
-        status="not_delivered",
-        summary="The candidate does not contain the requested competition comparison.",
-    )
-    model = Responses(
-        action(endpoint, "tool", tool_id="lookup", arguments={"query": "save comparison"}),
-        action(endpoint, "final", output=PROMISE_ONLY),
-        negative_review,
-        action(endpoint, "final", output=final, artifacts=["competition.md"]),
-        verdict(
-            check("Present the competition comparison", text=comparison),
-            check("Save the document", kind="saved_result", source="task_context", text=receipt),
-        ),
-    )
-    writes = []
-    events = []
-    result = run_completion(
-        actor,
-        endpoint,
-        model,
-        write=True,
-        handler=lambda *_args: (
-            writes.append("saved") or {"receipt": receipt, "verified_content": comparison}
-        ),
-        checkpoint=events.append,
-        exportable_workspace=True,
-    )
-    assert result.status == "succeeded" and result.output == final
-    assert result.output != PROMISE_ONLY
-    assert result.artifact_paths == ("competition.md",)
-    assert len(writes) == result.tool_calls == 1
-    assert result.steps == len(model.calls) == 5
-    assert (result.input_tokens, result.output_tokens) == (100, 25)
-    reviews = [event for event in events if event["event"] == "completion_review"]
-    assert [event["status"] for event in reviews] == ["not_delivered", "complete"]
-    assert [event["repair_used"] for event in reviews] == [False, True]
-    assert reviews[0]["review_diagnostics"] == {
-        "omitted_evidence_count": 1,
-        "omitted_evidence": [
-            {
-                "check_index": 0,
-                "evidence_index": 0,
-                "kind": "deliverable",
-                "status": unmet_status,
-                "source": "candidate",
-                "reason": "excerpt_not_found",
-            }
-        ],
-    }
-    assert reviews[1]["review_diagnostics"] == {}
-    assert not any(event["event"] == "completion_review_rejected" for event in events)
-    repair_prompt = model.calls[3][1].prompt
-    assert "Present the competition comparison" in repair_prompt
-    assert receipt in repair_prompt
-    assert invented_excerpt not in repair_prompt
-    assert invented_excerpt not in json.dumps(events)
-
-
 def test_requested_plan_passes_semantic_review_without_future_tense_word_ban(actor, endpoint):
     plan = "I will compare suppliers on Monday, then shortlist two based on fabric and unit cost."
     model = Responses(plan, verdict(check("Provide the requested first-person plan", text=plan)))
@@ -308,45 +240,6 @@ def test_review_format_correction_keeps_candidate_and_known_write_without_replay
         assert receipt in request.prompt
 
 
-def test_grounded_completion_ignores_extra_bad_quote_without_retrying_model_or_write(
-    actor, endpoint
-):
-    candidate = "Competition comparison: Brand A numbers editions of 20; Stdout uses unique seeds."
-    receipt = "Saved competition.md revision 1"
-    delivered = check("Present the competition comparison", text=candidate)
-    delivered["evidence"].append({"source": "candidate", "excerpt": "Invented second quote"})
-    model = Responses(
-        action(endpoint, "tool", tool_id="lookup", arguments={"query": "save comparison"}),
-        action(endpoint, "final", output=candidate, artifacts=["competition.md"]),
-        verdict(
-            delivered,
-            check("Save the document", kind="saved_result", source="task_context", text=receipt),
-        ),
-    )
-    writes = []
-    events = []
-    result = run_completion(
-        actor,
-        endpoint,
-        model,
-        write=True,
-        handler=lambda *_args: writes.append("saved") or {"receipt": receipt},
-        checkpoint=events.append,
-        exportable_workspace=True,
-    )
-    assert result.status == "succeeded" and result.output == candidate
-    assert result.artifact_paths == ("competition.md",)
-    assert result.steps == len(model.calls) == 3
-    assert len(writes) == result.tool_calls == 1
-    reviews = [event for event in events if event["event"] == "completion_review"]
-    assert len(reviews) == 1 and reviews[0]["status"] == "complete"
-    assert reviews[0]["review_diagnostics"]["omitted_evidence_count"] == 1
-    assert reviews[0]["review_diagnostics"]["omitted_evidence"][0]["evidence_index"] == 1
-    assert not reviews[0]["repair_used"]
-    assert not any(event["event"] == "completion_review_rejected" for event in events)
-    assert "Invented second quote" not in json.dumps(events)
-
-
 def test_review_cannot_claim_candidate_only_save_text_as_recorded_execution_evidence(
     actor, endpoint
 ):
@@ -369,15 +262,13 @@ def test_review_cannot_claim_candidate_only_save_text_as_recorded_execution_evid
     assert [event["format_correction"] for event in rejected_events] == [True, False]
     expected_diagnostics = {
         "stage": "grounding",
-        "reason": "unsupported_satisfied_check",
+        "reason": "invalid_evidence_reference",
         "issues": [
             {
                 "check_index": 1,
                 "evidence_index": 0,
-                "kind": "saved_result",
-                "status": "satisfied",
                 "source": "task_context",
-                "reason": "excerpt_not_found",
+                "reason": "passage_not_found",
             }
         ],
     }

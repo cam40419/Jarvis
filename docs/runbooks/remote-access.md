@@ -30,7 +30,7 @@ use the same prefix consistently on every hop. Serve forwards the original path.
 ## Apply either HTTPS plan
 
 Back up database and files first. Let active tasks finish, then use the documented
-[maintenance and graceful-stop sequence](dispatcher-lifecycle.md). With API and
+[maintenance and graceful-stop sequence](runtime-adapters.md). With API and
 workers stopped and `.local/maintenance.request` present, repeat the chosen plan
 command with `--apply`. No command here creates public DNS or signs into a provider.
 The tool saves the previous `.env`, proxy and plan in `.local/https-backups/`, stages
@@ -53,7 +53,7 @@ Use the HTTPS hostname on both the server and remote clients. `start-local.ps1`
 intentionally overrides the origin to localhost, so do not use that launcher for
 remote production. `install-https-tasks.ps1` replaces the existing `Simon-Local`
 action with the configured launcher and registers the selected Cloudflare tunnel
-when appropriate. It refuses to replace a running API task. Do not run the legacy
+when appropriate. It refuses to replace a running API task. Do not run the
 `install-local-tasks.ps1` afterward; it would restore the localhost launcher.
 These Windows tasks run after this user signs in, not before sign-in. The launcher
 retains loopback-only listeners and the existing graceful-stop behavior. Recovery
@@ -109,7 +109,7 @@ login, file access and restart checks pass.
 From a phone on mobile data, verify login/logout, an account-private file upload,
 image/PDF preview, download, agent run status/cancel, and a completed artifact
 download. A second account must not see those private files or runs. Exercise
-voice and a Google reconnect on the final origin. Restart the API/dispatcher and
+voice and a Google reconnect on the final origin. Restart the API/chat worker and
 verify that queued work and saved outputs remain visible. Record server shutdown,
 network loss and reconnect behavior before calling the remote deployment ready.
 

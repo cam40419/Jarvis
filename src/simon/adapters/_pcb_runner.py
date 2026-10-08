@@ -254,7 +254,7 @@ def run(request: dict[str, Any], workspace: Path) -> int:
 if __name__ == "__main__":
     try:
         sys.exit(run(json.loads(sys.argv[1]), Path("/workspace")))
-    except (ValueError, OSError):
+    except (ValueError, TypeError, KeyError, IndexError, OSError):
         print(
             "KiCad rejected: invalid file, unsupported arguments, or output already exists",
             file=sys.stderr,

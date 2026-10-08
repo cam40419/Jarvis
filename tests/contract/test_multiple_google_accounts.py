@@ -14,10 +14,8 @@ from simon.adapters.google import (
     GoogleTokens,
 )
 from simon.domain.connected_tools import CalendarDraft
-from simon.domain.project_files import ProjectBind, ProjectCreate, ProjectFiles
 from tests.contract.test_calendar_immediate import pending_calendar
 from tests.contract.test_connected import EVENT, connected_setup, make_proposal
-from tests.contract.test_project_files import setup_project
 
 
 def add(
@@ -119,46 +117,6 @@ def test_calendar_and_email_stay_on_selected_account_after_default_change(store)
     result = service.decide(actor, preview.id, confirm=True, revalidate=lambda: actor)
     assert result.status == "succeeded"
     assert calls[-1] == ("access-secret", original.email)
-
-
-def test_project_keeps_its_account_and_can_explicitly_relink(store):
-    connected, actor, files, project = setup_project(store)
-    original = connected.connection(actor)
-    second = add(connected, actor)
-    connected.set_default(actor, second.email)
-    tokens = []
-    original_list = files.api.list_files
-    files.api.list_files = lambda token, *args: tokens.append(token) or original_list(token, *args)
-    files.files(actor, ProjectFiles(project_id=project))
-    assert tokens == ["access-secret"]
-    assert files.view(actor, files.binding(actor, project))["status"] == "ready"
-    created = files.create(
-        actor,
-        ProjectCreate(
-            name="Second project",
-            description="In account two",
-            account=second.email,
-            idempotency_key="second-project",
-        ),
-    )
-    assert created["drive"]["google_email"] == second.email
-    binding = files.binding(actor, project)
-    files.bind(
-        actor,
-        ProjectBind(
-            project_id=project,
-            folder_id=created["drive"]["folder_id"],
-            expected_version=binding.version,
-            account=second.email,
-        ),
-    )
-    files.files(actor, ProjectFiles(project_id=project))
-    assert tokens[-1] == "second-access"
-    connected.disconnect(actor, original.email)
-    assert files.sync(actor, project, force=True)["status"] == "ready"
-    connected.disconnect(actor, second.email)
-    with pytest.raises(ConnectedError):
-        files.files(actor, ProjectFiles(project_id=project))
 
 
 def test_reconnect_hint_cannot_replace_another_account(store):

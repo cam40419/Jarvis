@@ -1,5 +1,4 @@
 # Register Simon's user-session startup, recovery, and backup tasks.
-param([switch]$OnlyWorkflow)
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $user = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
@@ -38,22 +37,18 @@ function Register-SimonTask {
     Write-Host "Registered $Name for $user"
 }
 
-if (-not $OnlyWorkflow) {
-    Register-SimonTask -Name 'Simon-PostgreSQL' -Script 'start-local.ps1' `
-        -ExtraArguments '-DatabaseOnly' -Trigger $startup -Limit (New-TimeSpan -Minutes 10) `
-        -Description 'Start Simon PostgreSQL in Docker Desktop at user logon.'
-    Register-SimonTask -Name 'Simon-Local' -Script 'start-local.ps1' `
-        -ExtraArguments '-Supervised' -Trigger $startup -Limit ([timespan]::Zero) `
-        -Description 'Run the local Simon API without a reload watcher.'
-}
-Register-SimonTask -Name 'Simon-Workflow' -Script 'start-workflow-worker.ps1' `
+Register-SimonTask -Name 'Simon-PostgreSQL' -Script 'start-local.ps1' `
+    -ExtraArguments '-DatabaseOnly' -Trigger $startup -Limit (New-TimeSpan -Minutes 10) `
+    -Description 'Start Simon PostgreSQL in Docker Desktop at user logon.'
+Register-SimonTask -Name 'Simon-Local' -Script 'start-local.ps1' `
     -ExtraArguments '-Supervised' -Trigger $startup -Limit ([timespan]::Zero) `
-    -Description 'Run Simon assistant tasks and work sessions.'
-if (-not $OnlyWorkflow) {
-    Register-SimonTask -Name 'Simon-Backup' -Script 'backup-local.ps1' `
-        -ExtraArguments '' -Trigger $backup -Limit (New-TimeSpan -Hours 2) `
-        -Description 'Back up the Simon PostgreSQL database daily at 3 AM.'
-    Register-SimonTask -Name 'Simon-Recovery' -Script 'recover-local.ps1' `
-        -ExtraArguments '' -Trigger $recovery -Limit (New-TimeSpan -Minutes 2) `
-        -Description 'Restart the PostgreSQL, Simon API, and workflow tasks if a service is down.'
-}
+    -Description 'Run the local Simon API without a reload watcher.'
+Register-SimonTask -Name 'Simon-Assistant' -Script 'start-assistant-worker.ps1' `
+    -ExtraArguments '-Supervised' -Trigger $startup -Limit ([timespan]::Zero) `
+    -Description 'Run independent queued chat sessions.'
+Register-SimonTask -Name 'Simon-Backup' -Script 'backup-local.ps1' `
+    -ExtraArguments '' -Trigger $backup -Limit (New-TimeSpan -Hours 2) `
+    -Description 'Back up the Simon PostgreSQL database daily at 3 AM.'
+Register-SimonTask -Name 'Simon-Recovery' -Script 'recover-local.ps1' `
+    -ExtraArguments '' -Trigger $recovery -Limit (New-TimeSpan -Minutes 2) `
+    -Description 'Restart the PostgreSQL, Simon API, and assistant tasks if a service is down.'

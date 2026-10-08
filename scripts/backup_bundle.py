@@ -113,19 +113,15 @@ def main() -> None:
             parser.error("Run creation from the repository root to resolve configuration paths")
         settings = Settings()
         configuration = {}
-        if settings.agent_manifest_file is not None:
-            configuration["agent-platform.json"] = settings.agent_manifest_file
         if settings.external_providers_file is not None:
             configuration["external-providers.json"] = settings.external_providers_file
-        if settings.project_boards_file is not None:
-            configuration["project-boards.json"] = settings.project_boards_file
         if args.include_secrets:
             configuration["server.env"] = ROOT / ".env"
             if settings.integration_key_file.is_file():
                 configuration["credentials.key"] = settings.integration_key_file
         result = create_bundle(
             args.destination,
-            roots={"files": settings.local_files_dir, "agents": settings.agent_state_dir},
+            roots={"files": settings.local_files_dir},
             configuration=configuration,
             includes_secrets=args.include_secrets,
             dump_database=lambda target: dump_database(args.database, target),

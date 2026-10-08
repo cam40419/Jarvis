@@ -1,8 +1,7 @@
 # Identity: run and test
 
-For the active `cam40419` localhost installation, sign in with the existing password and follow
-[local operations](local-operations.md). The development launch instructions below are for a
-separate test session; the running local service has development-token login disabled.
+Use [local operation](local-operations.md) for startup. These instructions do not
+assert the state or identity of any existing installation.
 
 ## Username and password
 
@@ -24,7 +23,7 @@ Then try **Test connection**, **Sign out**, and **Sign in**.
 
 Use `localhost` consistently. `127.0.0.1` is a different origin and is not an alias for the
 configured origin. Password sign-in supports HTTPS hosting and loopback development. Passkey
-controls have been removed from the UI; existing records and operator APIs remain compatible.
+ceremonies remain available through the tested API; the current login UI uses passwords.
 For later starts, run `.\scripts\start-dev.ps1` without issuing another enrollment token.
 Stop the API with Ctrl+C; accounts and unexpired sessions survive the restart.
 
@@ -67,7 +66,7 @@ development login; all state disappears on restart. The normal launcher uses Pos
 The login page includes an authenticated echo test. For other requests, `/docs` provides the
 API schema. Sign in on the same origin first. Get `/auth/session` to obtain `csrf_token`, and
 supply it as `X-CSRF-Token` on protected POST requests. Browser POSTs supply Origin automatically.
-Neither the actor nor scopes can be supplied through headers anymore.
+Actor identity and scopes are resolved on the server. Human-only routes reject bearer credentials.
 
 For PowerShell automation, start with `-DevelopmentLogin` and run in a second terminal:
 
@@ -92,7 +91,8 @@ Expected failures: missing session is 401; wrong/missing Origin or CSRF token is
 invalid request fields are 422 without reflected input. A revoked or expired session is 401.
 Changing `X-Actor-Id`, `X-Workspace-Id`, or `X-Scopes` cannot change your identity. Use
 `POST /auth/workspace` to select a workspace you actually belong to; it rotates the session
-and returns a new CSRF token. Owner/member roles can read and submit jobs; guests can only echo.
+and returns a new CSRF token. Owner/member roles can read and submit jobs. Guests can
+read native projects explicitly shared with them, but cannot edit boards or use chat.
 
 ## Local operator commands
 
@@ -146,7 +146,7 @@ For the site administrator's own account, a local operator with database access 
 
 Recovery codes use the enrollment mechanism, so they also authorize passkey setup. Treat them
 as full account recovery secrets and share them only with the account holder. Password sign-in
-and reset remain available only on localhost.
+and reset require HTTPS or a loopback development origin.
 
 ## Verification
 
@@ -173,27 +173,21 @@ $env:SIMON_BROWSER_TESTS = '1'
 
 To use an installed Microsoft Edge instead of downloading Chromium, set
 `$env:SIMON_BROWSER_CHANNEL = 'msedge'` and skip the browser installation command.
-The automated browser test verified enrollment, passkey login, authenticated echo, reload,
-and logout locally with headless Edge. Testing your physical authenticator requires the
-interactive prompt described above.
-
-See [ADR 0005](../decisions/0005-passkey-sessions.md) for security decisions and remaining
-operational work. Threads/runs and the chat interface are the next implementation milestone.
-
-Latest local verification: 108 tests passed, including the Edge browser test, with 96.93%
-branch-inclusive coverage. Ruff and strict mypy passed. The identity migration applied to the
-existing development database, and a subsequent backup/restore compared all 19 public tables.
+Browser tests use isolated profiles and generated authenticators. They do not exercise
+your physical authenticator or enroll credentials in a real account. See
+[database testing](database-testing.md) for the isolated database workflow.
 
 ## Private account invitations
 
 The configured site administrator can open the login/account page and use Accounts to create
 a private workspace for an invited person. Share its one-use code and the login URL privately.
-The recipient chooses Set up a passkey. Codes expire after 15 minutes; Renew invitation invalidates
+The recipient chooses Set up username and password. Codes expire after 15 minutes; Renew invitation invalidates
 the old code. The web UI cannot issue enrollment for an already registered account.
 
 Disable account revokes sessions and blocks further sign-in without deleting data or passkeys.
 Enable account permits a new sign-in; an unregistered account needs a renewed invitation.
 The administrator is identified by SIMON_ACCOUNT_ADMIN_ACTOR_ID, separately from workspace
 ownership. The production launcher sets it from -ActorId. Existing shared memberships are unchanged.
-See [account boundaries and workshop plan](../accounts-workshop-plan.md) for remaining sharing
-and per-account billing work. Invited accounts currently use the server's OpenAI billing.
+See the [platform plan](../architecture/autonomous-work-platform-plan.md) for the
+remaining per-project model configuration and billing controls. Configured paid model
+requests currently use the server's provider connection.

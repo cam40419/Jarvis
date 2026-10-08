@@ -5,8 +5,7 @@ if (Test-Path -LiteralPath (Join-Path $repoRoot '.local\maintenance.request')) {
 $compose = Join-Path $repoRoot 'deploy\compose\compose.yaml'
 $postgresTask = Get-ScheduledTask -TaskName 'Simon-PostgreSQL' -ErrorAction SilentlyContinue
 $simonTask = Get-ScheduledTask -TaskName 'Simon-Local' -ErrorAction SilentlyContinue
-$workflowTask = Get-ScheduledTask -TaskName 'Simon-Workflow' -ErrorAction SilentlyContinue
-$agentsTask = Get-ScheduledTask -TaskName 'Simon-Agents' -ErrorAction SilentlyContinue
+$assistantTask = Get-ScheduledTask -TaskName 'Simon-Assistant' -ErrorAction SilentlyContinue
 $tunnelTask = Get-ScheduledTask -TaskName 'Simon-Tunnel' -ErrorAction SilentlyContinue
 $httpsPlan = $null
 $planPath = Join-Path $repoRoot '.local\https-plan.json'
@@ -55,11 +54,8 @@ try {
 if (-not $applicationHealthy -and (Test-RecoveryAllowed $simonTask '.local\simon-stop.request')) {
     Start-ScheduledTask -TaskName 'Simon-Local'
 }
-if ($databaseHealthy -and (Test-RecoveryAllowed $workflowTask '.local\assistant-worker-stop.request')) {
-    Start-ScheduledTask -TaskName 'Simon-Workflow'
-}
-if ($databaseHealthy -and (Test-RecoveryAllowed $agentsTask '.local\agent-dispatcher-stop.request')) {
-    Start-ScheduledTask -TaskName 'Simon-Agents'
+if ($databaseHealthy -and (Test-RecoveryAllowed $assistantTask '.local\assistant-worker-stop.request')) {
+    Start-ScheduledTask -TaskName 'Simon-Assistant'
 }
 if ($applicationHealthy -and $httpsPlan -and $httpsPlan.provider -eq 'cloudflare' -and
     (Test-RecoveryAllowed $tunnelTask '.local\tunnel-stop.request')) {

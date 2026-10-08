@@ -10,12 +10,11 @@ from simon.adapters.external_action_providers import (
 )
 from simon.adapters.external_action_tools import ExternalActionToolTransport
 from simon.adapters.optional_http import BoundedHTTP
-from simon.adapters.tool_transports import ToolHandler
+from simon.adapters.tool_transports import ToolHandler, TransportFactory
 from simon.config import Settings
 from simon.domain.execution import EnvironmentLease
 from simon.domain.models import ActorContext
 from simon.domain.ports import Store
-from simon.services.agent_dispatcher import TransportFactory
 from simon.services.audit import AuditService
 from simon.services.external_actions import ExternalActionService
 from simon.services.integrations import IntegrationService

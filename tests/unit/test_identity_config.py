@@ -6,12 +6,12 @@ from pydantic import SecretStr
 from simon.config import Settings
 
 
-def test_openai_key_is_simon_only_and_other_legacy_settings_still_work(monkeypatch, tmp_path):
+def test_retired_jarvis_settings_are_not_accepted(monkeypatch, tmp_path):
     env = tmp_path / ".env"
     env.write_text("JARVIS_OPENAI_API_KEY=old-synthetic-key\nJARVIS_AUTO_DEEP_ENABLED=false\n")
     legacy = Settings(_env_file=env)
     assert legacy.openai_api_key is None
-    assert legacy.auto_deep_enabled is False
+    assert legacy.auto_deep_enabled is True
     monkeypatch.setenv("SIMON_OPENAI_API_KEY", "new-synthetic-key")
     monkeypatch.setenv("SIMON_AUTO_DEEP_ENABLED", "true")
     modern = Settings(_env_file=env)

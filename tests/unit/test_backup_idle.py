@@ -18,10 +18,6 @@ def validated_target(monkeypatch):
     "active",
     [
         None,
-        ("platform.run", "queued"),
-        ("platform.run", "running"),
-        ("assistant.task", "running"),
-        ("assistant.task", "queued"),
         ("assistant.session", "queued"),
         ("assistant.session", "running"),
     ],

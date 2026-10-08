@@ -1,12 +1,31 @@
 """Actual static-browser extraction with synthetic pages; no provider requests."""
 
 import os
+from types import SimpleNamespace
 
 import pytest
 
 from simon.adapters import _browser_runner as runner
 
 pytestmark = pytest.mark.browser
+
+
+@pytest.fixture
+def runner_browser(monkeypatch):
+    if os.environ.get("SIMON_BROWSER_TESTS") != "1":
+        pytest.skip("set SIMON_BROWSER_TESTS=1")
+    from playwright.sync_api import BrowserType
+
+    original_launch = BrowserType.launch
+
+    def launch(browser, **kwargs):
+        # Production workers are Linux-only; retain the DNS isolation flag when testing on Windows.
+        kwargs.pop("env", None)
+        if channel := os.environ.get("SIMON_BROWSER_CHANNEL"):
+            kwargs["channel"] = channel
+        return original_launch(browser, **kwargs)
+
+    monkeypatch.setattr(BrowserType, "launch", launch)
 
 
 @pytest.fixture
@@ -104,23 +123,8 @@ def test_read_text_and_link_limits_are_independent(static_page):
 
 
 def test_public_source_reader_returns_content_and_followable_links_without_page_scripts(
-    monkeypatch, tmp_path
+    monkeypatch, tmp_path, runner_browser
 ):
-    if os.environ.get("SIMON_BROWSER_TESTS") != "1":
-        pytest.skip("set SIMON_BROWSER_TESTS=1")
-    from playwright.sync_api import BrowserType
-
-    original_launch = BrowserType.launch
-
-    def launch(browser, **kwargs):
-        # Production runner is Linux-only; this test also supports installed Edge
-        # on Windows. Keep the runner's DNS-disable flag and isolated context.
-        kwargs.pop("env", None)
-        if channel := os.environ.get("SIMON_BROWSER_CHANNEL"):
-            kwargs["channel"] = channel
-        return original_launch(browser, **kwargs)
-
-    monkeypatch.setattr(BrowserType, "launch", launch)
     calls = []
     html = b"""<!doctype html><html><head><title>Supplier production capabilities</title>
     <script>document.title='UNSAFE SCRIPT';fetch('https://not-allowed.example/beacon')</script>
@@ -156,3 +160,103 @@ def test_public_source_reader_returns_content_and_followable_links_without_page_
     ]
     assert result["links_truncated"] is False
     assert result["screenshot_path"] is None
+
+
+def test_offline_renderer_blocks_network_scripts_and_preserves_existing_output(
+    monkeypatch, tmp_path, runner_browser
+):
+    source = tmp_path / "board.html"
+    source.write_text(
+        "<title>Collection board</title><style>body{background:#e8d8c5}</style>"
+        "<script>document.title='UNSAFE SCRIPT'</script>"
+        '<img src="https://unapproved.example/logo.png"><main>'
+        + "Essentials in natural cotton. " * 20
+        + "</main>",
+        encoding="utf-8",
+    )
+
+    def no_network(*args):
+        pytest.fail("Offline HTML rendering attempted a network fetch")
+
+    monkeypatch.setattr(runner.Fetcher, "get", no_network)
+    request = {
+        "operation": "browser.render_html",
+        "arguments": {"input": "board.html", "output": "drafts/board.png", "max_text_chars": 100},
+        "allowed_origins": [],
+        "timeout_seconds": 30,
+    }
+    result = runner.run(request, tmp_path)
+    image = (tmp_path / "drafts" / "board.png").read_bytes()
+    assert result["title"] == "Collection board"
+    assert result["url"] == "local:board.html"
+    assert result["screenshot_path"] == "drafts/board.png"
+    assert result["text"].startswith("Essentials in natural cotton.")
+    assert len(result["text"]) == 100 and result["text_truncated"]
+    assert result["blocked_requests"] >= 1
+    assert image.startswith(b"\x89PNG\r\n\x1a\n") and len(image) > 100
+    with pytest.raises(ValueError, match="already exists"):
+        runner.run(request, tmp_path)
+    assert (tmp_path / "drafts" / "board.png").read_bytes() == image
+
+
+def test_remote_screenshot_fetches_only_permitted_resources_without_credentials(
+    monkeypatch, tmp_path, runner_browser
+):
+    responses = {
+        "/lookbook": (
+            "text/html",
+            b"<title>Lookbook</title><link rel='stylesheet' href='/style.css'>"
+            b"<img src='https://unapproved.example/tracker.png'><main>Autumn collection</main>",
+        ),
+        "/style.css": ("text/css", b"body{background:#eadfca;color:#283625}"),
+    }
+    calls, resolved = [], []
+
+    def resolve(hostname):
+        resolved.append(hostname)
+        return "93.184.216.34"
+
+    class Connection:
+        def __init__(self, hostname, address, *, timeout):
+            assert hostname == "supplier.example" and address == "93.184.216.34"
+            assert 0 < timeout <= 10
+            self.path = None
+
+        def request(self, method, path, *, headers):
+            assert method == "GET"
+            assert "Cookie" not in headers and "Authorization" not in headers
+            calls.append(path)
+            self.path = path
+
+        def getresponse(self):
+            media_type, body = responses[self.path]
+            return SimpleNamespace(
+                status=200,
+                getheader=lambda name, default=None: (
+                    media_type if name == "Content-Type" else default
+                ),
+                read=lambda limit: body[:limit],
+            )
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(runner, "public_address", resolve)
+    monkeypatch.setattr(runner, "PinnedHTTPSConnection", Connection)
+    result = runner.run(
+        {
+            "operation": "browser.screenshot",
+            "arguments": {"url": "https://supplier.example/lookbook", "output": "lookbook.png"},
+            "allowed_origins": ["https://supplier.example"],
+            "timeout_seconds": 30,
+        },
+        tmp_path,
+    )
+    assert result["title"] == "Lookbook"
+    assert result["text"] == "Autumn collection"
+    assert result["url"] == "https://supplier.example/lookbook"
+    assert result["blocked_requests"] >= 1
+    assert result["screenshot_path"] == "lookbook.png"
+    assert (tmp_path / "lookbook.png").read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
+    assert calls == ["/lookbook", "/style.css"]
+    assert resolved == ["supplier.example", "supplier.example"]

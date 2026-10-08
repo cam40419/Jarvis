@@ -7,7 +7,6 @@ from tests.contract.test_work_sessions import setup_sessions
 
 def test_background_api_acknowledges_before_execution_and_reconnects(container):
     sessions, _, model, thread, _, token = setup_sessions(container.store)
-    container.tasks = sessions.tasks
     container.work_sessions = sessions
     with TestClient(create_app(container), base_url="http://localhost:8000") as client:
         client.cookies.set("simon_session", token)
@@ -23,7 +22,7 @@ def test_background_api_acknowledges_before_execution_and_reconnects(container):
         assert not model.requests
         identifier = result.json()["id"]
     # Browser is closed; a fresh service instance consumes the saved queue.
-    WorkSessionService(sessions.tasks).tick()
+    WorkSessionService(sessions.store, sessions.identity, sessions.conversations).tick()
     with TestClient(create_app(container), base_url="http://localhost:8000") as client:
         client.cookies.set("simon_session", token)
         assert client.get(f"/v1/work-sessions/{identifier}").json()["status"] == "succeeded"

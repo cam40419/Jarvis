@@ -9,42 +9,13 @@
     <link rel="stylesheet" href="/assets/chat.css" />
     <script src="/assets/app-path.js" defer></script>
     <script src="/assets/markdown.js" defer></script>
-    <script src="/assets/result-view.js" defer></script>
     <script src="/assets/chat.js" defer></script>
     <script src="/assets/connections.js" defer></script>
     <link rel="stylesheet" href="/assets/voice.css" />
     <script src="/assets/voice.js" defer></script>
     <script src="/assets/personality.js" defer></script>
-    <link rel="stylesheet" href="/assets/work.css" />
     <script src="/assets/background-chat.js" defer></script>
-    <script src="/assets/work.js" defer></script>
-    <script src="/assets/local-files.js" defer></script>
-    <script src="/assets/agent-work.js" defer></script>
-    <script src="/assets/setup-assistant.js" defer></script>
-    <script src="/assets/agent-library.js" defer></script>
-    <script src="/assets/project-drafts.js" defer></script>
-    <script src="/assets/project-continuity.js" defer></script>
-    <script src="/assets/project-storage.js" defer></script>
-    <script src="/assets/project-command.js" defer></script>
-    <script src="/assets/project-workspace.js" defer></script>
-    <script src="/assets/project-knowledge.js" defer></script>
-    <script src="/assets/project-outputs.js" defer></script>
-    <script src="/assets/project-board.js" defer></script>
-    <script src="/assets/external-actions.js" defer></script>
     <link rel="stylesheet" href="/assets/theme.css" />
-    <link rel="stylesheet" href="/assets/agent-work.css" />
-    <link rel="stylesheet" href="/assets/agent-library.css" />
-    <link rel="stylesheet" href="/assets/setup-assistant.css" />
-    <link rel="stylesheet" href="/assets/project-command.css" />
-    <link rel="stylesheet" href="/assets/result-view.css" />
-    <link rel="stylesheet" href="/assets/project-knowledge.css" />
-    <link rel="stylesheet" href="/assets/project-workspace.css" />
-    <link rel="stylesheet" href="/assets/project-continuity.css" />
-    <link rel="stylesheet" href="/assets/project-outputs.css" />
-    <link rel="stylesheet" href="/assets/project-board.css" />
-    <link rel="stylesheet" href="/assets/external-actions.css" />
-    <link rel="stylesheet" href="/assets/local-files.css" />
-    <link rel="stylesheet" href="/assets/workspace-shell.css" />
   </head>
   <body class="chat-page">
     <button id="sidebar-scrim" class="scrim" aria-label="Close navigation" hidden></button>
@@ -57,10 +28,8 @@
       <button id="new-chat" class="new-chat">
         <span aria-hidden="true">＋</span> New conversation <kbd>Alt N</kbd>
       </button>
-      <nav class="sidebar-work-nav" aria-label="Workspace">
+      <nav class="workspace-nav" aria-label="Workspace">
         <a href="/projects" class="nav-button">Projects</a>
-        <button id="sidebar-projects" type="button" class="nav-button">Legacy work</button>
-        <button id="sidebar-agents" type="button" class="nav-button">Agents &amp; skills</button>
         <button id="connections-open" type="button" class="nav-button" disabled>Connections</button>
       </nav>
       <label class="search"
@@ -87,12 +56,8 @@
         >
       </div>
     </aside>
-    <main id="workspace" class="workspace">
+    <main id="chat-workspace" class="workspace">
       <header class="topbar">
-        <div class="simon-subnav" role="group" aria-label="Simon views">
-          <button id="chat-open" type="button" aria-current="page">Chat</button
-          ><button id="work-open" type="button">Legacy work</button>
-        </div>
         <button
           id="menu-toggle"
           class="icon-button mobile-only"
@@ -103,7 +68,7 @@
         </button>
         <div class="topbar-title">
           <span id="chat-title">New conversation</span
-          ><span class="topbar-sub">Conversations, projects &amp; files</span>
+          ><span class="topbar-sub">Your conversations</span>
         </div>
         <div class="topbar-actions">
           <button id="voice-open" disabled class="text-button">Voice chat</button
@@ -144,146 +109,11 @@
             </button>
           </div>
           <p class="welcome-note">
-            <span aria-hidden="true">✦</span> Your conversations and project context, in one
-            workspace.
+            <span aria-hidden="true">✦</span> Think, draft, and explore ideas in your workspace.
           </p>
         </div>
         <div id="messages" class="messages" aria-label="Messages"></div>
       </section>
-      <section id="work-view" class="work-view" aria-label="Work and projects" hidden>
-        <div class="work-hero">
-          <div class="work-home-heading">
-            <h1>Legacy workspace</h1>
-            <button id="work-refresh" type="button" class="pc-button">Refresh workspace</button>
-          </div>
-          <p>
-            Existing projects, requests, files, and runs. Start shared project boards in
-            <a href="/projects">Projects</a>.
-          </p>
-          <nav class="work-home-nav" aria-label="Workspace sections">
-            <button id="work-projects-open" type="button">Projects</button>
-            <button id="work-agents-open" type="button">Agents &amp; runs</button>
-            <button id="work-background-open" type="button">Background work</button>
-            <button id="work-connections-open" type="button">Connections</button>
-          </nav>
-          <details class="work-chat-shortcuts">
-            <summary>Discuss with Simon</summary>
-            <div class="work-hero-actions">
-              <button id="work-plan" type="button">Discuss a new project</button>
-              <button id="work-review" type="button">Review priorities</button>
-            </div>
-          </details>
-        </div>
-        <p id="work-status" role="status" aria-live="polite"></p>
-        <section class="work-card work-tasks">
-          <div class="work-card-heading">
-            <div>
-              <p class="eyebrow">ASYNCHRONOUS WORK</p>
-              <h2>Task queue</h2>
-            </div>
-            <span id="task-count" class="work-worker">0 active</span>
-          </div>
-          <p class="muted">
-            Research and work continue outside chat. Running work can be steered, paused, reordered,
-            or cancelled.
-          </p>
-          <div id="work-tasks" class="work-list task-list"></div>
-          <form id="work-task-form">
-            <h3 id="work-task-form-title">Start background work</h3>
-            <div class="task-form-grid">
-              <label for="work-task-name"
-                >Title<input
-                  id="work-task-name"
-                  required
-                  maxlength="120"
-                  placeholder="Compare options for a project" /></label
-              ><label for="work-task-kind"
-                >Type<select id="work-task-kind">
-                  <option value="research">Research</option>
-                  <option value="work">General work</option>
-                </select></label
-              ><label for="work-task-project"
-                >Project<select id="work-task-project">
-                  <option value="">No linked project</option>
-                </select></label
-              ><label for="work-task-priority"
-                >Priority<select id="work-task-priority">
-                  <option value="5">Urgent</option>
-                  <option value="4">High</option>
-                  <option value="3" selected>Normal</option>
-                  <option value="2">Low</option>
-                  <option value="1">Someday</option>
-                </select></label
-              >
-            </div>
-            <label for="work-task-detail">Instructions</label
-            ><textarea
-              id="work-task-detail"
-              required
-              maxlength="4000"
-              rows="4"
-              placeholder="What should Simon produce, verify, compare, or decide?"
-            ></textarea>
-            <div class="work-item-actions">
-              <button id="work-task-submit" class="primary" type="submit">Queue task</button
-              ><button id="work-task-cancel-edit" type="button" hidden>Cancel edit</button>
-            </div>
-          </form>
-        </section>
-        <div class="work-columns">
-          <section class="work-card">
-            <div class="work-card-heading">
-              <div>
-                <p class="eyebrow">PROJECT CONTEXT</p>
-                <h2>Your projects</h2>
-              </div>
-            </div>
-            <p class="muted">
-              Project context is available to text chat, voice chat, and linked background tasks.
-            </p>
-            <div id="work-projects" class="work-list"></div>
-            <form id="work-project-form">
-              <h3>Add project context</h3>
-              <label for="work-project-name">Project name</label
-              ><input
-                id="work-project-name"
-                required
-                maxlength="200"
-                placeholder="e.g. Kitchen renovation"
-              /><label for="work-project-detail">What should Simon remember?</label
-              ><textarea
-                id="work-project-detail"
-                required
-                maxlength="1000"
-                rows="3"
-                placeholder="Goals, deadlines, decisions, and what to do next"
-              ></textarea
-              ><button class="primary" type="submit">Save project</button>
-            </form>
-          </section>
-        </div>
-      </section>
-      <dialog
-        id="task-result-panel"
-        class="side-panel task-result-panel"
-        aria-labelledby="task-result-title"
-      >
-        <div class="panel-header">
-          <div>
-            <p class="eyebrow">TASK RESULT</p>
-            <h2 id="task-result-title">Result</h2>
-          </div>
-          <button class="icon-button" data-close="task-result-panel" aria-label="Close task result">
-            &#215;
-          </button>
-        </div>
-        <p id="task-result-meta" class="muted"></p>
-        <div id="task-result-body" class="task-result-body"></div>
-        <section>
-          <h3>Project files</h3>
-          <div id="task-result-files" class="work-list"></div>
-        </section>
-      </dialog>
       <div class="composer-area">
         <button id="jump-latest" class="jump-latest" hidden>↓ Latest message</button>
         <div id="status" role="status" aria-live="polite"></div>
@@ -368,8 +198,8 @@
         <button class="icon-button" data-close="memory-panel" aria-label="Close memories">×</button>
       </div>
       <p class="muted">
-        Personal facts, projects, and preferences shared across your text and voice conversations.
-        Simon can save useful context as you talk. You can also add or remove it here.
+        Personal facts and preferences shared across your text and voice conversations. Simon can
+        save useful context as you talk. You can also add or remove it here.
       </p>
       <div id="memories" class="memory-list"></div>
       <form id="memory-form">
@@ -391,8 +221,7 @@
         ><label for="memory-category">Category</label
         ><select id="memory-category">
           <option value="fact">Personal fact</option>
-          <option value="preference">Preference</option>
-          <option value="project">Project</option></select
+          <option value="preference">Preference</option></select
         ><label for="memory-scope">Who can use this?</label
         ><select id="memory-scope">
           <option value="personal">Only me</option>
@@ -418,11 +247,10 @@
       </p>
       <p class="muted">
         Relevant text and voice history and saved memories are sent to OpenAI for context. New
-        conversations are private to your account; older shared conversations retain their existing
-        access. Simon can search public web pages. Connect Google to read Gmail and Drive, check
-        your calendar, create events directly, and prepare emails for review. Configured home
-        devices support status checks and immediate power, brightness, and color changes. Website
-        form submissions are not available.
+        conversations are private to your account. Simon can search public web pages. Connect Google
+        to read Gmail and Drive, check your calendar, create events directly, and prepare emails for
+        review. Configured home devices support status checks and immediate power, brightness, and
+        color changes. Website form submissions are not available.
       </p>
       <a href="/login">Account &amp; access ↗</a>
     </dialog>
@@ -441,17 +269,6 @@
         Configure and test connections before starting work. Every agent uses these workspace
         connections.
       </p>
-      <section class="memory-card" aria-labelledby="connections-readiness-heading">
-        <h3 id="connections-readiness-heading">All connections and tools</h3>
-        <button id="connections-refresh" type="button">Refresh readiness</button>
-        <input
-          id="connections-search"
-          type="search"
-          placeholder="Find a service or tool"
-          aria-label="Find a connection or tool"
-        />
-        <div id="connections-catalog" role="status"></div>
-      </section>
       <div class="memory-card">
         <h3>Web</h3>
         <p id="web-connection"></p>

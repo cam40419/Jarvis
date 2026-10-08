@@ -41,6 +41,7 @@ from simon.domain.models import (
     OutboxEvent,
     utc_now,
 )
+from simon.domain.native_agents import NativeAgent, NativeAgentCredential, NativeTeamPolicy
 from simon.domain.native_projects import (
     NativeProject,
     NativeProjectMember,
@@ -48,8 +49,6 @@ from simon.domain.native_projects import (
     TaskAssignment,
 )
 from simon.domain.ports import CapabilityHandler
-from simon.domain.project_files import ProjectDrive, ProjectFileOperation
-from simon.domain.tasks import ProjectArtifact
 from simon.domain.voice import VoiceSession
 
 
@@ -90,12 +89,12 @@ class InMemoryStore:
         self._feedback: dict[tuple[UUID, UUID, UUID], RunFeedback] = {}
         self._voice_sessions: dict[UUID, VoiceSession] = {}
         self._managed_accounts: dict[UUID, ManagedAccount] = {}
-        self._project_artifacts: dict[UUID, tuple[ProjectArtifact, bytes]] = {}
-        self._project_drive: dict[tuple[UUID, UUID, UUID], ProjectDrive] = {}
-        self._project_file_ops: dict[UUID, ProjectFileOperation] = {}
         self._native_projects: dict[UUID, NativeProject] = {}
         self._native_project_members: dict[tuple[UUID, UUID, UUID], NativeProjectMember] = {}
         self._native_tasks: dict[UUID, NativeTask] = {}
+        self._native_agents: dict[UUID, NativeAgent] = {}
+        self._native_team_policies: dict[tuple[UUID, UUID], NativeTeamPolicy] = {}
+        self._native_agent_credentials: dict[UUID, NativeAgentCredential] = {}
 
     @contextmanager
     def transaction(self, workspace_id: UUID | None = None) -> Iterator[None]:
@@ -128,12 +127,12 @@ class InMemoryStore:
                     self._actions,
                     self._voice_sessions,
                     self._managed_accounts,
-                    self._project_artifacts,
-                    self._project_drive,
-                    self._project_file_ops,
                     self._native_projects,
                     self._native_project_members,
                     self._native_tasks,
+                    self._native_agents,
+                    self._native_team_policies,
+                    self._native_agent_credentials,
                 )
             )
             try:
@@ -166,12 +165,12 @@ class InMemoryStore:
                     self._actions,
                     self._voice_sessions,
                     self._managed_accounts,
-                    self._project_artifacts,
-                    self._project_drive,
-                    self._project_file_ops,
                     self._native_projects,
                     self._native_project_members,
                     self._native_tasks,
+                    self._native_agents,
+                    self._native_team_policies,
+                    self._native_agent_credentials,
                 ) = snapshot
                 raise
 
@@ -309,13 +308,19 @@ class InMemoryStore:
             task.workspace_id, task.project_id, task.assignment.actor_id
         ):
             raise InvalidTransitionError("Native task assignee is not a project member")
+        if task.assignment.agent_id and not self.native_agent(
+            task.workspace_id, task.project_id, task.assignment.agent_id
+        ):
+            raise InvalidTransitionError("Native task assignee is not a project agent")
 
     def insert_native_task(self, task: NativeTask) -> None:
         with self._lock:
             if (
                 task.id in self._native_tasks
                 or task.version != 1
-                or (task.created_by, task.workspace_id) not in self._memberships
+                or not self._native_creator_exists(
+                    task.workspace_id, task.project_id, task.created_by, task.created_by_agent_id
+                )
             ):
                 raise InvalidTransitionError("Native task already exists or creator is unavailable")
             self._check_native_task_references(task)
@@ -328,11 +333,203 @@ class InMemoryStore:
                 previous is None
                 or previous.version != expected_version
                 or task.version != expected_version + 1
-                or (task.created_by, task.created_at) != (previous.created_by, previous.created_at)
+                or (task.created_by, task.created_by_agent_id, task.created_at)
+                != (previous.created_by, previous.created_by_agent_id, previous.created_at)
             ):
                 raise InvalidTransitionError("Native task missing or stale task version")
             self._check_native_task_references(task)
             self._native_tasks[task.id] = task
+
+    def _native_creator_exists(
+        self,
+        workspace_id: UUID,
+        project_id: UUID,
+        actor_id: UUID | None,
+        agent_id: UUID | None,
+    ) -> bool:
+        if (actor_id is None) == (agent_id is None):
+            return False
+        if actor_id is not None:
+            return (actor_id, workspace_id) in self._memberships
+        return (
+            agent_id is not None
+            and self.native_agent(workspace_id, project_id, agent_id) is not None
+        )
+
+    def native_agent(
+        self, workspace_id: UUID, project_id: UUID, agent_id: UUID
+    ) -> NativeAgent | None:
+        with self._lock:
+            agent = self._native_agents.get(agent_id)
+            return (
+                agent
+                if agent and (agent.workspace_id, agent.project_id) == (workspace_id, project_id)
+                else None
+            )
+
+    def native_agents(
+        self, workspace_id: UUID, project_id: UUID, offset: int, limit: int
+    ) -> tuple[NativeAgent, ...]:
+        with self._lock:
+            agents = (
+                agent
+                for agent in self._native_agents.values()
+                if (agent.workspace_id, agent.project_id) == (workspace_id, project_id)
+            )
+            return tuple(
+                sorted(agents, key=lambda a: (a.created_at, a.id))[offset : offset + limit]
+            )
+
+    def native_active_agent_count(self, workspace_id: UUID, project_id: UUID) -> int:
+        with self._lock:
+            return sum(
+                (agent.workspace_id, agent.project_id, agent.status)
+                == (workspace_id, project_id, "active")
+                for agent in self._native_agents.values()
+            )
+
+    def insert_native_agent(self, agent: NativeAgent) -> None:
+        with self._lock:
+            if (
+                agent.id in self._native_agents
+                or agent.version != 1
+                or self.native_project(agent.workspace_id, agent.project_id) is None
+                or not self._native_creator_exists(
+                    agent.workspace_id,
+                    agent.project_id,
+                    agent.created_by,
+                    agent.created_by_agent_id,
+                )
+                or any(
+                    (saved.workspace_id, saved.project_id, saved.role_key)
+                    == (agent.workspace_id, agent.project_id, agent.role_key)
+                    for saved in self._native_agents.values()
+                )
+            ):
+                raise InvalidTransitionError("Agent role exists or project/creator is unavailable")
+            self._native_agents[agent.id] = agent
+
+    def update_native_agent(self, agent: NativeAgent, expected_version: int) -> None:
+        with self._lock:
+            previous = self.native_agent(agent.workspace_id, agent.project_id, agent.id)
+            if (
+                previous is None
+                or previous.version != expected_version
+                or agent.version != expected_version + 1
+                or (agent.role_key, agent.created_by, agent.created_by_agent_id, agent.created_at)
+                != (
+                    previous.role_key,
+                    previous.created_by,
+                    previous.created_by_agent_id,
+                    previous.created_at,
+                )
+            ):
+                raise InvalidTransitionError("Native agent missing or stale agent version")
+            self._native_agents[agent.id] = agent
+
+    def native_team_policy(self, workspace_id: UUID, project_id: UUID) -> NativeTeamPolicy | None:
+        with self._lock:
+            return self._native_team_policies.get((workspace_id, project_id))
+
+    def save_native_team_policy(self, policy: NativeTeamPolicy, expected_version: int) -> None:
+        with self._lock:
+            previous = self.native_team_policy(policy.workspace_id, policy.project_id)
+            if (
+                self.native_project(policy.workspace_id, policy.project_id) is None
+                or (previous.version if previous else 0) != expected_version
+                or policy.version != expected_version + 1
+            ):
+                raise InvalidTransitionError("Native team policy missing or stale version")
+            self._native_team_policies[policy.workspace_id, policy.project_id] = policy
+
+    def native_agent_credential(self, token_id: UUID) -> NativeAgentCredential | None:
+        with self._lock:
+            return self._native_agent_credentials.get(token_id)
+
+    def native_agent_credentials(
+        self, workspace_id: UUID, project_id: UUID, agent_id: UUID
+    ) -> tuple[NativeAgentCredential, ...]:
+        with self._lock:
+            credentials = (
+                credential
+                for credential in self._native_agent_credentials.values()
+                if (credential.workspace_id, credential.project_id, credential.agent_id)
+                == (workspace_id, project_id, agent_id)
+            )
+            return tuple(sorted(credentials, key=lambda c: (c.created_at, c.id)))
+
+    def insert_native_agent_credential(self, credential: NativeAgentCredential) -> None:
+        with self._lock:
+            agent = self.native_agent(
+                credential.workspace_id, credential.project_id, credential.agent_id
+            )
+            if (
+                agent is None
+                or agent.version != credential.agent_version
+                or agent.status != "active"
+                or credential.id in self._native_agent_credentials
+                or any(
+                    c.token_hash == credential.token_hash
+                    for c in self._native_agent_credentials.values()
+                )
+                or (credential.issued_by, credential.workspace_id) not in self._memberships
+                or credential.expires_at <= credential.created_at
+                or (
+                    credential.revoked_at is not None
+                    and credential.revoked_at < credential.created_at
+                )
+            ):
+                raise InvalidTransitionError("Agent credential exists or authority is unavailable")
+            self._native_agent_credentials[credential.id] = credential
+
+    def revoke_native_agent_credential(
+        self,
+        workspace_id: UUID,
+        project_id: UUID,
+        agent_id: UUID,
+        token_id: UUID,
+        revoked_at: datetime,
+    ) -> bool:
+        with self._lock:
+            credential = self._native_agent_credentials.get(token_id)
+            if (
+                credential is None
+                or (credential.workspace_id, credential.project_id, credential.agent_id)
+                != (workspace_id, project_id, agent_id)
+                or credential.revoked_at is not None
+            ):
+                return False
+            if revoked_at < credential.created_at:
+                raise InvalidTransitionError("Credential revocation predates issuance")
+            self._native_agent_credentials[token_id] = credential.model_copy(
+                update={"revoked_at": revoked_at}
+            )
+            return True
+
+    def native_release_agent_tasks(
+        self, workspace_id: UUID, project_id: UUID, agent_id: UUID
+    ) -> tuple[NativeTask, ...]:
+        with self._lock:
+            released = []
+            now = utc_now()
+            for task in self._native_tasks.values():
+                if (task.workspace_id, task.project_id, task.assignment.agent_id) != (
+                    workspace_id,
+                    project_id,
+                    agent_id,
+                ) or task.status in {"done", "cancelled"}:
+                    continue
+                saved = task.model_copy(
+                    update={
+                        "assignment": TaskAssignment(),
+                        "status": "todo" if task.status == "in_progress" else task.status,
+                        "version": task.version + 1,
+                        "updated_at": now,
+                    }
+                )
+                self._native_tasks[task.id] = saved
+                released.append(saved)
+            return tuple(sorted(released, key=lambda t: (t.created_at, t.id)))
 
     def password_for_email(self, email: str) -> PasswordCredential | None:
         with self._lock:
@@ -369,40 +566,6 @@ class InMemoryStore:
             self._email_codes = {
                 k: c for k, c in self._email_codes.items() if c.expires_at >= before
             }
-
-    def save_project_artifact(self, artifact: ProjectArtifact, content: bytes) -> None:
-        with self._lock:
-            existing = self._project_artifacts.get(artifact.id)
-            if existing and existing != (artifact, content):
-                raise InvalidTransitionError("project artifact already exists")
-            self._project_artifacts[artifact.id] = (artifact, content)
-
-    def project_artifact(self, identifier: UUID) -> tuple[ProjectArtifact, bytes] | None:
-        with self._lock:
-            return self._project_artifacts.get(identifier)
-
-    def project_artifacts(
-        self,
-        workspace_id: UUID,
-        actor_id: UUID,
-        project_id: UUID | None,
-        offset: int,
-        limit: int,
-    ) -> tuple[ProjectArtifact, ...]:
-        with self._lock:
-            return tuple(
-                sorted(
-                    (
-                        artifact
-                        for artifact, _content in self._project_artifacts.values()
-                        if artifact.workspace_id == workspace_id
-                        and artifact.actor_id == actor_id
-                        and (project_id is None or artifact.project_id == project_id)
-                    ),
-                    key=lambda artifact: (artifact.created_at, artifact.id),
-                    reverse=True,
-                )[offset : offset + limit]
-            )
 
     def managed_accounts(self) -> tuple[ManagedAccount, ...]:
         with self._lock:
@@ -1158,53 +1321,6 @@ class InMemoryStore:
             if not state or state.binding_hash != binding_hash:
                 return None
             return self._google_states.pop(state_hash)
-
-    def google_accounts(self) -> tuple[tuple[UUID, UUID], ...]:
-        with self._lock:
-            return tuple(dict.fromkeys((h, a) for h, a, _ in self._google))
-
-    def project_drive(
-        self,
-        workspace_id: UUID,
-        actor_id: UUID,
-        project_id: UUID,
-    ) -> ProjectDrive | None:
-        with self._lock:
-            return self._project_drive.get((workspace_id, actor_id, project_id))
-
-    def save_project_drive(self, binding: ProjectDrive) -> None:
-        with self._lock:
-            key = (binding.workspace_id, binding.actor_id, binding.project_id)
-            self._project_drive[key] = binding
-
-    def project_file_operation(self, identifier: UUID) -> ProjectFileOperation | None:
-        with self._lock:
-            return self._project_file_ops.get(identifier)
-
-    def save_project_file_operation(self, operation: ProjectFileOperation) -> None:
-        with self._lock:
-            self._project_file_ops[operation.id] = operation
-
-    def project_file_operations(
-        self,
-        workspace_id: UUID,
-        actor_id: UUID,
-        project_id: UUID,
-        limit: int,
-    ) -> tuple[ProjectFileOperation, ...]:
-        with self._lock:
-            return tuple(
-                sorted(
-                    (
-                        operation
-                        for operation in self._project_file_ops.values()
-                        if (operation.workspace_id, operation.actor_id, operation.project_id)
-                        == (workspace_id, actor_id, project_id)
-                    ),
-                    key=lambda operation: operation.created_at,
-                    reverse=True,
-                )[:limit]
-            )
 
     def action(self, action_id: UUID) -> ActionProposal | None:
         with self._lock:

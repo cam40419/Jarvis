@@ -4,7 +4,6 @@ from uuid import UUID, uuid4
 
 from pydantic import AwareDatetime, Field, HttpUrl, field_validator, model_validator
 
-from simon.domain.external_home import HomeChange, HomeStatus
 from simon.domain.models import StrictModel, utc_now
 
 ToolName = Literal[
@@ -20,28 +19,9 @@ ToolName = Literal[
     "local_zip_inspect",
     "local_zip_extract",
     "local_zip_create",
-    "local_file_import_drive",
-    "local_file_export_drive",
-    "project_list",
-    "project_create",
-    "project_unlink_drive",
-    "project_drive_trash",
-    "project_link_drive",
-    "project_sync",
-    "project_files_list",
-    "project_file_read",
-    "project_file_create",
-    "project_file_edit",
-    "project_sheet_read",
-    "project_sheet_write",
-    "project_file_rename",
     "context_search",
     "memory_remember",
     "memory_forget",
-    "task_create",
-    "task_list",
-    "task_control",
-    "task_steer",
     "web_search",
     "calendar_list_events",
     "calendar_create_event",
@@ -55,9 +35,6 @@ ToolName = Literal[
     "home_list_devices",
     "home_get_status",
     "home_get_statuses",
-    # Persisted ModelRequest snapshots retain retired names. Accept this for history;
-    # ConnectedService.available and model_tools.definitions still forbid executing it.
-    "propose_home_change",
     "home_control",
     "home_refresh_devices",
     "home_organize_devices",
@@ -130,14 +107,8 @@ class ActionProposal(StrictModel):
     run_id: UUID
     connection_id: UUID
     account_email: str = ""
-    kind: Literal["calendar.create", "email.send", "home.set"]
+    kind: Literal["calendar.create", "email.send"]
     immediate: bool = False
-    home: HomeChange | None = None
-    device_name: str | None = None
-    device_room: str | None = None
-    device_provider: str | None = None
-    home_observed: HomeStatus | None = None
-    home_verified: bool = False
     calendar: CalendarDraft | None = None
     email: EmailDraft | None = None
     status: Literal["pending", "executing", "succeeded", "failed", "unknown", "cancelled"] = (

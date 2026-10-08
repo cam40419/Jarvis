@@ -3,21 +3,16 @@
 import httpx
 import pytest
 
-from tests.integration.test_project_command_browser import project_ui as project_ui
+from tests.integration.test_chat_browser import chat_ui as chat_ui
 
 pytestmark = pytest.mark.browser
 
 
-def test_clickup_connect_reconnect_disconnect_without_files(project_ui, tmp_path):
+def test_clickup_connect_reconnect_disconnect_without_files(chat_ui):
     from playwright.sync_api import expect
 
-    page, _, _, container, _ = project_ui
-    from urllib.parse import urlsplit
-
-    parsed = urlsplit(page.url)
-    origin = parsed.scheme + "://" + parsed.netloc
-    container.settings.integration_key_file = tmp_path / "credentials.key"
-    service = container.project_boards.integrations
+    page, container, origin = chat_ui.page, chat_ui.container, chat_ui.origin
+    service = container.connected.integrations
 
     def send(request):
         assert request.url.path == "/api/v2/team"
@@ -49,10 +44,10 @@ def test_clickup_connect_reconnect_disconnect_without_files(project_ui, tmp_path
     assert page.request.get(origin + "/v1/connections/integrations").json() == []
 
 
-def test_connection_center_lists_unlinked_services_and_persists_storage_test(project_ui):
+def test_connection_center_persists_storage_test(chat_ui):
     from playwright.sync_api import expect
 
-    page, _, _, container, _ = project_ui
+    page, container = chat_ui.page, chat_ui.container
     requests = []
 
     def send(request):
@@ -65,12 +60,12 @@ def test_connection_center_lists_unlinked_services_and_persists_storage_test(pro
     center = page.locator("#connections-panel")
     expect(center).to_be_visible()
     assert center.bounding_box()["width"] > 420
-    expect(page.locator("#connections-catalog")).to_contain_text("Dropbox")
-    expect(page.locator("#connections-catalog")).to_contain_text("Box")
-    expect(page.locator("#connections-catalog")).to_contain_text("OneDrive")
-    expect(page.locator("#connections-catalog")).to_contain_text("WebDAV")
+    expect(page.locator("#integration-provider")).to_contain_text("Dropbox")
+    expect(page.locator("#integration-provider")).to_contain_text("Box")
+    expect(page.locator("#integration-provider")).to_contain_text("OneDrive")
+    expect(page.locator("#integration-provider")).to_contain_text("WebDAV")
     page.locator("#integration-provider").select_option("dropbox")
-    page.locator("#integration-name").fill("Project storage")
+    page.locator("#integration-name").fill("Shared storage")
     page.locator("#integration-credential").fill("private-storage-token")
     page.locator("#integration-root-path").fill("/Simon")
     page.locator("#integration-connect").click()

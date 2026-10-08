@@ -65,7 +65,6 @@ class OpenAIModel:
                 max_rounds = (
                     8
                     if {
-                        "project_file_read",
                         "local_file_read",
                         "google_accounts_list",
                     }.intersection(request.tools)

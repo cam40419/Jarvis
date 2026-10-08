@@ -738,6 +738,100 @@
   grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
 }
 
+.nt-dialog {
+  width: min(820px, calc(100vw - 32px));
+}
+
+.nt-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin: 20px 0;
+}
+
+.nt-toolbar p {
+  margin: 0;
+  font-size: 13px;
+}
+
+.nt-agents {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nt-agent {
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--bg);
+}
+
+.nt-agent-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.nt-agent-header h3 {
+  margin: 0;
+  font-size: 17px;
+  overflow-wrap: anywhere;
+}
+
+.nt-agent dl {
+  margin: 0;
+}
+
+.nt-agent dt {
+  margin-top: 14px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.nt-agent dd {
+  margin: 5px 0 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.nt-agent details {
+  margin-top: 12px;
+}
+
+.nt-agent summary {
+  padding: 4px 0;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.nt-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.nt-checkbox input {
+  flex: 0 0 auto;
+  min-height: 0;
+  margin: 3px 0 0;
+}
+
+#nt-feedback:not(:empty) {
+  margin-bottom: 18px;
+}
+
 @media (max-width: 740px) {
   .np-header {
     flex-wrap: wrap;
@@ -832,6 +926,10 @@
 
   .projects-page :is(input, textarea, select) {
     font-size: 16px;
+  }
+
+  .nt-checkbox input {
+    min-height: 0;
   }
 }
 

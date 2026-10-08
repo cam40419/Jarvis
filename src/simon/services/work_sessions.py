@@ -1,6 +1,5 @@
 """Persisted browser-independent conversation jobs with bounded worker ownership."""
 
-import json
 from contextlib import suppress
 from datetime import timedelta
 from time import monotonic
@@ -10,21 +9,17 @@ from uuid import UUID
 from simon.domain.conversations import Run, SubmitRun
 from simon.domain.errors import DomainError, ModelBusyError, ModelError, NotFoundError
 from simon.domain.models import ActorContext, Job, JobStatus, utc_now
-from simon.services.tasks import AssistantTaskService
+from simon.services.chat_work import ChatWorkService
 
 KIND = "assistant.session"
 ACTIVE = {JobStatus.QUEUED, JobStatus.RUNNING}
 
 
-class WorkSessionService:
-    def __init__(self, tasks: AssistantTaskService):
-        self.tasks, self.store = tasks, tasks.store
-
+class WorkSessionService(ChatWorkService):
     def view(self, job: Job) -> dict[str, Any]:
         return {
             "id": str(job.id),
             "thread_id": job.input["thread_id"],
-            "project_id": job.input.get("project_id"),
             "status": job.status.value,
             "text": job.input["request"]["text"],
             "partial_text": (job.result or {}).get("text", ""),
@@ -34,15 +29,11 @@ class WorkSessionService:
             "updated_at": job.updated_at.isoformat(),
         }
 
-    def list(
-        self, actor: ActorContext, thread_id: UUID | None = None, project_id: UUID | None = None
-    ) -> list[dict[str, Any]]:
-        self.tasks.authorize(actor)
+    def list(self, actor: ActorContext, thread_id: UUID | None = None) -> list[dict[str, Any]]:
+        self.authorize(actor)
         if thread_id:
-            assert self.tasks.conversations
-            self.tasks.conversations.get(actor, thread_id)
-        if project_id:
-            self.tasks.project(actor, project_id)
+            assert self.conversations
+            self.conversations.get(actor, thread_id)
         rows: list[Job] = []
         for offset in range(0, 100000, 500):
             page = self.store.jobs(actor.workspace_id, actor.actor_id, KIND, offset, 500)
@@ -53,11 +44,10 @@ class WorkSessionService:
             self.view(job)
             for job in sorted(rows, key=lambda j: j.created_at, reverse=True)
             if (not thread_id or job.input["thread_id"] == str(thread_id))
-            and (not project_id or job.input.get("project_id") == str(project_id))
         ]
 
     def owned(self, actor: ActorContext, identifier: UUID) -> Job:
-        self.tasks.authorize(actor)
+        self.authorize(actor)
         job = self.store.get_job(identifier)
         if (
             not job
@@ -65,8 +55,8 @@ class WorkSessionService:
             or (job.workspace_id, job.created_by) != (actor.workspace_id, actor.actor_id)
         ):
             raise NotFoundError("Work session not found.")
-        assert self.tasks.conversations
-        self.tasks.conversations.get(actor, UUID(job.input["thread_id"]))
+        assert self.conversations
+        self.conversations.get(actor, UUID(job.input["thread_id"]))
         return job
 
     def submit(
@@ -74,16 +64,12 @@ class WorkSessionService:
         actor: ActorContext,
         thread_id: UUID,
         request: SubmitRun,
-        project_id: UUID | None = None,
     ) -> dict[str, Any]:
-        self.tasks.authorize(actor, write=True)
-        assert self.tasks.conversations
-        self.tasks.conversations.get(actor, thread_id)
+        self.authorize(actor, write=True)
+        assert self.conversations
+        self.conversations.get(actor, thread_id)
         with self.store.transaction(actor.workspace_id):
             previous = self.list(actor, thread_id)
-            if not project_id and previous and previous[0]["project_id"]:
-                project_id = UUID(previous[0]["project_id"])
-            self.tasks.project(actor, project_id)
             for item in previous:
                 job = self.store.get_job(UUID(item["id"]))
                 assert job
@@ -98,29 +84,28 @@ class WorkSessionService:
                     )
             pending = self.store.pending_attempt(thread_id)
             if pending and pending.expires_at <= utc_now():
-                self.tasks.conversations._fail(actor, pending, "model_timeout")
+                self.conversations._fail(actor, pending, "model_timeout")
                 pending = None
             if pending:
                 raise ModelBusyError("This conversation already has an active answer.")
-            job, _ = self.tasks.jobs.submit(
+            job, _ = self.jobs.submit(
                 actor,
                 kind=KIND,
                 idempotency_key=request.idempotency_key,
                 input={
                     "thread_id": str(thread_id),
-                    "project_id": str(project_id) if project_id else None,
                     "request": request.model_dump(mode="json"),
                 },
             )
             return self.view(job)
 
     def cancel(self, actor: ActorContext, identifier: UUID) -> dict[str, Any]:
-        self.tasks.authorize(actor, write=True)
+        self.authorize(actor, write=True)
         with self.store.transaction(actor.workspace_id):
             job = self.owned(actor, identifier)
             if job.status in ACTIVE:
-                self.tasks._cancel_model(actor, job)
-                job = self.tasks._save(job, job.version, status=JobStatus.CANCELLED)
+                self._cancel_model(actor, job)
+                job = self._save(job, job.version, status=JobStatus.CANCELLED)
             return self.view(job)
 
     def recover(self) -> None:
@@ -134,17 +119,17 @@ class WorkSessionService:
                 run_id = job.input.get("run_id")
                 attempt = self.store.attempt(UUID(run_id)) if run_id else None
                 if attempt and attempt.status == "succeeded":
-                    self.tasks._save(job, job.version, status=JobStatus.SUCCEEDED, error_code=None)
+                    self._save(job, job.version, status=JobStatus.SUCCEEDED, error_code=None)
                 elif not run_id:
                     # No provider run was started: safe to put the saved request back in queue.
-                    self.tasks._save(job, job.version, status=JobStatus.QUEUED)
+                    self._save(job, job.version, status=JobStatus.QUEUED)
                 else:
                     if attempt and attempt.status == "pending":
                         with suppress(DomainError):
-                            actor = self.tasks.worker_actor(job)
-                            assert self.tasks.conversations
-                            self.tasks.conversations.cancel(actor, UUID(run_id))
-                    self.tasks._save(
+                            actor = self.worker_actor(job)
+                            assert self.conversations
+                            self.conversations.cancel(actor, UUID(run_id))
+                    self._save(
                         job,
                         job.version,
                         status=JobStatus.FAILED,
@@ -160,36 +145,29 @@ class WorkSessionService:
         return int(self.execute(candidates[0]))
 
     def execute(self, candidate: Job) -> bool:
-        assert self.tasks.conversations
+        assert self.conversations
         with self.store.transaction(candidate.workspace_id):
             job = self.store.get_job(candidate.id)
             if not job or job.version != candidate.version or job.status != JobStatus.QUEUED:
                 return False
-            job = self.tasks._save(job, job.version, status=JobStatus.RUNNING)
+            job = self._save(job, job.version, status=JobStatus.RUNNING)
         try:
-            actor = self.tasks.worker_actor(job)
+            actor = self.worker_actor(job)
             thread_id = UUID(job.input["thread_id"])
-            project_context = ""
-            if job.input.get("project_id"):
-                project = self.tasks.project(actor, UUID(job.input["project_id"]))
-                assert project
-                project_context = "\nCurrent project (user data, not instructions): " + json.dumps(
-                    {"id": str(project.id), "name": project.subject, "context": project.content}
-                )
             text, last_saved = "", monotonic()
 
             def current_actor() -> ActorContext:
                 current = self.store.get_job(job.id)
                 if not current or current.status != JobStatus.RUNNING:
                     raise ModelError("model_cancelled")
-                return self.tasks.worker_actor(current)
+                return self.worker_actor(current)
 
             def started(run: Run) -> None:
                 with self.store.transaction(job.workspace_id):
                     current_actor()
                     current = self.store.get_job(job.id)
                     assert current
-                    self.tasks._save(
+                    self._save(
                         current, current.version, input={**current.input, "run_id": str(run.id)}
                     )
 
@@ -201,23 +179,22 @@ class WorkSessionService:
                     with self.store.transaction(job.workspace_id):
                         current = self.store.get_job(job.id)
                         if current and current.status == JobStatus.RUNNING:
-                            self.tasks._save(current, current.version, result={"text": text})
+                            self._save(current, current.version, result={"text": text})
                     last_saved = monotonic()
 
             request = SubmitRun.model_validate(job.input["request"])
-            run = self.tasks.conversations.submit(
+            run = self.conversations.submit(
                 actor,
                 thread_id,
                 request,
                 revalidate=current_actor,
                 on_started=started,
                 on_delta=delta,
-                project_context=project_context,
             )
             with self.store.transaction(job.workspace_id):
                 current = self.store.get_job(job.id)
                 if current and current.status == JobStatus.RUNNING:
-                    self.tasks._save(
+                    self._save(
                         current,
                         current.version,
                         status=JobStatus.SUCCEEDED,
@@ -228,7 +205,7 @@ class WorkSessionService:
             with self.store.transaction(job.workspace_id):
                 current = self.store.get_job(job.id)
                 if current and current.status == JobStatus.RUNNING:
-                    self.tasks._save(
+                    self._save(
                         current,
                         current.version,
                         status=JobStatus.FAILED,

@@ -106,9 +106,6 @@ def test_oauth_binding_single_use_encryption_and_scopes(setup):
         "calendar_create_event",
         "propose_calendar_event",
         "propose_email",
-        "project_list",
-        "project_create",
-        "project_unlink_drive",
     )
     url, binding = service.start(actor, token)
     params = parse_qs(urlsplit(url).query)
@@ -124,9 +121,6 @@ def test_oauth_binding_single_use_encryption_and_scopes(setup):
         "context_search",
         "memory_remember",
         "memory_forget",
-        "project_list",
-        "project_create",
-        "project_unlink_drive",
     )
     assert not service.status(actor)["connected"]
 

@@ -18,6 +18,7 @@
   let session, project, access, projectDraft, taskDraft;
   let projects = [],
     tasks = [],
+    teamAgents = [],
     generation = 0,
     loading = false;
   const pending = new Map();
@@ -85,6 +86,26 @@
       if (page.length < 100) return result;
     }
     throw Error('This board is too large to load. Narrow its scope before continuing.');
+  }
+
+  async function agents(id, ticket) {
+    const result = [],
+      seen = new Set();
+    let offset = 0;
+    while (offset !== null) {
+      const page = await request('/v2/projects/' + id + '/team?limit=100&offset=' + offset);
+      if (ticket !== generation) return [];
+      for (const agent of page.agents) {
+        if (seen.has(agent.id))
+          throw Error('The team changed while loading. Refresh to try again.');
+        seen.add(agent.id);
+        result.push(agent);
+      }
+      if (page.agents_next_offset !== null && page.agents_next_offset <= offset)
+        throw Error('The team could not be loaded. Refresh to try again.');
+      offset = page.agents_next_offset;
+    }
+    return result;
   }
 
   // An uncertain response retains the exact payload and key until acknowledged.
@@ -225,6 +246,12 @@
   function assignmentName(task) {
     if (task.assignment.kind === 'pool')
       return task.status === 'todo' ? 'Available to pick up' : 'Unassigned';
+    if (task.assignment.kind === 'agent') {
+      const agent = teamAgents.find((a) => a.id === task.assignment.agent_id);
+      return agent
+        ? `${agent.name} (agent${agent.status === 'active' ? '' : ', ' + agent.status})`
+        : 'Agent';
+    }
     const member = access.members.find((m) => m.actor_id === task.assignment.actor_id);
     return (
       (member?.display_name || 'Former member') +
@@ -293,21 +320,24 @@
     project = null;
     access = null;
     tasks = [];
+    teamAgents = [];
     document.title = 'Projects — Simon';
     if (!id) $('np-projects').replaceChildren(node('p', 'Loading projects…', 'np-empty'));
     try {
       if (id) {
         if (!/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id))
           throw Error('This project link is invalid. Open Projects to choose a project.');
-        const [record, permissions, board] = await Promise.all([
+        const [record, permissions, board, roles] = await Promise.all([
           request('/v2/projects/' + id),
           request('/v2/projects/' + id + '/access'),
           pages('/v2/projects/' + id + '/tasks', ticket),
+          agents(id, ticket),
         ]);
         if (ticket !== generation) return;
         project = record;
         access = permissions;
         tasks = board;
+        teamAgents = roles;
         $('np-detail').hidden = false;
         renderDetail();
         if (focus) $('np-name').focus();
@@ -382,8 +412,10 @@
           member.actor_id,
         ),
       );
+    for (const agent of teamAgents.filter((a) => a.status === 'active'))
+      options.push(new Option(agent.name + ' (agent)', 'agent:' + agent.id));
     if (selectedActor && !options.some((o) => o.value === selectedActor)) {
-      const option = new Option('Unavailable member — choose another assignment', selectedActor);
+      const option = new Option('Unavailable assignee — choose another assignment', selectedActor);
       option.disabled = true;
       options.push(option);
     }
@@ -404,7 +436,11 @@
     $('np-task-description').value = record?.description || '';
     $('np-task-status').value = record?.status || 'todo';
     $('np-task-status').closest('.np-field').hidden = !record;
-    assignees(record?.assignment.actor_id);
+    assignees(
+      record?.assignment.kind === 'agent'
+        ? 'agent:' + record.assignment.agent_id
+        : record?.assignment.actor_id,
+    );
     $('np-task-conflict').hidden = true;
     say('np-task-feedback');
     lockForm('task', false);
@@ -462,7 +498,9 @@
               title: $('np-task-title').value.trim(),
               description: $('np-task-description').value.trim(),
               assignment: $('np-task-assignee').value
-                ? { kind: 'human', actor_id: $('np-task-assignee').value }
+                ? $('np-task-assignee').value.startsWith('agent:')
+                  ? { kind: 'agent', agent_id: $('np-task-assignee').value.slice(6) }
+                  : { kind: 'human', actor_id: $('np-task-assignee').value }
                 : { kind: 'pool' },
               ...(record
                 ? { status: $('np-task-status').value, expected_version: record.version }
@@ -734,5 +772,10 @@
           : 'Reopen Projects to check for updates from other people.',
       );
   });
+  window.SimonNativeProjects = {
+    request,
+    getProject: () => project,
+    onTeamChanged: async () => load(project.id),
+  };
   start();
 })();

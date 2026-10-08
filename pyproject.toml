@@ -61,6 +61,7 @@ source = ["simon"]
 
 [tool.coverage.report]
 fail_under = 90
+precision = 2
 show_missing = true
 
 [tool.ruff]

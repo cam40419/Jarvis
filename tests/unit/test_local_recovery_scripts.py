@@ -7,15 +7,15 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
-TASKS = ("Simon-PostgreSQL", "Simon-Local", "Simon-Workflow", "Simon-Agents", "Simon-Tunnel")
+TASKS = ("Simon-PostgreSQL", "Simon-Local", "Simon-Assistant", "Simon-Tunnel")
 
 
 @pytest.mark.parametrize(
     ("database", "application", "state", "markers", "expected"),
     [
-        (True, False, "Ready", (), {"Simon-Local", "Simon-Workflow", "Simon-Agents"}),
+        (True, False, "Ready", (), {"Simon-Local", "Simon-Assistant"}),
         (False, False, "Ready", (), {"Simon-Local", "Simon-PostgreSQL"}),
-        (True, True, "Ready", (), {"Simon-Workflow", "Simon-Agents"}),
+        (True, True, "Ready", (), {"Simon-Assistant"}),
         (True, False, "Disabled", (), set()),
         (True, False, "Running", (), set()),
         (True, False, "Ready", ("maintenance.request",), set()),
@@ -26,11 +26,10 @@ TASKS = ("Simon-PostgreSQL", "Simon-Local", "Simon-Workflow", "Simon-Agents", "S
             (
                 "simon-stop.request",
                 "assistant-worker-stop.request",
-                "agent-dispatcher-stop.request",
             ),
             set(),
         ),
-        (True, True, "Ready", ("agent-dispatcher-stop.request",), {"Simon-Workflow"}),
+        (True, True, "Ready", ("assistant-worker-stop.request",), set()),
         (True, True, None, (), set()),
     ],
 )
@@ -196,7 +195,6 @@ def test_changed_powershell_scripts_parse_without_service_actions(tmp_path):
                 str(ROOT / "scripts" / name)
                 for name in (
                     "start-assistant-worker.ps1",
-                    "start-workflow-worker.ps1",
                     "stop-assistant-worker.ps1",
                     "recover-local.ps1",
                     "start-local.ps1",
@@ -208,32 +206,6 @@ def test_changed_powershell_scripts_parse_without_service_actions(tmp_path):
         timeout=20,
         check=True,
     )
-
-
-def test_compatibility_worker_propagates_launcher_failure(tmp_path):
-    powershell = shutil.which("powershell") or shutil.which("pwsh")
-    if powershell is None:
-        pytest.skip("PowerShell unavailable")
-    scripts = tmp_path / "scripts"
-    scripts.mkdir()
-    for name in ("start-workflow-worker.ps1", "start-assistant-worker.ps1"):
-        shutil.copyfile(ROOT / "scripts" / name, scripts / name)
-    result = subprocess.run(
-        [
-            powershell,
-            "-NoProfile",
-            "-NonInteractive",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-File",
-            str(scripts / "start-workflow-worker.ps1"),
-        ],
-        capture_output=True,
-        text=True,
-        timeout=20,
-        check=False,
-    )
-    assert result.returncode != 0 and "Install the project environment" in result.stderr
 
 
 @pytest.mark.skipif(os.name != "nt", reason="Windows native pipeline regression")
@@ -255,7 +227,7 @@ def test_recovery_drains_native_docker_output_before_checking_exit_status(tmp_pa
         "param([string]$RecoveryPath)\n$ErrorActionPreference = 'Stop'\n"
         "$started = New-Object 'System.Collections.Generic.List[string]'\n"
         "function Get-ScheduledTask { param($TaskName, $ErrorAction)\n"
-        "  if ($TaskName -in @('Simon-Workflow','Simon-Agents')) {\n"
+        "  if ($TaskName -in @('Simon-Assistant')) {\n"
         "    [pscustomobject]@{ State = 'Ready' }\n  }\n}\n"
         "function Start-ScheduledTask { param($TaskName) $started.Add($TaskName) }\n"
         "function Invoke-WebRequest { [pscustomobject]@{ StatusCode = 200 } }\n"
@@ -281,4 +253,4 @@ def test_recovery_drains_native_docker_output_before_checking_exit_status(tmp_pa
         timeout=20,
         check=True,
     )
-    assert set(json.loads(result.stdout)) == {"Simon-Workflow", "Simon-Agents"}
+    assert set(json.loads(result.stdout)) == {"Simon-Assistant"}

@@ -33,7 +33,7 @@ pytestmark = pytest.mark.browser
 
 
 @pytest.fixture
-def native_ui(tmp_path, request, monkeypatch):
+def native_ui(tmp_path, request):
     if os.environ.get("SIMON_BROWSER_TESTS") != "1":
         pytest.skip("set SIMON_BROWSER_TESTS=1")
     from playwright.sync_api import sync_playwright
@@ -50,35 +50,24 @@ def native_ui(tmp_path, request, monkeypatch):
             storage_backend="memory",
             model_provider="local",
             openai_api_key=None,
-            agent_manifest_file=None,
-            agent_execution_enabled=False,
-            project_drive_sync_enabled=False,
             public_origin=origin,
             public_path=prefix,
             rp_id="127.0.0.1",
             dev_login_enabled=True,
             dev_login_token=SecretStr("test-development-secret-32-characters"),
-            agent_state_dir=tmp_path / "agents",
             local_files_dir=tmp_path / "files",
             local_files_enabled=False,
         )
     )
-    legacy_calls = []
-
-    def unexpected_legacy_call(*args, **kwargs):
-        legacy_calls.append((args, kwargs))
-        raise AssertionError("Native boards must not invoke legacy projects or workers")
-
-    for service, method in (
-        (container.connected.projects, "create"),
-        (container.connected.projects, "ensure"),
-        (container.project_coordinator, "begin"),
-        (container.agent_runs, "start"),
-    ):
-        monkeypatch.setattr(service, method, unexpected_legacy_call)
-    server = uvicorn.Server(
-        uvicorn.Config(create_app(container), host="127.0.0.1", port=port, log_level="error")
+    app = create_app(container)
+    removed_routes = (
+        "/v1/projects",
+        "/v1/agent-platform",
+        "/v1/project-boards",
+        "/v1/assistant-tasks",
     )
+    assert not any(getattr(route, "path", "").startswith(removed_routes) for route in app.routes)
+    server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port, log_level="error"))
     thread = threading.Thread(target=server.run, daemon=True)
     thread.start()
     errors = []
@@ -146,9 +135,7 @@ def native_ui(tmp_path, request, monkeypatch):
             )
             yield ui
             assert not errors, errors
-            assert not legacy_calls
-            assert not [url for _, url in requests if "/v1/projects" in url]
-            assert container.agent_runs.list(owner.actor) == ()
+            assert not [url for _, url in requests if any(path in url for path in removed_routes)]
     finally:
         server.should_exit = True
         thread.join(timeout=10)
@@ -652,9 +639,7 @@ def test_deep_links_assets_and_mutations_respect_public_base_path(native_ui):
     expect(ui.page.get_by_role("link", name="Conversations", exact=True)).to_have_attribute(
         "href", "/simon/chat"
     )
-    expect(ui.page.get_by_role("link", name="Legacy work", exact=True)).to_have_attribute(
-        "href", "/simon/chat?view=work"
-    )
+    expect(ui.page.get_by_role("link", name="Legacy work", exact=True)).to_have_count(0)
     for _, url in ui.requests:
         if url.startswith(ui.origin):
             assert urlsplit(url).path.startswith("/simon/"), url

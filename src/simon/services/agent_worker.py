@@ -30,7 +30,6 @@ from referencing.exceptions import Unresolvable
 from simon.adapters.model_endpoints import ModelEndpointError
 from simon.adapters.tool_preflight import uses_network
 from simon.adapters.tool_transports import TransportRegistry
-from simon.domain.agent_platform import AgentProfile, AgentTaskSpec, PlannedAgentTask
 from simon.domain.agent_worker import WorkerResult, WorkerStatus, WorkerToolRecord
 from simon.domain.artifacts import DependencyArtifact
 from simon.domain.errors import AuthorizationError
@@ -40,13 +39,14 @@ from simon.domain.model_routing import (
     TextGenerationResult,
 )
 from simon.domain.models import ActorContext
-from simon.domain.run_journal import JournalKind
 from simon.domain.tool_catalog import (
     ToolCatalogError,
     ToolDefinition,
     ToolExecutionContext,
     ToolExecutionError,
 )
+from simon.domain.worker_assignment import AgentProfile, AgentTaskSpec, PlannedAgentTask
+from simon.domain.worker_journal import JournalKind
 from simon.services.agent_prompts import AgentPromptError, render_agent_prompt
 from simon.services.tool_catalog import ToolCatalog
 from simon.services.worker_completion import (
@@ -690,13 +690,11 @@ class AgentWorker:
                 ):
                     return halt
                 return progress.result("failed", "model_output_truncated")
-            review_diagnostics: dict[str, Any] = {}
             try:
                 review = parse_completion_review(
                     response.text,
                     candidate=candidate.output,
                     task_context=review_context,
-                    diagnostics=review_diagnostics,
                 )
             except CompletionReviewError as error:
                 correct_format = (
@@ -730,7 +728,6 @@ class AgentWorker:
                         candidate.output.encode("utf-8")
                     ).hexdigest(),
                     "repair_used": completion_repair_used,
-                    "review_diagnostics": review_diagnostics,
                 },
                 after_dispatch=True,
             ):

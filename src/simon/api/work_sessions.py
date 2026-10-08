@@ -9,10 +9,6 @@ from simon.domain.models import ActorContext
 from simon.services.work_sessions import WorkSessionService
 
 
-class SessionRequest(SubmitRun):
-    project_id: UUID | None = None
-
-
 def session_router(
     service: WorkSessionService, authenticate: Callable[[Request], ActorContext]
 ) -> APIRouter:
@@ -22,20 +18,14 @@ def session_router(
     def listing(
         actor: Annotated[ActorContext, Depends(authenticate)],
         thread_id: UUID | None = None,
-        project_id: UUID | None = None,
     ) -> list[dict[str, Any]]:
-        return service.list(actor, thread_id, project_id)
+        return service.list(actor, thread_id)
 
     @router.post("/threads/{thread_id}", status_code=202)
     def submit(
-        thread_id: UUID, body: SessionRequest, actor: Annotated[ActorContext, Depends(authenticate)]
+        thread_id: UUID, body: SubmitRun, actor: Annotated[ActorContext, Depends(authenticate)]
     ) -> dict[str, Any]:
-        return service.submit(
-            actor,
-            thread_id,
-            SubmitRun.model_validate(body.model_dump(exclude={"project_id"})),
-            body.project_id,
-        )
+        return service.submit(actor, thread_id, body)
 
     @router.get("/{identifier}")
     def get(

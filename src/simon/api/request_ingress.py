@@ -17,8 +17,6 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from simon.services.local_files import MAX_FILE
 
-_PROJECT_UPLOAD = re.compile(r"^/v1/projects/[0-9a-fA-F-]{36}/upload$")
-_LARGE_JSON = frozenset({"/v1/local-files/action", "/v1/agent-platform/plans"})
 _SPOOL_MEMORY = 1024 * 1024
 
 
@@ -133,12 +131,9 @@ class RequestIngressMiddleware:
             return self.auth_max_body_bytes
         if path == "/v1/local-files/upload":
             return self.local_upload_max_body_bytes
-        if path in _LARGE_JSON:
-            # Preserve the existing 2M-character local editor and 100-task plans,
-            # including non-ASCII characters encoded as JSON surrogate escapes.
+        if path == "/v1/local-files/action":
+            # Allow bounded local text, including Unicode encoded as JSON surrogate escapes.
             return 32 * 1024 * 1024
-        if _PROJECT_UPLOAD.fullmatch(path):
-            return 16 * 1024 * 1024  # Existing 10 MiB binary upload plus base64 and JSON.
         return self.default_max_body_bytes
 
     @staticmethod

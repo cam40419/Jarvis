@@ -62,9 +62,7 @@ def connection_endpoint(definition: ToolDefinition) -> str:
 
 
 def tenant_grant(definition: ToolDefinition, workspace_id: UUID, actor_id: UUID) -> None:
-    configured_workspace = definition.settings.get(
-        "workspace_id", definition.settings.get("household_id")
-    )
+    configured_workspace = definition.settings.get("workspace_id")
     actor_ids = definition.settings.get("actor_ids")
     try:
         if not isinstance(actor_ids, list) or not actor_ids or len(actor_ids) > 100:

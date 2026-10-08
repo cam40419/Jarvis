@@ -2,15 +2,16 @@ param(
     [switch]$Check,
     [switch]$DatabaseOnly,
     [switch]$Supervised,
-    [string]$DatabaseUrl = 'postgresql://jarvis:local-development-only@127.0.0.1:5432/jarvis',
-    [guid]$WorkspaceId = 'eff4172f-8892-5123-821a-55fed2969246',
-    [guid]$ActorId = '31de7ca5-7ea4-5614-b2b6-099dacc91b0e'
+    [ValidateNotNullOrEmpty()][string]$DatabaseUrl,
+    [guid]$WorkspaceId,
+    [guid]$ActorId
 )
 
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
-# The legacy -Check also starts Docker/applies migrations, so maintenance blocks it too.
-if (Test-Path -LiteralPath (Join-Path $repoRoot '.local\maintenance.request')) {
+$maintenance = Join-Path $repoRoot '.local\maintenance.request'
+if ($Check -and $DatabaseOnly) { throw 'Choose either -Check or -DatabaseOnly.' }
+if (-not $Check -and (Test-Path -LiteralPath $maintenance)) {
     Write-Host 'Maintenance is active; local services remain stopped.'
     exit 0
 }
@@ -26,9 +27,13 @@ if (-not $Check -and -not $DatabaseOnly) {
 $python = Join-Path $repoRoot 'venv\Scripts\python.exe'
 $compose = Join-Path $repoRoot 'deploy\compose\compose.yaml'
 $logDirectory = Join-Path $repoRoot '.local\logs'
-New-Item -ItemType Directory -Path $logDirectory -Force | Out-Null
 $logName = if ($DatabaseOnly) { 'postgres.log' } else { 'simon.log' }
-$transcriptStarted = $false
+$logFile = Join-Path $logDirectory $logName
+$overrides = @{}
+if ($PSBoundParameters.ContainsKey('DatabaseUrl')) { $overrides.SIMON_DATABASE_URL = $DatabaseUrl }
+if ($PSBoundParameters.ContainsKey('WorkspaceId')) { $overrides.SIMON_ACCOUNT_WORKSPACE_ID = $WorkspaceId.ToString() }
+if ($PSBoundParameters.ContainsKey('ActorId')) { $overrides.SIMON_ACCOUNT_ADMIN_ACTOR_ID = $ActorId.ToString() }
+$previous = @{}
 
 function Wait-DockerEngine {
     $desktop = 'C:\Program Files\Docker\Docker\Docker Desktop.exe'
@@ -51,45 +56,42 @@ function Wait-DockerEngine {
 }
 
 try {
-    Start-Transcript -Path (Join-Path $logDirectory $logName) -Append | Out-Null
-    $transcriptStarted = $true
     if (-not (Test-Path -LiteralPath $python)) {
         throw 'Install the project dependencies in venv first.'
     }
-    $env:SIMON_ENVIRONMENT = 'development'
-    $env:SIMON_PUBLIC_ORIGIN = 'http://localhost:8000'
-    $env:SIMON_PUBLIC_PATH = ''
-    $env:SIMON_RP_ID = 'localhost'
-    $env:SIMON_STORAGE_BACKEND = 'postgres'
-    $env:SIMON_DATABASE_URL = $DatabaseUrl
-    $env:SIMON_DEV_LOGIN_ENABLED = 'false'
-    Remove-Item Env:SIMON_DEV_LOGIN_TOKEN -ErrorAction SilentlyContinue
-    $env:SIMON_MODEL_PROVIDER = if ($DatabaseOnly) { 'local' } else { 'openai' }
-    $env:SIMON_ACCOUNT_WORKSPACE_ID = $WorkspaceId.ToString()
-    $env:SIMON_ACCOUNT_ADMIN_ACTOR_ID = $ActorId.ToString()
+    # Preserve configured database, account, model and public origin. Overrides are explicit
+    # and process-local; never transcript arguments because the database URL may hold secrets.
+    foreach ($name in $overrides.Keys) {
+        $previous[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
+        [Environment]::SetEnvironmentVariable($name, $overrides[$name], 'Process')
+    }
+    if (-not $Check) { New-Item -ItemType Directory -Path $logDirectory -Force | Out-Null }
 
     Push-Location $repoRoot
     try {
-        & $python -c "from simon.config import Settings; s=Settings(); assert not s.dev_login_enabled and s.storage_backend == 'postgres'; print('Local configuration valid:', s.public_origin)"
-        if ($LASTEXITCODE -ne 0) { throw 'Local configuration is invalid.' }
-        Wait-DockerEngine
-        docker compose -f $compose up -d --wait
-        if ($LASTEXITCODE -ne 0) { throw 'PostgreSQL startup failed.' }
         if ($DatabaseOnly) {
-            Write-Host 'PostgreSQL is healthy.'
+            Wait-DockerEngine
+            docker compose -f $compose up -d --wait
+            if ($LASTEXITCODE -ne 0) { throw 'Compose PostgreSQL startup failed.' }
+            Write-Host 'Compose PostgreSQL is healthy; application settings were not changed.'
             return
         }
-        & $python -m simon.migrate
-        if ($LASTEXITCODE -ne 0) { throw 'Database migration failed.' }
-        & $python scripts/check_local_account.py
-        if ($LASTEXITCODE -ne 0) { throw 'The cam40419 administrator account is not ready.' }
+        & $python scripts/check_local_account.py --config-only
+        if ($LASTEXITCODE -ne 0) { throw 'Persistent server configuration is not ready.' }
         if ($Check) { return }
-        Write-Host 'Simon is starting at http://localhost:8000/login'
+        & $python -m simon.worker_startup --log-file $logFile --stop-file (Join-Path $repoRoot '.local\simon-stop.request') --maintenance-file $maintenance
+        if ($LASTEXITCODE -eq 3) { $global:LASTEXITCODE = 0; return }
+        if ($LASTEXITCODE -ne 0) { throw 'Database preparation failed; inspect the server log.' }
+        & $python scripts/check_local_account.py
+        if ($LASTEXITCODE -ne 0) { throw 'The configured administrator account is not ready.' }
+        Write-Host 'Simon is starting with the configured public origin and model provider.'
         & $python scripts/run_local.py
         if ($LASTEXITCODE -ne 0) { throw 'Simon exited unexpectedly.' }
     } finally {
         Pop-Location
     }
 } finally {
-    if ($transcriptStarted) { Stop-Transcript | Out-Null }
+    foreach ($name in $previous.Keys) {
+        [Environment]::SetEnvironmentVariable($name, $previous[$name], 'Process')
+    }
 }

@@ -1210,17 +1210,15 @@ dialog textarea {
   max-height: 94dvh;
   border-radius: 16px;
 }
-#connections-catalog {
+.workspace-nav {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 12px;
+  gap: 2px;
+  margin: 12px 0 2px;
+  padding-bottom: 13px;
+  border-bottom: 1px solid var(--line);
 }
-#connections-catalog details {
-  border: 1px solid var(--border, #ddd);
-  border-radius: 8px;
-  padding: 12px;
-}
-#connections-catalog summary {
-  cursor: pointer;
-  font-weight: 600;
+.workspace-nav .nav-button {
+  min-height: 38px;
+  font-weight: 550;
+  text-decoration: none;
 }

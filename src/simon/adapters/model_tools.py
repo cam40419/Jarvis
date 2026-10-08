@@ -17,12 +17,8 @@ def definitions(names: tuple[ToolName, ...]) -> list[ToolParam]:
             from simon.services.local_tool_schema import local_schema
 
             description, properties = local_schema(name)
-        elif name.startswith("project_"):
-            from simon.services.project_tool_schema import project_schema
-
-            description, properties = project_schema(name)
         elif name == "drive_list_folder":
-            from simon.domain.project_files import DriveBrowse
+            from simon.domain.drive import DriveBrowse
 
             description = (
                 "Browse Google Drive folders/files and resolve names without asking "
@@ -79,49 +75,6 @@ def definitions(names: tuple[ToolName, ...]) -> list[ToolParam]:
                 "the ID using context_search. Does not erase historical conversations."
             )
             properties = {"memory_id": {"type": "string"}}
-        elif name == "task_create":
-            description = (
-                "Create a durable asynchronous work or research task when the user explicitly "
-                "asks Simon to work in the background, research something later, or kick off a "
-                "long-running task. Return immediately after it is queued. Link a project ID "
-                "only after resolving it with context_search or task_list."
-            )
-            properties = {
-                "title": {"type": "string", "minLength": 1, "maxLength": 120},
-                "instructions": {"type": "string", "minLength": 1, "maxLength": 4000},
-                "task_type": {"type": "string", "enum": ["work", "research"]},
-                "project_id": {"type": ["string", "null"]},
-                "priority": {"type": "integer", "minimum": 1, "maximum": 5},
-            }
-        elif name == "task_list":
-            description = (
-                "List this user's asynchronous tasks, progress, queue versions, and results. "
-                "Use when asked what is running, queued, finished, or blocked."
-            )
-            properties = {}
-        elif name == "task_control":
-            description = (
-                "Pause, resume, cancel, or move a durable assistant task in its queue. First use "
-                "task_list to resolve its ID and current version. Moving applies to queued tasks."
-            )
-            properties = {
-                "task_id": {"type": "string"},
-                "action": {
-                    "type": "string",
-                    "enum": ["pause", "resume", "cancel", "move_up", "move_down"],
-                },
-                "expected_version": {"type": "integer", "minimum": 1},
-            }
-        elif name == "task_steer":
-            description = (
-                "Add direction to a queued, paused, or running assistant task. First use task_list "
-                "for its ID/version. A running task is safely cancelled and requeued with the note."
-            )
-            properties = {
-                "task_id": {"type": "string"},
-                "message": {"type": "string", "minLength": 1, "maxLength": 2000},
-                "expected_version": {"type": "integer", "minimum": 1},
-            }
         elif name == "calendar_list_events":
             description = "Read up to 25 events from the connected primary Google Calendar."
             properties = {"start": {"type": "string"}, "end": {"type": "string"}}

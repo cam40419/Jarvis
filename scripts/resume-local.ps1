@@ -1,5 +1,5 @@
 # Explicitly resume a stopped registered service; supervised retries preserve stops.
-param([ValidateSet('all', 'api', 'assistant', 'agents')][string]$Service = 'all')
+param([ValidateSet('all', 'api', 'assistant')][string]$Service = 'all')
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 if (Test-Path -LiteralPath (Join-Path $repoRoot '.local\maintenance.request')) {
@@ -7,8 +7,7 @@ if (Test-Path -LiteralPath (Join-Path $repoRoot '.local\maintenance.request')) {
 }
 $services = @(
     @{ Key = 'api'; Task = 'Simon-Local'; Marker = '.local\simon-stop.request' },
-    @{ Key = 'assistant'; Task = 'Simon-Workflow'; Marker = '.local\assistant-worker-stop.request' },
-    @{ Key = 'agents'; Task = 'Simon-Agents'; Marker = '.local\agent-dispatcher-stop.request' }
+    @{ Key = 'assistant'; Task = 'Simon-Assistant'; Marker = '.local\assistant-worker-stop.request' }
 )
 foreach ($entry in $services) {
     if ($Service -ne 'all' -and $Service -ne $entry.Key) { continue }

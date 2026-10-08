@@ -7,7 +7,6 @@ import secrets
 from collections.abc import Callable
 from datetime import UTC, timedelta
 from time import time
-from typing import TYPE_CHECKING, cast
 from urllib.parse import urlencode
 from uuid import UUID, uuid5
 
@@ -44,16 +43,12 @@ from simon.domain.context import ForgetFact, RecallQuery, RememberFact
 from simon.domain.errors import AuthorizationError, DomainError, NotFoundError, ValidationError
 from simon.domain.models import ActorContext, utc_now
 from simon.domain.ports import Store
-from simon.domain.tasks import ControlAssistantTask, CreateAssistantTask, SteerAssistantTask
 from simon.services.audit import AuditService
 from simon.services.canonical import digest
 from simon.services.conversations import ConversationService
 from simon.services.identity import IDENTITY_LOCK, IdentityService, token_hash
 from simon.services.memory import MemoryService
 from simon.services.recall import RecallService
-
-if TYPE_CHECKING:
-    from simon.services.tasks import AssistantTaskService
 
 
 class ConnectedService:
@@ -69,13 +64,12 @@ class ConnectedService:
         self.home = HomeClient(settings, settings_provider=self.integrations.home_settings)
         self.memories = MemoryService(store, audit)
         self.recall = RecallService(store)
-        from simon.services.project_files import ProjectFileService
+        from simon.services.drive import DriveService
 
-        self.projects = ProjectFileService(self)
+        self.drive = DriveService(self)
         from simon.services.local_files import LocalFileService
 
         self.local_files = LocalFileService(self)
-        self.tasks: AssistantTaskService | None = None
 
     @property
     def settings(self) -> Settings:
@@ -197,8 +191,6 @@ class ConnectedService:
             tools.append("context_search")
         if {"memories:read", "memories:write"} <= actor.scopes:
             tools.extend(("memory_remember", "memory_forget"))
-        if self.tasks and {"jobs:read", "jobs:write"} <= actor.scopes:
-            tools.extend(("task_create", "task_list", "task_control", "task_steer"))
         connections = self.store.google_connections(actor.workspace_id, actor.actor_id)
         scopes = {scope for c in connections for scope in c.scopes}
         if self.configured and connections:
@@ -218,23 +210,6 @@ class ConnectedService:
             if {DRIVE_READ_SCOPE, DRIVE_WRITE_SCOPE} & set(scopes):
                 tools.extend(("drive_search_files", "drive_read_file", "drive_list_folder"))
         tools.extend(self.home.available(actor))
-        if {"jobs:read", "jobs:write", "memories:read", "memories:write"} <= actor.scopes:
-            tools.extend(("project_list", "project_create", "project_unlink_drive"))
-            if self.configured and connections and DRIVE_WRITE_SCOPE in scopes:
-                tools.extend(
-                    (
-                        "project_link_drive",
-                        "project_drive_trash",
-                        "project_sync",
-                        "project_files_list",
-                        "project_file_read",
-                        "project_file_create",
-                        "project_file_edit",
-                        "project_sheet_read",
-                        "project_sheet_write",
-                        "project_file_rename",
-                    )
-                )
         if self.settings.local_files_enabled and {"jobs:read", "jobs:write"} <= actor.scopes:
             tools.extend(
                 (
@@ -249,8 +224,6 @@ class ConnectedService:
                     "local_zip_inspect",
                     "local_zip_extract",
                     "local_zip_create",
-                    "local_file_import_drive",
-                    "local_file_export_drive",
                 )
             )
         return tuple(tools)
@@ -488,29 +461,23 @@ class ConnectedService:
             if name not in self.available(checked) or name == "web_search":
                 raise AuthorizationError("tool unavailable")
             try:
-                if len(arguments) > (450000 if name.startswith(("project_", "local_")) else 20000):
+                if len(arguments) > (450000 if name.startswith("local_") else 20000):
                     raise ValueError("arguments too long")
                 if name.startswith("local_"):
                     return self.local_files.execute(checked, run_id, name, arguments, revalidate)
                 if name == "drive_list_folder":
-                    from simon.domain.project_files import DriveBrowse
+                    from simon.domain.drive import DriveBrowse
 
                     return json.dumps(
-                        self.projects.browse(
+                        self.drive.browse(
                             checked, DriveBrowse.model_validate_json(arguments), revalidate
                         ),
                         ensure_ascii=False,
                     )
-                if name.startswith("project_"):
-                    return self.projects.execute(checked, run_id, name, arguments, revalidate)
                 if name in {
                     "context_search",
                     "memory_remember",
                     "memory_forget",
-                    "task_create",
-                    "task_list",
-                    "task_control",
-                    "task_steer",
                 }:
                     with (
                         self.store.transaction(IDENTITY_LOCK),
@@ -547,45 +514,6 @@ class ConnectedService:
                         if name == "memory_remember":
                             return self.memories.remember(
                                 current, run_id, RememberFact.model_validate_json(arguments)
-                            ).model_dump_json()
-                        if name == "task_list":
-                            task_service = cast("AssistantTaskService", self.tasks)
-                            if json.loads(arguments) != {}:
-                                raise ValueError("no arguments expected")
-                            return json.dumps(
-                                [
-                                    task.model_dump(mode="json")
-                                    for task in task_service.list(current)
-                                ],
-                                ensure_ascii=False,
-                            )
-                        if name == "task_create":
-                            task_service = cast("AssistantTaskService", self.tasks)
-                            values = json.loads(arguments)
-                            values["idempotency_key"] = (
-                                "chat-task:"
-                                + str(run_id)
-                                + ":"
-                                + hashlib.sha256(arguments.encode()).hexdigest()
-                            )
-                            return task_service.create(
-                                current,
-                                CreateAssistantTask.model_validate(values),
-                                origin_thread_id=thread.id,
-                            ).model_dump_json()
-                        if name == "task_control":
-                            task_service = cast("AssistantTaskService", self.tasks)
-                            values = json.loads(arguments)
-                            identifier = UUID(values.pop("task_id"))
-                            return task_service.control(
-                                current, identifier, ControlAssistantTask.model_validate(values)
-                            ).model_dump_json()
-                        if name == "task_steer":
-                            task_service = cast("AssistantTaskService", self.tasks)
-                            values = json.loads(arguments)
-                            identifier = UUID(values.pop("task_id"))
-                            return task_service.steer(
-                                current, identifier, SteerAssistantTask.model_validate(values)
                             ).model_dump_json()
                         return self.memories.retract(
                             current, ForgetFact.model_validate_json(arguments).memory_id
@@ -772,9 +700,6 @@ class ConnectedService:
         revalidate: Callable[[], ActorContext],
     ) -> ActionProposal:
         self.conversations.authorize(actor, "threads:write")
-        existing = self.get_action(actor, action_id)
-        if existing.kind == "home.set":
-            raise AuthorizationError("This legacy preview is retired. Request a new home action.")
         with self.store.transaction(IDENTITY_LOCK), self.store.transaction(actor.workspace_id):
             current_actor = revalidate()
             if (current_actor.actor_id, current_actor.workspace_id) != (

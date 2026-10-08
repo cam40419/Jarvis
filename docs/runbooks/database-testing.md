@@ -40,14 +40,9 @@ Use matching server/extension packages. Do not copy a PostgreSQL 16 extension DL
 
 An explicitly configured `SIMON_TEST_DATABASE_URL` can instead point to a separate disposable PostgreSQL server. Its database name must end in `_test`. The shared pytest fixture creates the required extensions, assigns each test a fresh schema and drops only that schema afterward. Its function-scoped connection pool closes before schema cleanup; restart tests still reconstruct independent adapters and applications. Run `python -m pytest -q -m "postgres and not browser and not live"` with that variable set. Never point it at an application database or use deployed Compose volumes for these tests.
 
-Database acceptance covers fresh migration/replay, upgrade preservation, failed-DDL rollback/retry, tenant foreign keys, durable receipts and sessions, independent connection races, and revocation. Production backup/restore procedures, hosted capacity measurements and release deployment remain separate work.
+Database acceptance covers fresh migration/replay, forward retirement of unused tables, failed-DDL rollback/retry, tenant foreign keys, durable receipts and sessions, independent connection races, and revocation. Production backup/restore procedures, hosted capacity measurements and release deployment remain separate work.
 
-## October 7 local acceptance
-
-The PostgreSQL 16.15 / pgvector 0.8.6 sweep selected `-m postgres`: 380 tests passed, 15 optional browser/live cases skipped, and one case encountered a database connection timeout during setup. The setup stalled for approximately 794 seconds during a long host pause also visible in checkpoint logs. The test body had not run. A fresh-cluster rerun of `test_concurrent_publish_keys_cannot_create_a_second_mapping[postgres]` passed in 3.08 seconds. All 381 nonoptional database cases therefore passed across the sweep and targeted rerun; this was not one uninterrupted green run.
-
-The 22 native-project database cases are included in that coverage. Runner lifecycle, timestamp and native service/API checks also passed: 53 tests, with one Windows symlink-permission skip. Lint, formatting and strict application type checks passed. The database API checks explicitly set a non-UTC session timezone and retain exact response comparisons.
-
-All temporary clusters were stopped. The broad run needed approximately 39 seconds to finish its shutdown checkpoint, exceeding the runner's original 30-second deadline. Its original failure receipt remains intact; a subsequent `pg_ctl status` independently confirmed no server running. The runner now allows 90 seconds. PostgreSQL durability settings were not weakened to accelerate these checks.
-
-PostgreSQL 17, browser/live checks and deployment acceptance remain unverified by this local run. CI retains its existing PostgreSQL 17 service and complete release checks.
+Historical test totals for retired modules are preserved in Git history. Record the
+selected current tests, PostgreSQL version and exact result when validating a change.
+The API fixtures intentionally use a non-UTC database timezone to test stable UTC
+responses. PostgreSQL 17 CI acceptance and production capacity are separate checks.

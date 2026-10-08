@@ -5,9 +5,9 @@ from collections.abc import Callable, Mapping
 from pathlib import Path
 from uuid import UUID
 
-from simon.domain.agent_runs import TaskExecution
 from simon.domain.artifacts import ArtifactError, DependencyArtifact
 from simon.domain.models import ActorContext
+from simon.domain.task_execution import TaskExecution
 from simon.services.artifacts import ArtifactStore
 from simon.services.local_files import reject_links
 
@@ -35,7 +35,7 @@ def prepare_dependency_artifacts(
 ) -> tuple[DependencyArtifact, ...]:
     """Accept only successful dependencies selected from the saved plan and run.
 
-    The dispatcher publishes the text answer first, followed by native deliverables.
+    Callers publish the text answer first, followed by native deliverables.
     ZIP bundles stay intact: importing never extracts or executes untrusted contents.
     Copies live at generated leaves of the owned mount, avoiding writable ancestors.
     A manifest is provenance of imported bytes, not evidence of a worker's review.

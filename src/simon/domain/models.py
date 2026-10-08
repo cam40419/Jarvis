@@ -5,7 +5,7 @@ from enum import StrEnum
 from typing import Any
 from uuid import UUID, uuid4
 
-from pydantic import AliasChoices, AliasGenerator, BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 def utc_now() -> datetime:
@@ -13,19 +13,7 @@ def utc_now() -> datetime:
 
 
 class StrictModel(BaseModel):
-    # Read historical snapshots/configuration; all new serialization uses workspace names.
-    model_config = ConfigDict(
-        extra="forbid",
-        frozen=True,
-        alias_generator=AliasGenerator(
-            validation_alias=lambda name: AliasChoices(name, name.replace("workspace", "household"))
-        ),
-    )
-
-    @field_validator("scope", "visibility", mode="before", check_fields=False)
-    @classmethod
-    def legacy_workspace_scope(cls, value: Any) -> Any:
-        return "workspace" if value == "household" else value
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
 
 class RiskClass(StrEnum):

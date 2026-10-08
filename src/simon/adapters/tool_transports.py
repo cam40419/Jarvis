@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import json
 import os
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from typing import Any, Protocol
+from uuid import UUID
 
 import httpx
 from jsonschema import Draft202012Validator
@@ -14,6 +15,8 @@ from referencing import Registry
 from referencing.exceptions import Unresolvable
 
 from simon.domain.errors import AuthorizationError
+from simon.domain.execution import EnvironmentLease
+from simon.domain.models import ActorContext
 from simon.domain.tool_catalog import (
     ToolCatalogError,
     ToolDefinition,
@@ -217,3 +220,9 @@ class MCPTransport:
             raise ToolExecutionError(
                 "MCP tool execution failed", unknown=definition.side_effect
             ) from None
+
+
+TransportFactory = Callable[
+    [ActorContext, UUID, Callable[[], ActorContext], EnvironmentLease | None],
+    Mapping[str, ToolHandler],
+]

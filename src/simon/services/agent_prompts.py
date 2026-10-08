@@ -6,10 +6,10 @@ from string import Template
 
 from pydantic import ValidationError as PydanticValidationError
 
-from simon.domain.agent_platform import AgentProfile, AgentTaskSpec
 from simon.domain.artifacts import DependencyArtifact
 from simon.domain.errors import ValidationError
 from simon.domain.models import StrictModel
+from simon.domain.worker_assignment import AgentProfile, AgentTaskSpec
 
 
 class AgentPromptError(ValidationError):

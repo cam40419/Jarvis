@@ -9,9 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from simon.adapters.optional_http import BoundedHTTP
-from simon.domain.errors import AuthorizationError, InvalidTransitionError
-from simon.domain.models import ActorContext
-from simon.domain.project_boards import (
+from simon.domain.clickup import (
     BoardAssignee,
     BoardConnection,
     BoardList,
@@ -19,6 +17,8 @@ from simon.domain.project_boards import (
     BoardTask,
     BoardTaskPage,
 )
+from simon.domain.errors import AuthorizationError, InvalidTransitionError
+from simon.domain.models import ActorContext
 from simon.domain.tool_catalog import ToolCatalogError, ToolExecutionError
 
 API = "https://api.clickup.com/api/v2"

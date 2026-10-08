@@ -190,17 +190,15 @@ def test_reference_and_excerpt_cannot_be_combined_to_override_resolved_text():
     assert "PRIVATE" not in json.dumps(error.value.diagnostics)
 
 
-def test_production_schema_requests_only_references_but_legacy_exact_reviews_still_parse():
+def test_production_schema_and_parser_reject_retired_exact_quote_format():
     schema = completion_review_schema()
     Draft202012Validator.check_schema(schema)
     validator = Draft202012Validator(schema)
     validator.validate(json.loads(verdict(reference_check("Deliver the memo"))))
     legacy = verdict(check("Deliver the memo", text="Actual memo."))
     assert not validator.is_valid(json.loads(legacy))
-    assert (
-        parse_completion_review(legacy, candidate="Actual memo.", task_context="").status
-        == "complete"
-    )
+    with pytest.raises(CompletionReviewError):
+        parse_completion_review(legacy, candidate="Actual memo.", task_context="")
     system = completion_review_system(PROJECT_DELIVERABLE_CONTRACT)
     assert "source and passage_id" in system
     assert "not the candidate's unsupported" in system

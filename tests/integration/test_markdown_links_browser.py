@@ -16,7 +16,7 @@ def test_markdown_saved_file_links_respect_mount_and_reject_unsafe_urls(base):
 
     root = Path(__file__).resolve().parents[2]
     mount = base.rstrip("/")
-    file_path = "/v1/local-files/download?root=project%3Atest&path=research%2Freport.md"
+    file_path = "/v1/local-files/download?root=workspace&path=research%2Freport.md"
     origin = "https://simon.example.test"
     with sync_playwright() as playwright:
         options = {"headless": True}

@@ -1,5 +1,3 @@
-from uuid import UUID
-
 from pydantic import Field
 
 from simon.domain.models import StrictModel
@@ -47,13 +45,3 @@ class LocalExtract(LocalPath):
 
 class LocalZip(LocalExtract):
     pass
-
-
-class LocalDriveImport(LocalPath):
-    project_id: UUID
-    file_id: str = Field(min_length=1, max_length=256, pattern=r"^[A-Za-z0-9_-]+$")
-
-
-class LocalDriveExport(LocalPath):
-    project_id: UUID
-    folder_id: str | None = Field(default=None, max_length=256, pattern=r"^[A-Za-z0-9_-]+$")

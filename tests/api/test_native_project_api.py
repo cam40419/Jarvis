@@ -78,14 +78,7 @@ def test_native_projects_require_sessions_and_csrf(client, auth_headers):
     assert client.post("/v2/projects", headers=auth_headers, json=body).status_code == 401
 
 
-def test_native_creation_is_independent_of_legacy_projects(
-    client, container, auth_headers, monkeypatch
-):
-    def unexpected_legacy_call(*args, **kwargs):
-        pytest.fail("Native project creation must not create memory or invoke Drive")
-
-    monkeypatch.setattr(container.connected.projects, "create", unexpected_legacy_call)
-    monkeypatch.setattr(container.connected.projects, "ensure", unexpected_legacy_call)
+def test_native_creation_uses_only_native_authority(client, container, auth_headers):
     project = create_project(client, auth_headers)
     assert project["board_authority"] == "native"
     assert project["workspace_id"] == str(DEV_WORKSPACE_ID)
@@ -157,7 +150,11 @@ def test_native_project_members_share_and_claim_the_same_tasks(client, container
     claim = {"expected_version": task["version"], "idempotency_key": "member-claim-task"}
     claimed = client.post(task_path + "/claim", headers=member_headers, json=claim)
     assert claimed.status_code == 200, claimed.text
-    assert claimed.json()["assignment"] == {"kind": "human", "actor_id": str(member_id)}
+    assert claimed.json()["assignment"] == {
+        "kind": "human",
+        "actor_id": str(member_id),
+        "agent_id": None,
+    }
     assert (
         client.post(task_path + "/claim", headers=member_headers, json=claim).json()
         == claimed.json()
@@ -252,7 +249,7 @@ def test_project_membership_removal_immediately_revokes_access(client, container
     )
 
 
-def test_native_api_rejects_forged_scope_and_unsupported_agent_assignments(client, auth_headers):
+def test_native_api_rejects_forged_scope_and_malformed_agent_assignments(client, auth_headers):
     project_body = {
         "name": "Project",
         "objective": "Review inputs",
@@ -267,9 +264,9 @@ def test_native_api_rejects_forged_scope_and_unsupported_agent_assignments(clien
         f"/v2/projects/{project['id']}/tasks",
         headers=auth_headers,
         json={
-            "title": "Agent work is not available yet",
+            "title": "Invalid agent identifier",
             "assignment": {"kind": "agent", "agent_id": "designer"},
-            "idempotency_key": "unsupported-agent",
+            "idempotency_key": "malformed-agent",
         },
     )
     assert task.status_code == 422
@@ -286,9 +283,7 @@ def test_task_identifiers_are_scoped_to_their_project(client, auth_headers):
     assert client.get(f"/v2/projects/{second['id']}/tasks").json() == []
 
 
-def test_guest_members_can_read_native_boards_without_legacy_job_access(
-    client, container, auth_headers
-):
+def test_guest_members_can_read_native_boards_without_write_access(client, container, auth_headers):
     project = create_project(client, auth_headers)
     task = create_task(client, auth_headers, project["id"])
     path = f"/v2/projects/{project['id']}"
@@ -312,7 +307,7 @@ def test_guest_members_can_read_native_boards_without_legacy_job_access(
     assert client.get(path + "/tasks").json() == [task]
     assert client.get(path + f"/tasks/{task['id']}").json() == task
     assert client.get(path + "/members").status_code == 200
-    assert client.get("/v1/projects").status_code == 403
+    assert client.get("/v1/projects").status_code == 404
     assert client.get("/auth/session").json()["scopes"] == ["system:read"]
     created = client.post(
         path + "/tasks",

@@ -27,7 +27,7 @@ $previousDatabaseUrl = [Environment]::GetEnvironmentVariable('SIMON_DATABASE_URL
 $previousWorkspaceId = [Environment]::GetEnvironmentVariable('SIMON_ACCOUNT_WORKSPACE_ID', 'Process')
 Push-Location $repoRoot
 try {
-    # Settings loads .env. Only explicitly supplied compatibility parameters override it.
+    # Settings loads .env. Only explicitly supplied parameters override it.
     if ($PSBoundParameters.ContainsKey('DatabaseUrl')) { $env:SIMON_DATABASE_URL = $DatabaseUrl }
     if ($PSBoundParameters.ContainsKey('WorkspaceId')) {
         $env:SIMON_ACCOUNT_WORKSPACE_ID = $WorkspaceId.ToString()

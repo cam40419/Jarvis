@@ -4,7 +4,6 @@ let googleConnection;
 async function connections() {
   await homeConnection();
   await integrationAccounts();
-  await connectionReadiness();
   googleConnection = await api('/v1/connections/google');
   el('web-connection').textContent = assistant.web_search
     ? 'Ready · Public web search is enabled'
@@ -73,7 +72,7 @@ async function connections() {
     list.append(row);
   }
   el('google-setup').textContent = googleConnection.configured
-    ? 'Add each account separately. For reconnecting, choose the same Google account. Chat uses the default unless you name another account. Project folders keep their linked account.'
+    ? 'Add each account separately. For reconnecting, choose the same Google account. Chat uses the default unless you name another account.'
     : 'Set up the Google application below, then connect your Google account. Redirect address: ' +
       googleConnection.redirect_uri;
 }
@@ -175,44 +174,29 @@ function homeCommandCard(command) {
 function actionCard(action) {
   const card = make('section', undefined, 'action-card');
   card.dataset.actionId = action.id;
-  const home = action.home;
   card.setAttribute(
     'aria-label',
-    home
-      ? 'Device preview'
-      : action.kind === 'email.send'
-        ? 'Email preview'
-        : action.immediate
-          ? 'Calendar result'
-          : 'Calendar preview',
+    action.kind === 'email.send'
+      ? 'Email preview'
+      : action.immediate
+        ? 'Calendar result'
+        : 'Calendar preview',
   );
   const email = action.email;
   card.append(
     make(
       'h3',
-      home
-        ? 'Previous device request'
-        : email
-          ? 'Review email'
-          : action.immediate
-            ? action.status === 'succeeded'
-              ? 'Calendar event created'
-              : 'Calendar event status'
-            : 'Review calendar event',
+      email
+        ? 'Review email'
+        : action.immediate
+          ? action.status === 'succeeded'
+            ? 'Calendar event created'
+            : 'Calendar event status'
+          : 'Review calendar event',
     ),
   );
-  if (!home)
-    card.append(
-      make('p', (email ? 'From: ' : 'Calendar account: ') + action.account_email, 'muted'),
-    );
-  if (home) {
-    card.append(
-      make('strong', action.device_name),
-      make('p', [action.device_room, action.device_provider].filter(Boolean).join(' / ')),
-    );
-    if (home.on !== null) card.append(make('p', 'Power: ' + (home.on ? 'On' : 'Off')));
-    if (home.brightness !== null) card.append(make('p', 'Brightness: ' + home.brightness + '%'));
-  } else if (email) {
+  card.append(make('p', (email ? 'From: ' : 'Calendar account: ') + action.account_email, 'muted'));
+  if (email) {
     card.append(
       make('p', 'To: ' + email.to),
       make('strong', email.subject),
@@ -253,17 +237,6 @@ function actionCard(action) {
       'Outcome unknown. Check Google before requesting another attempt; Simon will not send this again.',
     cancelled: 'Preview cancelled. Nothing was sent or created.',
   };
-  if (home)
-    Object.assign(labels, {
-      pending: 'No device change made. Ask Simon again to execute this request directly.',
-      executing:
-        'Command started. Refresh status; check the device before requesting another command.',
-      succeeded: action.home_verified
-        ? 'Reported device state matches the request.'
-        : 'Command accepted. The requested device state is not yet verified; refresh device status.',
-      unknown: 'Outcome unknown. Check the device before requesting another command.',
-      cancelled: 'Preview cancelled. No device change made.',
-    });
   card.append(make('p', labels[action.status], 'action-status'));
   if (action.result_url)
     card.append(
@@ -283,10 +256,10 @@ function actionCard(action) {
       controls.querySelectorAll('button').forEach((button) => (button.disabled = false));
     }
   }
-  if (!home && !action.immediate && action.status === 'pending' && !expired) {
+  if (!action.immediate && action.status === 'pending' && !expired) {
     const confirm = make(
       'button',
-      home ? 'Confirm & apply change' : email ? 'Confirm & send email' : 'Confirm & create event',
+      email ? 'Confirm & send email' : 'Confirm & create event',
       'primary',
     );
     confirm.type = 'button';
@@ -327,7 +300,6 @@ async function homeConnection() {
 }
 
 let reconnectIntegration = null;
-let connectionAccounts = [];
 function integrationFields() {
   const provider = el('integration-provider').value;
   for (const kind of ['twilio', 'gateway', 'home', 'google_app', 'email', 'github']) {
@@ -389,7 +361,6 @@ async function integrationAccounts() {
     api('/v1/connections/integrations'),
     api('/v1/connections/integrations/setup'),
   ]);
-  connectionAccounts = accounts;
   el('integration-email-option').hidden = !setup.can_configure_email;
   el('integration-email-option').disabled = !setup.can_configure_email;
   el('integration-openai-option').hidden = !setup.can_configure_google_app;
@@ -571,134 +542,3 @@ el('integration-form').onsubmit = async (event) => {
     el('integration-connect').disabled = false;
   }
 };
-
-let readinessCatalog = null;
-async function connectionReadiness() {
-  readinessCatalog = await api('/v1/agent-platform/catalog');
-  renderConnectionReadiness();
-}
-function renderConnectionReadiness() {
-  const target = el('connections-catalog');
-  target.replaceChildren();
-  const query = el('connections-search').value.toLowerCase();
-  const groups = new Map();
-  for (const option of el('integration-provider').options) {
-    if (!query || option.textContent.toLowerCase().includes(query)) groups.set(option.value, []);
-  }
-  for (const tool of readinessCatalog?.tool_statuses || []) {
-    if (
-      query &&
-      !(tool.id + ' ' + tool.description + ' ' + tool.transport).toLowerCase().includes(query)
-    )
-      continue;
-    if (!groups.has(tool.transport)) groups.set(tool.transport, []);
-    groups.get(tool.transport).push(tool);
-  }
-  for (const [provider, tools] of [...groups].sort((a, b) => a[0].localeCompare(b[0]))) {
-    const card = make('details');
-    const ready = tools.filter((tool) => tool.state === 'configured').length;
-    const account = connectionAccounts.find((item) => item.provider === provider);
-    const label =
-      [...el('integration-provider').options]
-        .find((option) => option.value === provider)
-        ?.textContent.trim() || provider.replaceAll('_', ' ');
-    card.append(
-      make(
-        'summary',
-        label +
-          ' - ' +
-          (tools.length
-            ? ready + '/' + tools.length + ' tools ready'
-            : account
-              ? 'Connected'
-              : 'Needs setup'),
-      ),
-    );
-    if (account?.settings.connection_test)
-      card.append(make('p', account.settings.connection_test.message));
-    if (!tools.length && !account)
-      card.append(make('p', 'Connect this service below before requesting work that needs it.'));
-    if (provider === 'google_app' || provider === 'email' || provider === 'openai')
-      card.append(make('p', 'Shared application settings are managed by the site administrator.'));
-    const selectable = [...el('integration-provider').options].some(
-      (option) => option.value === provider && !option.disabled,
-    );
-    if (selectable) {
-      const configure = make('button', 'Configure ' + provider);
-      configure.type = 'button';
-      configure.onclick = () => {
-        el('integration-cancel').click();
-        el('integration-provider').value = provider;
-        integrationFields();
-        el('integration-form').scrollIntoView({ block: 'start' });
-        el('integration-credential').focus();
-      };
-      card.append(configure);
-    }
-    for (const tool of tools) {
-      const name =
-        readinessCatalog.individual_skills?.find((skill) => skill.tool_ids?.includes(tool.id))
-          ?.name || tool.id;
-      card.append(
-        make('strong', name),
-        make(
-          'p',
-          tool.state === 'configured'
-            ? 'Ready'
-            : (tool.blocked_reasons || []).join(' ') || tool.state,
-        ),
-      );
-    }
-    target.append(card);
-  }
-  for (const model of readinessCatalog?.models || []) {
-    const card = make('details');
-    card.append(
-      make('summary', 'Model: ' + model.model),
-      make('p', model.state === 'configured' ? 'Ready' : model.blocked_reasons.join(' ')),
-    );
-    target.append(card);
-  }
-  for (const environment of readinessCatalog?.environments || []) {
-    const card = make('details');
-    card.append(
-      make('summary', 'Runtime: ' + environment.id),
-      make(
-        'p',
-        environment.enabled ? 'Enabled - ' + environment.capabilities.join(', ') : 'Disabled',
-      ),
-    );
-    const test = make('button', 'Test runtime');
-    test.type = 'button';
-    const result = make('p', '');
-    test.onclick = async () => {
-      test.disabled = true;
-      result.textContent = 'Checking runtime...';
-      try {
-        const checked = await api(
-          '/v1/agent-platform/environments/' + encodeURIComponent(environment.id) + '/test',
-          {},
-        );
-        result.textContent = checked.message;
-      } catch (error) {
-        result.textContent = error.message;
-      } finally {
-        test.disabled = false;
-      }
-    };
-    card.append(test, result);
-    target.append(card);
-  }
-}
-el('connections-refresh').onclick = () => connectionReadiness().catch(report);
-el('connections-search').oninput = renderConnectionReadiness;
-window.addEventListener('simon-connections-change', async () => {
-  try {
-    await connectionReadiness();
-    window.dispatchEvent(
-      new CustomEvent('simon-agent-library-updated', { detail: { catalog: readinessCatalog } }),
-    );
-  } catch (error) {
-    report(error);
-  }
-});

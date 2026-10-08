@@ -5,58 +5,61 @@ from pydantic import ValidationError
 
 from simon.adapters.external_action_providers import provider_fingerprint
 from simon.config import Settings
+from simon.domain.clickup import BoardConnection
 from simon.domain.context import ExplicitMemory
 from simon.domain.external_actions import ExternalProviderDefinition
 from simon.domain.identity import Membership
 from simon.domain.models import ActorContext, Channel
-from simon.domain.project_boards import BoardConnection
 from simon.services.canonical import digest
 
 
-def test_legacy_identity_reads_but_serializes_only_workspace_names():
+def test_identity_rejects_retired_household_fields():
     workspace, user = uuid4(), uuid4()
-    actor = ActorContext.model_validate(
-        {"actor_id": user, "household_id": workspace, "channel": "api"}
-    )
-    assert actor.workspace_id == workspace
-    assert "household_id" not in actor.model_dump()
-    membership = Membership.model_validate(
-        {
-            "actor_id": user,
-            "household_id": workspace,
-            "household_name": "Saved name",
-            "role": "owner",
-        }
-    )
-    assert membership.workspace_name == "Saved name"
+    with pytest.raises(ValidationError):
+        ActorContext.model_validate({"actor_id": user, "household_id": workspace, "channel": "api"})
+    with pytest.raises(ValidationError):
+        Membership.model_validate(
+            {
+                "actor_id": user,
+                "workspace_id": workspace,
+                "household_name": "Saved name",
+                "role": "owner",
+            }
+        )
     with pytest.raises(ValidationError):
         ActorContext(
             actor_id=user, workspace_id=workspace, household_id=uuid4(), channel=Channel.API
         )
 
 
-def test_legacy_clickup_connection_keeps_both_workspace_boundaries():
+def test_clickup_connection_requires_explicit_workspace_boundaries():
     workspace, user = uuid4(), uuid4()
     connection = BoardConnection.model_validate(
         {
             "id": "clickup-test",
             "name": "ClickUp",
-            "household_id": workspace,
+            "workspace_id": workspace,
             "actor_ids": [user],
             "credential_env": "TEST_CLICKUP_TOKEN",
-            "workspace_id": "123",
+            "clickup_workspace_id": "123",
             "discover_lists": True,
         }
     )
     assert connection.workspace_id == workspace
     assert connection.clickup_workspace_id == "123"
     assert BoardConnection.model_validate(connection.model_dump()) == connection
+    invalid = connection.model_dump()
+    invalid["household_id"] = invalid.pop("workspace_id")
+    with pytest.raises(ValidationError):
+        BoardConnection.model_validate(invalid)
 
 
-def test_old_environment_setting_remains_readable_and_new_name_takes_precedence(monkeypatch):
+def test_retired_environment_names_are_ignored(monkeypatch):
     old, new = uuid4(), uuid4()
     monkeypatch.setenv("SIMON_ACCOUNT_HOUSEHOLD_ID", str(old))
-    assert Settings(_env_file=None).account_workspace_id == old
+    monkeypatch.setenv("JARVIS_ACCOUNT_WORKSPACE_ID", str(old))
+    monkeypatch.delenv("SIMON_ACCOUNT_WORKSPACE_ID", raising=False)
+    assert Settings(_env_file=None).account_workspace_id is None
     monkeypatch.setenv("SIMON_ACCOUNT_WORKSPACE_ID", str(new))
     assert Settings(_env_file=None).account_workspace_id == new
 
@@ -81,17 +84,17 @@ def test_production_rejects_development_identity(field, value):
         )
 
 
-def test_existing_memory_snapshot_normalizes_workspace_scope():
-    memory = ExplicitMemory.model_validate(
-        {
-            "household_id": uuid4(),
-            "created_by": uuid4(),
-            "subject": "Preference",
-            "content": "Saved fact",
-            "scope": "household",
-        }
-    )
-    assert memory.scope == "workspace"
+def test_memory_rejects_retired_household_scope():
+    with pytest.raises(ValidationError):
+        ExplicitMemory.model_validate(
+            {
+                "workspace_id": uuid4(),
+                "created_by": uuid4(),
+                "subject": "Preference",
+                "content": "Saved fact",
+                "scope": "household",
+            }
+        )
 
 
 def test_external_provider_hash_keeps_historical_review_format():

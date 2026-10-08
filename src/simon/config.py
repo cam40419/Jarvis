@@ -6,7 +6,6 @@ from urllib.parse import urlsplit
 from uuid import UUID
 
 from pydantic import (
-    AliasChoices,
     AliasGenerator,
     Field,
     SecretStr,
@@ -22,11 +21,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
         env_prefix="SIMON_",
-        alias_generator=AliasGenerator(
-            validation_alias=lambda name: AliasChoices(
-                "SIMON_" + name.upper(), "JARVIS_" + name.upper()
-            )
-        ),
+        alias_generator=AliasGenerator(validation_alias=lambda name: "SIMON_" + name.upper()),
         populate_by_name=True,
         case_sensitive=False,
         extra="ignore",
@@ -47,20 +42,9 @@ class Settings(BaseSettings):
     auth_rate_window_seconds: float = Field(default=60, gt=0, le=86400)
     # Site administration is separate from ownership of an invited user's workspace.
     account_admin_actor_id: UUID = UUID("11111111-1111-4111-8111-111111111111")
-    account_workspace_id: UUID | None = Field(
-        default=None,
-        validation_alias=AliasChoices(
-            "SIMON_ACCOUNT_WORKSPACE_ID",
-            "JARVIS_ACCOUNT_WORKSPACE_ID",
-            "account_workspace_id",
-            "SIMON_ACCOUNT_HOUSEHOLD_ID",
-            "JARVIS_ACCOUNT_HOUSEHOLD_ID",
-            "account_household_id",
-        ),
-    )
+    account_workspace_id: UUID | None = None
     log_level: str = "INFO"
     database_url: SecretStr = SecretStr("postgresql://jarvis:jarvis@localhost:5432/jarvis")
-    # Do not let an inherited legacy key override the renamed application's credential.
     openai_api_key: SecretStr | None = Field(default=None, validation_alias="SIMON_OPENAI_API_KEY")
     model_provider: Literal["local", "openai"] = "local"
     openai_model: str = Field(default="gpt-5.4-mini", min_length=1, max_length=100)
@@ -72,16 +56,11 @@ class Settings(BaseSettings):
     google_client_id: str = ""
     google_client_secret: SecretStr | None = None
     google_token_key: SecretStr | None = None
-    project_drive_sync_enabled: bool = True
     local_files_enabled: bool = True
     local_files_dir: Path = Path(".local/files")
     local_files_actor_id: UUID | None = None
     local_file_roots: dict[str, Path] = Field(default_factory=dict)
-    agent_manifest_file: Path | None = None
-    agent_state_dir: Path = Path(".local/agents")
-    agent_execution_enabled: bool = False
     external_providers_file: Path | None = None
-    project_boards_file: Path | None = None
     integration_key_file: Path = (
         Path(os.environ.get("LOCALAPPDATA", str(Path.home() / ".local/share")))
         / "Simon"
@@ -95,9 +74,7 @@ class Settings(BaseSettings):
     voice_name: Literal["marin", "cedar", "meridian", "vesper"] = "cedar"
     voice_max_seconds: int = Field(default=900, ge=60, le=1800)
 
-    @field_validator(
-        "agent_manifest_file", "external_providers_file", "project_boards_file", mode="before"
-    )
+    @field_validator("external_providers_file", mode="before")
     @classmethod
     def empty_manifest(cls, value: object) -> object:
         return None if value == "" else value

@@ -1,194 +1,58 @@
-# Local persistence and verification
+# Persistence and recovery
 
-Run all commands in PowerShell from the repository root. Use Python 3.11 or newer;
-CI uses 3.11. The local verification on 2026-09-10 used Python 3.13.7.
-For this PC's active `cam40419` installation, use the
-[local operations runbook](local-operations.md). The development-token procedure below is for
-isolated development sessions.
+Use PostgreSQL for persistent development and hosted operation. The in-memory
+adapter is for isolated tests and disposable sessions. See [local operation](local-operations.md)
+for startup and [database testing](database-testing.md) for the isolated PostgreSQL runner.
+`/health/live` reports process liveness; it does not prove database readiness.
 
-## Start a development test session
+## Transactions and retries
 
-Identity now uses authenticated sessions; the old actor/scope headers no longer work.
-Start Docker Desktop, then:
+State mutations, successful idempotency receipts, audit records and outbox intents
+share a transaction. Workspace writes are serialized to preserve audit ordering.
+Retries reuse a scoped key and reject changed command content. Native project and
+team services recheck current authorization before consulting a receipt.
 
-```powershell
-.\venv\Scripts\python.exe -m pip install -e ".[dev,postgres]"
-.\scripts\start-dev.ps1 -DevelopmentLogin
-```
+The PostgreSQL adapter supports nested savepoints and a bounded process-local
+connection pool. Tests cover rollback, concurrent claims, duplicate commands,
+tenant isolation, audit chains and durable retries through the real adapter.
+Configure only an isolated database whose name ends in `_test` for tests; a
+configured but unreachable database fails instead of silently skipping checks.
 
-For passkey sign-in, use `-Enroll` and follow the [identity runbook](identity.md).
-The launcher runs migrations and seeds the explicit development membership without changing `.env`.
-Use `-DatabaseUrl` for a custom database password/connection. `/health/live` is process liveness,
-not database readiness. Open http://localhost:8000/login. The API offers echo, job submission,
-and job lookup. Use `localhost` consistently for the browser origin.
+External calls happen outside database transactions. A persisted claim can prevent
+duplicate dispatch, but the database cannot roll back provider I/O. Unknown outcomes
+require reconciliation. Outbox publication is at least once: consumers must
+deduplicate by event ID if delivery succeeds before the transaction commits.
 
-## Test persistence manually
+## Migrations
 
-In another PowerShell terminal:
+`python -m simon.migrate` serializes migrations with a database advisory lock. SQL
+changes and checksum records commit together. Reruns skip unchanged versions,
+reject changed or unknown versions, and roll back failures. Applied SQL files are
+immutable ledger entries; add a numbered forward migration for schema changes.
+Historical migration bytes remain for checksum verification and fresh database
+construction, not as an application compatibility surface. Migration 0031 removes
+the retired project file tables while adding native team persistence.
 
-```powershell
-$token = Read-Host 'Development token printed by the launcher'
-$login = Invoke-RestMethod -Uri 'http://localhost:8000/auth/dev-login' `
-    -Method Post -SessionVariable simonSession -ContentType 'application/json' `
-    -Headers @{ Origin = 'http://localhost:8000' } `
-    -Body (@{ token = $token } | ConvertTo-Json)
-$token = $null
-$headers = @{ Origin = 'http://localhost:8000'; 'X-CSRF-Token' = $login.csrf_token }
-$key = [guid]::NewGuid().ToString()
-$echoBody = @{
-    capability = "system.echo"
-    arguments = @{ message = "Hello from persistent Simon" }
-    idempotency_key = $key
-} | ConvertTo-Json
-Invoke-RestMethod -Uri "http://localhost:8000/v1/capabilities/invoke" `
-    -Method Post -WebSession $simonSession -Headers $headers `
-    -ContentType "application/json" -Body $echoBody
+The runner refuses untracked pre-existing schemas. It does not silently adopt or
+reset arbitrary databases. Down migrations are not executed automatically.
 
-$jobBody = @{
-    kind = "test.job"
-    input = @{ message = "Keep this across restart" }
-    idempotency_key = $key
-} | ConvertTo-Json
-$job = Invoke-RestMethod -Uri "http://localhost:8000/v1/jobs" `
-    -Method Post -WebSession $simonSession -Headers $headers `
-    -ContentType "application/json" -Body $jobBody
-$job
-```
+## Chat and native work
 
-Stop the API with Ctrl+C and restart `.\scripts\start-dev.ps1 -DevelopmentLogin`.
-Keep the second terminal open, then:
+Private background chat requests are `assistant.session` jobs. The optional
+assistant worker processes two sessions concurrently. Browser navigation does not
+cancel a saved request. Interrupted execution is inspected before retrying so that
+potential external effects are not blindly repeated. The machine and worker must
+remain running to make progress.
 
-```powershell
-Invoke-RestMethod -Uri "http://localhost:8000/v1/jobs/$($job.id)" -WebSession $simonSession
-Invoke-RestMethod -Uri "http://localhost:8000/v1/capabilities/invoke" `
-    -Method Post -WebSession $simonSession -Headers $headers `
-    -ContentType "application/json" -Body $echoBody
-```
+Native projects, members, board tasks, agent roles, policies and scoped credential
+metadata have explicit database records. Creating a role does not execute its tasks.
+No dispatcher or automatic model execution is enabled for native board work in
+this phase. See [native projects](native-projects.md).
 
-The job retains its ID and input. Echo returns `replayed: true` with the original invocation ID
-and completion time. Reposting the original job returns the same job. Changing input with the
-same idempotency key returns 409. A job kind such as `!` returns 422. Missing required scopes
-return 403. Job lookup with an authorized different household returns 404; an unknown database
-membership is rejected with 403 before lookup.
+## Backup
 
-Jobs remain `queued`: a worker/lease execution service is a later milestone. Sessions persist
-until their absolute expiry; disabling development login rejects development sessions immediately.
-
-## Automated verification
-
-Quick tests, without a database:
-
-```powershell
-.\venv\Scripts\python.exe -m pytest -q -m "not postgres"
-```
-
-Full suite and coverage (create `jarvis_test` once):
-
-```powershell
-docker compose -f deploy/compose/compose.yaml exec -T postgres createdb -U jarvis jarvis_test
-$env:SIMON_TEST_DATABASE_URL = "postgresql://jarvis:local-development-only@127.0.0.1:5432/jarvis_test"
-.\venv\Scripts\python.exe -m ruff check src tests scripts
-.\venv\Scripts\python.exe -m mypy src
-.\venv\Scripts\python.exe -m pytest --cov=simon --cov-report=term-missing
-```
-
-If `jarvis_test` already exists, skip `createdb`. Tests require the database name to end in
-`_test`; each test creates and removes its own randomly named schema. Never point this variable
-at the development or production database. A configured but unreachable test database fails
-the run; it does not silently skip PostgreSQL verification.
-
-The same storage scenarios run against memory and PostgreSQL: concurrent duplicates, distinct
-concurrent audit writes, optimistic versions, household lookup isolation, rollback of state/audit/
-outbox, nested savepoints, stable invocation replays, and competing outbox publishers. Additional
-PostgreSQL tests cover migrations, membership checks, and an actual API process restart.
-CI provisions pgvector/PostgreSQL and runs the full suite with a 90% coverage gate.
-
-## Backup and restore drill
-
-Stop API/worker writers while running this consistency comparison. Leave PostgreSQL running.
-
-```powershell
-.\venv\Scripts\python.exe scripts/verify_restore.py
-```
-
-The script reads the `simon` database, writes a binary `pg_dump` archive under `.local/backups`,
-restores it into a uniquely named temporary database, compares every public table's complete row
-contents, and removes only that temporary database. It verifies that the source did not change
-throughout the drill. The archive and JSON report remain on disk and are ignored by Git. The
-report contains the archive checksum and per-table hashes, not the table contents. The backup
-itself contains the database contents. Python handles binary I/O to avoid PowerShell redirection
-changing the archive bytes.
-
-To inspect an archive or perform a manual recovery, copy the selected `.dump` file into the
-container and restore into a new, empty database, keeping the original intact:
-
-```powershell
-# Substitute the actual archive path printed by the verification script.
-docker compose -f deploy/compose/compose.yaml cp .local/backups/ARCHIVE.dump postgres:/tmp/simon.dump
-docker compose -f deploy/compose/compose.yaml exec -T postgres createdb -U jarvis simon_recovered
-docker compose -f deploy/compose/compose.yaml exec -T postgres pg_restore -U jarvis `
-    -d simon_recovered --exit-on-error --no-owner --no-privileges /tmp/simon.dump
-```
-
-Switch the API connection URL to `simon_recovered` after verifying its data. This drill tests
-logical recovery on the local PostgreSQL version; off-machine backup storage, retention,
-encryption, point-in-time recovery, and disaster recovery timing are not implemented.
-
-## Migration behavior
-
-`python -m simon.migrate` serializes migration runs with a database advisory lock. SQL changes
-and checksum records commit in one transaction. Reruns skip unchanged versions, reject changed
-or unknown versions, and roll back failed migrations. Do not edit applied migrations: add a
-new numbered `.sql` file. `.down.sql` files are not automatically executed. SQL files ship in
-the Python wheel as well as the source checkout.
-
-A database initialized by the old Compose SQL mount has no migration version record. The
-runner intentionally refuses to silently adopt existing tables. Preserve/backup that database
-and initialize a separate empty database for this version; no automatic destructive reset or
-legacy-schema adoption is provided.
-
-## Transaction and delivery limits
-
-September 14, 2026: migration 0006 adds personal response preferences and answer feedback.
-The restore drill matched all 23 public tables. Archive/report:
-`.local/backups/simon_20260914T162733Z_140d6516.dump` and `.json`.
-Populated preference/feedback records also passed a separate API process-restart test.
-
-- Job changes, successful invocation replay records, audit entries, and pending outbox events
-  share a transaction. Audit chains are scoped to a household. Household writes are serialized
-  initially to keep audit ordering deterministic.
-- The generic capability registry still contains `system.echo`. Connected web/Google tools use
-  a separate bounded runtime. Google confirmations durably claim an action before making the API
-  call outside the transaction; retries return its status without redispatch. PostgreSQL cannot
-  roll back an external action. See [Google setup](google.md) for unknown-outcome handling.
-- `publish_pending(deliver, limit)` claims unpublished events with `FOR UPDATE SKIP LOCKED`,
-  tracks attempts, and marks successful delivery. Failed callbacks leave an event pending.
-  Delivery is at least once: consumers must deduplicate by event ID because a process can
-  crash after delivery and before its database commit. Callbacks must be bounded and must not
-  call back into the Simon store. No external consumer or notification sender is enabled.
-- The local app uses a bounded, process-local PostgreSQL connection pool (up to 16 connections).
-  Transactions still have isolated connections; nested calls share their transaction. Standalone
-  store instances can run without a pool for tests and one-off tools. Worker leases, persistent
-  capability administration and rate limiting remain future work. The chat UI and connected-tool
-  previews are implemented.
-  Passkeys, sessions, and server-resolved membership scopes are implemented; see the identity runbook.
-
-## Background Work sessions and project pages
-
-Production chat requests are saved as private `assistant.session` jobs before the UI
-reports them queued. The standalone workflow worker executes two sessions concurrently,
-alongside its assistant-task worker. Switching conversations or tabs, losing focus, and
-closing the browser do not cancel saved work. Stop explicitly cancels the selected session.
-Partial text and final messages are persisted in PostgreSQL and restored on return.
-The computer and worker must remain running to make progress.
-
-Queued requests survive process restarts. Recovery checks interrupted sessions after five
-minutes and assistant tasks after ten minutes without updates. Requests that never started
-a model run return to the queue; completed runs retain their results. Interrupted model runs
-are flagged for review (tasks are paused with Resume) instead of automatically replaying
-possibly completed external actions. An active voice connection still requires an open client.
-
-Open a project title or Open project in Work to visit `/chat?project=<project-id>`.
-The project page collects its sessions, tasks and controls, saved outputs, Drive and local
-file access, and recent file activity. Start a session associates subsequent messages in that
-conversation with the project and supplies its context to the assistant.
+Use [storage recovery](storage-recovery.md) for full bundles containing the database,
+files and matching encryption keys. Restore into a separate empty database and
+verify before switching an installation. Off-machine retention and disaster
+recovery targets are deployment responsibilities. Never treat a successful source
+test run as proof that a particular installed database has been migrated or backed up.

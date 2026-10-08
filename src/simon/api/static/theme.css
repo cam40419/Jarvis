@@ -54,8 +54,7 @@
   --shadow: 0 18px 64px #00000055;
 }
 body.chat-page,
-body.login-page,
-body.dashboard-page {
+body.login-page {
   background: var(--bg);
   color: var(--ink);
   font-family: 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
@@ -86,8 +85,7 @@ body :is(p, li) {
   color: var(--on-accent);
 }
 .chat-page :is(h1, h2),
-.login-page h1,
-.dashboard-page :is(h1, h2) {
+.login-page h1 {
   font-family: 'Segoe UI Variable Display', 'Segoe UI', system-ui, sans-serif;
   font-weight: 600;
   letter-spacing: -0.035em;
@@ -255,82 +253,8 @@ body :is(p, li) {
   background: var(--hover);
   color: var(--ink) !important;
 }
-.chat-page :is(#status.error, #work-status.error, .task-error) {
+.chat-page #status.error {
   color: var(--danger) !important;
-}
-
-/* Work pages use headings and dividers, with a single surface per section. */
-.chat-page .work-hero {
-  background: transparent;
-  color: var(--ink);
-  border: 0;
-  border-bottom: 1px solid var(--line);
-  border-radius: 0;
-  padding: 5px 0 28px;
-  box-shadow: none;
-}
-.chat-page .work-hero .eyebrow,
-.chat-page .work-hero p:not(.eyebrow) {
-  color: var(--muted);
-}
-.chat-page .work-hero-actions button:not(.primary) {
-  background: var(--surface);
-  border-color: var(--line);
-  color: var(--ink);
-}
-.chat-page .work-hero-actions button:not(.primary):hover {
-  background: var(--hover);
-}
-.chat-page .work-card {
-  background: var(--surface);
-  border-radius: 12px;
-  box-shadow: none;
-}
-.chat-page .work-item {
-  background: transparent;
-  border: 0;
-  border-bottom: 1px solid var(--line);
-  border-radius: 0;
-  padding: 16px 0;
-}
-.chat-page .work-card :is(input, select, textarea) {
-  background: var(--bg);
-  border-color: var(--line);
-}
-.chat-page .work-worker {
-  border-radius: 6px;
-  background: var(--hover);
-}
-.chat-page .work-worker.online {
-  color: var(--ink);
-}
-.chat-page .task-badge {
-  background: var(--hover);
-  color: var(--muted);
-  border-radius: 5px;
-}
-.chat-page .task-badge.running {
-  color: var(--accent-text);
-}
-.chat-page .task-badge.succeeded {
-  color: var(--success);
-}
-.chat-page .task-badge.failed,
-.chat-page .task-badge.cancelled {
-  color: var(--danger);
-}
-.local-file-image {
-  display: block;
-  max-width: 100%;
-  max-height: 380px;
-  margin-top: 14px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  object-fit: contain;
-  background: #fff;
-}
-.local-file-image[hidden] {
-  display: none;
 }
 
 /* Account pages follow the same surfaces and type as the signed-in workspace. */
@@ -391,101 +315,7 @@ body :is(p, li) {
   color: var(--danger);
 }
 
-/* Kept for the home dashboard when enabled by a deployment. */
-:root
-  .dashboard-page
-  :is(
-    .site-header,
-    .hero,
-    .metric,
-    .dashboard-section,
-    .insight-card,
-    .device-card,
-    .device-card.light-on
-  ) {
-  background: var(--surface);
-  color: var(--ink);
-  border-color: var(--line);
-  box-shadow: none;
-}
-:root .dashboard-page .hero {
-  border-radius: 0;
-  border: 0;
-  border-bottom: 1px solid var(--line);
-  background: transparent;
-}
-:root .dashboard-page .hero::after,
-:root .dashboard-page .metric::before {
-  content: none;
-}
-:root .dashboard-page :is(.brand, .hero h1, .metric strong, .device-card h4, .mini-row strong) {
-  color: var(--ink);
-}
-:root
-  .dashboard-page
-  :is(
-    .clock,
-    .hero p,
-    .metric-label,
-    .metric small,
-    .device-meta,
-    .provider,
-    .device-note,
-    .eyebrow
-  ) {
-  color: var(--muted);
-}
-:root
-  .dashboard-page
-  :is(
-    .outline-button,
-    .subtle-button,
-    .status-button,
-    .room-filters button,
-    .room-actions button,
-    .power-toggle,
-    .device-settings button,
-    .device-icon,
-    .insight-glyph
-  ) {
-  background: var(--hover);
-  color: var(--ink);
-  border-color: var(--line);
-  box-shadow: none;
-}
-:root .dashboard-page :is(.accent-button, .power-toggle.on) {
-  background: var(--accent);
-  color: var(--on-accent);
-  border-color: var(--accent);
-  box-shadow: none;
-}
-:root
-  .dashboard-page
-  :is(.primary-nav a[aria-current='page'], .room-filters button[aria-pressed='true']) {
-  background: var(--hover);
-  color: var(--accent-text);
-  box-shadow: none;
-}
-:root .dashboard-page :is(.device-card:hover, .accent-button:hover) {
-  transform: none;
-  box-shadow: none;
-}
-:root .dashboard-page :is(input, select, .power-history svg, .empty-state) {
-  background: var(--bg);
-  color: var(--ink);
-  border-color: var(--line);
-}
-:root .dashboard-page .brand img {
-  filter: none;
-}
-:root .dashboard-page .device-state::before {
-  box-shadow: none;
-}
-
 @media (max-width: 760px) {
-  .chat-page .work-hero {
-    padding: 0 0 23px;
-  }
   .chat-page .welcome-mark {
     width: 56px;
     height: 56px;

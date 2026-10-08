@@ -71,7 +71,7 @@ def main() -> int:
     try:
         busy = any(
             container.store.jobs_all(kind, 1, status)
-            for kind in ("platform.run", "assistant.task", "assistant.session")
+            for kind in ("assistant.session",)
             for status in ("queued", "running")
         )
         print("Full backup deferred while work is active." if busy else "Backup window is idle.")

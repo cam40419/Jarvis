@@ -16,8 +16,8 @@ from simon.adapters.clickup import (
     task_marker,
 )
 from simon.adapters.optional_http import BoundedHTTP
+from simon.domain.clickup import BoardConnection
 from simon.domain.errors import AuthorizationError, InvalidTransitionError
-from simon.domain.project_boards import BoardConnection
 from simon.domain.tool_catalog import ToolCatalogError, ToolExecutionError
 from tests.unit.test_external_actions import actor
 

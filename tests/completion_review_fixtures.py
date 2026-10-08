@@ -16,6 +16,38 @@ def review_text(prompt, source):
     return "".join(text for _, text in review_passages(prompt, source))
 
 
+def reference_review(prompt, response):
+    """Render fake review fixture quotes as the current model's passage references."""
+    try:
+        document = json.loads(response)
+    except (TypeError, ValueError):
+        return response
+    if not isinstance(document, dict) or not isinstance(document.get("checks"), list):
+        return response
+    for check in document["checks"]:
+        evidence = []
+        for item in check.get("evidence", []):
+            if set(item) != {"source", "excerpt"} or item["source"] not in {
+                "candidate",
+                "task_context",
+            }:
+                evidence.append(item)
+                continue
+            source = item["source"]
+            try:
+                evidence.extend(
+                    reference_check(prompt, "Fixture", source=source, text=item["excerpt"])[
+                        "evidence"
+                    ]
+                )
+            except AssertionError:
+                evidence.append(
+                    {"source": source, "passage_id": "C9999" if source == "candidate" else "T9999"}
+                )
+        check["evidence"] = evidence
+    return json.dumps(document)
+
+
 def reference_check(
     prompt, requirement, *, kind="deliverable", status="satisfied", source="candidate", text=""
 ):

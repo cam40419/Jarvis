@@ -19,12 +19,12 @@ from simon.adapters.clickup import ClickUpAdapter, _identifier, _rows
 from simon.adapters.external_action_providers import provider_configuration_reasons
 from simon.adapters.optional_http import BoundedHTTP
 from simon.config import Settings
+from simon.domain.clickup import BoardConnection
 from simon.domain.errors import AuthorizationError, NotFoundError, ValidationError
 from simon.domain.external_actions import ExternalProviderDefinition
 from simon.domain.integrations import ConnectIntegration, IntegrationConnection, IntegrationProvider
 from simon.domain.models import ActorContext, Channel
 from simon.domain.ports import Store
-from simon.domain.project_boards import BoardConnection
 from simon.domain.tool_catalog import ToolCatalogError, ToolDefinition
 
 
@@ -111,9 +111,9 @@ class IntegrationService:
         self, store: Store, settings: Settings, *, http: BoundedHTTP | None = None
     ) -> None:
         self.store, self.settings = store, settings
-        from simon.services.agent_platform import platform_credentials
+        from simon.services.credentials import runtime_credentials
 
-        self.credentials = IntegrationCredentials(self, platform_credentials())
+        self.credentials = IntegrationCredentials(self, runtime_credentials())
         if http is not None:
             http.environ = self.credentials
         self.clickup = ClickUpAdapter(http or BoundedHTTP(environ=self.credentials))

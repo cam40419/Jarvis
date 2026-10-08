@@ -3,7 +3,7 @@ import json
 import pytest
 from pydantic import ValidationError
 
-from simon.domain.agent_platform import AgentProfile, AgentTaskSpec
+from simon.domain.worker_assignment import AgentProfile, AgentTaskSpec
 from simon.services.agent_prompts import AgentPromptError, render_agent_prompt
 
 

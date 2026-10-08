@@ -416,7 +416,7 @@ def run(request: dict[str, Any], workspace: Path) -> int:
 if __name__ == "__main__":
     try:
         sys.exit(run(json.loads(sys.argv[1]), Path("/workspace")))
-    except (ValueError, OSError, zipfile.BadZipFile):
+    except (ValueError, TypeError, KeyError, IndexError, OSError, zipfile.BadZipFile):
         print(
             "CAD rejected: invalid file, unsupported arguments, or output already exists",
             file=sys.stderr,

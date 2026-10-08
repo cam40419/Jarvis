@@ -121,14 +121,14 @@ def test_public_prefix_and_mount_root_do_not_bypass_auth_cap(app, path, root):
     assert not bodies
 
 
-def test_route_caps_preserve_existing_uploads_large_editor_and_bulk_plans(app):
+def test_route_caps_cover_current_uploads_and_text_actions_only(app):
     middleware = RequestIngressMiddleware(app[0])
     assert middleware.limit_for("/v1/local-files/upload") == 50 * 1024 * 1024
     assert middleware.limit_for("/v1/projects/11111111-1111-4111-8111-111111111111/upload") == (
-        16 * 1024 * 1024
+        2 * 1024 * 1024
     )
     assert middleware.limit_for("/v1/local-files/action") == 32 * 1024 * 1024
-    assert middleware.limit_for("/v1/agent-platform/plans") == 32 * 1024 * 1024
+    assert middleware.limit_for("/v1/agent-platform/plans") == 2 * 1024 * 1024
     assert middleware.limit_for("/v1/unrelated/upload") == 2 * 1024 * 1024
     assert (
         run(

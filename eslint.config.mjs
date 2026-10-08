@@ -4,8 +4,6 @@ import globals from 'globals';
 // and login.html. Keep these contracts explicit until those scripts become modules.
 const pageGlobals = {
   'accounts.js': ['$', 'api', 'passwordEnabled', 'session'],
-  'agent-library.js': ['api'],
-  'agent-work.js': ['api', 'ready', 'SimonMarkdown'],
   'background-chat.js': [
     'activeThread',
     'api',
@@ -21,36 +19,12 @@ const pageGlobals = {
     'ready',
     'refreshThreads',
     'report',
-    'selectThread',
     'setBusy',
   ],
   'chat.js': ['SimonMarkdown', 'actionCard', 'connections', 'showConnectedResults'],
   'connections.js': ['api', 'assistant', 'el', 'googleReturn', 'make', 'openPanel', 'report'],
-  'external-actions.js': ['api', 'session'],
-  'local-files.js': ['api', 'autosize', 'session'],
   'personality.js': ['api', 'el', 'preferences', 'ready'],
-  'project-board.js': ['api'],
-  'project-drafts.js': ['api', 'session'],
-  'project-continuity.js': ['api', 'session'],
-  'project-command.js': ['api', 'session', 'SimonMarkdown'],
-  'project-knowledge.js': ['api', 'session', 'SimonMarkdown'],
-  'project-workspace.js': ['api', 'session'],
-  'project-outputs.js': ['api', 'session'],
-  'result-view.js': ['api', 'session', 'SimonMarkdown'],
-  'setup-assistant.js': ['api'],
   'voice.js': ['api', 'el', 'make', 'ready', 'session'],
-  'work.js': [
-    'activeThread',
-    'api',
-    'autosize',
-    'el',
-    'memories',
-    'ready',
-    'rows',
-    'selectThread',
-    'session',
-    'SimonMarkdown',
-  ],
 };
 
 export default [

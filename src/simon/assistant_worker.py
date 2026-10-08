@@ -1,4 +1,4 @@
-"""Run durable assistant tasks and work sessions: python -m simon.assistant_worker."""
+"""Run durable background chat conversations: python -m simon.assistant_worker."""
 
 from __future__ import annotations
 
@@ -24,7 +24,6 @@ from simon.services.work_sessions import WorkSessionService
 
 if TYPE_CHECKING:
     from simon.adapters.postgres import PostgresStore
-    from simon.services.tasks import AssistantTaskService
 
 logger = logging.getLogger(__name__)
 
@@ -42,10 +41,9 @@ def _store(settings: Settings) -> PostgresStore:
 def _services(
     store: PostgresStore,
     settings: Settings,
-) -> tuple[AssistantTaskService, WorkSessionService]:
+) -> WorkSessionService:
     from simon.adapters.openai_model import OpenAIModel
     from simon.services.model_conversations import ModelConversationService
-    from simon.services.tasks import AssistantTaskService
 
     assert settings.openai_api_key is not None
     identity, audit = IdentityService(store, settings), AuditService(store)
@@ -57,9 +55,7 @@ def _services(
         settings,
         connected,
     )
-    tasks = AssistantTaskService(store, identity, conversations)
-    connected.tasks = tasks
-    return tasks, WorkSessionService(tasks)
+    return WorkSessionService(store, identity, conversations)
 
 
 @contextmanager
@@ -94,7 +90,6 @@ def _finish(future: Future[int], label: str) -> bool:
 
 
 def _serve(
-    tasks: TickService,
     sessions: TickService,
     *,
     poll_seconds: float,
@@ -103,7 +98,7 @@ def _serve(
     stop_file: Path | None = None,
 ) -> bool:
     active: dict[Future[int], str] = {}
-    executor = ThreadPoolExecutor(max_workers=3, thread_name_prefix="assistant-worker")
+    executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="assistant-worker")
     failed = False
     try:
         while not stop.is_set():
@@ -114,7 +109,7 @@ def _serve(
             for future in tuple(active):
                 if future.done():
                     failed = not _finish(future, active.pop(future)) or failed
-            services = (("work session", sessions, 2), ("assistant task", tasks, 1))
+            services = (("work session", sessions, 2),)
             for label, service, capacity in services:
                 pending = sum(value == label for value in active.values())
                 for _ in range(capacity - pending):
@@ -157,7 +152,9 @@ def main(argv: Sequence[str] | None = None) -> None:
     if settings.storage_backend != "postgres":
         parser.error("The standalone worker requires SIMON_STORAGE_BACKEND=postgres")
     if settings.model_provider != "openai" or not settings.openai_api_key:
-        parser.error("Assistant tasks require SIMON_MODEL_PROVIDER=openai and a configured API key")
+        parser.error(
+            "Background chat requires SIMON_MODEL_PROVIDER=openai and a configured API key"
+        )
     if args.check:
         print("Assistant configuration valid; database and provider availability were not checked.")
         return
@@ -178,10 +175,9 @@ def main(argv: Sequence[str] | None = None) -> None:
                 logger.info("Assistant remains stopped; remove the stop marker to resume")
                 return
             store = _store(settings)
-            tasks, sessions = _services(store, settings)
+            sessions = _services(store, settings)
             logger.info("Simon assistant worker started")
             if not _serve(
-                tasks,
                 sessions,
                 poll_seconds=args.poll_seconds,
                 stop=stop,

@@ -128,4 +128,4 @@ def test_assistant_has_no_physical_home_routes(client, auth_headers):
     ):
         assert client.get(path).status_code == 404
     assert client.get("/v1/connections/home").json() == {"configured": False, "url": None}
-    assert client.get("/v1/work/overview").status_code == 200
+    assert client.get("/v2/projects").status_code == 200

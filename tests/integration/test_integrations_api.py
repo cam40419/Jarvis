@@ -7,7 +7,7 @@ from simon.domain.identity import DEV_ACTOR_ID, DEV_WORKSPACE_ID
 
 
 def test_clickup_ui_backend_lifecycle(client, container, auth_headers, tmp_path):
-    service = container.project_boards.integrations
+    service = container.connected.integrations
     container.settings.integration_key_file = tmp_path / "credentials.key"
 
     def send(request):
@@ -28,10 +28,6 @@ def test_clickup_ui_backend_lifecycle(client, container, auth_headers, tmp_path)
     assert "pk_test" not in response.text
     assert "encrypted_secret" not in response.text
     assert client.get(path).json() == [record]
-    connections = client.get("/v1/project-boards/connections").json()
-    assert connections[0]["discover_lists"]
-    assert connections[0]["available"]
-    assert connections[0]["list_ids"] == []
     persisted = container.store.integration_connections(DEV_WORKSPACE_ID, DEV_ACTOR_ID)[0]
     assert "pk_test" not in persisted.model_dump_json()
     assert (
@@ -42,7 +38,6 @@ def test_clickup_ui_backend_lifecycle(client, container, auth_headers, tmp_path)
     )
     assert client.delete(path + "/" + record["id"], headers=auth_headers).status_code == 204
     assert client.get(path).json() == []
-    assert client.get("/v1/project-boards/connections").json() == []
 
 
 def test_validation_never_echoes_secret(client, auth_headers):
@@ -108,36 +103,33 @@ def test_google_app_setup_and_home_are_live(client, container, auth_headers, tmp
     assert not client.get("/v1/connections/home").json()["configured"]
 
 
-@pytest.fixture
-def github_api(container, tmp_path):
-    from fastapi.testclient import TestClient
-
-    from simon.agent_setup import starter_manifest
-    from simon.api.app import create_app
-    from simon.services.agent_platform import AgentPlatformService
-
-    container.agent_platform = AgentPlatformService(
-        container.store,
-        starter_manifest(settings=container.settings),
-        state_dir=tmp_path / "platform",
-        available_transports=("github", "browser"),
-        integrations=container.connected.integrations,
-    )
-    with TestClient(create_app(container), base_url="http://localhost:8000") as client:
-        response = client.post(
-            "/auth/dev-login",
-            headers={"Origin": "http://localhost:8000"},
-            json={"token": "test-development-secret-32-characters"},
-        )
-        headers = {"Origin": "http://localhost:8000", "X-CSRF-Token": response.json()["csrf_token"]}
-        yield client, headers
-
-
 def test_github_ui_connection_enables_owned_tools_and_disconnect_revokes_them(
-    github_api, container, tmp_path
+    client, auth_headers, container, tmp_path
 ):
-    client, auth_headers = github_api
-    service = container.project_boards.integrations
+    from simon.adapters.github_tools import github_tool_definitions
+    from simon.domain.models import ActorContext, Channel
+    from simon.domain.tool_catalog import ToolCatalogError
+
+    service = container.connected.integrations
+    actor = ActorContext(
+        actor_id=DEV_ACTOR_ID,
+        workspace_id=DEV_WORKSPACE_ID,
+        channel=Channel.API,
+        scopes=frozenset({"jobs:read", "jobs:write"}),
+    )
+    definitions = {tool.id: tool for tool in github_tool_definitions(enabled=True)}
+
+    def available(tool_id, denied=None):
+        definition = definitions[tool_id].model_copy(
+            update={"settings": {"ui_managed": True, "network": True}}
+        )
+        if denied is not None:
+            with pytest.raises(ToolCatalogError) as caught:
+                service.bind_tool(definition, actor)
+            assert str(caught.value) == denied
+            return False
+        return service.bind_tool(definition, actor).configured
+
     container.settings.integration_key_file = tmp_path / "credentials.key"
     requests = []
 
@@ -153,20 +145,14 @@ def test_github_ui_connection_enables_owned_tools_and_disconnect_revokes_them(
     response = client.post(path, headers=auth_headers, json=body)
     assert response.status_code == 200, response.text
     assert "github-api-test-secret" not in response.text
-    status = {
-        tool["id"]: tool
-        for tool in client.get("/v1/agent-platform/catalog").json()["tool_statuses"]
-    }
-    assert status["github.repository"]["state"] == "configured"
-    assert status["github.issue_create"]["state"] == "unconfigured"
+    assert available("github.repository")
+    assert not available(
+        "github.issue_create", "Enable issue and draft PR creation in your GitHub connection"
+    )
     identifier = response.json()["id"]
     body["github_write_enabled"] = True
     assert client.post(path + "/" + identifier, headers=auth_headers, json=body).status_code == 200
-    status = {
-        tool["id"]: tool
-        for tool in client.get("/v1/agent-platform/catalog").json()["tool_statuses"]
-    }
-    assert status["github.issue_create"]["state"] == "configured"
+    assert available("github.issue_create")
     assert len(requests) == 2  # Catalog checks never call the provider.
     assert (
         client.delete(
@@ -174,8 +160,4 @@ def test_github_ui_connection_enables_owned_tools_and_disconnect_revokes_them(
         ).status_code
         == 204
     )
-    status = {
-        tool["id"]: tool
-        for tool in client.get("/v1/agent-platform/catalog").json()["tool_statuses"]
-    }
-    assert status["github.repository"]["state"] == "unconfigured"
+    assert not available("github.repository", "Connect GitHub in Connections to use this skill")

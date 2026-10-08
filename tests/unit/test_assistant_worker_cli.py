@@ -28,20 +28,15 @@ def runtime(monkeypatch):
         records.opened += 1
         return Store()
 
-    class Tasks:
+    class Sessions:
         def tick(self):
-            records.tasks += 1
+            records.sessions += 1
             if records.error:
                 raise records.error
             return 1
 
-    class Sessions:
-        def tick(self):
-            records.sessions += 1
-            return 0
-
     monkeypatch.setattr(cli, "_store", store)
-    monkeypatch.setattr(cli, "_services", lambda store, settings: (Tasks(), Sessions()))
+    monkeypatch.setattr(cli, "_services", lambda store, settings: Sessions())
     return records
 
 
@@ -54,7 +49,7 @@ def test_check_does_not_open_database_or_write_logs(runtime, tmp_path, capsys):
 
 def test_once_observes_task_result_after_waiting_and_closes_store(runtime):
     cli.main(["--once"])
-    assert runtime.opened == 1 and runtime.closed and runtime.tasks == 1
+    assert runtime.opened == 1 and runtime.closed
     assert 1 <= runtime.sessions <= 2
 
 
@@ -137,7 +132,7 @@ def test_signals_request_drain_and_restore_previous_handlers():
     assert {number: signal.getsignal(number) for number in numbers} == previous
 
 
-def test_stop_request_drains_three_active_calls_and_keeps_marker(tmp_path):
+def test_stop_request_drains_two_active_calls_and_keeps_marker(tmp_path):
     stop, release, running = Event(), Event(), Event()
     lock = Lock()
     calls = []
@@ -148,15 +143,13 @@ def test_stop_request_drains_three_active_calls_and_keeps_marker(tmp_path):
         def tick(self):
             with lock:
                 calls.append(True)
-                if len(calls) == 3:
+                if len(calls) == 2:
                     running.set()
             assert release.wait(5)
             return 0
 
     def serve():
-        results.append(
-            cli._serve(Service(), Service(), poll_seconds=0.02, stop=stop, stop_file=marker)
-        )
+        results.append(cli._serve(Service(), poll_seconds=0.02, stop=stop, stop_file=marker))
 
     thread = Thread(target=serve)
     thread.start()
@@ -169,7 +162,7 @@ def test_stop_request_drains_three_active_calls_and_keeps_marker(tmp_path):
         stop.set()
         release.set()
         thread.join(5)
-    assert not thread.is_alive() and len(calls) == 3 and results == [True]
+    assert not thread.is_alive() and len(calls) == 2 and results == [True]
 
 
 def test_rotating_file_logger_is_bounded_and_closed(runtime, tmp_path, monkeypatch):

@@ -62,14 +62,9 @@ def postgres_native_api(postgres_url, tmp_path):
         dev_login_token=SecretStr(LOGIN_SECRET),
         model_provider="local",
         openai_api_key=None,
-        project_drive_sync_enabled=False,
-        agent_execution_enabled=False,
-        agent_manifest_file=None,
         external_providers_file=None,
-        project_boards_file=None,
         local_files_enabled=False,
         local_files_dir=tmp_path / "files",
-        agent_state_dir=tmp_path / "agents",
         integration_key_file=tmp_path / "credentials.key",
         voice_enabled=False,
     )
@@ -293,6 +288,7 @@ def test_two_postgres_apps_atomically_claim_one_pool_task(postgres_native_api):
             assert winner["assignment"] == {
                 "kind": "human",
                 "actor_id": str(candidates[winning_index][2]),
+                "agent_id": None,
             }
             assert owner_client.get(path + f"/tasks/{task['id']}").json() == winner
             assert member_client.get(path + f"/tasks/{task['id']}").json() == winner

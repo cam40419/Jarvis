@@ -1,10 +1,10 @@
 # Reviewed bookings, orders and phone messages
 
-Agents can prepare exact proposals and read their durable status. Submitting an
-order, booking, reservation or prerecorded phone message requires the account
-owner to review the recipient, total or schedule, and terms in **Work → external
-action review**. A project links its proposals to its execution run and pauses
-while a related outcome remains pending, executing, accepted or unknown.
+The generic external-action API stores proposals, exact human review decisions and
+durable provider outcomes. It remains an independent library/API boundary. Native
+project agents are not enrolled in this runtime, and the Projects UI does not yet
+provide its review flow. A reviewed board status alone cannot authorize a purchase,
+booking or phone call.
 
 The optional providers are disabled and unconfigured by default. There is no
 general website checkout automation, interactive telephone conversation, stored
@@ -14,7 +14,7 @@ suite.
 
 ## Configure a provider
 
-Open **Account & access / Connections / ClickUp & service accounts**. Select
+Open **Connections**. Select
 **Twilio phone messages** or **Booking and purchase gateway**, enter the provider
 credentials and connection fields, and choose **Connect account**. Simon saves
 these settings in the backend and encrypts the credential. Connections belong
@@ -24,8 +24,7 @@ processes read current settings without a restart; users do not edit files.
 
 Twilio fields include an account SID, originating number, and optional allowed
 recipient numbers. Gateway fields include an HTTPS service address and named
-merchant identifiers. Existing operator JSON configuration remains supported
-for compatibility. Changing provider identity, destination or allowlists still
+merchant identifiers. An operator may also configure these provider adapters on the server. Changing provider identity, destination or allowlists still
 requires a fresh proposal under the existing review contract.
 
 For **Twilio**, configure an actual account SID, its server-side auth token and
@@ -109,7 +108,7 @@ Timeouts, server errors, invalid receipts and process interruption can leave an
 unknown outcome. Neither the worker nor UI automatically retries these actions.
 
 For an interrupted claim older than five minutes, explicitly mark it unknown,
-then investigate the provider's records. The review UI can record a manual
+then investigate the provider's records. The authenticated API can record a manual
 resolution only for an unknown outcome. It requires the exact review digest,
 `reported_outcome` (`completed` or `not_completed`), a provider evidence/reference
 description and a user note. This produces distinct status `resolved`, records
@@ -126,7 +125,7 @@ Reading requires `jobs:read`; proposal, decisions and reconciliation require
 `jobs:write`. Decisions and reconciliation additionally require the authenticated
 API channel and account ownership.
 
-Agent transport `external_actions` exposes only `propose`, `status`, `providers`
+The standalone worker-library transport `external_actions` exposes only `propose`, `status`, `providers`
 and optional network `quote`. There is no agent confirmation or reconciliation
 tool. Canonical schemas, required scopes, run identity and fresh authorization
 are checked in the transport, in addition to profile tool grants. Quote lookup
@@ -141,10 +140,5 @@ redaction, immutable receipt binding, ownership, review digests and restart
 durability. Set `SIMON_TEST_DATABASE_URL` to an isolated database ending in
 `_test` to exercise PostgreSQL persistence; tests create a temporary schema.
 
-For the actual browser/API flow, set `SIMON_BROWSER_TESTS=1` and run
-`python -m pytest tests/integration/test_external_actions_browser.py -q`.
-`SIMON_BROWSER_CHANNEL=msedge` selects an installed Edge when bundled Chromium
-is absent. The tests use a local test server and synthetic provider transport,
-exercise desktop/mobile review, inert untrusted text, blocked setup, one-time
-submission and manual reconciliation, and save screenshots in pytest's temp
-directory. They never place calls, orders or reservations.
+Native project integration and a review UI require a later bounded connector phase;
+these tests do not certify a live provider account or a completed booking.

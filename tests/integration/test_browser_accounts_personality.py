@@ -69,25 +69,12 @@ def test_invitation_signup_private_home_and_personality_ui(postgres_url, tmp_pat
             other = browser.new_context()
             member = other.new_page()
             member.on("pageerror", lambda error: errors.append(str(error)))
-            cdp = other.new_cdp_session(member)
-            cdp.send("WebAuthn.enable")
-            cdp.send(
-                "WebAuthn.addVirtualAuthenticator",
-                {
-                    "options": {
-                        "protocol": "ctap2",
-                        "transport": "internal",
-                        "hasResidentKey": True,
-                        "hasUserVerification": True,
-                        "isUserVerified": True,
-                        "automaticPresenceSimulation": True,
-                    }
-                },
-            )
             member.goto(origin + "/simon/login")
-            member.get_by_text("Set up a passkey", exact=True).click()
-            member.locator("#enrollment").fill(invitation)
-            member.get_by_role("button", name="Create a passkey", exact=True).click()
+            member.get_by_text("Set up username and password", exact=True).click()
+            member.locator("#register-token").fill(invitation)
+            member.locator("#register-username").fill("alex-browser-member")
+            member.locator("#register-password").fill("synthetic invited member password")
+            member.get_by_role("button", name="Create username and password", exact=True).click()
             expect(member.locator("#signed-in")).to_be_visible()
             expect(member.locator("#account-management")).to_be_hidden()
             expect(member.locator("#workspaces")).to_contain_text("Alex's workspace")
@@ -97,8 +84,8 @@ def test_invitation_signup_private_home_and_personality_ui(postgres_url, tmp_pat
             expect(member.locator("#persona-preset")).to_have_value("simon")
             member.get_by_role("button", name="Close personality").click()
             expect(member.locator("#workspace")).to_contain_text("Alex's workspace")
-            member.locator("#work-open").click()
-            expect(member.locator("#work-view")).to_be_visible()
+            member.get_by_role("link", name="Projects", exact=True).click()
+            expect(member.locator("#np-list-heading")).to_have_text("Projects")
             expect(member.locator("#home-open")).to_have_count(0)
             admin.goto(origin + "/simon/login")
             expect(admin.locator(".managed-account")).to_contain_text("active")

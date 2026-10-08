@@ -1,4 +1,5 @@
-from simon.domain.models import ActorContext, AuditEvent, OutboxEvent
+from simon.domain.models import AuditEvent, OutboxEvent
+from simon.domain.native_agents import NativeActor
 from simon.domain.ports import Store
 from simon.services.canonical import digest
 
@@ -11,7 +12,7 @@ class AuditService:
         self,
         *,
         event_type: str,
-        actor: ActorContext,
+        actor: NativeActor,
         resource_type: str,
         resource_id: str,
         payload: dict[str, object],

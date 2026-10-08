@@ -1,9 +1,8 @@
 from datetime import timedelta
 from uuid import uuid4
 
-from simon.domain.connected_tools import ActionProposal
+from simon.domain.connected_tools import ActionProposal, EmailDraft
 from simon.domain.conversations import Run, Thread
-from simon.domain.external_home import HomeChange
 from simon.domain.identity import DEV_ACTOR_ID, DEV_WORKSPACE_ID
 from simon.domain.models import utc_now
 
@@ -20,8 +19,8 @@ def test_recent_actions_uses_current_thread_and_completed_run_receipts(store):
             actor_id=DEV_ACTOR_ID,
             run_id=run_id,
             connection_id=uuid4(),
-            kind="home.set",
-            home=HomeChange(device_id="desk-lamp", on=False),
+            kind="email.send",
+            email=EmailDraft(to="test@example.com", subject="Test", body="Synthetic message"),
             created_at=started + timedelta(seconds=seconds),
         )
         run = Run(

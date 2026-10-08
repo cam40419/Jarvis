@@ -1,5 +1,5 @@
 # Preserve complete local data in an idle maintenance window. Never force-kill a worker.
-param([string]$BackupRoot = '', [switch]$Force, [string]$MigrateStorageRoot = '')
+param([string]$BackupRoot = '', [switch]$Force)
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $localRoot = Join-Path $repoRoot '.local'
@@ -23,8 +23,7 @@ $token = 'full-backup-' + [guid]::NewGuid().ToString('N')
 $maintenance = Join-Path $localRoot 'maintenance.request'
 $services = @(
     @{ Task = 'Simon-Local'; Marker = 'simon-stop.request' },
-    @{ Task = 'Simon-Agents'; Marker = 'agent-dispatcher-stop.request' },
-    @{ Task = 'Simon-Workflow'; Marker = 'assistant-worker-stop.request' }
+    @{ Task = 'Simon-Assistant'; Marker = 'assistant-worker-stop.request' }
 )
 foreach ($entry in $services) {
     if (Test-Path -LiteralPath (Join-Path $localRoot $entry.Marker)) {
@@ -80,10 +79,6 @@ try {
     $destination = Join-Path $BackupRoot ('simon_full_' + [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ') + '_' + [guid]::NewGuid().ToString('N').Substring(0, 8))
     & $python (Join-Path $PSScriptRoot 'backup_bundle.py') create $destination --writers-stopped
     if ($LASTEXITCODE -ne 0) { throw 'Full recovery bundle creation failed; partial bytes were preserved.' }
-    if ($MigrateStorageRoot) {
-        & $python (Join-Path $PSScriptRoot 'migrate_storage.py') $MigrateStorageRoot --writers-stopped
-        if ($LASTEXITCODE -ne 0) { throw 'Storage migration failed; original files remain available.' }
-    }
     $created = $true
 } finally {
     if ($drained) {

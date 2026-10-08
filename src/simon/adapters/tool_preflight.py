@@ -32,12 +32,7 @@ INSTALLED_TRANSPORTS = (
     "generative",
     "cad",
     "pcb",
-    "project_work",
     "external_actions",
-    "project_outputs",
-    "project_journal",
-    "project_boards",
-    "project_storage",
 )
 
 
@@ -59,7 +54,6 @@ def uses_network(tool: ToolDefinition) -> bool:
         }
         or (tool.transport == "browser" and tool.id != "browser.render_html")
         or (tool.transport == "external_actions" and tool.id == "external_actions.quote")
-        or (tool.transport == "project_boards" and tool.id != "clickup.project_read")
         or tool.settings.get("network") is True
     )
 
@@ -73,21 +67,6 @@ def integration_status(
         return web_search_status(tool, actor, environ)
     if tool.transport == "application" and (reason := application_configuration_reason(tool)):
         return "unconfigured", (reason,)
-    if tool.transport == "project_outputs":
-        from simon.adapters.project_output_tools import project_output_configuration_reason
-
-        if reason := project_output_configuration_reason(tool):
-            return "unconfigured", (reason,)
-    if tool.transport == "project_journal":
-        from simon.adapters.project_journal_tools import project_journal_configuration_reason
-
-        if reason := project_journal_configuration_reason(tool):
-            return "unconfigured", (reason,)
-    if tool.transport == "project_boards":
-        from simon.adapters.project_board_tools import project_board_tool_configuration_reason
-
-        if reason := project_board_tool_configuration_reason(tool):
-            return "unconfigured", (reason,)
     if tool.transport == "workspace_files":
         from simon.adapters.workspace_files import workspace_file_configuration_reason
 
@@ -97,11 +76,6 @@ def integration_status(
         from simon.adapters.external_action_tools import external_action_configuration_reason
 
         if reason := external_action_configuration_reason(tool):
-            return "unconfigured", (reason,)
-    if tool.transport == "project_work":
-        from simon.adapters.project_work_tools import project_tool_configuration_reason
-
-        if reason := project_tool_configuration_reason(tool):
             return "unconfigured", (reason,)
     if tool.transport in {"github", "webdav"}:
         return optional_tool_status(tool, actor, environ)

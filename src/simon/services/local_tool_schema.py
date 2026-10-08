@@ -3,8 +3,6 @@ from typing import Any
 from pydantic import BaseModel
 
 from simon.domain.local_files import (
-    LocalDriveExport,
-    LocalDriveImport,
     LocalEdit,
     LocalExtract,
     LocalList,
@@ -27,8 +25,6 @@ MODELS: dict[str, type[BaseModel]] = {
     "local_zip_inspect": LocalList,
     "local_zip_extract": LocalExtract,
     "local_zip_create": LocalZip,
-    "local_file_import_drive": LocalDriveImport,
-    "local_file_export_drive": LocalDriveExport,
 }
 READS = {
     "local_files_roots",
@@ -69,14 +65,6 @@ DESCRIPTIONS = {
     ),
     "local_zip_create": (
         "Package a local file/folder into a NEW ZIP at destination_root/destination_path."
-    ),
-    "local_file_import_drive": (
-        "Download a binary/text/ZIP from a linked project Drive folder to a NEW local "
-        "path. Then use local ZIP/read tools."
-    ),
-    "local_file_export_drive": (
-        "Upload a local file as a new file in a project's Drive folder. Existing Drive "
-        "files are not overwritten."
     ),
 }
 

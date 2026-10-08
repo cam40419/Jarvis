@@ -23,7 +23,7 @@ def configure(client_file: Path, env_file: Path) -> None:
         raise ValueError("invalid Google web client fields")
     text = env_file.read_text(encoding="utf-8") if env_file.exists() else ""
     parsed = dotenv_values(stream=StringIO(text), interpolate=False)
-    existing = parsed.get("SIMON_GOOGLE_TOKEN_KEY", parsed.get("JARVIS_GOOGLE_TOKEN_KEY"))
+    existing = parsed.get("SIMON_GOOGLE_TOKEN_KEY")
     key = existing or Fernet.generate_key().decode()
     Fernet(key.encode())  # Preserve and validate the original encryption key on reconfiguration.
     values["SIMON_GOOGLE_TOKEN_KEY"] = key

@@ -1,107 +1,36 @@
-# Local files and ZIP archives
+# Account-scoped local files
 
-Simon can browse, search, read, create, edit and rename/move local files, create folders,
-inspect/extract ZIP archives, and create ZIPs. Text chat and voice share these tools. Requested
-operations execute directly and return results without a confirmation card.
+`LocalFileService` provides generic server-side files through `/v1/local-files` and
+the enabled chat local tools. These files are separate from native project knowledge,
+artifacts and team storage, which need an explicit project file integration.
 
-Local means the computer running Simon's server. Opening Simon on a phone does not expose
-the phone's filesystem. Use **Work → Local files → Upload** to supply files from another device.
-Each Work project also has a **Local files** button for its account-specific local folder.
-
-## Folder access
-
-Every account has a separate workspace under:
-
-```
-.local/files/<household-id>/<actor-id>/
-```
-
-Project folders use `projects/<project-id>/` inside that workspace. Assistant tools can address
-them as root `project:<project-id>` after resolving the project through `project_list`.
-
-Only the configured local-file owner can access host folders. By default that is
-`SIMON_ACCOUNT_ADMIN_ACTOR_ID`, and the available host folders are Desktop, Documents and
-Downloads under the server process user's home directory. Other accounts get their own
-workspaces; household membership does not grant access to the owner's host folders.
-
-Configuration:
+The `workspace` root belongs to one actor in one workspace under
+`SIMON_LOCAL_FILES_DIR`. Only `SIMON_LOCAL_FILES_ACTOR_ID` (defaulting to the configured
+site administrator) may use configured host folder aliases. Other workspace members
+do not inherit that host access. A `project:<id>` root is not accepted.
 
 ```dotenv
 SIMON_LOCAL_FILES_ENABLED=true
 SIMON_LOCAL_FILES_DIR=.local/files
-# Optional: override which account can use host folders.
-# SIMON_LOCAL_FILES_ACTOR_ID=<actor UUID>
-# Optional: replace the default host folder aliases. Use forward slashes on Windows.
-# SIMON_LOCAL_FILE_ROOTS={"downloads":"C:/Users/cam40/Downloads","projects":"D:/Projects"}
+SIMON_LOCAL_FILE_ROOTS={}
 ```
 
-An empty root mapping uses the defaults. Restart both API and worker after changing configuration.
-Tools always use a listed root and a relative path; arbitrary absolute paths are not accepted.
-Simon server files, common credential files, private-key files, internal backup folders,
-symlinks and Windows junctions are excluded. Existing host files are not moved or scanned until
-requested. Folder searches match names and stop after 100 matches, 20,000 entries or five seconds.
+An empty host-root mapping uses the server user's Desktop, Documents and Downloads.
+An operator may supply an explicit mapping instead. Restart API and background chat
+worker after changing process configuration. Listing roots reports only authorized
+locations; file operations accept a root alias plus a relative path, never arbitrary
+absolute model-supplied paths. Runtime agent tools accept only the account workspace.
 
-## Examples
+The service supports bounded listing/search/text reads, revision-checked text writes
+and edits, folder creation, move, ZIP inspection/extraction/creation, authenticated
+download and restricted preview. ZIP extraction creates a new destination and rejects
+traversal, links, collisions and excessive sizes before publication. Server checkout,
+credential files, private versions, symlinks and junctions are excluded from host access.
 
-- “Find Stdout Collective.zip in Downloads and tell me what is inside.”
-- “Unzip it into a new Stdout Collective folder in my workspace, then read the README.”
-- “Change the project description in those notes and save it.”
-- “Rename notes.md to project-notes.md.”
-- “Zip that project folder so I can download it.”
-- “Download the ZIP from my project's Drive folder, unpack it locally, and review its text files.”
-- “Upload this local report to the project's Drive folder.”
+Authenticated mutations require CSRF, live permissions and idempotency keys. Reads and
+downloads revalidate identity and the resolved location before returning bytes. Keep
+unknown write outcomes visible. Downloaded content and archive text are untrusted data.
 
-The browser supports local folder navigation, file/ZIP uploads, text previews with pagination,
-downloads, new folders, ZIP inspection/extraction, and handing a file to chat for editing.
-
-## Formatted project reports
-
-Accepted project prose reports (`.md` or `.txt`) have a formatted Word version by default.
-In **Files → Deliverable files**, choose **Download Word document** for an editable `.docx`
-with styled headings, lists, tables, and source links. **Download original** retains the
-unchanged source. Conversion accepts UTF-8 report text up to 1,000,000 bytes; technical files
-such as README, changelog, and requirements files are excluded. Ordinary conversation answers remain
-in Overview and Run history rather than becoming deliverable files.
-
-Existing Word documents, PDFs, spreadsheets, and other native files keep their formats.
-Local DOCX files are labeled **Word document**: download and open them in Word or a compatible
-editor to see their formatting. They do not offer the text-only **Read** or **Edit with Simon**
-controls. This report-formatting workflow applies to project deliverables, not standalone
-assistant `FILE` exports from chat.
-
-## Drive and local files
-
-`local_file_import_drive` downloads a binary/text/ZIP from an authorized linked project folder.
-Use native project tools for Google Docs and Sheets. `local_file_export_drive` uploads a local
-file as a new Drive file. Transfers currently use the Drive adapter's 10 MB limit.
-
-Local folders and Drive folders are separate stores. Local edits and extracted files are not
-automatically mirrored to Drive. When project deliverable replication is enabled for a linked
-Drive folder, eligible prose reports are published as formatted Word documents; native files
-retain their original formats. Internal answers and working drafts are not uploaded as reports.
-
-## Limits and operation behavior
-
-- Local uploads/downloads and ZIP inputs: 50 MB. Text reads: 2 MB UTF-8, returned in pages.
-- ZIP extraction: up to 2,000 entries, 100 MB total expanded, 50 MB per file, with a compression
-  ratio limit. Encrypted archives, special entries, duplicate/case-colliding paths and unsafe
-  paths are rejected. Formats such as RAR and 7z are not implemented.
-- Extraction validates every entry, writes into a temporary staging folder, then publishes
-  into a new destination. It never merges into or overwrites an existing destination. Cancelled
-  or malformed extraction cleans up staging and leaves the destination unpublished.
-- Editing requires the last read content hash. Exact replacement must match once. Simon keeps
-  private pre-edit bytes under `.internal/versions/<previous-hash>` for administrative recovery.
-  External processes can still race the final filesystem replacement; avoid simultaneous edits.
-- Moves currently support files on the same filesystem. Existing destinations are never
-  overwritten. Folder renaming, cross-volume moves, deletion and shell execution are not exposed.
-- Successful tool/UI requests have durable idempotency receipts. A process crash between filesystem
-  publication and receipt commit can leave a completed file without its receipt; a retry fails
-  conservatively on the existing path or changed revision. Inspect the result before a new request.
-- Binary files can be uploaded, downloaded, moved and archived. Images and PDFs have browser
-  previews; binary content is not edited through local UTF-8 text tools. Native Google Docs/Sheets
-  keep their existing tools.
-- File content is untrusted data. Extracting an archive does not run any of its programs.
-
-Validation covers memory/PostgreSQL service behavior, access boundaries, stale revisions,
-duplicate requests, unsafe ZIPs, cancellation, Drive transfers, HTTP/CSRF, an actual browser
-upload/extract/read flow, and an opt-in live model test using only temporary synthetic files.
+Managed files and their versions belong in [recovery backups](storage-recovery.md).
+Host folders and cloud accounts require separate backup policies. There is no automatic
+Drive folder creation, project replication, or project-bound import/export API.

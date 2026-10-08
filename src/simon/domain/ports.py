@@ -30,9 +30,8 @@ from simon.domain.models import (
     JobStatus,
     OutboxEvent,
 )
+from simon.domain.native_agents import NativeAgent, NativeAgentCredential, NativeTeamPolicy
 from simon.domain.native_projects import NativeProject, NativeProjectMember, NativeTask
-from simon.domain.project_files import ProjectDrive, ProjectFileOperation
-from simon.domain.tasks import ProjectArtifact
 from simon.domain.voice import VoiceSession
 
 CapabilityHandler = Callable[[BaseModel], dict[str, Any]]
@@ -251,39 +250,6 @@ class VoiceStore(TransactionStore, Protocol):
     def save_voice_session(self, session: VoiceSession) -> None: ...
 
 
-class ProjectArtifactStore(TransactionStore, Protocol):
-    def save_project_artifact(self, artifact: ProjectArtifact, content: bytes) -> None: ...
-    def project_artifact(self, identifier: UUID) -> tuple[ProjectArtifact, bytes] | None: ...
-    def project_artifacts(
-        self,
-        workspace_id: UUID,
-        actor_id: UUID,
-        project_id: UUID | None,
-        offset: int,
-        limit: int,
-    ) -> Sequence[ProjectArtifact]: ...
-
-
-class ProjectDriveStore(TransactionStore, Protocol):
-    def project_drive(
-        self,
-        workspace_id: UUID,
-        actor_id: UUID,
-        project_id: UUID,
-    ) -> ProjectDrive | None: ...
-    def save_project_drive(self, binding: ProjectDrive) -> None: ...
-    def project_file_operation(self, identifier: UUID) -> ProjectFileOperation | None: ...
-    def save_project_file_operation(self, operation: ProjectFileOperation) -> None: ...
-    def project_file_operations(
-        self,
-        workspace_id: UUID,
-        actor_id: UUID,
-        project_id: UUID,
-        limit: int,
-    ) -> Sequence[ProjectFileOperation]: ...
-    def google_accounts(self) -> Sequence[tuple[UUID, UUID]]: ...
-
-
 class NativeProjectStore(TransactionStore, Protocol):
     def native_project(self, workspace_id: UUID, project_id: UUID) -> NativeProject | None: ...
 
@@ -332,6 +298,49 @@ class NativeProjectStore(TransactionStore, Protocol):
     def update_native_task(self, task: NativeTask, expected_version: int) -> None: ...
 
 
+class NativeAgentStore(TransactionStore, Protocol):
+    def native_agent(
+        self, workspace_id: UUID, project_id: UUID, agent_id: UUID
+    ) -> NativeAgent | None: ...
+
+    def native_agents(
+        self, workspace_id: UUID, project_id: UUID, offset: int, limit: int
+    ) -> tuple[NativeAgent, ...]: ...
+
+    def native_active_agent_count(self, workspace_id: UUID, project_id: UUID) -> int: ...
+
+    def insert_native_agent(self, agent: NativeAgent) -> None: ...
+
+    def update_native_agent(self, agent: NativeAgent, expected_version: int) -> None: ...
+
+    def native_team_policy(
+        self, workspace_id: UUID, project_id: UUID
+    ) -> NativeTeamPolicy | None: ...
+
+    def save_native_team_policy(self, policy: NativeTeamPolicy, expected_version: int) -> None: ...
+
+    def native_agent_credential(self, token_id: UUID) -> NativeAgentCredential | None: ...
+
+    def native_agent_credentials(
+        self, workspace_id: UUID, project_id: UUID, agent_id: UUID
+    ) -> tuple[NativeAgentCredential, ...]: ...
+
+    def insert_native_agent_credential(self, credential: NativeAgentCredential) -> None: ...
+
+    def revoke_native_agent_credential(
+        self,
+        workspace_id: UUID,
+        project_id: UUID,
+        agent_id: UUID,
+        token_id: UUID,
+        revoked_at: datetime,
+    ) -> bool: ...
+
+    def native_release_agent_tasks(
+        self, workspace_id: UUID, project_id: UUID, agent_id: UUID
+    ) -> tuple[NativeTask, ...]: ...
+
+
 class Store(
     CapabilityStore,
     InvocationStore,
@@ -344,9 +353,8 @@ class Store(
     InteractionStore,
     ConnectedStore,
     VoiceStore,
-    ProjectArtifactStore,
-    ProjectDriveStore,
     NativeProjectStore,
+    NativeAgentStore,
     Protocol,
 ):
     """One transaction boundary for state, audit records, and delivery intents."""
