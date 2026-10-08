@@ -1,6 +1,6 @@
 # Simon roadmap
 
-Updated October 7, 2026. This is the authoritative delivery order for Simon. Detailed
+Updated October 8, 2026. This is the authoritative delivery order for Simon. Detailed
 architecture documents explain design choices; runbooks describe implemented behavior.
 Use the core-first sequence below for implementation and acceptance.
 
@@ -49,8 +49,31 @@ Temporary bearer credentials are hashed at rest, bound to an agent revision and 
 and checked against current role, project and issuing-owner authority. The native API
 supports actual agent authorship and board operations. The browser displays credentials
 once and provides revocation. Creation consumes no inference or compute. These are the
-authority contracts for intelligent staffing; the model-driven staffing procedure is not
-yet implemented.
+authority contracts used by the model-driven staffing procedure.
+
+[AI-assisted intake and automatic staffing](runbooks/project-intake.md) now extend
+PLAN-01, AGENT-01 and UI-01. Projects can retain versioned original sources and extracted
+text, save context/answers, choose an administrator-approved workspace model and request
+a bounded next-milestone plan. A separate model call reviews the structured proposal.
+Deterministic validation checks cited passages, active role reuse, duplicate work, role
+purpose, staffing capacity and current context before any role/task application.
+
+Each project controls cloud consent, automatic application and a lifetime planning
+allowance. Generation plus review is reserved before dispatch; missing usage remains
+reserved and retries reuse a durable attempt. Approved plans create roles, work and
+separate review tasks atomically. Blocking questions create human decision tasks without
+staffing. At most three new roles are admitted per attempt, within existing team policy;
+new roles receive no management privilege or tool/execution authority. Existing roles and
+tasks are preserved when reused. The UI exposes evidence coverage, findings, questions,
+reuse/new-role rationale, review issues, status and planning costs.
+
+This is a bounded planning slice: at most 12 source excerpts of 3,000 characters each,
+text/DOCX extraction, no OCR or visual analysis, and no native task execution. Model
+configuration currently uses an administrator file with workspace bindings and
+environment-key references. Full project BYOK enrollment, automatic free-tier selection,
+account-wide billing/resource enforcement and live-model quality acceptance remain open.
+Migration 0032 adds intake, source revisions and planning attempts. Recovery bundles now
+include the configured model catalog and managed source originals.
 
 The legacy Work interface, manifest profiles/teams, dispatcher/scheduler, v1 project and
 assistant-task boards, project storage/replication services, migrations of old project
@@ -66,30 +89,27 @@ project capability.
 
 ## Next implementation slices
 
-1. **AI-assisted intake and staffing (PLAN-01, AGENT-01, UI-01).** Ingest files into a
-   versioned source inventory; conduct a bounded interview; extract goals, constraints and
-   unresolved decisions; propose a reusable role/team plan with an explicit rationale and
-   affected-work diff. Apply proposals through the existing scoped authority. Add role
-   capability/model requirements and independent review obligations as their enforcing
-   services become available. Test reuse, task suitability and unnecessary-team-growth
-   rejection rather than relying on fixed executive templates.
-2. **Model and resource authority.** Project provider enrollment, encrypted keys, free/local
+1. **Model and resource authority.** Build beyond the intake-only catalog/allowance:
+   project provider enrollment, encrypted keys, qualified free/local
    defaults, configurable routing, concurrent budget reservations and usage settlement.
    Account for planning, specialists, reviews and retries under the same ceiling. Paid
-   stdout inference becomes available only after key enrollment and a configured cap.
-3. **Native execution and durable workflows.** Versioned dependencies, execution leases,
+   stdout evaluation needs an enrolled/configured key and an explicit cap; no paid call
+   has been made by this implementation. Add unknown-charge reconciliation and visible
+   endpoint quality/capability qualification. Extend intake context retrieval and role
+   capability/model requirements as their enforcing services become available.
+2. **Native execution and durable workflows.** Versioned dependencies, execution leases,
    bounded delegation, cancellation, checkpoints, stale-worker rejection, event-driven
    waits and scheduling. Keep persistent role identity separate from a worker process.
    Enroll optional local runners under task-specific authority and measured resource limits.
-4. **Artifact and review loop.** Save candidates automatically, immutable content revisions,
+3. **Artifact and review loop.** Save candidates automatically, immutable content revisions,
    exact-version validation, independent agent review, configurable human approval and
    repair cycles. Do not treat a manual board status as proof of quality or permission
    to publish. Provide a coherent user view of progress, cost, evidence and pending decisions.
-5. **Core acceptance and SaaS controls.** Complete tenant/platform admin, entitlements,
+4. **Core acceptance and SaaS controls.** Complete tenant/platform admin, entitlements,
    security/concurrency/recovery/restore scenarios, usability, model quality and capacity
    measurements. Validate PostgreSQL 17 (the CI/container target); current local database
    acceptance uses PostgreSQL 16.15 with pgvector 0.8.6. Record limits before claiming beta readiness.
-6. **One real business tool at a time.** Select and accept the next
+5. **One real business tool at a time.** Select and accept the next
    [integration work package](architecture/integration-delivery-plan.md), using the clothing
    pilot's actual work. Creative generation, documents, spreadsheets, apparel design,
    Git/code and website operations are separate deliverables after the core gate.
@@ -104,16 +124,23 @@ Browser tests use authenticated isolated services for role editing, policy, assi
 conflicts, unknown writes, one-time credentials, pagination and mobile layouts. The
 [native project runbook](runbooks/native-projects.md) owns reproducible commands and limits.
 
-The October 7 consolidated non-live run passed 2,074 tests, including 46 browser cases;
-18 further authority/recovery boundary cases also pass. Fresh combined branch coverage
-is 90.08%, above the unchanged 90% gate. Host-dependent skips and the untested PostgreSQL
-17 target are recorded in the runbook; this evidence accepts the implemented slices only.
+The October 8 non-live regression run passed 2,263 tests, including 59 browser cases.
+A final focused intake run passed 194 tests, including PostgreSQL restart/replay and
+13 intake browser cases; these runs overlap. Fresh combined branch coverage is 90.52%,
+above the unchanged 90% gate. Measurements for the three intake services changed during
+review were replaced with their final focused results before combining coverage.
+The broader run skipped 15 host-dependent symlink/FIFO cases and excluded eight live-model
+cases; the focused run skipped one symlink case. Both disposable PostgreSQL 16.15/pgvector
+0.8.6 clusters stopped. PostgreSQL 17 and capped real-model quality remain unverified.
+The [intake verification boundary](runbooks/project-intake.md#verification-boundary) records
+reproducible commands and limits. Formatting, lint, typing and all ten connector checks pass.
 
 A scoped board credential grants no shell, model, provider, publishing, spending or
 platform-admin rights. Team-size limits are persistent active-role limits, not compute
 quotas. Coarse identity/workspace transactions remain the conservative write boundary;
 large-tenant throughput is unmeasured. Full activity/revision browsing, validated task
-acceptance and automatic quality review remain open. Passing these foundation tests does
+acceptance and automatic artifact-quality review remain open. Model review of a staffing
+proposal is not acceptance of future deliverables. Passing these foundation tests does
 not complete the [core acceptance matrix](architecture/clothing-brand-pilot-charter.md#core-acceptance-matrix).
 
 ## Pilot and document ownership

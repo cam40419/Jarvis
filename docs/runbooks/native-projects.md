@@ -2,11 +2,11 @@
 
 The platform foundation provides shared projects and boards at `/projects`, backed by `/v2/projects`. It uses explicit records and project membership, independent of personal memory, Drive and external boards. The former Work interface and separate project/task authorities have been removed.
 
-Read with the [platform architecture](../architecture/autonomous-work-platform-plan.md) and [roadmap](../next-phases.md). The initial core is not complete. Automatic staffing, document intake, task dependencies, execution leases, artifact review, model budgets and hosted SaaS administration remain subsequent work.
+Read with the [platform architecture](../architecture/autonomous-work-platform-plan.md) and [roadmap](../next-phases.md). [AI-assisted intake and automatic staffing](project-intake.md) now provide evidence ingestion, reviewed team/work proposals and a planning allowance. The initial core is not complete: task dependencies, execution leases, artifact review, full provider/key/resource authority and hosted SaaS administration remain subsequent work.
 
 ## Using Projects
 
-Open **Projects** from the conversation sidebar or account page. **New project** saves a name and brief: the intended outcome, existing context, constraints and unresolved decisions. This is basic brief intake; it does not ingest documents or generate a plan/team yet. Existing brief text can be revised through **Edit project**.
+Open **Projects** from the conversation sidebar or account page. **New project** saves a name and brief: the intended outcome, existing context, constraints and unresolved decisions. It then opens **Intake** for source files, model settings, clarifying questions and reviewed staffing proposals. Existing brief text can be revised through **Edit project**; reopen **Intake** to build or refine the plan. No model is called until an owner explicitly requests planning with a configured endpoint.
 
 **New task** adds work to the board, either pooled or assigned to an eligible human project member or active project agent. **Pick up task** atomically claims pooled to-do work for the current person. Open a task to edit its description, assignment and status. Search projects/tasks and filter by active/archive status or assignment. The interface loads all visible list pages in batches of 100; server-side search and board virtualization remain capacity work for very large installations.
 
@@ -22,7 +22,8 @@ Migration `0030_native_projects.sql` provides shared projects, members and tasks
 `0031_native_agents.sql` adds scoped roles, team policies and hashed credentials, allows
 agent task creators/assignees and drops the retired `project_artifacts`,
 `project_file_operations` and `project_drive` tables. Historical migration files are
-immutable. This is a clean cutover with no legacy-project backfill or compatibility reader.
+immutable. `0032_native_intake.sql` adds saved intake, source revisions and durable planning
+attempts. This is a clean cutover with no legacy-project backfill or compatibility reader.
 Apply pending migrations through the normal development database workflow. Automated
 verification uses disposable databases and does not migrate an operator's database.
 
@@ -140,8 +141,9 @@ versions avoid unnecessary conflicts with project brief edits. Team views expose
 `can_manage`, `can_set_policy`, `can_manage_credentials`, `can_issue_credentials`; they remain advisory. Owners can inspect/revoke credentials on archived projects while issuance stays blocked.
 
 These are board/team credentials, not execution leases or provider keys. Task-specific
-worker enrollment, paid usage, tool grants, model routing, staffing proposals, role history
-browsing and automated review are future core slices. A task marked done is not an
+worker enrollment, general paid usage, tool grants, execution model routing, role history
+browsing and artifact review are future core slices. Reviewed intake staffing proposals
+use a separate human-authorized planning API and allowance. A task marked done is not an
 accepted artifact or publishing approval.
 
 ## Transactions and visibility
@@ -154,7 +156,7 @@ Audit records identify the actor, project/task, resulting version and state; mem
 
 ## Verification and current limits
 
-October 7 acceptance: the consolidated non-live suite passed **2,074 tests**, with
+October 7 board/team acceptance, before the intake extension: the consolidated non-live suite passed **2,074 tests**, with
 14 host-dependent symlink/POSIX skips and 8 live-provider tests excluded. It included
 all 46 retained browser cases and used a fresh PostgreSQL 16.15/pgvector 0.8.6 cluster,
 which shut down successfully. Subsequent authority and backup checks passed 55 tests,
@@ -186,4 +188,4 @@ Local memory/service/API checks cover shared work, two-workspace isolation, gues
 
 The browser suite uses a real isolated application, authentication and memory-backed services. It covers CRUD/reload, shared member/guest access, archive/restore, both editor conflicts, lost-response retries, pagination, text injection, mobile/keyboard behavior and a URL prefix. Delayed-response scenarios check navigation during claims/team loading and editor locking during conflict recovery. It prohibits legacy project/worker calls. Local browser verification uses installed Edge 154.0.4258.62; CI installs Chromium. The workspace directory additionally passes its paired memory/PostgreSQL contract. Browser checks do not certify PostgreSQL UI end-to-end operation or the future AI intake/review workflow.
 
-The test harness establishes isolated settings before test-module collection. Optional browser, PostgreSQL and live-model checks remain separately selected. No paid model calls, new business integrations or deployment changes are part of this slice.
+The test harness establishes isolated settings before test-module collection. Optional browser, PostgreSQL and live-model checks remain separately selected. The [intake runbook](project-intake.md#verification-boundary) records the extension's contracts and focused verification; the earlier board/team totals are not evidence for that new workflow. No paid model calls, new business integrations or deployment changes are part of these slices.

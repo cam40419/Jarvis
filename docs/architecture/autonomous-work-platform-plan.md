@@ -36,7 +36,11 @@ jobs, external-board mirrors, manifest staffing, old project file replication an
 the former dispatcher. No project migration or compatibility runtime is retained.
 
 The [native project guide](../runbooks/native-projects.md) documents implemented
-shared records and scoped teams. PostgreSQL and the memory test adapter enforce
+shared records and scoped teams. [Project intake](../runbooks/project-intake.md) adds
+versioned source evidence, bounded model planning, a separate review call and atomic
+staffing/work proposals under project consent and a planning allowance. Its model catalog
+is administrator-managed and workspace-scoped; full project key/resource authority and
+native task execution remain later work. PostgreSQL and the memory test adapter enforce
 workspace/project scope, current membership, revision checks, atomic claims and
 durable mutation receipts. [Runtime adapters](../runbooks/runtime-adapters.md)
 preserve independently tested model, tool, environment and artifact building blocks.
@@ -468,7 +472,9 @@ Tenancy, admin policy and UI quality begin with the core. Actual payment-provide
 
 ### First implementation backlog
 
-Implementation checkpoint, October 7: the [native project foundation](../runbooks/native-projects.md) begins DATA-01/DATA-02, AGENT-01 and UI-01. Shared records, human/agent/pool assignment, atomic claims, scoped agent roles, lifecycle, bounded delegated staffing authority, owner-controlled team policy and temporary revocable credentials are implemented. The browser supports people/role/task management and one-time credential delivery. Every role edit fences its credentials; pausing/retiring releases unfinished assignments. The old Work/project/manifest dispatcher paths are removed, with no legacy backfill. These are authority and steering contracts; AI-led intake/staffing, dependency graphs, task execution leases, artifacts, review and model budgets remain open. Isolated PostgreSQL 16.15 with pgvector 0.8.6 is locally tested; PostgreSQL 17 CI/container validation remains pending. This does not complete AGENT-01, the core gate or PLAN-01's full evaluation program.
+Implementation checkpoint, October 7: the [native project foundation](../runbooks/native-projects.md) begins DATA-01/DATA-02, AGENT-01 and UI-01. Shared records, human/agent/pool assignment, atomic claims, scoped agent roles, lifecycle, bounded delegated staffing authority, owner-controlled team policy and temporary revocable credentials are implemented. The browser supports people/role/task management and one-time credential delivery. Every role edit fences its credentials; pausing/retiring releases unfinished assignments. The old Work/project/manifest dispatcher paths are removed, with no legacy backfill.
+
+The [intake extension](../runbooks/project-intake.md) provides source revisions, resumable context/answers, configured model planning and separate proposal review, role/task reuse and atomic automatic staffing within existing authority. Its project cloud consent and planning-only reservations begin MODEL-01/COST-01, but do not complete provider/key enrollment or unified billing/resource enforcement. Dependency graphs, task execution leases, artifacts and deliverable review remain open. Isolated PostgreSQL 16.15 with pgvector 0.8.6 is locally tested; PostgreSQL 17 CI/container validation remains pending. No paid model calls or live pilot output-quality acceptance were performed in this implementation. This does not complete AGENT-01, the core gate or PLAN-01's full evaluation program.
 
 | ID          | Deliverable                                                                        | Acceptance and sequencing                                                                                                                  |
 | ----------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |

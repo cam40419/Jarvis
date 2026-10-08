@@ -311,6 +311,7 @@
   }
 
   async function load(id, focus = false) {
+    window.dispatchEvent(new CustomEvent('native-project-loading', { detail: { id } }));
     const ticket = ++generation;
     loading = true;
     $('np-refresh').disabled = true;
@@ -352,6 +353,7 @@
       say('np-status');
     } catch (error) {
       if (ticket !== generation) return;
+      window.dispatchEvent(new CustomEvent('native-project-unavailable'));
       projects = [];
       // Never leave a previous project's data or controls visible after access fails.
       $('np-list').hidden = false;
@@ -369,7 +371,7 @@
   }
   function navigate(id) {
     history.pushState(null, '', appPath('/projects' + (id ? '?project=' + id : '')));
-    load(id, true);
+    return load(id, true);
   }
   const selected = () => new URLSearchParams(location.search).get('project');
   window.addEventListener('popstate', () => {
@@ -387,6 +389,7 @@
   $('np-refresh').onclick = () => load(project?.id || selected());
 
   function editProject(record) {
+    $('np-project-intake-choice').hidden = Boolean(record);
     projectDraft = record ? { ...record } : null;
     $('np-project-form').reset();
     $('np-project-form').dataset.editing = 'true';
@@ -518,8 +521,10 @@
           record ? 'PUT' : 'POST',
         );
         $('np-' + kind + '-dialog').close();
-        if (kind === 'project' && !record) navigate(result.id);
-        else await load(kind === 'project' ? result.id : project.id, true);
+        if (kind === 'project' && !record) {
+          await navigate(result.id);
+          if ($('np-project-intake').checked) window.SimonNativeIntake?.open();
+        } else await load(kind === 'project' ? result.id : project.id, true);
       } catch (error) {
         say('np-' + kind + '-feedback', error.message, 'error');
         if (error.status === 409 && record) {
@@ -775,6 +780,7 @@
   window.SimonNativeProjects = {
     request,
     getProject: () => project,
+    getWorkspaceId: () => session?.workspace_id,
     onTeamChanged: async () => load(project.id),
   };
   start();

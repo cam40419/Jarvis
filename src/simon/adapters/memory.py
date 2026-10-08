@@ -42,6 +42,12 @@ from simon.domain.models import (
     utc_now,
 )
 from simon.domain.native_agents import NativeAgent, NativeAgentCredential, NativeTeamPolicy
+from simon.domain.native_intake import (
+    INTAKE_RUN_MUTABLE_FIELDS,
+    IntakeRun,
+    IntakeSource,
+    NativeIntake,
+)
 from simon.domain.native_projects import (
     NativeProject,
     NativeProjectMember,
@@ -95,6 +101,9 @@ class InMemoryStore:
         self._native_agents: dict[UUID, NativeAgent] = {}
         self._native_team_policies: dict[tuple[UUID, UUID], NativeTeamPolicy] = {}
         self._native_agent_credentials: dict[UUID, NativeAgentCredential] = {}
+        self._native_intakes: dict[tuple[UUID, UUID], NativeIntake] = {}
+        self._native_intake_sources: dict[UUID, IntakeSource] = {}
+        self._native_intake_runs: dict[UUID, IntakeRun] = {}
 
     @contextmanager
     def transaction(self, workspace_id: UUID | None = None) -> Iterator[None]:
@@ -133,6 +142,9 @@ class InMemoryStore:
                     self._native_agents,
                     self._native_team_policies,
                     self._native_agent_credentials,
+                    self._native_intakes,
+                    self._native_intake_sources,
+                    self._native_intake_runs,
                 )
             )
             try:
@@ -171,6 +183,9 @@ class InMemoryStore:
                     self._native_agents,
                     self._native_team_policies,
                     self._native_agent_credentials,
+                    self._native_intakes,
+                    self._native_intake_sources,
+                    self._native_intake_runs,
                 ) = snapshot
                 raise
 
@@ -530,6 +545,145 @@ class InMemoryStore:
                 self._native_tasks[task.id] = saved
                 released.append(saved)
             return tuple(sorted(released, key=lambda t: (t.created_at, t.id)))
+
+    def native_intake(self, workspace_id: UUID, project_id: UUID) -> NativeIntake | None:
+        with self._lock:
+            value = self._native_intakes.get((workspace_id, project_id))
+            return value.model_copy(deep=True) if value else None
+
+    def save_native_intake(self, value: NativeIntake, expected_version: int) -> None:
+        with self._lock:
+            previous = self.native_intake(value.workspace_id, value.project_id)
+            if (
+                self.native_project(value.workspace_id, value.project_id) is None
+                or (previous.version if previous else 0) != expected_version
+                or value.version != expected_version + 1
+            ):
+                raise InvalidTransitionError("Native intake missing or stale version")
+            self._native_intakes[value.workspace_id, value.project_id] = value.model_copy(deep=True)
+
+    def native_intake_sources(
+        self, workspace_id: UUID, project_id: UUID
+    ) -> tuple[IntakeSource, ...]:
+        with self._lock:
+            values = (
+                source
+                for source in self._native_intake_sources.values()
+                if (source.workspace_id, source.project_id) == (workspace_id, project_id)
+            )
+            return tuple(sorted(values, key=lambda source: (source.created_at, source.id)))
+
+    def native_intake_source(
+        self, workspace_id: UUID, project_id: UUID, source_id: UUID
+    ) -> IntakeSource | None:
+        with self._lock:
+            value = self._native_intake_sources.get(source_id)
+            return (
+                value
+                if value and (value.workspace_id, value.project_id) == (workspace_id, project_id)
+                else None
+            )
+
+    def insert_native_intake_source(self, value: IntakeSource) -> None:
+        with self._lock:
+            if (
+                value.id in self._native_intake_sources
+                or self.native_project(value.workspace_id, value.project_id) is None
+                or (value.created_by, value.workspace_id) not in self._memberships
+                or any(
+                    (source.workspace_id, source.project_id, source.source_key, source.revision)
+                    == (value.workspace_id, value.project_id, value.source_key, value.revision)
+                    for source in self._native_intake_sources.values()
+                )
+                or (value.revoked_at is not None and value.revoked_at < value.created_at)
+            ):
+                raise InvalidTransitionError(
+                    "Intake source exists or its project/creator is unavailable"
+                )
+            self._native_intake_sources[value.id] = value
+
+    def revoke_native_intake_source(
+        self, workspace_id: UUID, project_id: UUID, source_id: UUID, at: datetime
+    ) -> bool:
+        with self._lock:
+            value = self.native_intake_source(workspace_id, project_id, source_id)
+            if value is None or value.revoked_at is not None:
+                return False
+            if at < value.created_at:
+                raise InvalidTransitionError("Source revocation predates creation")
+            self._native_intake_sources[source_id] = value.model_copy(update={"revoked_at": at})
+            return True
+
+    def native_intake_runs(self, workspace_id: UUID, project_id: UUID) -> tuple[IntakeRun, ...]:
+        with self._lock:
+            values = (
+                run
+                for run in self._native_intake_runs.values()
+                if (run.workspace_id, run.project_id) == (workspace_id, project_id)
+            )
+            return tuple(
+                value.model_copy(deep=True)
+                for value in sorted(values, key=lambda run: (run.started_at, run.id), reverse=True)
+            )
+
+    def native_intake_run(
+        self, workspace_id: UUID, project_id: UUID, run_id: UUID
+    ) -> IntakeRun | None:
+        with self._lock:
+            value = self._native_intake_runs.get(run_id)
+            return (
+                value.model_copy(deep=True)
+                if value and (value.workspace_id, value.project_id) == (workspace_id, project_id)
+                else None
+            )
+
+    def native_intake_run_by_key(
+        self, workspace_id: UUID, project_id: UUID, key: str
+    ) -> IntakeRun | None:
+        with self._lock:
+            return next(
+                (
+                    value.model_copy(deep=True)
+                    for value in self._native_intake_runs.values()
+                    if (value.workspace_id, value.project_id, value.idempotency_key)
+                    == (workspace_id, project_id, key)
+                ),
+                None,
+            )
+
+    def insert_native_intake_run(self, value: IntakeRun) -> None:
+        with self._lock:
+            intake = self.native_intake(value.workspace_id, value.project_id)
+            if (
+                value.id in self._native_intake_runs
+                or value.version != 1
+                or intake is None
+                or intake.version != value.intake_version
+                or (value.requested_by, value.workspace_id) not in self._memberships
+                or self.native_intake_run_by_key(
+                    value.workspace_id, value.project_id, value.idempotency_key
+                )
+                is not None
+            ):
+                raise InvalidTransitionError(
+                    "Intake run exists or context/requester is unavailable"
+                )
+            self._native_intake_runs[value.id] = value.model_copy(deep=True)
+
+    def update_native_intake_run(self, value: IntakeRun, expected_version: int) -> None:
+        with self._lock:
+            previous = self.native_intake_run(value.workspace_id, value.project_id, value.id)
+            if (
+                previous is None
+                or previous.version != expected_version
+                or value.version != expected_version + 1
+                or value.model_dump(exclude=set(INTAKE_RUN_MUTABLE_FIELDS))
+                != previous.model_dump(exclude=set(INTAKE_RUN_MUTABLE_FIELDS))
+            ):
+                raise InvalidTransitionError(
+                    "Intake run missing, stale or immutable context changed"
+                )
+            self._native_intake_runs[value.id] = value.model_copy(deep=True)
 
     def password_for_email(self, email: str) -> PasswordCredential | None:
         with self._lock:

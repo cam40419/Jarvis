@@ -1,7 +1,8 @@
 # Storage and recovery
 
 PostgreSQL stores identity, connections, chat records, native projects, memberships,
-tasks and scoped agent records. Generic account files use `SIMON_LOCAL_FILES_DIR`.
+tasks, scoped agent records, intake context, source metadata and planning history.
+Generic account files and immutable intake originals use `SIMON_LOCAL_FILES_DIR`.
 Use an absolute private data directory outside the source checkout for a persistent
 installation. Preserve the encryption key with database backups so saved connections
 remain decryptable. There is no old-project migration or artifact backfill utility.
@@ -27,6 +28,23 @@ Bundles contain private data and are not encrypted by this command. Restrict loc
 access and encrypt independent copies. Explicit secret inclusion must also capture
 any process-only or external secret-store values through the operator's recovery
 procedure. Losing a required key can leave restored connections unusable.
+
+When `SIMON_INTAKE_MODELS_FILE` is configured, bundles preserve that administrator catalog
+as `configuration/intake-models.json`; its environment-variable references do not include
+the actual provider keys. Originals under the managed files root's `.project-sources`
+directory are included, even when a revision has been revoked in the application. A missing
+configured catalog fails backup creation before dumping the database rather than silently
+omitting model configuration. `--include-secrets` additionally includes `.env` and the
+available integration encryption key; process-only or external provider credentials still
+require explicit preservation by the operator.
+
+Restore with all writers stopped and stage into a fresh destination. Point
+`SIMON_INTAKE_MODELS_FILE` at the restored catalog and `SIMON_LOCAL_FILES_DIR` at the
+restored files, and restore the matching database before accepting traffic. Re-establish
+the catalog's named environment secrets separately. A recovered running planning attempt
+is not redispatched: once its deadline expires, intake reads mark it unknown and preserve
+any unresolved reservation. Never treat a database-only restore as evidence that original
+files or model configuration have also been recovered.
 
 Host Desktop/Documents/Downloads folders and cloud files are outside managed account
 storage and need their own backups. Standalone runtime adapter experiments own their

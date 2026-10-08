@@ -39,6 +39,12 @@ from simon.domain.integrations import IntegrationConnection
 from simon.domain.interaction import ResponsePreferences, RunFeedback
 from simon.domain.models import AuditEvent, Job, JobStatus, OutboxEvent
 from simon.domain.native_agents import NativeAgent, NativeAgentCredential, NativeTeamPolicy
+from simon.domain.native_intake import (
+    INTAKE_RUN_MUTABLE_FIELDS,
+    IntakeRun,
+    IntakeSource,
+    NativeIntake,
+)
 from simon.domain.native_projects import NativeProject, NativeProjectMember, NativeTask
 from simon.domain.voice import VoiceSession
 
@@ -612,6 +618,227 @@ class PostgresStore(InMemoryStore):
             return tuple(
                 sorted((self._native_task(row) for row in rows), key=lambda t: (t.created_at, t.id))
             )
+
+    def native_intake(self, workspace_id: UUID, project_id: UUID) -> NativeIntake | None:
+        with self.transaction():
+            row = self.connection.execute(
+                "SELECT snapshot FROM native_intakes WHERE workspace_id=%s AND project_id=%s",
+                (workspace_id, project_id),
+            ).fetchone()
+            return NativeIntake.model_validate(row["snapshot"]) if row else None
+
+    def save_native_intake(self, value: NativeIntake, expected_version: int) -> None:
+        if value.version != expected_version + 1:
+            raise InvalidTransitionError("Native intake must advance the version")
+        try:
+            with self.transaction():
+                if expected_version == 0:
+                    result = self.connection.execute(
+                        "INSERT INTO native_intakes (workspace_id,project_id,version,snapshot) "
+                        "VALUES (%s,%s,%s,%s) ON CONFLICT (workspace_id,project_id) DO NOTHING",
+                        (
+                            value.workspace_id,
+                            value.project_id,
+                            value.version,
+                            Jsonb(value.model_dump(mode="json")),
+                        ),
+                    )
+                else:
+                    result = self.connection.execute(
+                        "UPDATE native_intakes SET version=%s,snapshot=%s "
+                        "WHERE workspace_id=%s AND project_id=%s AND version=%s",
+                        (
+                            value.version,
+                            Jsonb(value.model_dump(mode="json")),
+                            value.workspace_id,
+                            value.project_id,
+                            expected_version,
+                        ),
+                    )
+                if result.rowcount != 1:
+                    raise InvalidTransitionError("Native intake missing or stale version")
+        except psycopg.IntegrityError as exc:
+            raise InvalidTransitionError("Native intake project is unavailable") from exc
+
+    def native_intake_sources(
+        self, workspace_id: UUID, project_id: UUID
+    ) -> tuple[IntakeSource, ...]:
+        with self.transaction():
+            rows = self.connection.execute(
+                "SELECT snapshot FROM native_intake_sources "
+                "WHERE workspace_id=%s AND project_id=%s "
+                "ORDER BY created_at,id",
+                (workspace_id, project_id),
+            ).fetchall()
+            return tuple(IntakeSource.model_validate(row["snapshot"]) for row in rows)
+
+    def native_intake_source(
+        self, workspace_id: UUID, project_id: UUID, source_id: UUID
+    ) -> IntakeSource | None:
+        with self.transaction():
+            row = self.connection.execute(
+                "SELECT snapshot FROM native_intake_sources "
+                "WHERE workspace_id=%s AND project_id=%s AND id=%s",
+                (workspace_id, project_id, source_id),
+            ).fetchone()
+            return IntakeSource.model_validate(row["snapshot"]) if row else None
+
+    def insert_native_intake_source(self, value: IntakeSource) -> None:
+        try:
+            with self.transaction():
+                result = self.connection.execute(
+                    "INSERT INTO native_intake_sources "
+                    "(id,workspace_id,project_id,source_key,revision,sha256,size_bytes,"
+                    "created_by,created_at,revoked_at,snapshot) "
+                    "SELECT %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s WHERE EXISTS "
+                    "(SELECT 1 FROM memberships WHERE workspace_id=%s AND user_id=%s)",
+                    (
+                        value.id,
+                        value.workspace_id,
+                        value.project_id,
+                        value.source_key,
+                        value.revision,
+                        value.sha256,
+                        value.size_bytes,
+                        value.created_by,
+                        value.created_at,
+                        value.revoked_at,
+                        Jsonb(value.model_dump(mode="json")),
+                        value.workspace_id,
+                        value.created_by,
+                    ),
+                )
+                if result.rowcount != 1:
+                    raise InvalidTransitionError("Intake source creator is unavailable")
+        except psycopg.IntegrityError as exc:
+            raise InvalidTransitionError(
+                "Intake source exists or its project/creator is unavailable"
+            ) from exc
+
+    def revoke_native_intake_source(
+        self, workspace_id: UUID, project_id: UUID, source_id: UUID, at: datetime
+    ) -> bool:
+        try:
+            with self.transaction():
+                result = self.connection.execute(
+                    "UPDATE native_intake_sources SET revoked_at=%s,"
+                    "snapshot=jsonb_set(snapshot,'{revoked_at}',to_jsonb(%s::text)) "
+                    "WHERE workspace_id=%s AND project_id=%s AND id=%s AND revoked_at IS NULL",
+                    (at, at.isoformat(), workspace_id, project_id, source_id),
+                )
+                return result.rowcount == 1
+        except psycopg.errors.CheckViolation as exc:
+            raise InvalidTransitionError("Source revocation predates creation") from exc
+
+    def native_intake_runs(self, workspace_id: UUID, project_id: UUID) -> tuple[IntakeRun, ...]:
+        with self.transaction():
+            rows = self.connection.execute(
+                "SELECT snapshot FROM native_intake_runs WHERE workspace_id=%s AND project_id=%s "
+                "ORDER BY started_at DESC,id DESC",
+                (workspace_id, project_id),
+            ).fetchall()
+            return tuple(IntakeRun.model_validate(row["snapshot"]) for row in rows)
+
+    def native_intake_run(
+        self, workspace_id: UUID, project_id: UUID, run_id: UUID
+    ) -> IntakeRun | None:
+        with self.transaction():
+            row = self.connection.execute(
+                "SELECT snapshot FROM native_intake_runs "
+                "WHERE workspace_id=%s AND project_id=%s AND id=%s",
+                (workspace_id, project_id, run_id),
+            ).fetchone()
+            return IntakeRun.model_validate(row["snapshot"]) if row else None
+
+    def native_intake_run_by_key(
+        self, workspace_id: UUID, project_id: UUID, key: str
+    ) -> IntakeRun | None:
+        with self.transaction():
+            row = self.connection.execute(
+                "SELECT snapshot FROM native_intake_runs "
+                "WHERE workspace_id=%s AND project_id=%s AND idempotency_key=%s",
+                (workspace_id, project_id, key),
+            ).fetchone()
+            return IntakeRun.model_validate(row["snapshot"]) if row else None
+
+    def insert_native_intake_run(self, value: IntakeRun) -> None:
+        if value.version != 1:
+            raise InvalidTransitionError("New intake runs must start at version one")
+        try:
+            with self.transaction():
+                result = self.connection.execute(
+                    "INSERT INTO native_intake_runs "
+                    "(id,workspace_id,project_id,requested_by,idempotency_key,"
+                    "request_digest,intake_version,version,status,reserved_microusd,charged_microusd,"
+                    "started_at,deadline_at,finished_at,snapshot) "
+                    "SELECT %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s WHERE EXISTS "
+                    "(SELECT 1 FROM memberships WHERE workspace_id=%s AND user_id=%s) AND EXISTS "
+                    "(SELECT 1 FROM native_intakes "
+                    "WHERE workspace_id=%s AND project_id=%s AND version=%s)",
+                    (
+                        value.id,
+                        value.workspace_id,
+                        value.project_id,
+                        value.requested_by,
+                        value.idempotency_key,
+                        value.request_digest,
+                        value.intake_version,
+                        value.version,
+                        value.status,
+                        value.reserved_microusd,
+                        value.charged_microusd,
+                        value.started_at,
+                        value.deadline_at,
+                        value.finished_at,
+                        Jsonb(value.model_dump(mode="json")),
+                        value.workspace_id,
+                        value.requested_by,
+                        value.workspace_id,
+                        value.project_id,
+                        value.intake_version,
+                    ),
+                )
+                if result.rowcount != 1:
+                    raise InvalidTransitionError("Intake context/requester is unavailable")
+        except psycopg.IntegrityError as exc:
+            raise InvalidTransitionError(
+                "Intake run exists or context/requester is unavailable"
+            ) from exc
+
+    def update_native_intake_run(self, value: IntakeRun, expected_version: int) -> None:
+        if value.version != expected_version + 1:
+            raise InvalidTransitionError("Intake run must advance the version")
+        mutable = sorted(INTAKE_RUN_MUTABLE_FIELDS)
+        snapshot = Jsonb(value.model_dump(mode="json"))
+        try:
+            with self.transaction():
+                result = self.connection.execute(
+                    "UPDATE native_intake_runs SET version=%s,status=%s,reserved_microusd=%s,"
+                    "charged_microusd=%s,finished_at=%s,snapshot=%s "
+                    "WHERE workspace_id=%s AND project_id=%s AND id=%s AND version=%s "
+                    "AND snapshot - %s::text[] = %s::jsonb - %s::text[]",
+                    (
+                        value.version,
+                        value.status,
+                        value.reserved_microusd,
+                        value.charged_microusd,
+                        value.finished_at,
+                        snapshot,
+                        value.workspace_id,
+                        value.project_id,
+                        value.id,
+                        expected_version,
+                        mutable,
+                        snapshot,
+                        mutable,
+                    ),
+                )
+                if result.rowcount != 1:
+                    raise InvalidTransitionError(
+                        "Intake run missing, stale or immutable context changed"
+                    )
+        except psycopg.IntegrityError as exc:
+            raise InvalidTransitionError("Intake run context is unavailable") from exc
 
     def execute_once(
         self,

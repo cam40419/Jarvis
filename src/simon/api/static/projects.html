@@ -11,6 +11,7 @@
     <script src="/assets/app-path.js" defer></script>
     <script src="/assets/native-projects.js" defer></script>
     <script src="/assets/native-team.js" defer></script>
+    <script src="/assets/native-intake.js" defer></script>
   </head>
   <body class="projects-page">
     <a class="np-skip" href="#np-main">Skip to projects</a>
@@ -75,6 +76,9 @@
             <p id="np-meta" class="np-meta"></p>
           </div>
           <div class="np-actions">
+            <button id="np-intake" class="np-button np-primary" type="button">
+              Intake &amp; planning
+            </button>
             <button id="np-agents" class="np-button" type="button">Agents</button>
             <button id="np-team" class="np-button" type="button">People</button>
             <button id="np-edit-project" class="np-button" type="button">Edit project</button>
@@ -125,8 +129,8 @@
       </section>
 
       <footer class="np-footer">
-        Shared projects, agent roles, and task boards are ready to use. Automatic staffing, file
-        intake, and project model controls are upcoming.
+        Build a shared brief, bring in source material, and plan a focused agent team. Task
+        execution and artifact review are being added separately.
       </footer>
     </main>
 
@@ -169,6 +173,10 @@
               Archived projects remain readable. Restore a project to edit its board.
             </p>
           </div>
+          <label id="np-project-intake-choice" class="nt-checkbox" for="np-project-intake">
+            <input id="np-project-intake" type="checkbox" />
+            Continue to AI-assisted intake after creating this project
+          </label>
           <div
             id="np-project-feedback"
             class="np-feedback"
@@ -192,6 +200,186 @@
           </div>
         </fieldset>
       </form>
+    </dialog>
+
+    <dialog id="ni-dialog" class="np-dialog ni-dialog" aria-labelledby="ni-heading">
+      <div class="np-dialog-heading">
+        <p class="np-eyebrow">From context to a working team</p>
+        <h2 id="ni-heading" tabindex="-1">Intake &amp; planning</h2>
+        <p id="ni-project" class="np-muted"></p>
+        <p class="np-muted">
+          Develop the brief, resolve open questions, and build a focused team around real work.
+          Plans receive a separate AI review before they can add agent roles and board tasks.
+          Workers do not start automatically in this phase.
+        </p>
+      </div>
+      <div
+        id="ni-feedback"
+        class="np-feedback"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      ></div>
+      <div id="ni-uncertain" class="np-conflict" hidden>
+        <p>
+          The response could not be confirmed. Check the saved state or retry the exact request; its
+          saved key prevents duplicates.
+        </p>
+        <button id="ni-retry" class="np-button" type="button">Retry same request</button>
+      </div>
+      <div class="ni-toolbar">
+        <p id="ni-access" class="np-muted"></p>
+        <button id="ni-refresh" class="np-button np-quiet" type="button">Refresh status</button>
+      </div>
+      <form id="ni-form">
+        <fieldset id="ni-fields">
+          <section class="ni-section" aria-labelledby="ni-context-heading">
+            <h3 id="ni-context-heading">1. Shape the brief</h3>
+            <p id="ni-objective" class="ni-objective"></p>
+            <div class="np-field">
+              <label for="ni-background">Background and current situation</label
+              ><textarea
+                id="ni-background"
+                maxlength="6000"
+                rows="4"
+                placeholder="What exists today? Who is this for? What have you already tried?"
+              ></textarea>
+            </div>
+            <div class="np-field">
+              <label for="ni-outcomes">Desired outcomes</label
+              ><textarea
+                id="ni-outcomes"
+                maxlength="6000"
+                rows="3"
+                placeholder="What should success look like? What should happen first?"
+              ></textarea>
+            </div>
+            <div class="np-field">
+              <label for="ni-constraints">Constraints and unresolved decisions</label
+              ><textarea
+                id="ni-constraints"
+                maxlength="6000"
+                rows="3"
+                placeholder="Budget, timing, capacity, brand principles, approval needs, or decisions that remain open."
+              ></textarea>
+            </div>
+            <div id="ni-answers" aria-label="Answers to planning questions"></div>
+          </section>
+          <section class="ni-section" aria-labelledby="ni-model-heading">
+            <h3 id="ni-model-heading">2. Choose planning controls</h3>
+            <div class="np-field">
+              <label for="ni-model">Planning model</label
+              ><select id="ni-model">
+                <option value="">Choose a configured model</option>
+              </select>
+              <p id="ni-model-status" class="np-field-help"></p>
+            </div>
+            <label class="nt-checkbox" for="ni-cloud"
+              ><input id="ni-cloud" type="checkbox" />Allow this project's context and selected
+              source text to be sent to a hosted model</label
+            >
+            <div class="np-field">
+              <label for="ni-budget">Total planning allowance (USD)</label
+              ><input
+                id="ni-budget"
+                type="number"
+                min="0"
+                max="1000"
+                step="0.000001"
+                required
+                value="0"
+              />
+              <p class="np-field-help">
+                A cumulative allowance for planning and its independent review. Each attempt
+                reserves its maximum estimated cost before making model calls. It does not fund task
+                execution.
+              </p>
+            </div>
+            <label class="nt-checkbox" for="ni-auto"
+              ><input id="ni-auto" type="checkbox" checked />Automatically add approved roles and
+              tasks when there are no blocking questions</label
+            >
+            <p class="np-field-help">
+              Turn this off to review the proposal yourself before applying it. Existing roles and
+              tasks stay intact. Creative approval policies will be configured separately.
+            </p>
+            <p id="ni-spending" class="ni-spending"></p>
+          </section>
+        </fieldset>
+        <div id="ni-conflict" class="np-conflict" hidden>
+          <h3>The saved intake changed</h3>
+          <p>
+            Your draft is preserved. Compare it with the current saved version before continuing.
+          </p>
+          <pre id="ni-latest"></pre>
+          <button id="ni-rebase" class="np-button" type="button">
+            Use latest version and keep my draft
+          </button>
+        </div>
+        <div class="np-dialog-actions">
+          <button id="ni-save" class="np-button" type="submit">Save intake</button>
+        </div>
+      </form>
+      <section class="ni-section" aria-labelledby="ni-sources-heading">
+        <h3 id="ni-sources-heading">3. Add source material</h3>
+        <p class="np-muted">
+          Add files or a folder. Text and DOCX files can be read for planning; images, PDFs, and
+          other formats are retained as originals and marked unread. Up to 5 MiB per file, 500 file
+          labels, and 100 MiB across revisions. Folder names are kept as relative labels.
+        </p>
+        <div id="ni-upload-controls" class="ni-uploads">
+          <label class="np-field" for="ni-files"
+            >Add files<input id="ni-files" type="file" multiple /></label
+          ><label class="np-field" for="ni-folder"
+            >Add a folder<input id="ni-folder" type="file" webkitdirectory multiple
+          /></label>
+        </div>
+        <p id="ni-upload-progress" class="np-field-help" role="status"></p>
+        <p class="np-field-help">
+          Planning uses the first 3,000 characters of up to 12 selected, readable current files.
+          Leave all unchecked to use the first eligible files. Every attempt shows what was included
+          and omitted; unread files are never treated as understood.
+        </p>
+        <ul id="ni-sources" class="ni-list" aria-label="Project source files"></ul>
+        <div id="ni-preview" class="ni-preview" hidden>
+          <div class="ni-toolbar">
+            <h4 id="ni-preview-heading">Extracted text</h4>
+            <button id="ni-preview-close" class="np-button np-quiet" type="button">
+              Close preview
+            </button>
+          </div>
+          <pre id="ni-preview-text"></pre>
+        </div>
+      </section>
+      <section class="ni-section" aria-labelledby="ni-plan-heading">
+        <div class="ni-toolbar">
+          <h3 id="ni-plan-heading">4. Plan the team and work</h3>
+          <button id="ni-analyze" class="np-button np-primary" type="button">
+            Save &amp; create plan
+          </button>
+        </div>
+        <p id="ni-plan-help" class="np-field-help">
+          The planner looks for reusable roles before proposing new ones. Its reviewer checks
+          staffing need, evidence, open questions, and independent output review.
+        </p>
+        <div class="np-field">
+          <label for="ni-history">Planning history</label
+          ><select id="ni-history">
+            <option value="">No planning attempts yet</option>
+          </select>
+        </div>
+        <article id="ni-run" aria-live="polite"></article>
+        <div class="np-dialog-actions">
+          <button id="ni-apply" class="np-button np-primary" type="button" hidden>
+            Apply reviewed plan</button
+          ><button id="ni-cancel-run" class="np-button np-danger" type="button" hidden>
+            Cancel attempt
+          </button>
+        </div>
+      </section>
+      <div class="np-dialog-actions">
+        <button id="ni-close" class="np-button" type="button">Done</button>
+      </div>
     </dialog>
 
     <dialog id="np-task-dialog" class="np-dialog" aria-labelledby="np-task-heading">

@@ -131,6 +131,8 @@ class RequestIngressMiddleware:
             return self.auth_max_body_bytes
         if path == "/v1/local-files/upload":
             return self.local_upload_max_body_bytes
+        if re.fullmatch(r"/v2/projects/[0-9a-fA-F-]{36}/intake/sources", path):
+            return 8 * 1024 * 1024
         if path == "/v1/local-files/action":
             # Allow bounded local text, including Unicode encoded as JSON surrogate escapes.
             return 32 * 1024 * 1024

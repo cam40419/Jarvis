@@ -31,6 +31,7 @@ from simon.domain.models import (
     OutboxEvent,
 )
 from simon.domain.native_agents import NativeAgent, NativeAgentCredential, NativeTeamPolicy
+from simon.domain.native_intake import IntakeRun, IntakeSource, NativeIntake
 from simon.domain.native_projects import NativeProject, NativeProjectMember, NativeTask
 from simon.domain.voice import VoiceSession
 
@@ -341,6 +342,40 @@ class NativeAgentStore(TransactionStore, Protocol):
     ) -> tuple[NativeTask, ...]: ...
 
 
+class NativeIntakeStore(TransactionStore, Protocol):
+    def native_intake(self, workspace_id: UUID, project_id: UUID) -> NativeIntake | None: ...
+
+    def save_native_intake(self, value: NativeIntake, expected_version: int) -> None: ...
+
+    def native_intake_sources(
+        self, workspace_id: UUID, project_id: UUID
+    ) -> tuple[IntakeSource, ...]: ...
+
+    def native_intake_source(
+        self, workspace_id: UUID, project_id: UUID, source_id: UUID
+    ) -> IntakeSource | None: ...
+
+    def insert_native_intake_source(self, value: IntakeSource) -> None: ...
+
+    def revoke_native_intake_source(
+        self, workspace_id: UUID, project_id: UUID, source_id: UUID, at: datetime
+    ) -> bool: ...
+
+    def native_intake_runs(self, workspace_id: UUID, project_id: UUID) -> tuple[IntakeRun, ...]: ...
+
+    def native_intake_run(
+        self, workspace_id: UUID, project_id: UUID, run_id: UUID
+    ) -> IntakeRun | None: ...
+
+    def native_intake_run_by_key(
+        self, workspace_id: UUID, project_id: UUID, key: str
+    ) -> IntakeRun | None: ...
+
+    def insert_native_intake_run(self, value: IntakeRun) -> None: ...
+
+    def update_native_intake_run(self, value: IntakeRun, expected_version: int) -> None: ...
+
+
 class Store(
     CapabilityStore,
     InvocationStore,
@@ -355,6 +390,7 @@ class Store(
     VoiceStore,
     NativeProjectStore,
     NativeAgentStore,
+    NativeIntakeStore,
     Protocol,
 ):
     """One transaction boundary for state, audit records, and delivery intents."""

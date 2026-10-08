@@ -11,8 +11,11 @@ or the shared pool. **Agents** defines each role's responsibilities, success cri
 reason for joining the team. Owners control team size, delegated staffing and temporary
 worker access. Pausing or retiring an agent returns unfinished assignments to the pool.
 
-Automatic intake, AI staffing, native task execution, artifact reviews and project model
-budgets are subsequent core work. Creating a role does not start a model or worker.
+**Intake** accepts versioned source files, uses a configured model to propose the next
+milestone and team, and makes a separate model review before applying roles and board work.
+Each project controls cloud consent, automatic staffing and a bounded planning allowance.
+Native task execution, artifact reviews and full project provider/key/budget management
+remain subsequent core work. Creating a role does not start a worker.
 The old Work interface, manifest dispatcher and separate project/task authorities have
 been removed. There is no legacy-project migration or compatibility mode.
 
@@ -36,6 +39,7 @@ nonpersistent smoke run. Follow [identity setup](docs/runbooks/identity.md) and
 ## Guides
 
 - [Projects, scoped agents and team management](docs/runbooks/native-projects.md)
+- [AI-assisted intake, model configuration and automatic staffing](docs/runbooks/project-intake.md)
 - [Roadmap and delivery order](docs/next-phases.md)
 - [Platform architecture and implementation backlog](docs/architecture/autonomous-work-platform-plan.md)
 - [Clothing-brand pilot and core acceptance](docs/architecture/clothing-brand-pilot-charter.md)

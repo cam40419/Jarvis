@@ -125,6 +125,7 @@ def create_bundle(
     if not set(configuration).issubset(
         {
             "external-providers.json",
+            "intake-models.json",
             "server.env",
             "credentials.key",
         }
