@@ -30,6 +30,7 @@ from simon.api.external_actions import external_actions_router
 from simon.api.integrations import integrations_router
 from simon.api.local_files import local_file_router
 from simon.api.model_stream import model_stream
+from simon.api.native_execution import native_execution_router, native_execution_worker_router
 from simon.api.native_intake import native_intake_router
 from simon.api.native_models import native_models_router
 from simon.api.native_projects import native_projects_router
@@ -71,6 +72,7 @@ from simon.services.jobs import JobService
 from simon.services.memory import MemoryService
 from simon.services.model_conversations import ModelConversationService
 from simon.services.model_usage import ModelUsageService
+from simon.services.native_execution import NativeExecutionService
 from simon.services.native_intake import NativeIntakeService
 from simon.services.native_projects import NativeProjectService
 from simon.services.native_teams import NativeTeamService
@@ -137,6 +139,9 @@ class AppContainer:
             self.native_teams,
             IntakeSourceBytes(self.settings.local_files_dir / ".project-sources"),
             self.project_models,
+        )
+        self.native_execution = NativeExecutionService(
+            self.store, self.native_projects, self.project_models
         )
         self.accounts = AccountService(self.identity)
         self.audit = AuditService(self.store)
@@ -332,6 +337,8 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
     app.include_router(
         native_models_router(services.project_models, services.model_usage, checked_actor)
     )
+    app.include_router(native_execution_router(services.native_execution, checked_actor))
+    app.include_router(native_execution_worker_router(services.native_execution))
     app.include_router(external_actions_router(services.external_actions, checked_actor))
     app.include_router(integrations_router(services.connected.integrations, checked_actor))
     if services.work_sessions.conversations:

@@ -2,7 +2,7 @@
 
 The platform foundation provides shared projects and boards at `/projects`, backed by `/v2/projects`. It uses explicit records and project membership, independent of personal memory, Drive and external boards. The former Work interface and separate project/task authorities have been removed.
 
-Read with the [platform architecture](../architecture/autonomous-work-platform-plan.md) and [roadmap](../next-phases.md). [AI-assisted intake and automatic staffing](project-intake.md) provide evidence ingestion and reviewed team/work proposals. [Project models and resource limits](project-models.md) provide encrypted keys, qualified routes and shared inference ceilings. The initial core is not complete: task dependencies, execution leases, artifact review, compute/storage entitlements and hosted SaaS administration remain subsequent work.
+Read with the [platform architecture](../architecture/autonomous-work-platform-plan.md) and [roadmap](../next-phases.md). [AI-assisted intake and automatic staffing](project-intake.md) provide evidence ingestion and reviewed team/work proposals. [Project models and resource limits](project-models.md) provide encrypted keys, qualified routes and shared inference ceilings. [Native execution](native-execution.md) adds dependencies, leased workflows, checkpoints, waits, schedules and candidate output. The initial core is not complete: artifact review, compute/storage entitlements and hosted SaaS administration remain subsequent work.
 
 ## Using Projects
 
@@ -25,6 +25,8 @@ agent task creators/assignees and drops the retired `project_artifacts`,
 immutable. `0032_native_intake.sql` adds saved intake, source revisions and durable planning
 attempts. `0033_project_models.sql` adds encrypted model credentials, resource policies
 and per-call usage; it retains prior intake liabilities once without a legacy runtime.
+`0034_native_execution.sql` adds workflow grants, dependencies, execution history,
+waits/signals, schedules and separate runner credentials.
 This is a clean cutover with no legacy-project backfill or compatibility reader.
 Apply pending migrations through the normal development database workflow. Automated
 verification uses disposable databases and does not migrate an operator's database.
@@ -154,7 +156,7 @@ Project/task mutations, audit events, outbox events and idempotency receipts com
 
 Mutations reuse the existing identity lock, then acquire the workspace transaction. The lock contains bounded database work, without models or external tools. This conservative first implementation serializes native writes through the identity boundary; replacing that coarse locking with measured, revocation-safe concurrency is a later capacity task. Audit append also currently reads workspace history to compute its next chain entry. Replace that with a transactional head/sequence lookup before scaling long-lived autonomous workloads. It is not a public SaaS throughput claim.
 
-Audit records identify the actor, project/task, resulting version and state; membership events identify the changed member and role. Full revision browsing and a native activity UI are still pending. Workspace revocation is an operator identity action rather than a new native HTTP endpoint.
+Audit records identify the actor, project/task, resulting version and state; membership events identify the changed member and role. The Execution panel exposes per-run activity and checkpoints; full board revision browsing remains pending. Workspace revocation is an operator identity action rather than a new native HTTP endpoint.
 
 ## Verification and current limits
 

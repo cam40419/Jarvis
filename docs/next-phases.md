@@ -81,14 +81,37 @@ reconciliation. Late additional provider charges remain recorded. The UI support
 rotation/disablement, qualification, routes, limits, usage history and recovery of unknown
 key saves without retaining plaintext credentials.
 
-This remains a bounded planning slice: at most 12 source excerpts of 3,000 characters each,
-text/DOCX extraction, no OCR/visual analysis and no native task execution. Qualification
-proves a small text/JSON exchange, not broad model quality. Only native qualification and
-intake currently use the ledger; independent chat, specialist/tool execution, subscriptions,
+Intake remains bounded to at most 12 source excerpts of 3,000 characters each,
+text/DOCX extraction and no OCR/visual analysis. Qualification
+proves a small text/JSON exchange, not broad model quality. Native qualification, intake
+and specialist execution currently use the ledger; independent chat, business-tool execution, subscriptions,
 compute/storage meters and full hosted administration remain open. Migration 0032 adds
 intake evidence/history; 0033 adds project models, encrypted credential revisions, resource
 policies and usage, importing any earlier intake liabilities once. Recovery includes the
 catalog and originals; encrypted project keys require the matching database and master key.
+
+[Native execution and durable workflows](runbooks/native-execution.md) now extend DATA-02,
+FLOW-01, AGENT-01 and RUNNER-01. Owners issue a bounded project grant; tasks queue under
+versioned role/input/model authority and advance through leased server-side steps. The
+PostgreSQL controller records its engine/definition version, dependencies, immutable step
+inputs, checkpoints, events, correlated human/timer/child waits and bounded schedules.
+Children inherit their root's shared cost/model-call/delegation limits. Every specialist
+call uses the existing model ledger; unknown dispatches retain their liabilities.
+
+The Execution panel supports policy and dependency edits, asynchronous admission,
+candidate output, questions, activity/history, cancellation, safe retries, schedules and
+one-time runner credentials. Optional outbound runners hold separate project-scoped
+authority and keep provider keys on the server. Stale leases and changed grants cannot
+apply results; completed checkpoints can advance without redispatch. Deterministic
+reference operations exercise receipt recovery without exposing real business tools.
+Migration 0034 persists this slice. Completed candidates move tasks to **In review**, not
+accepted/done; manual board status does not prove output quality.
+
+This controller is the bounded PostgreSQL alternative in the architecture plan. Temporal,
+isolated local shell/CAD/GPU work, actual resource meters, broad source retrieval and
+artifact acceptance remain open. The runner coordinates server-side execution; it does
+not relocate inference to its own machine. Scheduling progresses while workers poll,
+and repeating schedules create separate occurrence tasks with coalesced missed intervals.
 
 The legacy Work interface, manifest profiles/teams, dispatcher/scheduler, v1 project and
 assistant-task boards, project storage/replication services, migrations of old project
@@ -98,33 +121,29 @@ tables. Historical SQL files remain an immutable schema ledger; no legacy-projec
 reader is maintained. No operator database is changed by the development test runs.
 
 Independent chat/accounts/voice and reusable model, execution, file, transport and connector
-primitives remain. The chat worker only serves queued conversations. Native board tasks
-have no execution dispatcher yet. No existing provider adapter is automatically a native
+primitives remain. The chat worker only serves queued conversations; native workflows use
+the separate execution runner and controller. No existing provider adapter is automatically a native
 project capability.
 
 ## Next implementation slices
 
-1. **Native execution and durable workflows.** Versioned dependencies, execution leases,
-   bounded delegation, cancellation, checkpoints, stale-worker rejection, event-driven
-   waits and scheduling. Keep persistent role identity separate from a worker process.
-   Extend the shared model ledger to specialist calls and retries through these services.
-   Enroll optional local runners under task-specific authority and measured resource limits.
-2. **Artifact and review loop.** Save candidates automatically, immutable content revisions,
+1. **Artifact and review loop.** Save candidates automatically, immutable content revisions,
    exact-version validation, independent agent review, configurable human approval and
    repair cycles. Do not treat a manual board status as proof of quality or permission
    to publish. Provide a coherent user view of progress, cost, evidence and pending decisions.
-3. **Model evaluation and remaining resource authority.** Accept capped live qualification
+2. **Model evaluation and remaining resource authority.** Accept capped live qualification
    and pilot quality after explicit key/cap enrollment; no paid call has been made during
    implementation. Broaden capability and task-quality evaluations beyond basic text/JSON.
    Extend context retrieval and role capability/model requirements as their enforcing
-   services become available. Complete compute/storage meters, entitlements and administrator
+   services become available. Complete isolated local tool runners, measured compute/storage
+   admission, entitlements and administrator
    catalog UI before claiming unified all-tool billing or commercial readiness. Pending
    live-model evaluation does not block synthetic development of execution and review.
-4. **Core acceptance and SaaS controls.** Complete tenant/platform admin, entitlements,
+3. **Core acceptance and SaaS controls.** Complete tenant/platform admin, entitlements,
    security/concurrency/recovery/restore scenarios, usability, model quality and capacity
    measurements. Validate PostgreSQL 17 (the CI/container target); current local database
    acceptance uses PostgreSQL 16.15 with pgvector 0.8.6. Record limits before claiming beta readiness.
-5. **One real business tool at a time.** Select and accept the next
+4. **One real business tool at a time.** Select and accept the next
    [integration work package](architecture/integration-delivery-plan.md), using the clothing
    pilot's actual work. Creative generation, documents, spreadsheets, apparel design,
    Git/code and website operations are separate deliverables after the core gate.
@@ -139,15 +158,18 @@ Browser tests use authenticated isolated services for role editing, policy, assi
 conflicts, unknown writes, one-time credentials, pagination and mobile layouts. The
 [native project runbook](runbooks/native-projects.md) owns reproducible commands and limits.
 
-The October 8 model/resource regression passed **2,465 tests**, including PostgreSQL
-and authenticated browser scenarios, with **90.93% fresh coverage** (branches enabled).
+The October 8 execution regression passed **2,750 tests**, including PostgreSQL and
+authenticated Edge browser scenarios, with **91.26% fresh coverage** (branches enabled).
 The unchanged repository gate is 90%. This was one full non-live run against the final
 Python implementation; it did not combine earlier coverage measurements. The run took
-30 minutes 29 seconds, skipped 16 Windows symlink/POSIX FIFO cases and excluded eight
+41 minutes 54 seconds, skipped 16 Windows symlink/POSIX FIFO cases and excluded eight
 live-model cases. Its disposable PostgreSQL 16.15/pgvector 0.8.6 cluster stopped.
-A subsequent display-only change to show both planning/review model names passed two
-focused intake browser cases; these overlap the full suite. Formatting, lint, typing and
-all ten connector checks pass. The [model runbook](runbooks/project-models.md#verification-and-remaining-scope)
+
+The full run includes all **11 execution browser scenarios**, worker/API authority,
+atomic delegation, shared graph limits, paid synthetic accounting, unknown outcomes,
+reference receipts, database restart, simultaneous claims, stale leases and checkpoint
+recovery without redispatch. Formatting, lint, typing across 152 source files and all ten
+connector checks pass. The [execution runbook](runbooks/native-execution.md#verification-and-remaining-scope)
 records reproducible commands and limits.
 
 Provider responses in these tests are synthetic. PostgreSQL 17, paid live qualification
@@ -157,8 +179,8 @@ database/deployment change was made during implementation.
 A scoped board credential grants no shell, model, provider, publishing, spending or
 platform-admin rights. Team-size limits are persistent active-role limits, not compute
 quotas. Coarse identity/workspace transactions remain the conservative write boundary;
-large-tenant throughput is unmeasured. Full activity/revision browsing, validated task
-acceptance and automatic artifact-quality review remain open. Model review of a staffing
+large-tenant throughput is unmeasured. Per-run activity is available; full board revision
+browsing, validated task acceptance and automatic artifact-quality review remain open. Model review of a staffing
 proposal is not acceptance of future deliverables. Passing these foundation tests does
 not complete the [core acceptance matrix](architecture/clothing-brand-pilot-charter.md#core-acceptance-matrix).
 

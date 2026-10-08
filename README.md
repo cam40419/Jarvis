@@ -16,8 +16,11 @@ milestone and team, and makes a separate model review before applying roles and 
 **Models & usage** provides write-only project keys, deliberate model qualification,
 separate planning/review routes, and shared project/workspace spending and call limits.
 Projects control hosted/paid consent and automatic staffing. Unknown usage remains held
-until settled or reconciled with evidence. Native task execution, artifact reviews and
-compute/storage entitlements remain subsequent core work. Creating a role does not start a worker.
+until settled or reconciled with evidence. **Execution** queues bounded agent workflows,
+tracks checkpoints, dependencies, questions, delegation and schedules, and saves text
+candidates for review. An optional outbound runner advances server-side steps under a
+separate owner grant. Artifact acceptance and compute/storage entitlements remain
+subsequent core work. Creating a role does not start a worker.
 The old Work interface, manifest dispatcher and separate project/task authorities have
 been removed. There is no legacy-project migration or compatibility mode.
 
@@ -43,6 +46,7 @@ nonpersistent smoke run. Follow [identity setup](docs/runbooks/identity.md) and
 - [Projects, scoped agents and team management](docs/runbooks/native-projects.md)
 - [AI-assisted intake and automatic staffing](docs/runbooks/project-intake.md)
 - [Project models, encrypted keys and resource limits](docs/runbooks/project-models.md)
+- [Native execution, durable workflows and runners](docs/runbooks/native-execution.md)
 - [Roadmap and delivery order](docs/next-phases.md)
 - [Platform architecture and implementation backlog](docs/architecture/autonomous-work-platform-plan.md)
 - [Clothing-brand pilot and core acceptance](docs/architecture/clothing-brand-pilot-charter.md)

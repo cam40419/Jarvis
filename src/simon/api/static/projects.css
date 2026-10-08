@@ -835,6 +835,41 @@
 .ni-dialog {
   width: min(900px, calc(100vw - 48px));
 }
+.ne-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 18px;
+}
+#ne-dialog select {
+  width: 100%;
+}
+#ne-feedback:not(:empty),
+#ne-uncertain,
+#ne-secret {
+  margin-bottom: 16px;
+}
+.ne-dependencies {
+  display: grid;
+  gap: 8px;
+  max-height: 280px;
+  overflow: auto;
+  padding: 8px 0;
+}
+.ne-output,
+#ne-latest {
+  max-height: 420px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+  line-height: 1.65;
+}
+#ne-secret-value {
+  width: 100%;
+}
+#ne-events {
+  padding-left: 0;
+}
 .nm-totals {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -955,6 +990,9 @@
 }
 
 @media (max-width: 740px) {
+  .ne-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
   .nm-totals {
     grid-template-columns: minmax(0, 1fr);
   }

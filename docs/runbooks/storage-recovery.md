@@ -3,6 +3,8 @@
 PostgreSQL stores identity, connections, chat records, native projects, memberships,
 tasks, scoped agent records, intake context, source metadata, planning history,
 project models/encrypted credentials, resource policies and model usage receipts.
+Native execution grants, dependencies, runs/checkpoints, waits/signals, schedules,
+reference receipts and hashed runner credentials also reside in PostgreSQL.
 Generic account files and immutable intake originals use `SIMON_LOCAL_FILES_DIR`.
 Use an absolute private data directory outside the source checkout for a persistent
 installation. Preserve the encryption key with database backups so saved connections
@@ -52,6 +54,14 @@ definitive settlement or evidenced reconciliation. Verify preserved model/key sc
 policies, usage history, source bytes and planning receipts in the disposable restoration.
 Never treat a database-only restore as evidence that originals, master keys or model
 configuration have also been recovered.
+
+Keep native execution runners stopped and unable to reach a restored server. Before
+reconnecting workers, disable restored project execution grants/schedules, revoke old
+runner credentials, and reconcile provider work since the backup point. Enroll new
+runners only after reviewing the recovered state. This is an operator procedure, not
+an automatically enforced restoration mode. A database restore cannot undo a sent model
+request or recover its unknown provider result. See the
+[native execution recovery boundary](native-execution.md#storage-api-and-restoration).
 
 Host Desktop/Documents/Downloads folders and cloud files are outside managed account
 storage and need their own backups. Standalone runtime adapter experiments own their

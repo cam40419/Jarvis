@@ -8,7 +8,7 @@ from contextlib import contextmanager
 from copy import deepcopy
 from datetime import UTC, datetime
 from threading import RLock
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -43,6 +43,23 @@ from simon.domain.models import (
     utc_now,
 )
 from simon.domain.native_agents import NativeAgent, NativeAgentCredential, NativeTeamPolicy
+from simon.domain.native_execution import (
+    EXECUTION_RUN_MUTABLE_FIELDS,
+    EXECUTION_RUNNER_MUTABLE_FIELDS,
+    EXECUTION_SCHEDULE_MUTABLE_FIELDS,
+    EXECUTION_STEP_MUTABLE_FIELDS,
+    EXECUTION_WAIT_MUTABLE_FIELDS,
+    LIVE_EXECUTION_STATUSES,
+    NativeExecutionEvent,
+    NativeExecutionPolicy,
+    NativeExecutionRun,
+    NativeExecutionRunner,
+    NativeExecutionSchedule,
+    NativeExecutionSignal,
+    NativeExecutionStep,
+    NativeExecutionWait,
+    NativeTaskWorkflow,
+)
 from simon.domain.native_intake import (
     INTAKE_RUN_MUTABLE_FIELDS,
     IntakeRun,
@@ -66,6 +83,27 @@ from simon.domain.native_projects import (
 )
 from simon.domain.ports import CapabilityHandler
 from simon.domain.voice import VoiceSession
+
+EXECUTION_MODELS: dict[str, type[BaseModel]] = {
+    "native_execution_policies": NativeExecutionPolicy,
+    "native_task_workflows": NativeTaskWorkflow,
+    "native_execution_runs": NativeExecutionRun,
+    "native_execution_steps": NativeExecutionStep,
+    "native_execution_events": NativeExecutionEvent,
+    "native_execution_waits": NativeExecutionWait,
+    "native_execution_signals": NativeExecutionSignal,
+    "native_execution_schedules": NativeExecutionSchedule,
+    "native_execution_runners": NativeExecutionRunner,
+}
+EXECUTION_KEYS = dict.fromkeys(EXECUTION_MODELS, "id")
+EXECUTION_KEYS.update(native_execution_policies="project_id", native_task_workflows="task_id")
+EXECUTION_MUTABLE = {
+    "native_execution_runs": EXECUTION_RUN_MUTABLE_FIELDS,
+    "native_execution_steps": EXECUTION_STEP_MUTABLE_FIELDS,
+    "native_execution_waits": EXECUTION_WAIT_MUTABLE_FIELDS,
+    "native_execution_schedules": EXECUTION_SCHEDULE_MUTABLE_FIELDS,
+    "native_execution_runners": EXECUTION_RUNNER_MUTABLE_FIELDS,
+}
 
 
 class InMemoryStore:
@@ -118,6 +156,9 @@ class InMemoryStore:
         self._project_model_credentials: dict[UUID, ProjectModelCredential] = {}
         self._model_resource_policies: dict[tuple[UUID, UUID | None], ModelResourcePolicy] = {}
         self._model_usage: dict[UUID, ModelUsage] = {}
+        self._execution_records: dict[str, dict[UUID, Any]] = {
+            name: {} for name in EXECUTION_MODELS
+        }
 
     @contextmanager
     def transaction(self, workspace_id: UUID | None = None) -> Iterator[None]:
@@ -163,6 +204,7 @@ class InMemoryStore:
                     self._project_model_credentials,
                     self._model_resource_policies,
                     self._model_usage,
+                    self._execution_records,
                 )
             )
             try:
@@ -208,8 +250,519 @@ class InMemoryStore:
                     self._project_model_credentials,
                     self._model_resource_policies,
                     self._model_usage,
+                    self._execution_records,
                 ) = snapshot
                 raise
+
+    def _execution_get(
+        self, table: str, workspace_id: UUID, project_id: UUID, identifier: UUID
+    ) -> Any:
+        with self._lock:
+            value = self._execution_records[table].get(identifier)
+            return (
+                value.model_copy(deep=True)
+                if value is not None
+                and (value.workspace_id, value.project_id) == (workspace_id, project_id)
+                else None
+            )
+
+    def _execution_list(
+        self,
+        table: str,
+        workspace_id: UUID | None,
+        project_id: UUID | None,
+        filters: dict[str, Any] | None = None,
+        *,
+        offset: int = 0,
+        limit: int | None = None,
+        descending: bool = False,
+    ) -> tuple[Any, ...]:
+        with self._lock:
+            values = [
+                value
+                for value in self._execution_records[table].values()
+                if (workspace_id is None or value.workspace_id == workspace_id)
+                and (project_id is None or value.project_id == project_id)
+                and all(
+                    getattr(value, field) in expected
+                    if isinstance(expected, frozenset)
+                    else getattr(value, field) == expected
+                    for field, expected in (filters or {}).items()
+                )
+            ]
+            order = (
+                "sequence"
+                if table in {"native_execution_steps", "native_execution_events"}
+                else (
+                    "updated_at"
+                    if table in {"native_execution_policies", "native_task_workflows"}
+                    else "created_at"
+                )
+            )
+            values.sort(
+                key=lambda item: (getattr(item, order), getattr(item, EXECUTION_KEYS[table])),
+                reverse=descending,
+            )
+            return tuple(
+                value.model_copy(deep=True)
+                for value in values[offset : None if limit is None else offset + limit]
+            )
+
+    def _execution_write(self, table: str, value: Any, expected_version: int | None) -> None:
+        if (
+            expected_version in {None, 0}
+            and getattr(value, EXECUTION_KEYS[table]) in self._execution_records[table]
+        ):
+            raise InvalidTransitionError("Execution identifier already exists.")
+        self._execution_records[table][getattr(value, EXECUTION_KEYS[table])] = value.model_copy(
+            deep=True
+        )
+
+    def _execution_validate(self, table: str, value: Any, previous: Any) -> None:
+        """Shared adapter invariants; authorization remains a service responsibility."""
+        ws, pid = value.workspace_id, value.project_id
+        if self.native_project(ws, pid) is None:
+            raise InvalidTransitionError("Execution project is unavailable.")
+        if (
+            previous is None
+            and hasattr(value, "issued_by")
+            and value.issued_by is not None
+            and not any(item.workspace_id == ws for item in self.memberships(value.issued_by))
+        ):
+            raise InvalidTransitionError("Execution issuer is outside its workspace.")
+        if isinstance(value, NativeTaskWorkflow):
+            if (
+                self.native_task(ws, pid, value.task_id) is None
+                or value.task_id in value.dependency_ids
+                or any(
+                    self.native_task(ws, pid, identifier) is None
+                    for identifier in value.dependency_ids
+                )
+            ):
+                raise InvalidTransitionError(
+                    "Workflow dependencies must be distinct tasks in this project."
+                )
+        elif isinstance(value, NativeExecutionRun):
+            if (
+                self.native_task(ws, pid, value.task_id) is None
+                or self.native_agent(ws, pid, value.agent_id) is None
+                or self.project_model(ws, pid, value.model_id) is None
+                or (
+                    value.runner_id is not None
+                    and self.execution_runner(ws, pid, value.runner_id) is None
+                )
+            ):
+                raise InvalidTransitionError(
+                    "Execution task, role, model or runner is outside its project."
+                )
+            if value.parent_run_id is not None:
+                parent = self.execution_run(ws, pid, value.parent_run_id)
+                root = self.execution_run(ws, pid, value.root_run_id)
+                if (
+                    parent is None
+                    or root is None
+                    or parent.root_run_id != value.root_run_id
+                    or parent.depth + 1 != value.depth
+                    or parent.issued_by != value.issued_by
+                    or parent.policy_version != value.policy_version
+                    or value.deadline_at > parent.deadline_at
+                ):
+                    raise InvalidTransitionError(
+                        "Execution ancestry is unavailable or inconsistent."
+                    )
+                if any(
+                    getattr(value.bounds, field) > getattr(parent.bounds, field)
+                    for field in (
+                        "max_active_runs",
+                        "max_queued_runs",
+                        "max_steps",
+                        "max_attempts",
+                        "max_depth",
+                        "max_children",
+                        "max_model_calls",
+                        "max_cost_microusd",
+                        "lease_seconds",
+                        "run_timeout_seconds",
+                    )
+                ):
+                    raise InvalidTransitionError(
+                        "Delegation cannot enlarge inherited resource bounds."
+                    )
+            if (
+                value.schedule_id is not None
+                and self.execution_schedule(ws, pid, value.schedule_id) is None
+            ):
+                raise InvalidTransitionError("Execution schedule is outside its project.")
+            if value.status in LIVE_EXECUTION_STATUSES and any(
+                item.id != value.id
+                for item in self._execution_list(
+                    table,
+                    ws,
+                    pid,
+                    {
+                        "task_id": value.task_id,
+                        "status": LIVE_EXECUTION_STATUSES,
+                    },
+                )
+            ):
+                raise InvalidTransitionError("This task already has a live execution.")
+            if previous is not None:
+                if previous.status in {"completed", "cancelled", "stale"}:
+                    raise InvalidTransitionError("Terminal execution history is immutable.")
+                if any(
+                    getattr(value, field) < getattr(previous, field)
+                    for field in ("step_number", "applied_step", "attempt", "fence")
+                ):
+                    raise InvalidTransitionError("Execution progress cannot move backwards.")
+        elif isinstance(
+            value,
+            (NativeExecutionStep, NativeExecutionEvent, NativeExecutionWait, NativeExecutionSignal),
+        ):
+            run = self.execution_run(ws, pid, value.run_id)
+            if run is None:
+                raise InvalidTransitionError("Execution trace belongs to an unavailable run.")
+            if isinstance(value, NativeExecutionStep):
+                if run.root_run_id != value.root_run_id or (
+                    value.usage_id is not None and self.model_usage(ws, pid, value.usage_id) is None
+                ):
+                    raise InvalidTransitionError(
+                        "Execution step accounting or root is outside its scope."
+                    )
+                if previous is not None and previous.status in {"completed", "failed"}:
+                    raise InvalidTransitionError("Resolved execution steps are immutable.")
+                if (
+                    previous is not None
+                    and previous.usage_id is not None
+                    and previous.usage_id != value.usage_id
+                ):
+                    raise InvalidTransitionError("Execution accounting identity cannot change.")
+                if any(
+                    item.id != value.id
+                    for item in self._execution_list(
+                        table, ws, pid, {"operation_id": value.operation_id}
+                    )
+                ):
+                    raise InvalidTransitionError("Execution operation already belongs to a step.")
+                allowed = {
+                    "prepared": {"prepared", "dispatched", "failed"},
+                    "dispatched": {"dispatched", "completed", "failed", "unknown"},
+                    "unknown": {"unknown", "completed", "failed"},
+                }
+                if previous is not None and value.status not in allowed[previous.status]:
+                    raise InvalidTransitionError("A dispatched execution step cannot be repeated.")
+                if value.usage_id is not None:
+                    usage = self.model_usage(ws, pid, value.usage_id)
+                    assert usage is not None
+                    if usage.operation_id != value.operation_id:
+                        raise InvalidTransitionError("Step and model accounting operations differ.")
+            if isinstance(value, (NativeExecutionStep, NativeExecutionEvent)) and any(
+                item.id != value.id
+                for item in self._execution_list(
+                    table, ws, pid, {"run_id": value.run_id, "sequence": value.sequence}
+                )
+            ):
+                raise InvalidTransitionError("Execution sequence already exists.")
+            if isinstance(value, NativeExecutionWait):
+                if previous is not None and previous.status != "pending":
+                    raise InvalidTransitionError("Resolved waits are immutable.")
+                correlated = self._execution_list(
+                    table, ws, pid, {"correlation_id": value.correlation_id}
+                )
+                pending = (
+                    self._execution_list(
+                        table, ws, pid, {"run_id": value.run_id, "status": "pending"}
+                    )
+                    if value.status == "pending"
+                    else ()
+                )
+                if any(item.id != value.id for item in (*correlated, *pending)):
+                    raise InvalidTransitionError("Wait correlation or pending run already exists.")
+            if isinstance(value, NativeExecutionSignal):
+                if self.execution_signal(ws, pid, value.run_id, value.correlation_id) is not None:
+                    raise InvalidTransitionError("Signal correlation already exists.")
+                if not any(item.workspace_id == ws for item in self.memberships(value.received_by)):
+                    raise InvalidTransitionError("Signal sender is outside its workspace.")
+        elif isinstance(value, NativeExecutionSchedule):
+            if self.native_task(ws, pid, value.task_id) is None:
+                raise InvalidTransitionError("Schedule task is outside its project.")
+            if value.last_run_id is not None:
+                last = self.execution_run(ws, pid, value.last_run_id)
+                if last is None or last.schedule_id != value.id:
+                    raise InvalidTransitionError("Schedule occurrence is outside its task.")
+            if (
+                value.enabled
+                and value.next_run_at is not None
+                and any(
+                    item.id != value.id and item.next_run_at is not None
+                    for item in self._execution_list(
+                        table, ws, pid, {"task_id": value.task_id, "enabled": True}
+                    )
+                )
+            ):
+                raise InvalidTransitionError("This task already has an enabled schedule.")
+            if previous is not None and (
+                value.definition_version < previous.definition_version
+                or value.occurrence_count < previous.occurrence_count
+            ):
+                raise InvalidTransitionError("Schedule history cannot move backwards.")
+        elif isinstance(value, NativeExecutionRunner):
+            other = self.execution_runner_by_hash(value.token_hash)
+            if other is not None and other.id != value.id:
+                raise InvalidTransitionError("Runner credential already exists.")
+            if previous is not None and previous.status == "revoked":
+                raise InvalidTransitionError("Revoked runners cannot be changed.")
+
+    def _execution_save(self, table: str, value: Any, expected_version: int | None) -> None:
+        with self.transaction(value.workspace_id):
+            try:
+                value = EXECUTION_MODELS[table].model_validate(value.model_dump())
+            except ValueError as exc:
+                raise InvalidTransitionError("Invalid execution record.") from exc
+            identifier = getattr(value, EXECUTION_KEYS[table])
+            previous = self._execution_get(table, value.workspace_id, value.project_id, identifier)
+            if expected_version is None:
+                if previous is not None or getattr(value, "version", 1) != 1:
+                    raise InvalidTransitionError(
+                        "Execution record exists or has an invalid initial version."
+                    )
+            else:
+                if (
+                    getattr(previous, "version", 0) != expected_version
+                    or value.version != expected_version + 1
+                ):
+                    raise InvalidTransitionError(
+                        "Execution record changed. Reload before retrying."
+                    )
+                if previous is not None:
+                    mutable = EXECUTION_MUTABLE.get(table)
+                    if mutable is not None and value.model_dump(
+                        exclude=mutable
+                    ) != previous.model_dump(exclude=mutable):
+                        raise InvalidTransitionError(
+                            "Execution identity and input history are immutable."
+                        )
+            self._execution_validate(table, value, previous)
+            self._execution_write(table, value, expected_version)
+
+    def execution_policy(
+        self, workspace_id: UUID, project_id: UUID
+    ) -> NativeExecutionPolicy | None:
+        return cast(
+            NativeExecutionPolicy | None,
+            self._execution_get("native_execution_policies", workspace_id, project_id, project_id),
+        )
+
+    def save_execution_policy(self, value: NativeExecutionPolicy, expected_version: int) -> None:
+        self._execution_save("native_execution_policies", value, expected_version)
+
+    def task_workflow(
+        self, workspace_id: UUID, project_id: UUID, task_id: UUID
+    ) -> NativeTaskWorkflow | None:
+        return cast(
+            NativeTaskWorkflow | None,
+            self._execution_get("native_task_workflows", workspace_id, project_id, task_id),
+        )
+
+    def save_task_workflow(self, value: NativeTaskWorkflow, expected_version: int) -> None:
+        self._execution_save("native_task_workflows", value, expected_version)
+
+    def execution_run(
+        self, workspace_id: UUID, project_id: UUID, run_id: UUID
+    ) -> NativeExecutionRun | None:
+        return cast(
+            NativeExecutionRun | None,
+            self._execution_get("native_execution_runs", workspace_id, project_id, run_id),
+        )
+
+    def insert_execution_run(self, value: NativeExecutionRun) -> None:
+        self._execution_save("native_execution_runs", value, None)
+
+    def update_execution_run(self, value: NativeExecutionRun, expected_version: int) -> None:
+        self._execution_save("native_execution_runs", value, expected_version)
+
+    def execution_step(
+        self, workspace_id: UUID, project_id: UUID, step_id: UUID
+    ) -> NativeExecutionStep | None:
+        return cast(
+            NativeExecutionStep | None,
+            self._execution_get("native_execution_steps", workspace_id, project_id, step_id),
+        )
+
+    def insert_execution_step(self, value: NativeExecutionStep) -> None:
+        self._execution_save("native_execution_steps", value, None)
+
+    def update_execution_step(self, value: NativeExecutionStep, expected_version: int) -> None:
+        self._execution_save("native_execution_steps", value, expected_version)
+
+    def append_execution_event(self, value: NativeExecutionEvent) -> None:
+        self._execution_save("native_execution_events", value, None)
+
+    def insert_execution_wait(self, value: NativeExecutionWait) -> None:
+        self._execution_save("native_execution_waits", value, None)
+
+    def update_execution_wait(self, value: NativeExecutionWait, expected_version: int) -> None:
+        self._execution_save("native_execution_waits", value, expected_version)
+
+    def insert_execution_signal(self, value: NativeExecutionSignal) -> None:
+        self._execution_save("native_execution_signals", value, None)
+
+    def execution_schedule(
+        self, workspace_id: UUID, project_id: UUID, schedule_id: UUID
+    ) -> NativeExecutionSchedule | None:
+        return cast(
+            NativeExecutionSchedule | None,
+            self._execution_get(
+                "native_execution_schedules", workspace_id, project_id, schedule_id
+            ),
+        )
+
+    def insert_execution_schedule(self, value: NativeExecutionSchedule) -> None:
+        self._execution_save("native_execution_schedules", value, None)
+
+    def update_execution_schedule(
+        self, value: NativeExecutionSchedule, expected_version: int
+    ) -> None:
+        self._execution_save("native_execution_schedules", value, expected_version)
+
+    def execution_runner(
+        self, workspace_id: UUID, project_id: UUID, runner_id: UUID
+    ) -> NativeExecutionRunner | None:
+        return cast(
+            NativeExecutionRunner | None,
+            self._execution_get("native_execution_runners", workspace_id, project_id, runner_id),
+        )
+
+    def insert_execution_runner(self, value: NativeExecutionRunner) -> None:
+        self._execution_save("native_execution_runners", value, None)
+
+    def update_execution_runner(self, value: NativeExecutionRunner, expected_version: int) -> None:
+        self._execution_save("native_execution_runners", value, expected_version)
+
+    def task_workflows(
+        self, workspace_id: UUID, project_id: UUID
+    ) -> tuple[NativeTaskWorkflow, ...]:
+        return self._execution_list("native_task_workflows", workspace_id, project_id, None)
+
+    def execution_runs(
+        self, workspace_id: UUID, project_id: UUID, offset: int = 0, limit: int = 50
+    ) -> tuple[NativeExecutionRun, ...]:
+        return self._execution_list(
+            "native_execution_runs",
+            workspace_id,
+            project_id,
+            None,
+            offset=offset,
+            limit=limit,
+            descending=True,
+        )
+
+    def execution_active_runs(
+        self, workspace_id: UUID, project_id: UUID
+    ) -> tuple[NativeExecutionRun, ...]:
+        return self._execution_list(
+            "native_execution_runs", workspace_id, project_id, {"status": LIVE_EXECUTION_STATUSES}
+        )
+
+    def execution_task_runs(
+        self, workspace_id: UUID, project_id: UUID, task_id: UUID, offset: int = 0, limit: int = 50
+    ) -> tuple[NativeExecutionRun, ...]:
+        return self._execution_list(
+            "native_execution_runs",
+            workspace_id,
+            project_id,
+            {"task_id": task_id},
+            offset=offset,
+            limit=limit,
+            descending=True,
+        )
+
+    def execution_root_runs(
+        self, workspace_id: UUID, project_id: UUID, root_run_id: UUID
+    ) -> tuple[NativeExecutionRun, ...]:
+        return self._execution_list(
+            "native_execution_runs", workspace_id, project_id, {"root_run_id": root_run_id}
+        )
+
+    def execution_steps(
+        self, workspace_id: UUID, project_id: UUID, run_id: UUID
+    ) -> tuple[NativeExecutionStep, ...]:
+        return self._execution_list(
+            "native_execution_steps", workspace_id, project_id, {"run_id": run_id}
+        )
+
+    def execution_root_steps(
+        self, workspace_id: UUID, project_id: UUID, root_run_id: UUID
+    ) -> tuple[NativeExecutionStep, ...]:
+        return self._execution_list(
+            "native_execution_steps", workspace_id, project_id, {"root_run_id": root_run_id}
+        )
+
+    def execution_events(
+        self, workspace_id: UUID, project_id: UUID, run_id: UUID, offset: int = 0, limit: int = 50
+    ) -> tuple[NativeExecutionEvent, ...]:
+        return self._execution_list(
+            "native_execution_events",
+            workspace_id,
+            project_id,
+            {"run_id": run_id},
+            offset=offset,
+            limit=limit,
+        )
+
+    def execution_waits(
+        self, workspace_id: UUID, project_id: UUID, run_id: UUID
+    ) -> tuple[NativeExecutionWait, ...]:
+        return self._execution_list(
+            "native_execution_waits", workspace_id, project_id, {"run_id": run_id}
+        )
+
+    def execution_schedules(
+        self, workspace_id: UUID, project_id: UUID, offset: int = 0, limit: int = 50
+    ) -> tuple[NativeExecutionSchedule, ...]:
+        return self._execution_list(
+            "native_execution_schedules",
+            workspace_id,
+            project_id,
+            None,
+            offset=offset,
+            limit=limit,
+            descending=True,
+        )
+
+    def execution_runners(
+        self, workspace_id: UUID, project_id: UUID
+    ) -> tuple[NativeExecutionRunner, ...]:
+        return self._execution_list("native_execution_runners", workspace_id, project_id, None)
+
+    def execution_signal(
+        self, workspace_id: UUID, project_id: UUID, run_id: UUID, correlation_id: UUID
+    ) -> NativeExecutionSignal | None:
+        values = self._execution_list(
+            "native_execution_signals",
+            workspace_id,
+            project_id,
+            {"run_id": run_id, "correlation_id": correlation_id},
+            limit=1,
+        )
+        return values[0] if values else None
+
+    def execution_runner_by_hash(self, token_hash: str) -> NativeExecutionRunner | None:
+        values = self._execution_list(
+            "native_execution_runners", None, None, {"token_hash": token_hash}, limit=1
+        )
+        return values[0] if values else None
+
+    def execution_project_scopes(self) -> tuple[tuple[UUID, UUID], ...]:
+        scopes = {
+            (value.workspace_id, value.project_id)
+            for table in (
+                "native_execution_policies",
+                "native_execution_schedules",
+                "native_execution_runs",
+            )
+            for value in self._execution_list(table, None, None)
+        }
+        return tuple(sorted(scopes))
 
     def native_project(self, workspace_id: UUID, project_id: UUID) -> NativeProject | None:
         with self._lock:

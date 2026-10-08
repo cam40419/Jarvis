@@ -15,7 +15,7 @@ from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 from psycopg_pool import ConnectionPool
 
-from simon.adapters.memory import InMemoryStore
+from simon.adapters.memory import EXECUTION_KEYS, EXECUTION_MODELS, InMemoryStore
 from simon.domain.accounts import ManagedAccount
 from simon.domain.connected_tools import ActionProposal, GoogleConnection, GoogleOAuthState
 from simon.domain.context import ExplicitMemory, RecallDocument
@@ -57,6 +57,97 @@ from simon.domain.native_models import (
 from simon.domain.native_projects import NativeProject, NativeProjectMember, NativeTask
 from simon.domain.voice import VoiceSession
 
+EXECUTION_COLUMNS: dict[str, tuple[str, ...]] = {
+    "native_execution_policies": (
+        "workspace_id",
+        "project_id",
+        "version",
+        "issued_by",
+        "updated_at",
+    ),
+    "native_task_workflows": ("workspace_id", "project_id", "task_id", "version", "updated_at"),
+    "native_execution_runs": (
+        "id",
+        "workspace_id",
+        "project_id",
+        "task_id",
+        "agent_id",
+        "model_id",
+        "issued_by",
+        "root_run_id",
+        "parent_run_id",
+        "schedule_id",
+        "runner_id",
+        "version",
+        "status",
+        "created_at",
+        "deadline_at",
+    ),
+    "native_execution_steps": (
+        "id",
+        "workspace_id",
+        "project_id",
+        "run_id",
+        "root_run_id",
+        "sequence",
+        "operation_id",
+        "usage_id",
+        "version",
+        "status",
+        "created_at",
+    ),
+    "native_execution_events": (
+        "id",
+        "workspace_id",
+        "project_id",
+        "run_id",
+        "sequence",
+        "created_at",
+    ),
+    "native_execution_waits": (
+        "id",
+        "workspace_id",
+        "project_id",
+        "run_id",
+        "correlation_id",
+        "version",
+        "status",
+        "created_at",
+    ),
+    "native_execution_signals": (
+        "id",
+        "workspace_id",
+        "project_id",
+        "run_id",
+        "correlation_id",
+        "received_by",
+        "created_at",
+    ),
+    "native_execution_schedules": (
+        "id",
+        "workspace_id",
+        "project_id",
+        "task_id",
+        "issued_by",
+        "version",
+        "enabled",
+        "next_run_at",
+        "last_run_id",
+        "created_at",
+    ),
+    "native_execution_runners": (
+        "id",
+        "workspace_id",
+        "project_id",
+        "issued_by",
+        "version",
+        "token_hash",
+        "status",
+        "created_at",
+        "expires_at",
+    ),
+}
+
 
 class PostgresStore(InMemoryStore):
     """Durable state with a process-local registry of executable capability handlers.
@@ -75,6 +166,121 @@ class PostgresStore(InMemoryStore):
         self._connection: ContextVar[psycopg.Connection[dict[str, Any]] | None] = ContextVar(
             "simon_connection", default=None
         )
+
+    def _execution_get(
+        self, table: str, workspace_id: UUID, project_id: UUID, identifier: UUID
+    ) -> Any:
+        key = EXECUTION_KEYS[table]
+        with self.transaction():
+            row = self.connection.execute(
+                f"SELECT snapshot FROM {table} WHERE workspace_id=%s "
+                f"AND project_id=%s AND {key}=%s",
+                (workspace_id, project_id, identifier),
+            ).fetchone()
+            return EXECUTION_MODELS[table].model_validate(row["snapshot"]) if row else None
+
+    def _execution_list(
+        self,
+        table: str,
+        workspace_id: UUID | None,
+        project_id: UUID | None,
+        filters: dict[str, Any] | None = None,
+        *,
+        offset: int = 0,
+        limit: int | None = None,
+        descending: bool = False,
+    ) -> tuple[Any, ...]:
+        columns = EXECUTION_COLUMNS[table]
+        conditions: list[str] = []
+        values: list[Any] = []
+        if workspace_id is not None:
+            conditions.append("workspace_id=%s")
+            values.append(workspace_id)
+        if project_id is not None:
+            conditions.append("project_id=%s")
+            values.append(project_id)
+        for field, expected in (filters or {}).items():
+            if field not in columns:
+                raise ValueError("Execution query field is unavailable.")
+            conditions.append(
+                f"{field} = ANY(%s)" if isinstance(expected, frozenset) else f"{field}=%s"
+            )
+            values.append(sorted(expected) if isinstance(expected, frozenset) else expected)
+        order = (
+            "sequence"
+            if "sequence" in columns
+            else "created_at"
+            if "created_at" in columns
+            else "updated_at"
+        )
+        direction = "DESC" if descending else "ASC"
+        where = " WHERE " + " AND ".join(conditions) if conditions else ""
+        with self.transaction():
+            rows = self.connection.execute(
+                f"SELECT snapshot FROM {table}{where} ORDER BY {order} {direction},"
+                f"{EXECUTION_KEYS[table]} {direction} LIMIT %s OFFSET %s",
+                (*values, limit, offset),
+            ).fetchall()
+            return tuple(EXECUTION_MODELS[table].model_validate(row["snapshot"]) for row in rows)
+
+    def _execution_write(self, table: str, value: Any, expected_version: int | None) -> None:
+        columns = EXECUTION_COLUMNS[table]
+        values = (
+            *(getattr(value, name) for name in columns),
+            Jsonb(value.model_dump(mode="json")),
+        )
+        try:
+            with self.transaction():
+                if expected_version in {None, 0}:
+                    self.connection.execute(
+                        f"INSERT INTO {table} ({','.join(columns)},snapshot) "
+                        f"VALUES ({','.join(['%s'] * len(values))})",
+                        values,
+                    )
+                else:
+                    result = self.connection.execute(
+                        f"UPDATE {table} SET "
+                        + ",".join(f"{field}=%s" for field in (*columns, "snapshot"))
+                        + " WHERE workspace_id=%s AND project_id=%s "
+                        + f"AND {EXECUTION_KEYS[table]}=%s AND version=%s",
+                        (
+                            *values,
+                            value.workspace_id,
+                            value.project_id,
+                            getattr(value, EXECUTION_KEYS[table]),
+                            expected_version,
+                        ),
+                    )
+                    if result.rowcount != 1:
+                        raise InvalidTransitionError(
+                            "Execution record changed. Reload before retrying."
+                        )
+                if table == "native_task_workflows":
+                    self.connection.execute(
+                        "DELETE FROM native_task_dependencies WHERE workspace_id=%s "
+                        "AND project_id=%s AND task_id=%s",
+                        (value.workspace_id, value.project_id, value.task_id),
+                    )
+                    for target in value.dependency_ids:
+                        self.connection.execute(
+                            "INSERT INTO native_task_dependencies "
+                            "(workspace_id,project_id,task_id,dependency_id) VALUES (%s,%s,%s,%s)",
+                            (value.workspace_id, value.project_id, value.task_id, target),
+                        )
+        except psycopg.IntegrityError as exc:
+            raise InvalidTransitionError(
+                "Execution record conflicts with current scope or state."
+            ) from exc
+
+    def execution_project_scopes(self) -> tuple[tuple[UUID, UUID], ...]:
+        with self.transaction():
+            rows = self.connection.execute(
+                "SELECT workspace_id,project_id FROM native_execution_policies UNION "
+                "SELECT workspace_id,project_id FROM native_execution_schedules UNION "
+                "SELECT workspace_id,project_id FROM native_execution_runs "
+                "ORDER BY workspace_id,project_id"
+            ).fetchall()
+            return tuple((row["workspace_id"], row["project_id"]) for row in rows)
 
     def _connection_context(self) -> AbstractContextManager[psycopg.Connection[dict[str, Any]]]:
         if self._pool_size <= 0:

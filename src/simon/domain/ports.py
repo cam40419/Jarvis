@@ -31,6 +31,17 @@ from simon.domain.models import (
     OutboxEvent,
 )
 from simon.domain.native_agents import NativeAgent, NativeAgentCredential, NativeTeamPolicy
+from simon.domain.native_execution import (
+    NativeExecutionEvent,
+    NativeExecutionPolicy,
+    NativeExecutionRun,
+    NativeExecutionRunner,
+    NativeExecutionSchedule,
+    NativeExecutionSignal,
+    NativeExecutionStep,
+    NativeExecutionWait,
+    NativeTaskWorkflow,
+)
 from simon.domain.native_intake import IntakeRun, IntakeSource, NativeIntake
 from simon.domain.native_models import (
     ModelResourcePolicy,
@@ -419,6 +430,118 @@ class NativeModelStore(TransactionStore, Protocol):
     ) -> UsageTotals: ...
 
 
+class NativeExecutionStore(TransactionStore, Protocol):
+    def execution_policy(
+        self, workspace_id: UUID, project_id: UUID
+    ) -> NativeExecutionPolicy | None: ...
+
+    def save_execution_policy(
+        self, value: NativeExecutionPolicy, expected_version: int
+    ) -> None: ...
+
+    def task_workflow(
+        self, workspace_id: UUID, project_id: UUID, task_id: UUID
+    ) -> NativeTaskWorkflow | None: ...
+
+    def save_task_workflow(self, value: NativeTaskWorkflow, expected_version: int) -> None: ...
+
+    def execution_run(
+        self, workspace_id: UUID, project_id: UUID, run_id: UUID
+    ) -> NativeExecutionRun | None: ...
+
+    def insert_execution_run(self, value: NativeExecutionRun) -> None: ...
+
+    def update_execution_run(self, value: NativeExecutionRun, expected_version: int) -> None: ...
+
+    def execution_step(
+        self, workspace_id: UUID, project_id: UUID, step_id: UUID
+    ) -> NativeExecutionStep | None: ...
+
+    def insert_execution_step(self, value: NativeExecutionStep) -> None: ...
+
+    def update_execution_step(self, value: NativeExecutionStep, expected_version: int) -> None: ...
+
+    def append_execution_event(self, value: NativeExecutionEvent) -> None: ...
+
+    def insert_execution_wait(self, value: NativeExecutionWait) -> None: ...
+
+    def update_execution_wait(self, value: NativeExecutionWait, expected_version: int) -> None: ...
+
+    def insert_execution_signal(self, value: NativeExecutionSignal) -> None: ...
+
+    def execution_schedule(
+        self, workspace_id: UUID, project_id: UUID, schedule_id: UUID
+    ) -> NativeExecutionSchedule | None: ...
+
+    def insert_execution_schedule(self, value: NativeExecutionSchedule) -> None: ...
+
+    def update_execution_schedule(
+        self, value: NativeExecutionSchedule, expected_version: int
+    ) -> None: ...
+
+    def execution_runner(
+        self, workspace_id: UUID, project_id: UUID, runner_id: UUID
+    ) -> NativeExecutionRunner | None: ...
+
+    def insert_execution_runner(self, value: NativeExecutionRunner) -> None: ...
+
+    def update_execution_runner(
+        self, value: NativeExecutionRunner, expected_version: int
+    ) -> None: ...
+
+    def task_workflows(
+        self, workspace_id: UUID, project_id: UUID
+    ) -> tuple[NativeTaskWorkflow, ...]: ...
+
+    def execution_runs(
+        self, workspace_id: UUID, project_id: UUID, offset: int = 0, limit: int = 50
+    ) -> tuple[NativeExecutionRun, ...]: ...
+
+    def execution_active_runs(
+        self, workspace_id: UUID, project_id: UUID
+    ) -> tuple[NativeExecutionRun, ...]: ...
+
+    def execution_task_runs(
+        self, workspace_id: UUID, project_id: UUID, task_id: UUID, offset: int = 0, limit: int = 50
+    ) -> tuple[NativeExecutionRun, ...]: ...
+
+    def execution_root_runs(
+        self, workspace_id: UUID, project_id: UUID, root_run_id: UUID
+    ) -> tuple[NativeExecutionRun, ...]: ...
+
+    def execution_steps(
+        self, workspace_id: UUID, project_id: UUID, run_id: UUID
+    ) -> tuple[NativeExecutionStep, ...]: ...
+
+    def execution_root_steps(
+        self, workspace_id: UUID, project_id: UUID, root_run_id: UUID
+    ) -> tuple[NativeExecutionStep, ...]: ...
+
+    def execution_events(
+        self, workspace_id: UUID, project_id: UUID, run_id: UUID, offset: int = 0, limit: int = 50
+    ) -> tuple[NativeExecutionEvent, ...]: ...
+
+    def execution_waits(
+        self, workspace_id: UUID, project_id: UUID, run_id: UUID
+    ) -> tuple[NativeExecutionWait, ...]: ...
+
+    def execution_schedules(
+        self, workspace_id: UUID, project_id: UUID, offset: int = 0, limit: int = 50
+    ) -> tuple[NativeExecutionSchedule, ...]: ...
+
+    def execution_runners(
+        self, workspace_id: UUID, project_id: UUID
+    ) -> tuple[NativeExecutionRunner, ...]: ...
+
+    def execution_signal(
+        self, workspace_id: UUID, project_id: UUID, run_id: UUID, correlation_id: UUID
+    ) -> NativeExecutionSignal | None: ...
+
+    def execution_runner_by_hash(self, token_hash: str) -> NativeExecutionRunner | None: ...
+
+    def execution_project_scopes(self) -> tuple[tuple[UUID, UUID], ...]: ...
+
+
 class Store(
     CapabilityStore,
     InvocationStore,
@@ -435,6 +558,7 @@ class Store(
     NativeAgentStore,
     NativeIntakeStore,
     NativeModelStore,
+    NativeExecutionStore,
     Protocol,
 ):
     """One transaction boundary for state, audit records, and delivery intents."""

@@ -13,6 +13,7 @@
     <script src="/assets/native-team.js" defer></script>
     <script src="/assets/native-intake.js" defer></script>
     <script src="/assets/native-models.js" defer></script>
+    <script src="/assets/native-execution.js" defer></script>
   </head>
   <body class="projects-page">
     <a class="np-skip" href="#np-main">Skip to projects</a>
@@ -82,6 +83,7 @@
             </button>
             <button id="np-agents" class="np-button" type="button">Agents</button>
             <button id="np-models" class="np-button" type="button">Models &amp; usage</button>
+            <button id="np-execution" class="np-button" type="button">Execution</button>
             <button id="np-team" class="np-button" type="button">People</button>
             <button id="np-edit-project" class="np-button" type="button">Edit project</button>
           </div>
@@ -132,7 +134,7 @@
 
       <footer class="np-footer">
         Build a shared brief, bring in source material, and plan a focused agent team. Task
-        execution and artifact review are being added separately.
+        execution produces candidates for a separate artifact review and acceptance process.
       </footer>
     </main>
 
@@ -929,6 +931,282 @@
           Retry operation
         </button>
         <button id="nt-credentials-close" class="np-button" type="button">Done</button>
+      </div>
+    </dialog>
+    <dialog id="ne-dialog" class="np-dialog ni-dialog" aria-labelledby="ne-heading">
+      <div class="np-dialog-heading">
+        <p id="ne-project" class="np-eyebrow"></p>
+        <div class="ni-toolbar">
+          <h2 id="ne-heading" tabindex="-1">Execution</h2>
+          <button id="ne-refresh" class="np-button np-quiet" type="button">Refresh status</button>
+        </div>
+        <p class="np-muted">Follow agent work, answer questions, and control when it runs.</p>
+      </div>
+      <div
+        id="ne-feedback"
+        class="np-feedback"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      ></div>
+      <section id="ne-uncertain" class="np-conflict" aria-labelledby="ne-uncertain-heading" hidden>
+        <h3 id="ne-uncertain-heading">The response could not be confirmed</h3>
+        <p id="ne-uncertain-description">
+          Check the saved operation or retry the same request before making another change.
+        </p>
+        <div class="np-actions">
+          <button id="ne-check" class="np-button" type="button">Check saved operation</button>
+          <button id="ne-retry" class="np-button" type="button">Retry original request</button>
+        </div>
+      </section>
+      <section id="ne-overview">
+        <div id="ne-policy-summary" class="ni-objective"></div>
+        <div class="np-actions">
+          <button id="ne-policy-edit" class="np-button" type="button">Execution settings</button>
+          <button id="ne-models" class="np-button np-quiet" type="button">
+            Models &amp; usage
+          </button>
+        </div>
+        <section class="ni-section" aria-labelledby="ne-tasks-heading">
+          <h3 id="ne-tasks-heading">Task execution</h3>
+          <label for="ne-task">Choose a task</label>
+          <select id="ne-task"></select>
+          <p id="ne-task-reason" class="np-field-help"></p>
+          <div class="np-actions">
+            <button id="ne-start" class="np-button np-primary" type="button">Run task</button>
+            <button id="ne-workflow" class="np-button" type="button">
+              Dependencies &amp; timing
+            </button>
+            <button id="ne-schedule-new" class="np-button" type="button">Schedule task</button>
+          </div>
+        </section>
+        <section class="ni-section" aria-labelledby="ne-runs-heading">
+          <h3 id="ne-runs-heading">Run history</h3>
+          <ul id="ne-runs" class="ni-list"></ul>
+          <button id="ne-runs-more" class="np-button" type="button" hidden>Load more runs</button>
+        </section>
+        <section class="ni-section" aria-labelledby="ne-schedules-heading">
+          <h3 id="ne-schedules-heading">Schedules</h3>
+          <p class="np-field-help">
+            Missed occurrences combine into one run. A task has one active run at a time.
+          </p>
+          <ul id="ne-schedules" class="ni-list"></ul>
+          <button id="ne-schedules-more" class="np-button" type="button" hidden>
+            Load more schedules
+          </button>
+        </section>
+        <section class="ni-section" aria-labelledby="ne-runners-heading">
+          <div class="ni-toolbar">
+            <h3 id="ne-runners-heading">Connected runners</h3>
+            <button id="ne-runner-new" class="np-button" type="button">Enroll runner</button>
+          </div>
+          <p class="np-field-help">
+            An optional runner connects outward to this project and advances leased steps. Its
+            credential stays separate from agent board access.
+          </p>
+          <ul id="ne-runners" class="ni-list"></ul>
+        </section>
+      </section>
+      <section id="ne-editor" hidden>
+        <h3 id="ne-editor-heading" tabindex="-1"></h3>
+        <form id="ne-policy-form" hidden>
+          <label class="nt-checkbox"
+            ><input id="ne-enabled" type="checkbox" /> Enable agent execution in this project</label
+          >
+          <label class="nt-checkbox"
+            ><input id="ne-auto" type="checkbox" /> Automatically queue eligible tasks assigned to
+            agents</label
+          >
+          <p class="np-field-help">
+            Each run and its delegated work share the limits below. Model and workspace limits apply
+            as well. Changing this grant fences existing work.
+          </p>
+          <div class="ne-grid">
+            <div class="np-field">
+              <label for="ne-active">Active runs</label
+              ><input id="ne-active" type="number" min="1" max="32" required />
+            </div>
+            <div class="np-field">
+              <label for="ne-queued">Queued runs</label
+              ><input id="ne-queued" type="number" min="1" max="500" required />
+            </div>
+            <div class="np-field">
+              <label for="ne-steps">Steps per run</label
+              ><input id="ne-steps" type="number" min="1" max="32" required />
+            </div>
+            <div class="np-field">
+              <label for="ne-attempts">Attempts per run</label
+              ><input id="ne-attempts" type="number" min="1" max="8" required />
+            </div>
+            <div class="np-field">
+              <label for="ne-depth">Delegation depth</label
+              ><input id="ne-depth" type="number" min="0" max="4" required />
+            </div>
+            <div class="np-field">
+              <label for="ne-children">Delegated tasks per root run</label
+              ><input id="ne-children" type="number" min="0" max="32" required />
+            </div>
+            <div class="np-field">
+              <label for="ne-calls">Model calls per root run</label
+              ><input id="ne-calls" type="number" min="1" max="128" required />
+            </div>
+            <div class="np-field">
+              <label for="ne-cost">Cost ceiling per root run (USD)</label
+              ><input id="ne-cost" type="number" min="0" max="1000000" step="0.000001" required />
+            </div>
+            <div class="np-field">
+              <label for="ne-lease">Worker lease (seconds)</label
+              ><input id="ne-lease" type="number" min="180" max="600" required />
+            </div>
+            <div class="np-field">
+              <label for="ne-timeout">Run deadline (seconds)</label
+              ><input id="ne-timeout" type="number" min="300" max="604800" required />
+            </div>
+          </div>
+        </form>
+        <form id="ne-workflow-form" hidden>
+          <fieldset>
+            <legend>Prerequisite tasks</legend>
+            <div id="ne-dependencies" class="ne-dependencies"></div>
+          </fieldset>
+          <p class="np-field-help">
+            The service validates dependency readiness and rejects cycles. Dependencies do not
+            approve an artifact for publication.
+          </p>
+          <div class="np-field">
+            <label for="ne-not-before">Do not start before (your local time)</label
+            ><input id="ne-not-before" type="datetime-local" />
+          </div>
+        </form>
+        <form id="ne-start-form" hidden>
+          <p id="ne-start-description" class="ni-objective"></p>
+          <div class="np-field">
+            <label for="ne-agent">Accountable agent</label
+            ><select id="ne-agent" required></select>
+          </div>
+          <p class="np-field-help">
+            The task is queued durably. A connected runner advances its steps under the current
+            project grant and model limits.
+          </p>
+        </form>
+        <form id="ne-schedule-form" hidden>
+          <label id="ne-schedule-enabled-field" class="nt-checkbox"
+            ><input id="ne-schedule-enabled" type="checkbox" /> Schedule enabled</label
+          >
+          <div class="np-field">
+            <label for="ne-schedule-at">Next occurrence (your local time)</label
+            ><input id="ne-schedule-at" type="datetime-local" required />
+          </div>
+          <p id="ne-schedule-time-description" class="np-field-help"></p>
+          <div class="np-field">
+            <label for="ne-schedule-zone">Schedule timezone</label
+            ><input id="ne-schedule-zone" maxlength="100" required />
+          </div>
+          <p class="np-field-help">
+            The selected instant is saved in UTC. Repeats use elapsed seconds, so their local clock
+            time can change at daylight-saving transitions.
+          </p>
+          <div class="np-field">
+            <label for="ne-schedule-interval">Repeat every (seconds; blank for once)</label
+            ><input id="ne-schedule-interval" type="number" min="60" max="2592000" />
+          </div>
+          <div class="np-field">
+            <label for="ne-schedule-count">Maximum occurrences</label
+            ><input id="ne-schedule-count" type="number" min="1" max="1000" required />
+          </div>
+        </form>
+        <form id="ne-runner-form" hidden>
+          <div class="np-field">
+            <label for="ne-runner-name">Runner name</label
+            ><input id="ne-runner-name" maxlength="100" required autocomplete="off" />
+          </div>
+          <div class="np-field">
+            <label for="ne-runner-concurrency">Concurrent runs</label
+            ><input id="ne-runner-concurrency" type="number" min="1" max="8" required />
+          </div>
+          <div class="np-field">
+            <label for="ne-runner-ttl">Credential lifetime (seconds)</label
+            ><input id="ne-runner-ttl" type="number" min="300" max="2592000" required />
+          </div>
+          <p class="np-field-help">
+            The credential appears once. A lost enrollment response creates no retrievable token;
+            revoke that runner and enroll a replacement.
+          </p>
+        </form>
+        <form id="ne-signal-form" hidden>
+          <p id="ne-question" class="ni-objective"></p>
+          <div class="np-field">
+            <label for="ne-answer">Your answer</label
+            ><textarea id="ne-answer" rows="6" maxlength="8000" required></textarea>
+          </div>
+        </form>
+        <section id="ne-conflict" class="np-conflict" hidden>
+          <h3>This record changed</h3>
+          <p>Your draft is preserved. Review the current record before saving again.</p>
+          <pre id="ne-latest"></pre>
+          <button id="ne-rebase" class="np-button" type="button">
+            Use latest version and keep my draft
+          </button>
+        </section>
+      </section>
+      <section id="ne-run-detail" hidden>
+        <h3 id="ne-run-heading" tabindex="-1"></h3>
+        <div id="ne-run-summary" class="ni-objective"></div>
+        <details class="ne-provenance">
+          <summary>Run details</summary>
+          <p id="ne-run-provenance" class="ni-objective"></p>
+        </details>
+        <div class="np-actions">
+          <button id="ne-run-cancel" class="np-button" type="button">Cancel run</button>
+          <button id="ne-run-retry" class="np-button" type="button">Retry run</button>
+          <button id="ne-run-answer" class="np-button np-primary" type="button">
+            Answer question
+          </button>
+        </div>
+        <div id="ne-run-waits"></div>
+        <section id="ne-result-section" class="ni-section" hidden>
+          <h4>Candidate output</h4>
+          <p class="np-field-help">
+            Execution produced this candidate. It has not been accepted or authorized for
+            publication.
+          </p>
+          <pre id="ne-result" class="ne-output"></pre>
+        </section>
+        <section class="ni-section">
+          <h4>Checkpoints</h4>
+          <ul id="ne-checkpoints" class="ni-list"></ul>
+        </section>
+        <section class="ni-section">
+          <h4>Delegated work</h4>
+          <ul id="ne-children-list" class="ni-list"></ul>
+        </section>
+        <section class="ni-section">
+          <h4>Activity</h4>
+          <ol id="ne-events" class="ni-list"></ol>
+          <button id="ne-events-more" class="np-button" type="button" hidden>
+            Load more activity
+          </button>
+        </section>
+      </section>
+      <section id="ne-secret" class="np-conflict" hidden>
+        <h3>Copy the runner credential now</h3>
+        <p>This credential is shown once. Closing this view clears it.</p>
+        <label class="np-sr-only" for="ne-secret-value">Execution runner credential</label>
+        <textarea
+          id="ne-secret-value"
+          readonly
+          rows="4"
+          autocomplete="off"
+          spellcheck="false"
+        ></textarea>
+        <button id="ne-secret-copy" class="np-button" type="button">Copy credential</button>
+        <p id="ne-secret-feedback" role="status"></p>
+      </section>
+      <div class="np-dialog-actions">
+        <button id="ne-back" class="np-button" type="button" hidden>Back to execution</button>
+        <button id="ne-editor-cancel" class="np-button" type="button" hidden>Cancel edit</button>
+        <button id="ne-save" class="np-button np-primary" type="submit" hidden>Save</button>
+        <button id="ne-close" class="np-button" type="button">Done</button>
       </div>
     </dialog>
   </body>

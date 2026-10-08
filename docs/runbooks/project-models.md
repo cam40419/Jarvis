@@ -2,8 +2,9 @@
 
 Open **Models & usage** on a project to enroll a model, qualify it, choose planning and
 review routes, set resource limits and inspect usage. These controls currently govern
-native model qualification and [project intake](project-intake.md). They do not yet govern
-independent chat, business tools or native task execution.
+native model qualification, [project intake](project-intake.md), and specialist steps in
+[native execution](native-execution.md). They do not yet govern independent chat or
+business tools.
 
 The administrator approves provider/model templates and their server addresses. Project
 owners choose from those templates and supply their own encrypted credentials where
@@ -55,8 +56,8 @@ contracts. No template, model server, paid key or inference call is supplied aut
 This is an example declaration, not a measured capacity or model recommendation. The
 `local` flag is an administrator assertion about data processing, not proof that the
 server avoids cloud forwarding. Loopback refers to the Simon server's host; it does not
-connect to an arbitrary browser user's computer. Optional enrolled local workers remain
-a later execution slice. `SIMON_MODEL_PROVIDER=local` controls the separate offline chat
+connect to an arbitrary browser user's computer. Optional enrolled runners coordinate
+server-side execution; they do not move inference to their host. `SIMON_MODEL_PROVIDER=local` controls the separate offline chat
 provider and does not start an intake model or provide a canned intake result.
 
 ## Administrator catalog and hosted enrollment
@@ -150,6 +151,12 @@ Intake checks its actual bounded context against the selected model before reser
 Its separate review call uses a fresh assessment prompt. Current enrollment, template,
 credential, project authority and policy are rechecked before dispatch; changed context
 or revoked sources also fence late proposal application.
+
+Native task execution selects the planning route at admission and retains that project
+model identity for its root and children. Each specialist step rechecks qualification,
+configuration, privacy, paid consent and shared ceilings before reserving its own call.
+Run-level limits additionally bound the entire delegation graph. Execution does not yet
+use the review route to accept its candidates; independent artifact review is a later slice.
 
 ## Limits, usage and reconciliation
 
@@ -260,8 +267,8 @@ database. The extended timeout accommodates the full Windows database/browser su
 ```
 
 No paid live qualification, actual provider enrollment or pilot output-quality evaluation
-was performed during implementation. Native task execution, specialist/tool calls,
-artifact review, all-tool billing, subscription entitlements, compute/storage admission,
+was performed during implementation. Native specialist execution now uses this ledger;
+business-tool calls, artifact review, all-tool billing, subscription entitlements, compute/storage admission,
 administrator catalog editing in the browser and broader capability/quality evaluation
 remain later core work. Configure and accept each enforcing service before presenting
 those capabilities as available.

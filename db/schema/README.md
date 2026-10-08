@@ -4,14 +4,15 @@ The numbered files in `../migrations` are the schema authority. Applied migratio
 checksums are immutable; add a new migration for schema changes. Earlier files form
 an installation ledger, not a supported compatibility API or alternate schema.
 
-| Migration                          | Current boundary                                                                                                                           |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `0028_workspace_identity.sql`      | Workspace identity and membership naming                                                                                                   |
-| `0029_email_password_recovery.sql` | Account recovery records                                                                                                                   |
-| `0030_native_projects.sql`         | Shared projects, human project members and tasks                                                                                           |
-| `0031_native_agents.sql`           | Project roles, team policy, hashed credentials and human/agent/pool tasks; removal of retired project-file tables                          |
-| `0032_native_intake.sql`           | Versioned intake, immutable source revisions and planning attempts with reservations, validated proposals and current-state snapshots      |
-| `0033_project_models.sql`          | Scoped project models/encrypted credentials, project/workspace policies, immutable per-call usage identity and retained intake liabilities |
+| Migration                          | Current boundary                                                                                                                              |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0028_workspace_identity.sql`      | Workspace identity and membership naming                                                                                                      |
+| `0029_email_password_recovery.sql` | Account recovery records                                                                                                                      |
+| `0030_native_projects.sql`         | Shared projects, human project members and tasks                                                                                              |
+| `0031_native_agents.sql`           | Project roles, team policy, hashed credentials and human/agent/pool tasks; removal of retired project-file tables                             |
+| `0032_native_intake.sql`           | Versioned intake, immutable source revisions and planning attempts with reservations, validated proposals and current-state snapshots         |
+| `0033_project_models.sql`          | Scoped project models/encrypted credentials, project/workspace policies, immutable per-call usage identity and retained intake liabilities    |
+| `0034_native_execution.sql`        | Execution grants, dependency edges, bounded run graphs, checkpoints/events, correlated waits/signals, schedules and hashed runner credentials |
 
 Composite foreign keys bind roles, task creators, task assignees and credentials to
 one workspace/project. Creator metadata and role keys are immutable in the adapters.
@@ -38,10 +39,19 @@ intake settings from current context. That retained financial history is not a l
 model catalog, environment-key fallback or second runtime allowance. Restore the matching
 encryption master key and administrator catalog with the database to use enrolled keys.
 
+Execution records retain the original owner grant, task/role/model input authority and
+root graph bounds. Lease generations and compare-and-swap updates reject stale workers.
+Composite references keep dependencies, children, schedules, runners and usage inside
+their project. Unique indexes prevent competing live runs for one task, duplicate step
+operations, duplicate correlated signals and multiple pending waits for a run. Completed
+step results and recorded events are immutable. A saved candidate is separate from future
+artifact acceptance; execution state cannot substitute for a validated deliverable.
+
 Migration 0031 drops `project_artifacts`, `project_file_operations` and `project_drive`.
 There is no legacy-project backfill. The old formatting-only foundation snapshot was
 removed; Git retains historical documentation and all original migration bytes.
 
 See the [native project contract](../../docs/runbooks/native-projects.md) and
-[project model/resource contract](../../docs/runbooks/project-models.md), plus the
+[project model/resource contract](../../docs/runbooks/project-models.md) and
+[native execution contract](../../docs/runbooks/native-execution.md), plus the
 [isolated database test workflow](../../docs/runbooks/database-testing.md).

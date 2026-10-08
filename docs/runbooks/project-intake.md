@@ -216,5 +216,7 @@ No paid model call, real pilot archive ingestion, provider account enrollment or
 database/deployment change was made during this implementation. Current project
 enrollment, routing and inference limits are described in the model
 runbook; the roadmap records the current validation results. Capped real-model quality
-evaluation, broader resource authority, durable native execution and artifact review
-remain required before the core acceptance gate.
+evaluation, broader resource authority and artifact review remain required before the
+core acceptance gate. [Native execution](native-execution.md) now advances staffed tasks
+through bounded leased steps, waits and candidate output; an intake proposal's review
+does not accept those later deliverables.
