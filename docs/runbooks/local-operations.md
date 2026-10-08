@@ -10,6 +10,13 @@ staffing is stored in PostgreSQL; adding an agent does not start a worker proces
 The optional [background chat worker](assistant.md) is a separate process. Generic
 runtime adapters are [libraries](runtime-adapters.md), not an autonomous dispatcher.
 
+Native intake uses [project models and resource limits](project-models.md): configure
+approved templates with `SIMON_MODEL_CATALOG_FILE`, then enroll and qualify project models
+through **Models & usage**. The separate offline chat provider does not supply intake
+inference. Keep the model catalog, PostgreSQL records, managed files and encryption master
+key in the same tested recovery procedure. Zero-fee local inference is supported without
+turning on hosted or paid permission; local model installation and hardware are separate.
+
 ```powershell
 .\scripts\start-dev.ps1 -DevelopmentLogin
 .\scripts\start-assistant-worker.ps1 -Check

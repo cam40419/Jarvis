@@ -1,11 +1,12 @@
 # Storage and recovery
 
 PostgreSQL stores identity, connections, chat records, native projects, memberships,
-tasks, scoped agent records, intake context, source metadata and planning history.
+tasks, scoped agent records, intake context, source metadata, planning history,
+project models/encrypted credentials, resource policies and model usage receipts.
 Generic account files and immutable intake originals use `SIMON_LOCAL_FILES_DIR`.
 Use an absolute private data directory outside the source checkout for a persistent
 installation. Preserve the encryption key with database backups so saved connections
-remain decryptable. There is no old-project migration or artifact backfill utility.
+and project model keys remain decryptable. There is no old-project migration or artifact backfill utility.
 
 The backup libraries and `scripts/backup_bundle.py` operate on explicitly selected
 sources and destinations. Stop all writers before creating a bundle; the
@@ -29,22 +30,28 @@ access and encrypt independent copies. Explicit secret inclusion must also captu
 any process-only or external secret-store values through the operator's recovery
 procedure. Losing a required key can leave restored connections unusable.
 
-When `SIMON_INTAKE_MODELS_FILE` is configured, bundles preserve that administrator catalog
-as `configuration/intake-models.json`; its environment-variable references do not include
-the actual provider keys. Originals under the managed files root's `.project-sources`
+When `SIMON_MODEL_CATALOG_FILE` is configured, bundles preserve that administrator catalog
+as `configuration/model-catalog.json`. Catalog templates contain no provider keys;
+project credentials are scoped ciphertext in the database. Originals under the managed files root's `.project-sources`
 directory are included, even when a revision has been revoked in the application. A missing
 configured catalog fails backup creation before dumping the database rather than silently
 omitting model configuration. `--include-secrets` additionally includes `.env` and the
-available integration encryption key; process-only or external provider credentials still
-require explicit preservation by the operator.
+available integration encryption-key file. If `SIMON_GOOGLE_TOKEN_KEY` supplies the master
+key through a process environment or external secret store, preserve that value separately.
+It takes precedence over `SIMON_INTEGRATION_KEY_FILE`. Process-only or external credentials
+used by independent services also require explicit preservation by the operator.
 
 Restore with all writers stopped and stage into a fresh destination. Point
-`SIMON_INTAKE_MODELS_FILE` at the restored catalog and `SIMON_LOCAL_FILES_DIR` at the
-restored files, and restore the matching database before accepting traffic. Re-establish
-the catalog's named environment secrets separately. A recovered running planning attempt
-is not redispatched: once its deadline expires, intake reads mark it unknown and preserve
-any unresolved reservation. Never treat a database-only restore as evidence that original
-files or model configuration have also been recovered.
+`SIMON_MODEL_CATALOG_FILE` at the restored catalog and `SIMON_LOCAL_FILES_DIR` at the
+restored files, and restore the matching database and encryption master key before
+accepting traffic. Native project models do not fall back to provider environment keys.
+Follow the [model recovery contract](project-models.md#credential-storage-and-recovery).
+A recovered planning attempt is not redispatched: expiry releases unsent reservations
+and marks interrupted dispatches unknown, preserving monetary holds and call slots until
+definitive settlement or evidenced reconciliation. Verify preserved model/key scope,
+policies, usage history, source bytes and planning receipts in the disposable restoration.
+Never treat a database-only restore as evidence that originals, master keys or model
+configuration have also been recovered.
 
 Host Desktop/Documents/Downloads folders and cloud files are outside managed account
 storage and need their own backups. Standalone runtime adapter experiments own their

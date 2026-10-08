@@ -32,6 +32,13 @@ from simon.domain.models import (
 )
 from simon.domain.native_agents import NativeAgent, NativeAgentCredential, NativeTeamPolicy
 from simon.domain.native_intake import IntakeRun, IntakeSource, NativeIntake
+from simon.domain.native_models import (
+    ModelResourcePolicy,
+    ModelUsage,
+    ProjectModel,
+    ProjectModelCredential,
+    UsageTotals,
+)
 from simon.domain.native_projects import NativeProject, NativeProjectMember, NativeTask
 from simon.domain.voice import VoiceSession
 
@@ -59,6 +66,8 @@ class TransactionStore(Protocol):
 
 
 class InvocationStore(TransactionStore, Protocol):
+    def command_receipt(self, namespace: str, key: str) -> dict[str, Any] | None: ...
+
     def execute_once(
         self,
         namespace: str,
@@ -376,6 +385,40 @@ class NativeIntakeStore(TransactionStore, Protocol):
     def update_native_intake_run(self, value: IntakeRun, expected_version: int) -> None: ...
 
 
+class NativeModelStore(TransactionStore, Protocol):
+    def project_models(self, workspace_id: UUID, project_id: UUID) -> tuple[ProjectModel, ...]: ...
+    def project_model(
+        self, workspace_id: UUID, project_id: UUID, model_id: UUID
+    ) -> ProjectModel | None: ...
+    def insert_project_model(self, value: ProjectModel) -> None: ...
+    def update_project_model(self, value: ProjectModel, expected_version: int) -> None: ...
+    def project_model_credential(
+        self, workspace_id: UUID, project_id: UUID, model_id: UUID, revision: int
+    ) -> ProjectModelCredential | None: ...
+    def insert_project_model_credential(self, value: ProjectModelCredential) -> None: ...
+    def model_resource_policy(
+        self, workspace_id: UUID, project_id: UUID | None = None
+    ) -> ModelResourcePolicy | None: ...
+    def save_model_resource_policy(
+        self, value: ModelResourcePolicy, expected_version: int
+    ) -> None: ...
+    def model_usage(
+        self, workspace_id: UUID, project_id: UUID, usage_id: UUID
+    ) -> ModelUsage | None: ...
+    def model_usage_for_operation(
+        self, workspace_id: UUID, project_id: UUID, operation_id: UUID
+    ) -> tuple[ModelUsage, ...]: ...
+    def model_usage_entries(
+        self, workspace_id: UUID, project_id: UUID | None = None, offset: int = 0, limit: int = 50
+    ) -> tuple[ModelUsage, ...]: ...
+    def model_usage_expired(self, workspace_id: UUID, at: datetime) -> tuple[ModelUsage, ...]: ...
+    def insert_model_usage(self, value: ModelUsage) -> None: ...
+    def update_model_usage(self, value: ModelUsage, expected_version: int) -> None: ...
+    def model_usage_totals(
+        self, workspace_id: UUID, project_id: UUID | None, at: datetime
+    ) -> UsageTotals: ...
+
+
 class Store(
     CapabilityStore,
     InvocationStore,
@@ -391,6 +434,7 @@ class Store(
     NativeProjectStore,
     NativeAgentStore,
     NativeIntakeStore,
+    NativeModelStore,
     Protocol,
 ):
     """One transaction boundary for state, audit records, and delivery intents."""

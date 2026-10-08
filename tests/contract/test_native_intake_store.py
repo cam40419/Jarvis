@@ -83,8 +83,8 @@ def test_intake_compare_and_swap_is_project_scoped_and_does_not_alias_answers(in
         with pytest.raises(InvalidTransitionError):
             h.store.save_native_intake(value, expected)
 
-    def save(budget):
-        value = h.intake.model_copy(update={"version": 2, "budget_microusd": budget})
+    def save(outcome):
+        value = h.intake.model_copy(update={"version": 2, "outcomes": outcome})
         try:
             h.store.save_native_intake(value, 1)
         except InvalidTransitionError:
@@ -92,7 +92,9 @@ def test_intake_compare_and_swap_is_project_scoped_and_does_not_alias_answers(in
         return value
 
     with ThreadPoolExecutor(max_workers=2) as executor:
-        winners = [value for value in executor.map(save, (10_000, 20_000)) if value]
+        winners = [
+            value for value in executor.map(save, ("First outcome", "Second outcome")) if value
+        ]
     assert len(winners) == 1
     assert h.store.native_intake(h.workspace, h.first.id) == winners[0]
 

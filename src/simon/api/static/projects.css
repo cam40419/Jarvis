@@ -835,6 +835,24 @@
 .ni-dialog {
   width: min(900px, calc(100vw - 48px));
 }
+.nm-totals {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+#nm-feedback:not(:empty),
+#nm-uncertain {
+  margin-bottom: 16px;
+}
+#nm-dialog select {
+  width: 100%;
+}
+#nm-latest {
+  max-height: 300px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 .ni-section {
   border-top: 1px solid var(--line);
   padding-top: 24px;
@@ -937,6 +955,9 @@
 }
 
 @media (max-width: 740px) {
+  .nm-totals {
+    grid-template-columns: minmax(0, 1fr);
+  }
   .ni-uploads {
     grid-template-columns: minmax(0, 1fr);
   }

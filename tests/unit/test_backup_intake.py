@@ -21,18 +21,21 @@ def backup_command(tmp_path, monkeypatch):
     monkeypatch.setattr(backup_bundle, "ROOT", tmp_path)
     files = tmp_path / "files"
     files.mkdir()
-    catalog = tmp_path / "private-intake-models.json"
+    catalog = tmp_path / "private-model-catalog.json"
     catalog.write_text(
         json.dumps(
             [
                 {
+                    "id": "approved",
+                    "name": "Approved model",
+                    "credential_required": True,
                     "workspace_ids": [str(uuid4())],
                     "endpoint": {
                         "id": "approved",
                         "provider": "openai_compatible",
                         "model": "tested-model",
                         "base_url": "https://model.example.invalid/v1",
-                        "api_key_env": "PILOT_MODEL_KEY",
+                        "api_key_env": "MODEL_PROJECT_KEY",
                     },
                 }
             ]
@@ -42,7 +45,7 @@ def backup_command(tmp_path, monkeypatch):
     settings = SimpleNamespace(
         local_files_dir=files,
         external_providers_file=None,
-        intake_models_file=catalog,
+        model_catalog_file=catalog,
         integration_key_file=tmp_path / "credentials.key",
     )
     (tmp_path / ".env").write_text("PILOT_MODEL_KEY=synthetic-test-secret", encoding="utf-8")
@@ -78,14 +81,14 @@ def test_backup_roundtrip_preserves_catalog_and_immutable_source_tree(
     assert h.calls == ["jarvis"]
     assert manifest.includes_secrets is include_secrets
     assert (
-        destination / "configuration/intake-models.json"
-    ).read_bytes() == h.settings.intake_models_file.read_bytes()
+        destination / "configuration/model-catalog.json"
+    ).read_bytes() == h.settings.model_catalog_file.read_bytes()
     assert (destination / "configuration/server.env").exists() is include_secrets
     assert (destination / "configuration/credentials.key").exists() is include_secrets
-    assert "PILOT_MODEL_KEY" in (destination / "configuration/intake-models.json").read_text()
+    assert "MODEL_PROJECT_KEY" in (destination / "configuration/model-catalog.json").read_text()
     assert (
         "synthetic-test-secret"
-        not in (destination / "configuration/intake-models.json").read_text()
+        not in (destination / "configuration/model-catalog.json").read_text()
     )
     recovered = h.root / "recovered"
     restore_files(destination, recovered)
@@ -98,7 +101,7 @@ def test_configured_missing_catalog_prevents_publishing_incomplete_recovery(
     backup_command, monkeypatch
 ):
     h = backup_command
-    h.settings.intake_models_file = h.root / "missing-models.json"
+    h.settings.model_catalog_file = h.root / "missing-models.json"
     monkeypatch.setattr(
         sys, "argv", ["backup_bundle.py", "create", str(h.root / "backup"), "--writers-stopped"]
     )
@@ -112,10 +115,10 @@ def test_unconfigured_catalog_is_optional_and_does_not_invent_model_configuratio
     backup_command, monkeypatch
 ):
     h = backup_command
-    h.settings.intake_models_file = None
+    h.settings.model_catalog_file = None
     destination = h.root / "backup"
     monkeypatch.setattr(
         sys, "argv", ["backup_bundle.py", "create", str(destination), "--writers-stopped"]
     )
     h.command.main()
-    assert "configuration/intake-models.json" not in verify_bundle(destination).files
+    assert "configuration/model-catalog.json" not in verify_bundle(destination).files

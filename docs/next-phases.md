@@ -53,33 +53,48 @@ authority contracts used by the model-driven staffing procedure.
 
 [AI-assisted intake and automatic staffing](runbooks/project-intake.md) now extend
 PLAN-01, AGENT-01 and UI-01. Projects can retain versioned original sources and extracted
-text, save context/answers, choose an administrator-approved workspace model and request
+text, save context/answers, use qualified project model routes and request
 a bounded next-milestone plan. A separate model call reviews the structured proposal.
 Deterministic validation checks cited passages, active role reuse, duplicate work, role
 purpose, staffing capacity and current context before any role/task application.
 
-Each project controls cloud consent, automatic application and a lifetime planning
-allowance. Generation plus review is reserved before dispatch; missing usage remains
-reserved and retries reuse a durable attempt. Approved plans create roles, work and
-separate review tasks atomically. Blocking questions create human decision tasks without
-staffing. At most three new roles are admitted per attempt, within existing team policy;
-new roles receive no management privilege or tool/execution authority. Existing roles and
-tasks are preserved when reused. The UI exposes evidence coverage, findings, questions,
-reuse/new-role rationale, review issues, status and planning costs.
+Each project controls hosted/paid consent and automatic application. Generation plus
+review is reserved before dispatch against shared project/workspace limits; unknown
+usage retains its money and call slot. Approved plans create roles, work and separate
+review tasks atomically. Blocking questions create human decision tasks without staffing.
+At most three new roles are admitted per attempt, within existing team policy; new roles
+receive no management privilege or tool/execution authority. The UI exposes evidence,
+findings, questions, reuse rationale, review issues, current routes and project model costs.
 
-This is a bounded planning slice: at most 12 source excerpts of 3,000 characters each,
-text/DOCX extraction, no OCR or visual analysis, and no native task execution. Model
-configuration currently uses an administrator file with workspace bindings and
-environment-key references. Full project BYOK enrollment, automatic free-tier selection,
-account-wide billing/resource enforcement and live-model quality acceptance remain open.
-Migration 0032 adds intake, source revisions and planning attempts. Recovery bundles now
-include the configured model catalog and managed source originals.
+[Project models and resource limits](runbooks/project-models.md) now extend MODEL-01,
+COST-01 and UI-01. Administrator-approved templates support local/open-weight and hosted
+text transports; project owners enroll scoped encrypted keys through a write-only UI.
+A deliberate synthetic text/JSON check qualifies each current configuration. Planning
+and review can use distinct pinned or automatic qualified routes, with no provider-key
+fallback or dispatched-call fallback. Default policy denies hosted and paid processing;
+configured and qualified zero-fee local models can run under zero monetary ceilings.
+
+Workspace and project lifetime/daily/monthly/per-operation caps and concurrent-call limits
+share a durable per-call ledger. Known calls settle separately; unresolved dispatches
+retain liabilities through cancellation/restart and have evidenced workspace-owner
+reconciliation. Late additional provider charges remain recorded. The UI supports model
+rotation/disablement, qualification, routes, limits, usage history and recovery of unknown
+key saves without retaining plaintext credentials.
+
+This remains a bounded planning slice: at most 12 source excerpts of 3,000 characters each,
+text/DOCX extraction, no OCR/visual analysis and no native task execution. Qualification
+proves a small text/JSON exchange, not broad model quality. Only native qualification and
+intake currently use the ledger; independent chat, specialist/tool execution, subscriptions,
+compute/storage meters and full hosted administration remain open. Migration 0032 adds
+intake evidence/history; 0033 adds project models, encrypted credential revisions, resource
+policies and usage, importing any earlier intake liabilities once. Recovery includes the
+catalog and originals; encrypted project keys require the matching database and master key.
 
 The legacy Work interface, manifest profiles/teams, dispatcher/scheduler, v1 project and
 assistant-task boards, project storage/replication services, migrations of old project
 files, compatibility launchers and their obsolete tests/examples have been removed.
 Migration 0031 adds agent/policy/credential records and drops the three retired project-file
-tables. Historical SQL files remain an immutable schema ledger; no backfill or compatibility
+tables. Historical SQL files remain an immutable schema ledger; no legacy-project backfill or compatibility
 reader is maintained. No operator database is changed by the development test runs.
 
 Independent chat/accounts/voice and reusable model, execution, file, transport and connector
@@ -89,22 +104,22 @@ project capability.
 
 ## Next implementation slices
 
-1. **Model and resource authority.** Build beyond the intake-only catalog/allowance:
-   project provider enrollment, encrypted keys, qualified free/local
-   defaults, configurable routing, concurrent budget reservations and usage settlement.
-   Account for planning, specialists, reviews and retries under the same ceiling. Paid
-   stdout evaluation needs an enrolled/configured key and an explicit cap; no paid call
-   has been made by this implementation. Add unknown-charge reconciliation and visible
-   endpoint quality/capability qualification. Extend intake context retrieval and role
-   capability/model requirements as their enforcing services become available.
-2. **Native execution and durable workflows.** Versioned dependencies, execution leases,
+1. **Native execution and durable workflows.** Versioned dependencies, execution leases,
    bounded delegation, cancellation, checkpoints, stale-worker rejection, event-driven
    waits and scheduling. Keep persistent role identity separate from a worker process.
+   Extend the shared model ledger to specialist calls and retries through these services.
    Enroll optional local runners under task-specific authority and measured resource limits.
-3. **Artifact and review loop.** Save candidates automatically, immutable content revisions,
+2. **Artifact and review loop.** Save candidates automatically, immutable content revisions,
    exact-version validation, independent agent review, configurable human approval and
    repair cycles. Do not treat a manual board status as proof of quality or permission
    to publish. Provide a coherent user view of progress, cost, evidence and pending decisions.
+3. **Model evaluation and remaining resource authority.** Accept capped live qualification
+   and pilot quality after explicit key/cap enrollment; no paid call has been made during
+   implementation. Broaden capability and task-quality evaluations beyond basic text/JSON.
+   Extend context retrieval and role capability/model requirements as their enforcing
+   services become available. Complete compute/storage meters, entitlements and administrator
+   catalog UI before claiming unified all-tool billing or commercial readiness. Pending
+   live-model evaluation does not block synthetic development of execution and review.
 4. **Core acceptance and SaaS controls.** Complete tenant/platform admin, entitlements,
    security/concurrency/recovery/restore scenarios, usability, model quality and capacity
    measurements. Validate PostgreSQL 17 (the CI/container target); current local database
@@ -124,16 +139,20 @@ Browser tests use authenticated isolated services for role editing, policy, assi
 conflicts, unknown writes, one-time credentials, pagination and mobile layouts. The
 [native project runbook](runbooks/native-projects.md) owns reproducible commands and limits.
 
-The October 8 non-live regression run passed 2,263 tests, including 59 browser cases.
-A final focused intake run passed 194 tests, including PostgreSQL restart/replay and
-13 intake browser cases; these runs overlap. Fresh combined branch coverage is 90.52%,
-above the unchanged 90% gate. Measurements for the three intake services changed during
-review were replaced with their final focused results before combining coverage.
-The broader run skipped 15 host-dependent symlink/FIFO cases and excluded eight live-model
-cases; the focused run skipped one symlink case. Both disposable PostgreSQL 16.15/pgvector
-0.8.6 clusters stopped. PostgreSQL 17 and capped real-model quality remain unverified.
-The [intake verification boundary](runbooks/project-intake.md#verification-boundary) records
-reproducible commands and limits. Formatting, lint, typing and all ten connector checks pass.
+The October 8 model/resource regression passed **2,465 tests**, including PostgreSQL
+and authenticated browser scenarios, with **90.93% fresh coverage** (branches enabled).
+The unchanged repository gate is 90%. This was one full non-live run against the final
+Python implementation; it did not combine earlier coverage measurements. The run took
+30 minutes 29 seconds, skipped 16 Windows symlink/POSIX FIFO cases and excluded eight
+live-model cases. Its disposable PostgreSQL 16.15/pgvector 0.8.6 cluster stopped.
+A subsequent display-only change to show both planning/review model names passed two
+focused intake browser cases; these overlap the full suite. Formatting, lint, typing and
+all ten connector checks pass. The [model runbook](runbooks/project-models.md#verification-and-remaining-scope)
+records reproducible commands and limits.
+
+Provider responses in these tests are synthetic. PostgreSQL 17, paid live qualification
+and pilot output-quality acceptance remain unverified; no paid model call or operator
+database/deployment change was made during implementation.
 
 A scoped board credential grants no shell, model, provider, publishing, spending or
 platform-admin rights. Team-size limits are persistent active-role limits, not compute

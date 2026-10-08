@@ -31,6 +31,7 @@ from simon.api.integrations import integrations_router
 from simon.api.local_files import local_file_router
 from simon.api.model_stream import model_stream
 from simon.api.native_intake import native_intake_router
+from simon.api.native_models import native_models_router
 from simon.api.native_projects import native_projects_router
 from simon.api.request_ingress import RequestIngressMiddleware
 from simon.api.work_sessions import session_router
@@ -62,7 +63,6 @@ from simon.services.audit import AuditService
 from simon.services.capabilities import CapabilityBroker
 from simon.services.connected import ConnectedService
 from simon.services.conversations import ConversationService
-from simon.services.credentials import runtime_credentials
 from simon.services.email_identity import EmailIdentityService
 from simon.services.identity import IdentityService
 from simon.services.intake_sources import IntakeSourceBytes
@@ -70,10 +70,12 @@ from simon.services.interaction import InteractionService
 from simon.services.jobs import JobService
 from simon.services.memory import MemoryService
 from simon.services.model_conversations import ModelConversationService
-from simon.services.native_intake import NativeIntakeService, configured_planner
+from simon.services.model_usage import ModelUsageService
+from simon.services.native_intake import NativeIntakeService
 from simon.services.native_projects import NativeProjectService
 from simon.services.native_teams import NativeTeamService
 from simon.services.policy import PolicyEngine
+from simon.services.project_models import ProjectModelService, configured_templates
 from simon.services.voice import VoiceService
 from simon.services.work_sessions import WorkSessionService
 
@@ -119,16 +121,22 @@ class AppContainer:
         self.identity = IdentityService(self.store, self.settings)
         self.native_projects = NativeProjectService(self.store)
         self.native_teams = NativeTeamService(self.store, self.native_projects)
+        self.model_usage = ModelUsageService(self.store, self.native_projects)
+        self.project_models = ProjectModelService(
+            self.store,
+            self.native_projects,
+            lambda workspace_id: configured_templates(
+                self.settings.model_catalog_file, workspace_id
+            ),
+            lambda: self.connected.integrations.cipher,
+            self.model_usage,
+        )
         self.native_intake = NativeIntakeService(
             self.store,
             self.native_projects,
             self.native_teams,
             IntakeSourceBytes(self.settings.local_files_dir / ".project-sources"),
-            lambda workspace_id: configured_planner(
-                self.settings.intake_models_file,
-                workspace_id,
-                environ=runtime_credentials() if self.settings.intake_models_file else {},
-            ),
+            self.project_models,
         )
         self.accounts = AccountService(self.identity)
         self.audit = AuditService(self.store)
@@ -321,6 +329,9 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
         native_projects_router(services.native_projects, checked_actor, services.native_teams)
     )
     app.include_router(native_intake_router(services.native_intake, checked_actor))
+    app.include_router(
+        native_models_router(services.project_models, services.model_usage, checked_actor)
+    )
     app.include_router(external_actions_router(services.external_actions, checked_actor))
     app.include_router(integrations_router(services.connected.integrations, checked_actor))
     if services.work_sessions.conversations:

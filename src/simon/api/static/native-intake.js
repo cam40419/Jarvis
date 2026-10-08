@@ -21,7 +21,7 @@
     $('ni-feedback').textContent = message;
     $('ni-feedback').dataset.tone = tone;
   };
-  let projectId, workspaceId, snapshot, pending, latest, timer;
+  let projectId, workspaceId, snapshot, modelSnapshot, pending, latest, timer;
   let generation = 0,
     version = 0,
     busy = false,
@@ -58,8 +58,8 @@
     $('ni-rebase').disabled = busy || uncertain;
     for (const control of $('ni-sources').querySelectorAll('button, input'))
       control.disabled = busy || uncertain;
-    const model = snapshot?.models.find((item) => item.id === $('ni-model').value);
-    const modelReady = Boolean(model?.ready && (model.local || $('ni-cloud').checked));
+    const modelReady = Boolean(modelSnapshot?.routing?.ready);
+    $('ni-models').disabled = busy || uncertain;
     $('ni-analyze').hidden = !writable;
     $('ni-analyze').disabled =
       busy || uncertain || Boolean(latest) || !writable || !modelReady || running();
@@ -77,16 +77,11 @@
   }
 
   function modelStatus() {
-    const model = snapshot?.models.find((item) => item.id === $('ni-model').value);
-    $('ni-model-status').textContent = !snapshot?.models.length
-      ? 'No planning models are configured for this workspace. An administrator must configure an approved local or hosted endpoint before AI planning is available.'
-      : !model
-        ? 'Choose an available model. No model call is made until you create a plan.'
-        : !model.ready
-          ? 'Unavailable: ' + (model.reason || 'Model configuration is incomplete.')
-          : !model.local && !$('ni-cloud').checked
-            ? 'This is a hosted model. Allow cloud processing above before planning.'
-            : `${model.local ? 'Local' : 'Hosted'} · ${model.provider} · ${model.model}. Input $${model.input_cost_per_million_usd ?? 0} / output $${model.output_cost_per_million_usd ?? 0} per million tokens.`;
+    const routing = modelSnapshot?.routing;
+    $('ni-model-status').textContent = routing?.ready
+      ? `Planning: ${routing.planning_label || routing.planning_model_id}. Review: ${routing.review_label || routing.review_model_id}. Model calls use the project and workspace resource limits.`
+      : routing?.reason ||
+        'No planning models are ready. Open Models & usage to add and qualify a model, then configure project permissions and limits.';
     lock();
   }
 
@@ -133,18 +128,6 @@
   function populate() {
     const intake = snapshot.intake;
     for (const key of ['background', 'outcomes', 'constraints']) $('ni-' + key).value = intake[key];
-    $('ni-model').replaceChildren(new Option('Choose a configured model', ''));
-    for (const model of snapshot.models)
-      $('ni-model').append(
-        new Option(`${model.id} · ${model.model}${model.ready ? '' : ' (unavailable)'}`, model.id),
-      );
-    if (intake.endpoint_id && !snapshot.models.some((model) => model.id === intake.endpoint_id))
-      $('ni-model').append(
-        new Option(intake.endpoint_id + ' (no longer configured)', intake.endpoint_id),
-      );
-    $('ni-model').value = intake.endpoint_id || '';
-    $('ni-budget').value = String(intake.budget_microusd / 1000000);
-    $('ni-cloud').checked = intake.allow_cloud;
     $('ni-auto').checked = intake.auto_staff;
     $('ni-answers').replaceChildren();
     answers = { ...intake.answers };
@@ -159,7 +142,7 @@
   function showConflict() {
     latest = snapshot.intake;
     $('ni-latest').textContent =
-      `Version ${latest.version}\nBackground: ${latest.background}\nOutcomes: ${latest.outcomes}\nConstraints: ${latest.constraints}\nAnswers: ${JSON.stringify(latest.answers, null, 2)}\nModel: ${latest.endpoint_id || 'None'}\nCloud processing: ${latest.allow_cloud ? 'Allowed' : 'Not allowed'}\nPlanning allowance: ${money(latest.budget_microusd)}\nAutomatic staffing: ${latest.auto_staff ? 'On' : 'Off'}`;
+      `Version ${latest.version}\nBackground: ${latest.background}\nOutcomes: ${latest.outcomes}\nConstraints: ${latest.constraints}\nAnswers: ${JSON.stringify(latest.answers, null, 2)}\nAutomatic staffing: ${latest.auto_staff ? 'On' : 'Off'}`;
     $('ni-conflict').hidden = false;
   }
 
@@ -314,7 +297,7 @@
     $('ni-run').append(
       node(
         'p',
-        `${date(run.started_at)} · ${run.endpoint_id} / ${run.model} · Context version ${run.intake_version} · Charged ${money(run.charged_microusd)} · Reserved ${money(run.reserved_microusd)}${run.input_tokens == null ? '' : ' · Input tokens ' + run.input_tokens}${run.output_tokens == null ? '' : ' · Output tokens ' + run.output_tokens}`,
+        `${date(run.started_at)} · Planning: ${run.model} · Review: ${run.review_model || 'Not recorded for this historical attempt'} · Context version ${run.intake_version} · Charged ${money(run.charged_microusd)} · Reserved ${money(run.reserved_microusd)}${run.input_tokens == null ? '' : ' · Input tokens ' + run.input_tokens}${run.output_tokens == null ? '' : ' · Output tokens ' + run.output_tokens}`,
         'ni-run-meta',
       ),
     );
@@ -454,8 +437,9 @@
   }
 
   function render() {
+    const total = modelSnapshot?.project_totals;
     $('ni-spending').textContent =
-      `Planning allowance ${money(snapshot.intake.budget_microusd)} · Spent ${money(snapshot.spent_microusd)} · Reserved ${money(snapshot.reserved_microusd)}`;
+      `Project model usage · Spent ${money(total?.charged_lifetime)} · Reserved ${money(total?.held_microusd)} · Lifetime limit ${money(modelSnapshot?.project_policy.lifetime_limit_microusd)}`;
     $('ni-history').replaceChildren(
       ...snapshot.runs.map(
         (run) => new Option(`${date(run.started_at)} · ${run.status.replaceAll('_', ' ')}`, run.id),
@@ -475,7 +459,12 @@
     const ticket = generation;
     let found;
     try {
-      found = await bridge().request(path());
+      const results = await Promise.all([
+        bridge().request(path()),
+        bridge().request('/v2/projects/' + projectId + '/models'),
+      ]);
+      if (!active(ticket)) return false;
+      [found, modelSnapshot] = results;
     } catch (error) {
       if ([401, 403, 404].includes(error.status) && active(ticket)) {
         reset();
@@ -541,21 +530,12 @@
       throw Error(
         'Keep at most 12 answers in current context. Clear any earlier answers that no longer apply.',
       );
-    const amount = $('ni-budget').value;
-    if (!/^\d+(?:\.\d{1,6})?$/.test(amount))
-      throw Error('Enter a nonnegative USD allowance with no more than six decimal places.');
-    const budget = Math.round(Number(amount) * 1000000);
-    if (!Number.isSafeInteger(budget) || budget > 1000000000)
-      throw Error('Planning allowance must be between $0 and $1,000.');
     return {
       background: $('ni-background').value,
       outcomes: $('ni-outcomes').value,
       constraints: $('ni-constraints').value,
       answers: { ...answers },
-      endpoint_id: $('ni-model').value || null,
-      allow_cloud: $('ni-cloud').checked,
       auto_staff: $('ni-auto').checked,
-      budget_microusd: budget,
       expected_version: version,
     };
   }
@@ -793,6 +773,7 @@
     clearTimeout(timer);
     pending = null;
     snapshot = null;
+    modelSnapshot = null;
     latest = null;
     projectId = null;
     workspaceId = null;
@@ -851,6 +832,11 @@
     dialog.close();
   }
   $('np-intake').onclick = open;
+  $('ni-models').onclick = () => {
+    if (busy || uncertain) return;
+    close();
+    window.SimonNativeModels?.open();
+  };
   $('ni-close').onclick = close;
   dialog.addEventListener('cancel', (event) => {
     event.preventDefault();

@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from copy import deepcopy
-from datetime import datetime
+from datetime import UTC, datetime
 from threading import RLock
 from typing import Any
 from uuid import UUID
@@ -47,6 +48,15 @@ from simon.domain.native_intake import (
     IntakeRun,
     IntakeSource,
     NativeIntake,
+)
+from simon.domain.native_models import (
+    MODEL_MUTABLE_FIELDS,
+    MODEL_USAGE_MUTABLE_FIELDS,
+    ModelResourcePolicy,
+    ModelUsage,
+    ProjectModel,
+    ProjectModelCredential,
+    UsageTotals,
 )
 from simon.domain.native_projects import (
     NativeProject,
@@ -104,6 +114,10 @@ class InMemoryStore:
         self._native_intakes: dict[tuple[UUID, UUID], NativeIntake] = {}
         self._native_intake_sources: dict[UUID, IntakeSource] = {}
         self._native_intake_runs: dict[UUID, IntakeRun] = {}
+        self._project_models: dict[UUID, ProjectModel] = {}
+        self._project_model_credentials: dict[UUID, ProjectModelCredential] = {}
+        self._model_resource_policies: dict[tuple[UUID, UUID | None], ModelResourcePolicy] = {}
+        self._model_usage: dict[UUID, ModelUsage] = {}
 
     @contextmanager
     def transaction(self, workspace_id: UUID | None = None) -> Iterator[None]:
@@ -145,6 +159,10 @@ class InMemoryStore:
                     self._native_intakes,
                     self._native_intake_sources,
                     self._native_intake_runs,
+                    self._project_models,
+                    self._project_model_credentials,
+                    self._model_resource_policies,
+                    self._model_usage,
                 )
             )
             try:
@@ -186,6 +204,10 @@ class InMemoryStore:
                     self._native_intakes,
                     self._native_intake_sources,
                     self._native_intake_runs,
+                    self._project_models,
+                    self._project_model_credentials,
+                    self._model_resource_policies,
+                    self._model_usage,
                 ) = snapshot
                 raise
 
@@ -684,6 +706,331 @@ class InMemoryStore:
                     "Intake run missing, stale or immutable context changed"
                 )
             self._native_intake_runs[value.id] = value.model_copy(deep=True)
+
+    def project_models(self, workspace_id: UUID, project_id: UUID) -> tuple[ProjectModel, ...]:
+        with self._lock:
+            return tuple(
+                sorted(
+                    (
+                        value.model_copy(deep=True)
+                        for value in self._project_models.values()
+                        if (value.workspace_id, value.project_id) == (workspace_id, project_id)
+                    ),
+                    key=lambda value: (value.created_at, value.id),
+                )
+            )
+
+    def project_model(
+        self, workspace_id: UUID, project_id: UUID, model_id: UUID
+    ) -> ProjectModel | None:
+        with self._lock:
+            value = self._project_models.get(model_id)
+            return (
+                value.model_copy(deep=True)
+                if value and (value.workspace_id, value.project_id) == (workspace_id, project_id)
+                else None
+            )
+
+    def insert_project_model(self, value: ProjectModel) -> None:
+        with self._lock:
+            if (
+                value.id in self._project_models
+                or value.version != 1
+                or self.native_project(value.workspace_id, value.project_id) is None
+                or (value.created_by, value.workspace_id) not in self._memberships
+                or (
+                    value.qualification_usage_id is not None
+                    and self.model_usage(
+                        value.workspace_id, value.project_id, value.qualification_usage_id
+                    )
+                    is None
+                )
+            ):
+                raise InvalidTransitionError("Model exists or its project/creator is unavailable")
+            self._project_models[value.id] = value.model_copy(deep=True)
+
+    def update_project_model(self, value: ProjectModel, expected_version: int) -> None:
+        with self._lock:
+            previous = self.project_model(value.workspace_id, value.project_id, value.id)
+            if (
+                previous is None
+                or previous.version != expected_version
+                or value.version != expected_version + 1
+                or value.credential_revision < previous.credential_revision
+                or (
+                    value.qualification_usage_id is not None
+                    and self.model_usage(
+                        value.workspace_id, value.project_id, value.qualification_usage_id
+                    )
+                    is None
+                )
+                or value.model_dump(exclude=set(MODEL_MUTABLE_FIELDS))
+                != previous.model_dump(exclude=set(MODEL_MUTABLE_FIELDS))
+            ):
+                raise InvalidTransitionError("Model missing, stale or immutable identity changed")
+            self._project_models[value.id] = value.model_copy(deep=True)
+
+    def project_model_credential(
+        self, workspace_id: UUID, project_id: UUID, model_id: UUID, revision: int
+    ) -> ProjectModelCredential | None:
+        with self._lock:
+            return next(
+                (
+                    value
+                    for value in self._project_model_credentials.values()
+                    if (value.workspace_id, value.project_id, value.model_id, value.revision)
+                    == (workspace_id, project_id, model_id, revision)
+                ),
+                None,
+            )
+
+    def insert_project_model_credential(self, value: ProjectModelCredential) -> None:
+        with self._lock:
+            if (
+                value.id in self._project_model_credentials
+                or self.project_model(value.workspace_id, value.project_id, value.model_id) is None
+                or (value.created_by, value.workspace_id) not in self._memberships
+                or self.project_model_credential(
+                    value.workspace_id, value.project_id, value.model_id, value.revision
+                )
+                is not None
+            ):
+                raise InvalidTransitionError("Model credential exists or its scope is unavailable")
+            self._project_model_credentials[value.id] = value
+
+    def model_resource_policy(
+        self, workspace_id: UUID, project_id: UUID | None = None
+    ) -> ModelResourcePolicy | None:
+        with self._lock:
+            return self._model_resource_policies.get((workspace_id, project_id))
+
+    def save_model_resource_policy(self, value: ModelResourcePolicy, expected_version: int) -> None:
+        with self._lock:
+            previous = self.model_resource_policy(value.workspace_id, value.project_id)
+            if (
+                (previous.version if previous else 0) != expected_version
+                or value.version != expected_version + 1
+                or not any(ws == value.workspace_id for _, ws in self._memberships)
+                or (
+                    value.project_id is not None
+                    and self.native_project(value.workspace_id, value.project_id) is None
+                )
+                or any(
+                    model_id is not None
+                    and (
+                        value.project_id is None
+                        or self.project_model(value.workspace_id, value.project_id, model_id)
+                        is None
+                    )
+                    for model_id in (value.planning_model_id, value.review_model_id)
+                )
+            ):
+                raise InvalidTransitionError("Model policy scope is unavailable or version stale")
+            self._model_resource_policies[value.workspace_id, value.project_id] = value
+
+    def model_usage(
+        self, workspace_id: UUID, project_id: UUID, usage_id: UUID
+    ) -> ModelUsage | None:
+        with self._lock:
+            value = self._model_usage.get(usage_id)
+            return (
+                value.model_copy(deep=True)
+                if value and (value.workspace_id, value.project_id) == (workspace_id, project_id)
+                else None
+            )
+
+    def model_usage_for_operation(
+        self, workspace_id: UUID, project_id: UUID, operation_id: UUID
+    ) -> tuple[ModelUsage, ...]:
+        with self._lock:
+            return tuple(
+                sorted(
+                    (
+                        value.model_copy(deep=True)
+                        for value in self._model_usage.values()
+                        if (value.workspace_id, value.project_id, value.operation_id)
+                        == (workspace_id, project_id, operation_id)
+                    ),
+                    key=lambda value: value.phase,
+                )
+            )
+
+    def model_usage_entries(
+        self, workspace_id: UUID, project_id: UUID | None = None, offset: int = 0, limit: int = 50
+    ) -> tuple[ModelUsage, ...]:
+        with self._lock:
+            values = (
+                value
+                for value in self._model_usage.values()
+                if value.workspace_id == workspace_id
+                and (project_id is None or value.project_id == project_id)
+            )
+            return tuple(
+                value.model_copy(deep=True)
+                for value in sorted(
+                    values, key=lambda value: (value.started_at, value.id), reverse=True
+                )[offset : offset + limit]
+            )
+
+    def model_usage_expired(self, workspace_id: UUID, at: datetime) -> tuple[ModelUsage, ...]:
+        with self._lock:
+            return tuple(
+                value.model_copy(deep=True)
+                for value in sorted(
+                    (
+                        value
+                        for value in self._model_usage.values()
+                        if value.workspace_id == workspace_id
+                        and value.status in {"reserved", "dispatched"}
+                        and value.deadline_at <= at
+                    ),
+                    key=lambda value: (value.deadline_at, value.id),
+                )
+            )
+
+    def _late_model_usage_authorized(self, value: ModelUsage) -> bool:
+        """A new accounting delta keeps an already-reconciled dispatch's authority."""
+        matched = re.fullmatch(r"late_([0-9a-f]{32})_([1-9][0-9]*)", value.phase)
+        if matched is None:
+            return False
+        source = self.model_usage(value.workspace_id, value.project_id, UUID(matched[1]))
+        if (
+            source is None
+            or source.status != "reconciled"
+            or value.status != "settled"
+            or value.reserved_microusd
+            or value.held_microusd
+            or not value.charged_microusd
+            or value.error_code != "late_provider_charge"
+            or any(
+                item is not None
+                for item in (
+                    value.reconciliation_by,
+                    value.reconciliation_at,
+                    value.reconciliation_reason,
+                    value.reconciliation_evidence,
+                )
+            )
+        ):
+            return False
+        context = {
+            "workspace_id",
+            "project_id",
+            "operation_id",
+            "requested_by",
+            "model_id",
+            "model_version",
+            "credential_revision",
+            "template_id",
+            "model",
+            "endpoint_fingerprint",
+            "endpoint_snapshot",
+            "input_rate",
+            "output_rate",
+            "started_at",
+            "deadline_at",
+        }
+        return value.model_dump(include=context) == source.model_dump(include=context)
+
+    def insert_model_usage(self, value: ModelUsage) -> None:
+        with self._lock:
+            adjustment = self._late_model_usage_authorized(value)
+            model = (
+                self.project_model(value.workspace_id, value.project_id, value.model_id)
+                if value.model_id
+                else None
+            )
+            if (
+                value.id in self._model_usage
+                or value.version != 1
+                or self.native_project(value.workspace_id, value.project_id) is None
+                or (value.phase.startswith("late_") and not adjustment)
+                or (
+                    (value.requested_by, value.workspace_id) not in self._memberships
+                    and not adjustment
+                )
+                or (
+                    value.model_id is not None
+                    and (model is None or model.version < value.model_version)
+                )
+                or (
+                    value.credential_revision > 0
+                    and (
+                        value.model_id is None
+                        or self.project_model_credential(
+                            value.workspace_id,
+                            value.project_id,
+                            value.model_id,
+                            value.credential_revision,
+                        )
+                        is None
+                    )
+                )
+                or any(
+                    previous.phase == value.phase
+                    for previous in self.model_usage_for_operation(
+                        value.workspace_id, value.project_id, value.operation_id
+                    )
+                )
+            ):
+                raise InvalidTransitionError(
+                    "Model usage exists or its dispatch scope is unavailable"
+                )
+            self._model_usage[value.id] = value.model_copy(deep=True)
+
+    def update_model_usage(self, value: ModelUsage, expected_version: int) -> None:
+        with self._lock:
+            previous = self.model_usage(value.workspace_id, value.project_id, value.id)
+            if (
+                previous is None
+                or previous.version != expected_version
+                or value.version != expected_version + 1
+                or previous.status in {"settled", "reconciled", "released"}
+                or value.model_dump(exclude=set(MODEL_USAGE_MUTABLE_FIELDS))
+                != previous.model_dump(exclude=set(MODEL_USAGE_MUTABLE_FIELDS))
+                or (
+                    value.reconciliation_by is not None
+                    and (value.reconciliation_by, value.workspace_id) not in self._memberships
+                )
+            ):
+                raise InvalidTransitionError(
+                    "Usage missing, resolved, stale or dispatch context changed"
+                )
+            self._model_usage[value.id] = value.model_copy(deep=True)
+
+    def model_usage_totals(
+        self, workspace_id: UUID, project_id: UUID | None, at: datetime
+    ) -> UsageTotals:
+        at = at.astimezone(UTC)
+        with self._lock:
+            values = [
+                value
+                for value in self._model_usage.values()
+                if value.workspace_id == workspace_id
+                and (project_id is None or value.project_id == project_id)
+            ]
+            return UsageTotals(
+                charged_lifetime=sum(value.charged_microusd for value in values),
+                charged_day=sum(
+                    value.charged_microusd
+                    for value in values
+                    if value.started_at.date() == at.date()
+                ),
+                charged_month=sum(
+                    value.charged_microusd
+                    for value in values
+                    if (value.started_at.year, value.started_at.month) == (at.year, at.month)
+                ),
+                held_microusd=sum(value.held_microusd for value in values),
+                active_calls=sum(
+                    value.status in {"reserved", "dispatched", "unknown"} for value in values
+                ),
+            )
+
+    def command_receipt(self, namespace: str, key: str) -> dict[str, Any] | None:
+        with self._lock:
+            existing = self._invocations.get((namespace, key))
+            return deepcopy(existing[1]) if existing else None
 
     def password_for_email(self, email: str) -> PasswordCredential | None:
         with self._lock:

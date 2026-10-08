@@ -61,7 +61,7 @@ class Settings(BaseSettings):
     local_files_actor_id: UUID | None = None
     local_file_roots: dict[str, Path] = Field(default_factory=dict)
     external_providers_file: Path | None = None
-    intake_models_file: Path | None = None
+    model_catalog_file: Path | None = None
     integration_key_file: Path = (
         Path(os.environ.get("LOCALAPPDATA", str(Path.home() / ".local/share")))
         / "Simon"
@@ -75,7 +75,7 @@ class Settings(BaseSettings):
     voice_name: Literal["marin", "cedar", "meridian", "vesper"] = "cedar"
     voice_max_seconds: int = Field(default=900, ge=60, le=1800)
 
-    @field_validator("external_providers_file", "intake_models_file", mode="before")
+    @field_validator("external_providers_file", "model_catalog_file", mode="before")
     @classmethod
     def empty_manifest(cls, value: object) -> object:
         return None if value == "" else value

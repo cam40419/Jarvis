@@ -2,14 +2,12 @@
 
 import base64
 import binascii
-import json
-from collections.abc import Callable, Mapping
+from collections.abc import Callable
 from datetime import timedelta
-from pathlib import Path
-from typing import Any
+from decimal import Decimal
+from typing import Any, TypeVar
 from uuid import UUID
 
-from pydantic import TypeAdapter
 from pydantic import ValidationError as ModelValidationError
 
 from simon.adapters.model_endpoints import ModelEndpointError
@@ -20,7 +18,7 @@ from simon.domain.errors import (
     NotFoundError,
     ValidationError,
 )
-from simon.domain.model_routing import ModelEndpoint, TextGenerationResult
+from simon.domain.model_routing import TextGenerationResult
 from simon.domain.models import ActorContext, utc_now
 from simon.domain.native_agents import CreateNativeAgent, NativeActor, NativeAgent
 from simon.domain.native_intake import (
@@ -33,6 +31,7 @@ from simon.domain.native_intake import (
     StaffingProposal,
     UpdateNativeIntake,
 )
+from simon.domain.native_models import ModelUsage
 from simon.domain.native_projects import (
     CreateNativeTask,
     NativeProject,
@@ -52,33 +51,9 @@ from simon.services.intake_sources import (
 )
 from simon.services.native_projects import NativeProjectService
 from simon.services.native_teams import NativeTeamService
+from simon.services.project_models import ProjectModelRuntime, ProjectModelService
 
-
-def configured_planner(
-    path: Path | None, workspace_id: UUID, *, environ: Mapping[str, str] | None = None
-) -> IntakePlanner:
-    """Only an administrator file can bind endpoints/credentials to a workspace."""
-    if path is None:
-        return IntakePlanner(())
-    try:
-        if path.stat().st_size > 1024 * 1024:
-            raise ValueError("oversized catalog")
-        rows = json.loads(path.read_bytes())
-        if not isinstance(rows, list) or len(rows) > 100:
-            raise ValueError("invalid catalog")
-        endpoints = []
-        for row in rows:
-            if not isinstance(row, dict) or set(row) != {"workspace_ids", "endpoint"}:
-                raise ValueError("invalid entry")
-            workspaces = TypeAdapter(list[UUID]).validate_python(row["workspace_ids"])
-            endpoint = ModelEndpoint.model_validate(row["endpoint"])
-            if workspace_id in workspaces:
-                endpoints.append(endpoint)
-        return IntakePlanner(endpoints, environ=environ)
-    except (OSError, ValueError, TypeError, KeyError):
-        raise ValidationError(
-            "The administrator's intake model catalog is unavailable or invalid."
-        ) from None
+_Result = TypeVar("_Result")
 
 
 def source_metadata(source: IntakeSource) -> dict[str, Any]:
@@ -92,10 +67,17 @@ class NativeIntakeService:
         projects: NativeProjectService,
         teams: NativeTeamService,
         source_bytes: IntakeSourceBytes,
-        planner_factory: Callable[[UUID], IntakePlanner],
+        models: ProjectModelService,
+        *,
+        planner_factory: Callable[[ProjectModelRuntime], IntakePlanner] | None = None,
     ) -> None:
         self.store, self.projects, self.teams = store, projects, teams
-        self.source_bytes, self.planner_factory = source_bytes, planner_factory
+        self.source_bytes, self.models, self.usage = source_bytes, models, models.usage
+        self.planner_factory = planner_factory or (
+            lambda runtime: IntakePlanner(
+                runtime.endpoints, environ=runtime.environ, transport=self.models.transport
+            )
+        )
 
     def _access(
         self, actor: NativeActor, project_id: UUID, *, write: bool = False
@@ -133,18 +115,26 @@ class NativeIntakeService:
         return tuple(sorted(latest.values(), key=lambda source: source.source_key))
 
     def _runs(self, actor: ActorContext, project_id: UUID) -> tuple[IntakeRun, ...]:
+        self.usage.recover(actor.workspace_id)
         runs = self.store.native_intake_runs(actor.workspace_id, project_id)
         output = []
         for run in runs:
+            if run.usage_ids:
+                outcome = self.usage.operation_outcome(actor.workspace_id, project_id, run.id)
+                if (run.charged_microusd, run.reserved_microusd) != (
+                    outcome.charged_microusd,
+                    outcome.held_microusd,
+                ):
+                    run = self._save_run(
+                        run,
+                        charged_microusd=outcome.charged_microusd,
+                        reserved_microusd=outcome.held_microusd,
+                    )
             if run.status == "running" and run.deadline_at <= utc_now():
                 run = self._save_run(run, status="unknown", error_code="planning_interrupted")
                 self._audit(actor, project_id, "interrupted", run_id=str(run.id))
             output.append(run)
         return tuple(output)
-
-    @staticmethod
-    def _spend(runs: tuple[IntakeRun, ...]) -> tuple[int, int]:
-        return sum(r.charged_microusd for r in runs), sum(r.reserved_microusd for r in runs)
 
     def view(self, actor: ActorContext, project_id: UUID) -> dict[str, Any]:
         with self.store.transaction(IDENTITY_LOCK), self.store.transaction(actor.workspace_id):
@@ -156,12 +146,7 @@ class NativeIntakeService:
             except (AuthorizationError, InvalidTransitionError):
                 pass
             runs = self._runs(actor, project_id)
-            spent, reserved = self._spend(runs)
-            try:
-                models = self.planner_factory(actor.workspace_id).options()
-                model_error = None
-            except ValidationError:
-                models, model_error = (), "Administrator model configuration is unavailable."
+            totals = self.store.model_usage_totals(actor.workspace_id, project_id, utc_now())
             return {
                 "intake": self._intake(project).model_dump(mode="json"),
                 "sources": [
@@ -169,11 +154,9 @@ class NativeIntakeService:
                     for s in self.store.native_intake_sources(actor.workspace_id, project_id)
                 ],
                 "runs": [r.model_dump(mode="json") for r in runs[:20]],
-                "models": models,
-                "model_error": model_error,
                 "can_manage": manageable,
-                "spent_microusd": spent,
-                "reserved_microusd": reserved,
+                "spent_microusd": totals.charged_lifetime,
+                "reserved_microusd": totals.held_microusd,
             }
 
     def update(
@@ -185,15 +168,6 @@ class NativeIntakeService:
             def update() -> NativeIntake:
                 current = self._intake(project)
                 self.projects._version(current.version, command.expected_version)
-                spent, reserved = self._spend(self._runs(actor, project_id))
-                if command.budget_microusd < spent + reserved:
-                    raise InvalidTransitionError(
-                        "Planning allowance cannot be below settled and reserved usage."
-                    )
-                if command.endpoint_id is not None:
-                    available = self.planner_factory(actor.workspace_id).options()
-                    if not any(model["id"] == command.endpoint_id for model in available):
-                        raise ValidationError("Choose an intake model available to this workspace.")
                 result = NativeIntake(
                     workspace_id=actor.workspace_id,
                     project_id=project_id,
@@ -361,6 +335,10 @@ class NativeIntakeService:
             "tasks": [(str(t.id), t.version) for t in tasks],
             "sources": [(str(s.id), s.sha256, bool(s.revoked_at)) for s in sources],
             "policy": policy.model_dump(mode="json"),
+            "model_policy": self.usage.policy(actor.workspace_id, project.id).model_dump(
+                mode="json"
+            ),
+            "workspace_model_policy": self.usage.policy(actor.workspace_id).model_dump(mode="json"),
         }
         return digest(snapshot), agents, tasks, sources
 
@@ -481,8 +459,6 @@ class NativeIntakeService:
                 return self.get_run(actor, project_id, existing.id)
             intake = self._intake(project)
             self.projects._version(intake.version, command.expected_version)
-            if not intake.endpoint_id:
-                raise ValidationError("Select a configured intake model before generating a plan.")
             runs = self._runs(actor, project_id)
             if any(r.status == "running" for r in runs):
                 raise InvalidTransitionError(
@@ -490,14 +466,15 @@ class NativeIntakeService:
                 )
             if len(runs) >= 1000:
                 raise ValidationError("This project's planning history capacity has been reached.")
-            planner = self.planner_factory(actor.workspace_id)
+            runtime = self.models.runtime(actor, project_id)
+            planner = self.planner_factory(runtime)
             context, snapshot, included, omitted = self._context(actor, project, command)
-            prepared = planner.prepare(intake.endpoint_id, intake.allow_cloud, context)
-            spent, reserved = self._spend(runs)
-            if spent + reserved + prepared.reservation_microusd > intake.budget_microusd:
-                raise InvalidTransitionError(
-                    "Planning allowance cannot cover generation and independent review."
-                )
+            prepared = planner.prepare(
+                runtime.planning_endpoint_id,
+                self.usage.policy(actor.workspace_id, project_id).allow_cloud,
+                context,
+                review_endpoint_id=runtime.review_endpoint_id,
+            )
             run = IntakeRun(
                 workspace_id=actor.workspace_id,
                 project_id=project_id,
@@ -508,11 +485,44 @@ class NativeIntakeService:
                 snapshot_digest=snapshot,
                 endpoint_id=prepared.endpoint_id,
                 model=prepared.model,
+                review_endpoint_id=prepared.review_endpoint_id,
+                review_model=prepared.review_model,
                 reserved_microusd=prepared.reservation_microusd,
                 included_source_ids=included,
                 omitted_source_ids=omitted,
                 deadline_at=utc_now() + timedelta(minutes=5),
             )
+            calls = []
+            for phase, endpoint_id, reserved in (
+                ("generation", prepared.endpoint_id, prepared.generation_reservation_microusd),
+                ("review", prepared.review_endpoint_id, prepared.review_reservation_microusd),
+            ):
+                binding = runtime.bindings[endpoint_id]
+                endpoint = binding.endpoint
+                calls.append(
+                    ModelUsage(
+                        workspace_id=actor.workspace_id,
+                        project_id=project_id,
+                        operation_id=run.id,
+                        phase=phase,
+                        requested_by=actor.actor_id,
+                        model_id=binding.model.id,
+                        model_version=binding.model.version,
+                        credential_revision=binding.model.credential_revision,
+                        template_id=binding.model.template_id,
+                        model=endpoint.model,
+                        endpoint_fingerprint=binding.fingerprint,
+                        endpoint_snapshot=endpoint.model_dump(mode="json"),
+                        input_rate=Decimal(str(endpoint.input_cost_per_million_usd or 0)),
+                        output_rate=Decimal(str(endpoint.output_cost_per_million_usd or 0)),
+                        reserved_microusd=reserved,
+                        held_microusd=reserved,
+                        started_at=run.started_at,
+                        deadline_at=run.deadline_at,
+                    )
+                )
+            self.usage.reserve(actor, project_id, run.id, tuple(calls))
+            run = run.model_copy(update={"usage_ids": tuple(call.id for call in calls)})
             self.store.insert_native_intake_run(run)
             self._audit(
                 actor,
@@ -524,7 +534,26 @@ class NativeIntakeService:
             )
         return self._generate(actor, run, planner, prepared)
 
-    def _continue(self, actor: ActorContext, run: IntakeRun, prepared: PreparedIntake) -> None:
+    def _model_context_current(self, actor: ActorContext, run: IntakeRun) -> None:
+        for usage in self.store.model_usage_for_operation(
+            actor.workspace_id, run.project_id, run.id
+        ):
+            if usage.phase not in {"generation", "review"}:
+                continue
+            assert usage.model_id is not None
+            try:
+                binding = self.models.resolve(actor, run.project_id, usage.model_id)
+            except (ValidationError, NotFoundError):
+                raise InvalidTransitionError(
+                    "Planning model or credentials changed. Generate a new plan."
+                ) from None
+            if (
+                binding.model.version != usage.model_version
+                or binding.fingerprint != usage.endpoint_fingerprint
+            ):
+                raise InvalidTransitionError("Planning model or credentials changed.")
+
+    def _continue(self, actor: ActorContext, run: IntakeRun) -> None:
         # Recheck before the second paid call; no database locks span inference.
         with self.store.transaction(IDENTITY_LOCK), self.store.transaction(actor.workspace_id):
             project = self._access(actor, run.project_id, write=True)
@@ -534,38 +563,79 @@ class NativeIntakeService:
                 or self._snapshot(actor, project)[0] != run.snapshot_digest
             ):
                 raise InvalidTransitionError("Planning context changed or the attempt stopped.")
-            current_planner = self.planner_factory(actor.workspace_id)
-            if (
-                current_planner.configuration_fingerprint(run.endpoint_id)
-                != prepared.endpoint_fingerprint
-            ):
-                raise InvalidTransitionError("Planning model authorization changed.")
+            self._model_context_current(actor, run)
+
+    def _call(
+        self,
+        actor: ActorContext,
+        run: IntakeRun,
+        phase: str,
+        invoke: Callable[[], tuple[_Result, TextGenerationResult]],
+    ) -> _Result:
+        with self.store.transaction(IDENTITY_LOCK), self.store.transaction(actor.workspace_id):
+            self._continue(actor, run)
+            entry = next(
+                r
+                for r in self.store.model_usage_for_operation(
+                    actor.workspace_id, run.project_id, run.id
+                )
+                if r.phase == phase
+            )
+            self.usage.dispatch(actor, run.project_id, entry.id)
+        try:
+            value, result = invoke()
+        except IntakePlanningError as exc:
+            self.usage.settle(
+                actor.workspace_id,
+                run.project_id,
+                entry.id,
+                exc.result,
+                unknown=exc.may_have_been_dispatched and exc.result is None,
+                error_code=exc.code,
+            )
+            raise
+        except ModelEndpointError as exc:
+            self.usage.settle(
+                actor.workspace_id,
+                run.project_id,
+                entry.id,
+                None,
+                unknown=exc.may_have_been_dispatched,
+                error_code=exc.code,
+            )
+            raise
+        except Exception:
+            self.usage.settle(
+                actor.workspace_id,
+                run.project_id,
+                entry.id,
+                None,
+                unknown=True,
+                error_code="planning_interrupted",
+            )
+            raise
+        settled = self.usage.settle(actor.workspace_id, run.project_id, entry.id, result)
+        if settled.status == "unknown":
+            raise IntakePlanningError("provider_usage_unverified", may_have_been_dispatched=True)
+        if settled.charged_microusd > settled.reserved_microusd:
+            raise IntakePlanningError("provider_usage_exceeded_reservation")
+        return value
 
     def _generate(
         self, actor: ActorContext, run: IntakeRun, planner: IntakePlanner, prepared: PreparedIntake
     ) -> IntakeRun:
-        results: list[TextGenerationResult] = []
         proposal, review = None, None
         status, error = "ready", None
-        uncertain = False
         try:
-            proposal, result = planner.generate(prepared)
-            results.append(result)
-            self._continue(actor, run, prepared)
+            proposal = self._call(actor, run, "generation", lambda: planner.generate(prepared))
+            self._continue(actor, run)
             self._validate_proposal(actor, run, proposal)
-            generated_charge = planner.charge(prepared, results)
-            if generated_charge is None or generated_charge > run.reserved_microusd:
-                # Do not compound missing or out-of-contract usage with another call.
-                raise IntakePlanningError("provider_usage_unverified")
-            review, result = planner.review(prepared, proposal)
-            results.append(result)
+            review = self._call(actor, run, "review", lambda: planner.review(prepared, proposal))
             if not review.approved:
                 status = "needs_revision"
             elif any(q.blocking for q in proposal.questions):
                 status = "questions"
         except IntakePlanningError as exc:
-            if exc.result is not None:
-                results.append(exc.result)
             uncertain = exc.may_have_been_dispatched and exc.result is None
             status, error = ("unknown" if uncertain else "failed"), exc.code
         except ModelEndpointError as exc:
@@ -577,9 +647,12 @@ class NativeIntakeService:
             status, error = "needs_revision", "proposal_invalid"
         except Exception:
             # A process-local exception after dispatch cannot justify a free retry.
-            status, error, uncertain = "unknown", "planning_interrupted", True
-        charged = planner.charge(prepared, results)
+            status, error = "unknown", "planning_interrupted"
+        finally:
+            for usage_id in run.usage_ids:
+                self.usage.release(actor.workspace_id, run.project_id, usage_id)
         with self.store.transaction(IDENTITY_LOCK), self.store.transaction(actor.workspace_id):
+            outcome = self.usage.operation_outcome(actor.workspace_id, run.project_id, run.id)
             current = self.store.native_intake_run(actor.workspace_id, run.project_id, run.id)
             assert current is not None
             authorised = True
@@ -589,6 +662,11 @@ class NativeIntakeService:
                 if self._snapshot(actor, project)[0] != run.snapshot_digest:
                     evidence_current = False
                     status, error = "stale", "planning_context_changed"
+                try:
+                    self._model_context_current(actor, run)
+                except (ValidationError, InvalidTransitionError, NotFoundError):
+                    evidence_current = False
+                    status, error = "stale", "planning_model_changed"
             except (AuthorizationError, NotFoundError, InvalidTransitionError):
                 authorised = False
                 evidence_current = False
@@ -598,10 +676,8 @@ class NativeIntakeService:
                 status, error = "stale", "planning_context_changed"
             if current.status in {"cancelled", "unknown"}:
                 status = current.status
-            # Missing usage or unknown dispatch retains the full conservative reservation.
-            held = run.reserved_microusd if uncertain or charged is None else 0
-            settled = 0 if held else (charged or 0)
-            if not held and settled > run.reserved_microusd:
+            held, settled = outcome.held_microusd, outcome.charged_microusd
+            if error == "provider_usage_exceeded_reservation" or settled > run.reserved_microusd:
                 if status not in {"cancelled", "stale", "unknown"}:
                     status = "needs_revision"
                 error = "provider_usage_exceeded_reservation"
@@ -614,12 +690,8 @@ class NativeIntakeService:
                 proposal=proposal if evidence_current and status != "cancelled" else None,
                 review=review if evidence_current and status != "cancelled" else None,
                 finished_at=utc_now(),
-                input_tokens=sum(r.input_tokens for r in results if r.input_tokens is not None)
-                if not uncertain and results and all(r.input_tokens is not None for r in results)
-                else None,
-                output_tokens=sum(r.output_tokens for r in results if r.output_tokens is not None)
-                if not uncertain and results and all(r.output_tokens is not None for r in results)
-                else None,
+                input_tokens=outcome.input_tokens,
+                output_tokens=outcome.output_tokens,
             )
             self._audit(
                 actor,
@@ -681,6 +753,7 @@ class NativeIntakeService:
         snapshot, agents, tasks, sources = self._snapshot(actor, project)
         if snapshot != run.snapshot_digest:
             raise InvalidTransitionError("Planning context changed. Generate a new plan.")
+        self._model_context_current(actor, run)
         source_map = {
             s.id: s for s in sources if not s.revoked_at and s.id in run.included_source_ids
         }
@@ -898,12 +971,18 @@ class NativeIntakeService:
             with self.store.transaction(IDENTITY_LOCK), self.store.transaction(actor.workspace_id):
                 project = self._access(actor, project_id, write=True)
                 run = self.get_run(actor, project_id, run_id)
-                if (
-                    run.status == "ready"
-                    and self._snapshot(actor, project)[0] != run.snapshot_digest
-                ):
-                    self._save_run(run, status="stale", error_code="planning_context_changed")
-                    self._audit(actor, project_id, "stale", run_id=str(run.id))
+                if run.status == "ready":
+                    error = None
+                    if self._snapshot(actor, project)[0] != run.snapshot_digest:
+                        error = "planning_context_changed"
+                    else:
+                        try:
+                            self._model_context_current(actor, run)
+                        except InvalidTransitionError:
+                            error = "planning_model_changed"
+                    if error is not None:
+                        self._save_run(run, status="stale", error_code=error)
+                        self._audit(actor, project_id, "stale", run_id=str(run.id))
             raise
 
     def cancel(
@@ -919,6 +998,8 @@ class NativeIntakeService:
                     raise InvalidTransitionError(
                         "Applied plans must be steered through the board and team."
                     )
+                for usage_id in run.usage_ids:
+                    self.usage.release(actor.workspace_id, project_id, usage_id)
                 result = self._save_run(run, status="cancelled", finished_at=utc_now())
                 self._audit(actor, project_id, "cancelled", run_id=str(run.id))
                 return result

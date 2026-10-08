@@ -4,12 +4,17 @@ import json
 from pathlib import Path
 from uuid import uuid4
 
-import httpx
 import pytest
 
-from simon.domain.model_routing import ModelEndpoint
 from simon.domain.native_projects import VersionedNativeCommand
-from simon.services.intake_planner import IntakePlanner
+from tests.integration.test_native_models_browser import (
+    allow_paid,
+    configure_catalog,
+    enroll,
+    policy,
+    qualify,
+    view,
+)
 from tests.integration.test_native_projects_browser import native_ui as native_ui
 from tests.integration.test_native_projects_browser import (
     open_project,
@@ -37,10 +42,12 @@ def open_intake(ui, project, *, page=None):
     expect(page.locator("#ni-refresh")).to_be_enabled()
 
 
-def configure_planner(ui, proposal, *, approved=True, cloud=False):
+def configure_planner(ui, project, proposal, *, approved=True, cloud=False):
     requests = []
 
     def respond(request):
+        if "simon_model_probe" in request.content.decode():
+            return {"simon_model_probe": True, "version": 1}
         requests.append(json.loads(request.content))
         result = (
             proposal
@@ -50,33 +57,13 @@ def configure_planner(ui, proposal, *, approved=True, cloud=False):
                 "issues": [] if approved else ["The proposed work needs stronger evidence."],
             }
         )
-        return httpx.Response(
-            200,
-            json={
-                "choices": [{"finish_reason": "stop", "message": {"content": json.dumps(result)}}],
-                "usage": {"prompt_tokens": 101, "completion_tokens": 31},
-            },
-        )
+        return result
 
-    planner = IntakePlanner(
-        [
-            ModelEndpoint(
-                id="planning",
-                provider="openai_compatible",
-                model="synthetic-test-model",
-                base_url="https://approved.example/v1" if cloud else "http://127.0.0.1:19099/v1",
-                local=not cloud,
-                api_key_env="SYNTHETIC_TEST_KEY" if cloud else None,
-                context_window_tokens=128000,
-                max_output_tokens=8192,
-                input_cost_per_million_usd=1,
-                output_cost_per_million_usd=2,
-            )
-        ],
-        environ={"SYNTHETIC_TEST_KEY": "synthetic-never-a-real-key"},
-        transport=httpx.MockTransport(respond),
-    )
-    ui.container.native_intake.planner_factory = lambda workspace_id: planner
+    configure_catalog(ui, cloud=cloud, paid=True, respond=respond)
+    allow_paid(ui, project, cloud=cloud)
+    models = view(ui, project)["models"]
+    if not models:
+        qualify(ui, project, enroll(ui, project, cloud=cloud))
     return requests
 
 
@@ -119,8 +106,6 @@ def proposal_document():
 
 
 def set_planning_fields(page, *, auto=False):
-    page.locator("#ni-model").select_option("planning")
-    page.locator("#ni-budget").fill("1")
     page.locator("#ni-auto").set_checked(auto)
 
 
@@ -131,7 +116,7 @@ def test_intake_resumes_uploads_revisions_and_truthful_model_readiness(native_ui
     ui = native_ui
     project = seed_project(ui)
     open_intake(ui, project)
-    expect(ui.page.locator("#ni-model-status")).to_contain_text("No planning models")
+    expect(ui.page.locator("#ni-model-status")).to_contain_text("No qualified model")
     expect(ui.page.locator("#ni-analyze")).to_be_disabled()
     ui.page.locator("#ni-background").fill("A clothing brand at the idea stage.")
     ui.page.locator("#ni-outcomes").fill("Agree on the brand direction before selecting pieces.")
@@ -234,7 +219,7 @@ def test_reviewed_plan_applies_roles_and_board_tasks_with_cost_visibility(native
     project = seed_project(ui)
     proposal = proposal_document()
     proposal["summary"] = '<img src=x onerror="window.intakeInjected=true">'
-    calls = configure_planner(ui, proposal)
+    calls = configure_planner(ui, project, proposal)
     open_intake(ui, project)
     set_planning_fields(ui.page, auto=auto)
     ui.page.locator("#ni-analyze").click()
@@ -274,12 +259,19 @@ def test_hosted_consent_questions_answers_and_review_rejection_are_visible(nativ
             "blocking": True,
         }
     ]
-    calls = configure_planner(ui, proposal, cloud=True)
+    calls = configure_planner(ui, project, proposal, cloud=True)
+    policy(ui, project, allow_cloud=False)
     open_intake(ui, project)
     set_planning_fields(ui.page, auto=True)
     expect(ui.page.locator("#ni-analyze")).to_be_disabled()
-    expect(ui.page.locator("#ni-model-status")).to_contain_text("Allow cloud processing")
-    ui.page.locator("#ni-cloud").check()
+    expect(ui.page.locator("#ni-model-status")).to_contain_text("model")
+    ui.page.locator("#ni-models").click()
+    ui.page.locator("#nm-project-policy").click()
+    ui.page.locator("#nm-cloud").check()
+    ui.page.locator("#nm-save").click()
+    expect(ui.page.locator("#nm-feedback")).to_have_text("Settings saved.")
+    ui.page.locator("#nm-close").click()
+    ui.page.locator("#np-intake").click()
     ui.page.locator("#ni-analyze").click()
     expect(ui.page.locator("#ni-run")).to_contain_text("Your answers are needed")
     expect(ui.page.locator("#ni-apply")).not_to_be_visible()
@@ -298,7 +290,7 @@ def test_hosted_consent_questions_answers_and_review_rejection_are_visible(nativ
     assert len(calls) == 2
     decisions = ui.service.tasks(ui.actor, project.id)
     assert len(decisions) == 1 and decisions[0].assignment.kind == "human"
-    configure_planner(ui, proposal_document(), approved=False, cloud=True)
+    configure_planner(ui, project, proposal_document(), approved=False, cloud=True)
     ui.page.locator("#ni-analyze").click()
     expect(ui.page.locator("#ni-run")).to_contain_text("The proposed work needs stronger evidence.")
     expect(ui.page.locator("#ni-apply")).not_to_be_visible()
@@ -310,7 +302,7 @@ def test_lost_plan_response_recovers_saved_attempt_without_duplicate_calls(nativ
 
     ui = native_ui
     project = seed_project(ui)
-    calls = configure_planner(ui, proposal_document())
+    calls = configure_planner(ui, project, proposal_document())
     open_intake(ui, project)
     set_planning_fields(ui.page)
 
@@ -429,7 +421,7 @@ def test_undelivered_analysis_retries_same_key_and_cancel_is_durable(native_ui):
 
     ui = native_ui
     project = seed_project(ui)
-    calls = configure_planner(ui, proposal_document())
+    calls = configure_planner(ui, project, proposal_document())
     open_intake(ui, project)
     set_planning_fields(ui.page)
     attempts = []
@@ -463,7 +455,7 @@ def test_attempt_outside_recent_history_is_loaded_by_its_project_scoped_id(nativ
 
     ui = native_ui
     project = seed_project(ui)
-    calls = configure_planner(ui, proposal_document())
+    calls = configure_planner(ui, project, proposal_document())
     open_intake(ui, project)
     set_planning_fields(ui.page)
 
@@ -491,7 +483,7 @@ def test_board_change_marks_manual_proposal_stale_without_partial_staffing(nativ
 
     ui = native_ui
     project = seed_project(ui)
-    calls = configure_planner(ui, proposal_document())
+    calls = configure_planner(ui, project, proposal_document())
     open_intake(ui, project)
     set_planning_fields(ui.page)
     ui.page.locator("#ni-analyze").click()

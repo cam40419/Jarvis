@@ -10,7 +10,7 @@ import httpx
 import pytest
 
 from simon.adapters.model_endpoints import ModelEndpointError
-from simon.domain.model_routing import ModelEndpoint, TextGenerationResult
+from simon.domain.model_routing import ModelEndpoint
 from simon.domain.native_intake import StaffingProposal
 from simon.services.intake_planner import (
     MAX_PROPOSAL_BYTES,
@@ -169,16 +169,16 @@ def test_true_generation_and_fresh_review_work_across_configured_providers(
     assert "tools" not in first and "tools" not in second
     assert "response_format" not in first
     assert "authorization" not in requests[0].headers
-    assert planner.charge(prepared, [generated, reviewed]) == 150
+    assert generated.input_tokens == reviewed.input_tokens == 101
+    assert generated.output_tokens == reviewed.output_tokens == 31
     assert prepared.reservation_microusd >= 150
 
 
-def test_no_default_or_fake_model_and_options_never_probe_network() -> None:
+def test_no_default_or_fake_model_and_preparation_never_probes_network() -> None:
     def forbidden(_: httpx.Request) -> httpx.Response:
         raise AssertionError("Readiness must not call a provider")
 
     planner = IntakePlanner([], environ={}, transport=httpx.MockTransport(forbidden))
-    assert planner.options() == ()
     with pytest.raises(IntakePlanningError, match="endpoint_unavailable") as failure:
         planner.prepare("missing", False, {})
     assert not failure.value.may_have_been_dispatched
@@ -203,14 +203,10 @@ def test_unready_endpoints_do_not_dispatch_or_disclose_secret_configuration(
     changes: dict[str, Any],
 ) -> None:
     planner = IntakePlanner([endpoint(**changes)], environ={"PRESENT_KEY": "private-value"})
-    option = planner.options()[0]
-    assert not option["ready"]
-    assert option["reason"]
-    assert "private-value" not in json.dumps(option)
-    assert "DO_NOT_EXPOSE_CREDENTIAL_NAME" not in json.dumps(option)
-    assert "base_url" not in option and "api_key_env" not in option
-    with pytest.raises(IntakePlanningError, match="endpoint_not_ready"):
+    with pytest.raises(IntakePlanningError, match="endpoint_not_ready") as failure:
         planner.prepare("planning", True, {})
+    assert "private-value" not in str(failure.value)
+    assert "DO_NOT_EXPOSE_CREDENTIAL_NAME" not in str(failure.value)
 
 
 def test_cloud_permission_is_separate_from_admin_configuration_and_price_readiness() -> None:
@@ -226,7 +222,6 @@ def test_cloud_permission_is_separate_from_admin_configuration_and_price_readine
         ],
         environ={"KEY": "enrolled-secret"},
     )
-    assert planner.options()[0]["ready"]
     with pytest.raises(IntakePlanningError, match="cloud_not_authorized"):
         planner.prepare("planning", False, {})
     assert planner.prepare("planning", True, {}).reservation_microusd > 0
@@ -254,7 +249,11 @@ def test_ordinary_small_context_model_has_actual_bounds_and_two_call_reservation
         first.output_tokens + second.output_tokens
     ) * Decimal("1.3")
     assert Decimal(prepared.reservation_microusd) >= cost
-    assert Decimal(prepared.reservation_microusd) < cost + 1
+    # Each independently settled call rounds up its own reservation.
+    assert Decimal(prepared.reservation_microusd) < cost + 2
+    assert prepared.reservation_microusd == (
+        prepared.generation_reservation_microusd + prepared.review_reservation_microusd
+    )
 
 
 @pytest.mark.parametrize(
@@ -314,7 +313,7 @@ def test_invalid_schema_preserves_usage_without_raw_error_body_or_retry(text: st
         planner.generate(prepared)
     error = failure.value
     assert error.result is not None and error.may_have_been_dispatched
-    assert planner.charge(prepared, [error.result]) == 132
+    assert error.result.input_tokens == 101 and error.result.output_tokens == 31
     assert "secret-provider-body" not in str(error)
     assert calls == 1
 
@@ -335,7 +334,7 @@ def test_terminal_provider_outcomes_keep_known_usage(flags: dict[str, bool], cod
     with pytest.raises(IntakePlanningError, match=code) as failure:
         planner.generate(prepared)
     assert failure.value.result is not None
-    assert planner.charge(prepared, [failure.value.result]) == 0
+    assert failure.value.result.input_tokens == 101
 
 
 def test_reviewer_rejection_is_a_saved_result_not_a_silent_repair() -> None:
@@ -379,22 +378,6 @@ def test_uncertain_dispatch_never_retries_or_falls_back(response: str) -> None:
     assert failure.value.may_have_been_dispatched
     assert "secret-error-details" not in str(failure.value)
     assert calls == 1
-
-
-def test_charge_uses_decimal_rounds_up_and_preserves_missing_or_foreign_usage() -> None:
-    planner = IntakePlanner(
-        [endpoint(input_cost_per_million_usd=0.125, output_cost_per_million_usd=0.3)],
-        environ={},
-    )
-    prepared = planner.prepare("planning", False, {})
-    result = TextGenerationResult(
-        endpoint_id="planning", model="configured-model", text="{}", input_tokens=1, output_tokens=1
-    )
-    assert planner.charge(prepared, [result, result]) == 1
-    assert planner.charge(prepared, []) == 0
-    assert planner.charge(prepared, [result.model_copy(update={"input_tokens": None})]) is None
-    assert planner.charge(prepared, [result.model_copy(update={"output_tokens": None})]) is None
-    assert planner.charge(prepared, [result.model_copy(update={"endpoint_id": "foreign"})]) is None
 
 
 def test_output_size_limit_preserves_charge_and_never_passes_oversize_to_reviewer() -> None:

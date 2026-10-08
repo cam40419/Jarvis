@@ -13,9 +13,11 @@ worker access. Pausing or retiring an agent returns unfinished assignments to th
 
 **Intake** accepts versioned source files, uses a configured model to propose the next
 milestone and team, and makes a separate model review before applying roles and board work.
-Each project controls cloud consent, automatic staffing and a bounded planning allowance.
-Native task execution, artifact reviews and full project provider/key/budget management
-remain subsequent core work. Creating a role does not start a worker.
+**Models & usage** provides write-only project keys, deliberate model qualification,
+separate planning/review routes, and shared project/workspace spending and call limits.
+Projects control hosted/paid consent and automatic staffing. Unknown usage remains held
+until settled or reconciled with evidence. Native task execution, artifact reviews and
+compute/storage entitlements remain subsequent core work. Creating a role does not start a worker.
 The old Work interface, manifest dispatcher and separate project/task authorities have
 been removed. There is no legacy-project migration or compatibility mode.
 
@@ -39,7 +41,8 @@ nonpersistent smoke run. Follow [identity setup](docs/runbooks/identity.md) and
 ## Guides
 
 - [Projects, scoped agents and team management](docs/runbooks/native-projects.md)
-- [AI-assisted intake, model configuration and automatic staffing](docs/runbooks/project-intake.md)
+- [AI-assisted intake and automatic staffing](docs/runbooks/project-intake.md)
+- [Project models, encrypted keys and resource limits](docs/runbooks/project-models.md)
 - [Roadmap and delivery order](docs/next-phases.md)
 - [Platform architecture and implementation backlog](docs/architecture/autonomous-work-platform-plan.md)
 - [Clothing-brand pilot and core acceptance](docs/architecture/clothing-brand-pilot-charter.md)

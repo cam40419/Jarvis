@@ -10,13 +10,13 @@ import httpx
 import pytest
 
 from simon.domain.identity import DEV_WORKSPACE_ID
+from simon.domain.native_models import ModelTemplate
 from simon.domain.native_projects import NativeProjectMember
-from simon.services.intake_planner import IntakePlanner
 from simon.services.intake_sources import IntakeSourceBytes
 from tests.api.test_native_project_api import create_project, sign_in
 from tests.api.test_native_team_api import worker as worker
 from tests.unit.test_intake_planner import endpoint, wire_result
-from tests.unit.test_native_intake import role_document, task_document
+from tests.unit.test_native_intake import role_document, seed_qualified_model, task_document
 
 
 def install_planner(container):
@@ -46,17 +46,25 @@ def install_planner(container):
             ),
         )
 
-    state.planner = IntakePlanner(
-        [endpoint(input_cost_per_million_usd=1, output_cost_per_million_usd=2)],
-        environ={},
-        transport=httpx.MockTransport(respond),
+    container.project_models.templates_factory = lambda workspace: (
+        ModelTemplate(
+            id="planning",
+            name="Synthetic planning",
+            workspace_ids=(workspace,),
+            credential_required=False,
+            endpoint=endpoint(input_cost_per_million_usd=1, output_cost_per_million_usd=2),
+        ),
     )
-    container.native_intake.planner_factory = lambda _: state.planner
+    container.project_models.transport = httpx.MockTransport(respond)
     return state
 
 
 def save_settings(client, path, headers, **changes):
     current = client.get(path).json()["intake"]
+    container = client.app.state.container
+    workspace, project_id = UUID(current["workspace_id"]), UUID(current["project_id"])
+    project = container.store.native_project(workspace, project_id)
+    seed_qualified_model(container.project_models, workspace, project_id, project.created_by)
     values = {
         key: value
         for key, value in current.items()
@@ -67,11 +75,33 @@ def save_settings(client, path, headers, **changes):
         headers=headers,
         json={
             **values,
-            "endpoint_id": "planning",
-            "budget_microusd": 1_000_000,
             "expected_version": current["version"],
             "idempotency_key": f"settings-{uuid4()}",
             **changes,
+        },
+    )
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+def save_limit(client, intake_path, headers, amount):
+    path = intake_path.removesuffix("/intake") + "/models"
+    policy = client.get(path).json()["project_policy"]
+    response = client.put(
+        path + "/policy",
+        headers=headers,
+        json={
+            **{
+                key: value
+                for key, value in policy.items()
+                if key not in {"workspace_id", "project_id", "version", "updated_at"}
+            },
+            "expected_version": policy["version"],
+            "idempotency_key": f"limit-{uuid4()}",
+            "lifetime_limit_microusd": amount,
+            "daily_limit_microusd": amount,
+            "monthly_limit_microusd": amount,
+            "per_operation_limit_microusd": amount,
         },
     )
     assert response.status_code == 200, response.text
@@ -324,7 +354,7 @@ def test_missing_configuration_and_insufficient_allowance_never_dispatch(
     client, container, auth_headers, intake_api
 ):
     h = intake_api
-    save_settings(h.client, h.path, h.headers, budget_microusd=0)
+    save_limit(h.client, h.path, h.headers, 0)
     response = h.client.post(
         h.path + "/analyze", headers=h.headers, json=analyze_body(h.client, h.path)
     )
@@ -332,8 +362,7 @@ def test_missing_configuration_and_insufficient_allowance_never_dispatch(
     assert h.state.calls == []
     project = create_project(client, auth_headers, key="unconfigured-project")
     path = f"/v2/projects/{project['id']}/intake"
-    container.native_intake.planner_factory = lambda _: IntakePlanner((), environ={})
-    assert client.get(path).json()["models"] == []
+    assert client.get(path.removesuffix("/intake") + "/models").json()["models"] == []
     saved = client.put(
         path,
         headers=auth_headers,

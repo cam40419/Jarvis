@@ -38,10 +38,7 @@ class IntakeFields(NativeModel):
     outcomes: str = Field(default="", max_length=6000)
     constraints: str = Field(default="", max_length=6000)
     answers: dict[Slug, Answer] = Field(default_factory=dict, max_length=12)
-    endpoint_id: str | None = Field(default=None, min_length=1, max_length=96)
-    allow_cloud: bool = False
     auto_staff: bool = True
-    budget_microusd: int = Field(default=0, ge=0, le=1_000_000_000, strict=True)
 
     @field_validator("answers")
     @classmethod
@@ -230,6 +227,9 @@ class IntakeRun(NativeModel):
     snapshot_digest: Digest
     endpoint_id: str = Field(min_length=1, max_length=96)
     model: str = Field(min_length=1, max_length=256)
+    usage_ids: tuple[UUID, ...] = Field(default=(), max_length=2)
+    review_endpoint_id: str | None = Field(default=None, min_length=1, max_length=96)
+    review_model: str | None = Field(default=None, min_length=1, max_length=256)
     reserved_microusd: Amount = 0
     charged_microusd: Amount = 0
     error_code: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9_]{0,95}$")

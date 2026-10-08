@@ -2,7 +2,7 @@
 
 The platform foundation provides shared projects and boards at `/projects`, backed by `/v2/projects`. It uses explicit records and project membership, independent of personal memory, Drive and external boards. The former Work interface and separate project/task authorities have been removed.
 
-Read with the [platform architecture](../architecture/autonomous-work-platform-plan.md) and [roadmap](../next-phases.md). [AI-assisted intake and automatic staffing](project-intake.md) now provide evidence ingestion, reviewed team/work proposals and a planning allowance. The initial core is not complete: task dependencies, execution leases, artifact review, full provider/key/resource authority and hosted SaaS administration remain subsequent work.
+Read with the [platform architecture](../architecture/autonomous-work-platform-plan.md) and [roadmap](../next-phases.md). [AI-assisted intake and automatic staffing](project-intake.md) provide evidence ingestion and reviewed team/work proposals. [Project models and resource limits](project-models.md) provide encrypted keys, qualified routes and shared inference ceilings. The initial core is not complete: task dependencies, execution leases, artifact review, compute/storage entitlements and hosted SaaS administration remain subsequent work.
 
 ## Using Projects
 
@@ -23,7 +23,9 @@ Migration `0030_native_projects.sql` provides shared projects, members and tasks
 agent task creators/assignees and drops the retired `project_artifacts`,
 `project_file_operations` and `project_drive` tables. Historical migration files are
 immutable. `0032_native_intake.sql` adds saved intake, source revisions and durable planning
-attempts. This is a clean cutover with no legacy-project backfill or compatibility reader.
+attempts. `0033_project_models.sql` adds encrypted model credentials, resource policies
+and per-call usage; it retains prior intake liabilities once without a legacy runtime.
+This is a clean cutover with no legacy-project backfill or compatibility reader.
 Apply pending migrations through the normal development database workflow. Automated
 verification uses disposable databases and does not migrate an operator's database.
 
@@ -143,7 +145,7 @@ versions avoid unnecessary conflicts with project brief edits. Team views expose
 These are board/team credentials, not execution leases or provider keys. Task-specific
 worker enrollment, general paid usage, tool grants, execution model routing, role history
 browsing and artifact review are future core slices. Reviewed intake staffing proposals
-use a separate human-authorized planning API and allowance. A task marked done is not an
+use a human-authorized planning API under the shared model/resource policy. A task marked done is not an
 accepted artifact or publishing approval.
 
 ## Transactions and visibility

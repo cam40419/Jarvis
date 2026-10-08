@@ -6,7 +6,6 @@ never creates roles, executes tools, retries a request or invents an offline pla
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 from collections.abc import Mapping, Sequence
@@ -87,15 +86,16 @@ class IntakePlanningError(ModelEndpointError):
 class PreparedIntake:
     endpoint_id: str
     model: str
-    endpoint_fingerprint: str
+    review_endpoint_id: str
+    review_model: str
+    generation_reservation_microusd: int
+    review_reservation_microusd: int
     reservation_microusd: int
     decision: RoutingDecision
     context: dict[str, Any]
     review_decision: RoutingDecision
     _context_json: str
     _generation_prompt: str
-    _input_rate: Decimal
-    _output_rate: Decimal
 
 
 def _json(value: Any) -> str:
@@ -160,45 +160,25 @@ class IntakePlanner:
             return "Both input and output prices must be configured."
         return None
 
-    def options(self) -> tuple[dict[str, Any], ...]:
-        return tuple(
-            {
-                "id": endpoint.id,
-                "model": endpoint.model,
-                "provider": endpoint.provider,
-                "local": endpoint.local,
-                "ready": self._unready(endpoint) is None,
-                "reason": self._unready(endpoint),
-                "input_cost_per_million_usd": endpoint.input_cost_per_million_usd,
-                "output_cost_per_million_usd": endpoint.output_cost_per_million_usd,
-            }
-            for endpoint in self._endpoints.values()
-        )
-
-    def configuration_fingerprint(self, endpoint_id: str) -> str | None:
-        endpoint = self._endpoints.get(endpoint_id)
-        if endpoint is None:
-            return None
-        credential = self._environ.get(endpoint.api_key_env, "") if endpoint.api_key_env else ""
-        # Used only in the in-process dispatch guard, never returned to the browser.
-        document = {
-            "endpoint": endpoint.model_dump(mode="json"),
-            "credential_digest": hashlib.sha256(credential.encode()).hexdigest(),
-        }
-        return hashlib.sha256(_json(document).encode()).hexdigest()
-
     def prepare(
-        self, endpoint_id: str, allow_cloud: bool, context: dict[str, Any]
+        self,
+        endpoint_id: str,
+        allow_cloud: bool,
+        context: dict[str, Any],
+        *,
+        review_endpoint_id: str | None = None,
     ) -> PreparedIntake:
         endpoint = self._endpoints.get(endpoint_id)
-        if endpoint is None:
+        reviewer = self._endpoints.get(review_endpoint_id or endpoint_id)
+        if endpoint is None or reviewer is None:
             raise IntakePlanningError("endpoint_unavailable")
-        if not allow_cloud and not endpoint.local:
+        if not allow_cloud and (not endpoint.local or not reviewer.local):
             raise IntakePlanningError("cloud_not_authorized")
-        if self._unready(endpoint):
+        if self._unready(endpoint) or self._unready(reviewer):
             raise IntakePlanningError("endpoint_not_ready")
         rates = self._rates(endpoint)
-        assert rates is not None
+        review_rates = self._rates(reviewer)
+        assert rates is not None and review_rates is not None
         try:
             context_json = _json(context)
             generation_prompt = (
@@ -217,39 +197,40 @@ class IntakePlanner:
         if max(generation_input, review_input) > MAX_INPUT_TOKENS:
             raise IntakePlanningError("context_limit_exceeded")
         generation_output = min(8192, endpoint.max_output_tokens)
-        review_output = min(2048, endpoint.max_output_tokens)
+        review_output = min(2048, reviewer.max_output_tokens)
 
-        def route(input_tokens: int, output_tokens: int) -> RoutingDecision:
+        def route(
+            selected: ModelEndpoint, input_tokens: int, output_tokens: int
+        ) -> RoutingDecision:
             try:
                 return self._router.route(
                     RoutingRequest(
                         input_tokens=input_tokens,
                         output_tokens=output_tokens,
                         privacy="allow_cloud" if allow_cloud else "local_only",
-                        model_override=endpoint.id,
+                        model_override=selected.id,
                     )
                 )
             except ModelRoutingError:
                 raise IntakePlanningError("endpoint_context_unavailable") from None
 
-        decision = route(generation_input, generation_output)
-        review_decision = route(review_input, review_output)
-        reservation = _ceil(
-            (generation_input + review_input) * rates[0]
-            + (generation_output + review_output) * rates[1]
-        )
+        decision = route(endpoint, generation_input, generation_output)
+        review_decision = route(reviewer, review_input, review_output)
+        generation_reserve = _ceil(generation_input * rates[0] + generation_output * rates[1])
+        review_reserve = _ceil(review_input * review_rates[0] + review_output * review_rates[1])
         return PreparedIntake(
             endpoint_id=endpoint.id,
             model=endpoint.model,
-            endpoint_fingerprint=self.configuration_fingerprint(endpoint.id) or "",
-            reservation_microusd=reservation,
+            review_endpoint_id=reviewer.id,
+            review_model=reviewer.model,
+            generation_reservation_microusd=generation_reserve,
+            review_reservation_microusd=review_reserve,
+            reservation_microusd=generation_reserve + review_reserve,
             decision=decision,
             context=json.loads(context_json),
             review_decision=review_decision,
             _context_json=context_json,
             _generation_prompt=generation_prompt,
-            _input_rate=rates[0],
-            _output_rate=rates[1],
         )
 
     @staticmethod
@@ -309,20 +290,6 @@ class IntakePlanner:
                 max_output_tokens=prepared.review_decision.request.output_tokens,
             ),
         )
-        if result.endpoint_id != prepared.endpoint_id:
+        if result.endpoint_id != prepared.review_endpoint_id:
             raise IntakePlanningError("model_identity_mismatch", result=result)
         return self._parse(result, ProposalReview), result
-
-    @staticmethod
-    def charge(prepared: PreparedIntake, results: list[TextGenerationResult]) -> int | None:
-        amount = Decimal(0)
-        for result in results:
-            if result.endpoint_id != prepared.endpoint_id:
-                return None
-            if result.input_tokens is None or result.output_tokens is None:
-                return None
-            amount += (
-                result.input_tokens * prepared._input_rate
-                + result.output_tokens * prepared._output_rate
-            )
-        return _ceil(amount)

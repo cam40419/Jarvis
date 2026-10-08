@@ -12,6 +12,7 @@
     <script src="/assets/native-projects.js" defer></script>
     <script src="/assets/native-team.js" defer></script>
     <script src="/assets/native-intake.js" defer></script>
+    <script src="/assets/native-models.js" defer></script>
   </head>
   <body class="projects-page">
     <a class="np-skip" href="#np-main">Skip to projects</a>
@@ -80,6 +81,7 @@
               Intake &amp; planning
             </button>
             <button id="np-agents" class="np-button" type="button">Agents</button>
+            <button id="np-models" class="np-button" type="button">Models &amp; usage</button>
             <button id="np-team" class="np-button" type="button">People</button>
             <button id="np-edit-project" class="np-button" type="button">Edit project</button>
           </div>
@@ -267,34 +269,7 @@
           </section>
           <section class="ni-section" aria-labelledby="ni-model-heading">
             <h3 id="ni-model-heading">2. Choose planning controls</h3>
-            <div class="np-field">
-              <label for="ni-model">Planning model</label
-              ><select id="ni-model">
-                <option value="">Choose a configured model</option>
-              </select>
-              <p id="ni-model-status" class="np-field-help"></p>
-            </div>
-            <label class="nt-checkbox" for="ni-cloud"
-              ><input id="ni-cloud" type="checkbox" />Allow this project's context and selected
-              source text to be sent to a hosted model</label
-            >
-            <div class="np-field">
-              <label for="ni-budget">Total planning allowance (USD)</label
-              ><input
-                id="ni-budget"
-                type="number"
-                min="0"
-                max="1000"
-                step="0.000001"
-                required
-                value="0"
-              />
-              <p class="np-field-help">
-                A cumulative allowance for planning and its independent review. Each attempt
-                reserves its maximum estimated cost before making model calls. It does not fund task
-                execution.
-              </p>
-            </div>
+            <p id="ni-model-status" class="np-field-help"></p>
             <label class="nt-checkbox" for="ni-auto"
               ><input id="ni-auto" type="checkbox" checked />Automatically add approved roles and
               tasks when there are no blocking questions</label
@@ -306,6 +281,7 @@
             <p id="ni-spending" class="ni-spending"></p>
           </section>
         </fieldset>
+        <button id="ni-models" class="np-button" type="button">Manage models &amp; usage</button>
         <div id="ni-conflict" class="np-conflict" hidden>
           <h3>The saved intake changed</h3>
           <p>
@@ -382,6 +358,260 @@
       </div>
     </dialog>
 
+    <dialog id="nm-dialog" class="np-dialog ni-dialog" aria-labelledby="nm-heading">
+      <div class="np-dialog-heading">
+        <p class="np-eyebrow">Project settings</p>
+        <h2 id="nm-heading" tabindex="-1">Models &amp; usage</h2>
+        <p id="nm-project" class="np-muted"></p>
+      </div>
+      <p
+        id="nm-feedback"
+        class="np-feedback"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      ></p>
+      <p id="nm-access" class="np-muted"></p>
+      <div id="nm-uncertain" class="np-conflict" hidden>
+        <h3>Check the saved result</h3>
+        <p id="nm-uncertain-text"></p>
+        <button id="nm-check" class="np-button" type="button">Check saved result</button>
+        <div id="nm-secret-retry" class="np-field" hidden>
+          <label for="nm-retry-key">Re-enter the same API key to retry</label>
+          <input
+            id="nm-retry-key"
+            type="password"
+            autocomplete="new-password"
+            maxlength="4096"
+            spellcheck="false"
+          />
+        </div>
+        <button id="nm-retry" class="np-button" type="button" hidden>Retry same request</button>
+      </div>
+      <section id="nm-overview">
+        <div class="ni-toolbar">
+          <h3>Project models</h3>
+          <div class="np-actions">
+            <button id="nm-refresh" class="np-button" type="button">Refresh</button>
+            <button id="nm-add" class="np-button np-primary" type="button">Add model</button>
+          </div>
+        </div>
+        <p class="np-field-help">
+          Choose an approved provider or local endpoint and connect a project key when required.
+          Adding a model makes no model call. Qualification checks basic text and JSON responses; it
+          does not certify research, creative work, or tools.
+        </p>
+        <ul id="nm-models" class="ni-list" aria-label="Project models"></ul>
+        <section class="ni-section" aria-labelledby="nm-limits-heading">
+          <div class="ni-toolbar">
+            <h3 id="nm-limits-heading">Routing and resource limits</h3>
+            <div class="np-actions">
+              <button id="nm-project-policy" class="np-button" type="button">
+                Project settings
+              </button>
+              <button id="nm-workspace-policy" class="np-button" type="button">
+                Workspace limits
+              </button>
+            </div>
+          </div>
+          <p id="nm-routes" class="np-field-help"></p>
+          <div id="nm-totals" class="nm-totals"></div>
+          <p class="np-field-help">
+            Every call must fit both the project and workspace limits. Amounts are USD; daily and
+            monthly windows use UTC. Unknown charges and their call slots remain reserved until
+            resolved. Local calls still consume concurrency.
+          </p>
+        </section>
+        <section class="ni-section" aria-labelledby="nm-usage-heading">
+          <h3 id="nm-usage-heading">Usage history</h3>
+          <p class="np-field-help">
+            Generation, review and qualification appear separately. Usage is based on the configured
+            token rates and the provider's reported counts.
+          </p>
+          <ul id="nm-usage" class="ni-list" aria-label="Model usage"></ul>
+          <button id="nm-more" class="np-button" type="button" hidden>Load earlier usage</button>
+        </section>
+      </section>
+      <form id="nm-connection-form" hidden aria-labelledby="nm-connection-heading">
+        <h3 id="nm-connection-heading">Add project model</h3>
+        <fieldset>
+          <div class="np-field">
+            <label for="nm-template">Approved model</label
+            ><select id="nm-template" required></select>
+          </div>
+          <p id="nm-template-description" class="np-field-help"></p>
+          <div class="np-field">
+            <label for="nm-label">Project model name</label
+            ><input id="nm-label" required maxlength="200" autocomplete="off" />
+          </div>
+          <div id="nm-key-field" class="np-field">
+            <label id="nm-key-label" for="nm-key">API key</label>
+            <input
+              id="nm-key"
+              type="password"
+              autocomplete="new-password"
+              maxlength="4096"
+              spellcheck="false"
+              aria-describedby="nm-key-help"
+            />
+            <p id="nm-key-help" class="np-field-help">
+              Stored encrypted for this project. The key is cleared from this form when submitted
+              and is never shown again. Leave blank when editing to keep the current key.
+            </p>
+          </div>
+          <label id="nm-enabled-field" class="nt-checkbox" for="nm-enabled"
+            ><input id="nm-enabled" type="checkbox" checked />Enabled for this project</label
+          >
+          <p class="np-field-help">
+            Changing a key or enabling a model requires a new qualification before use. Disabling it
+            blocks new calls; incurred usage remains recorded.
+          </p>
+        </fieldset>
+      </form>
+      <form id="nm-policy-form" hidden aria-labelledby="nm-policy-heading">
+        <h3 id="nm-policy-heading">Project settings</h3>
+        <fieldset>
+          <div id="nm-project-routing">
+            <div class="np-field-pair">
+              <div class="np-field">
+                <label for="nm-planning">Planning model</label
+                ><select id="nm-planning"></select>
+              </div>
+              <div class="np-field">
+                <label for="nm-review">Review model</label
+                ><select id="nm-review"></select>
+              </div>
+            </div>
+            <p class="np-field-help">
+              Automatic routing selects an eligible qualified model within these permissions.
+              Selecting a model pins the route; an unavailable selection blocks the call. A
+              dispatched call never silently falls back to another model.
+            </p>
+            <label class="nt-checkbox" for="nm-cloud"
+              ><input id="nm-cloud" type="checkbox" />Allow project context and selected evidence to
+              be sent to hosted models</label
+            >
+            <label class="nt-checkbox" for="nm-paid"
+              ><input id="nm-paid" type="checkbox" />Allow paid models within the limits
+              below</label
+            >
+          </div>
+          <div class="np-field-pair">
+            <div class="np-field">
+              <label for="nm-lifetime">Lifetime limit (USD)</label
+              ><input
+                id="nm-lifetime"
+                type="number"
+                min="0"
+                max="1000000"
+                step="0.000001"
+                required
+              />
+            </div>
+            <div class="np-field">
+              <label for="nm-daily">Daily limit (USD, UTC)</label
+              ><input id="nm-daily" type="number" min="0" max="1000000" step="0.000001" required />
+            </div>
+          </div>
+          <div class="np-field-pair">
+            <div class="np-field">
+              <label for="nm-monthly">Monthly limit (USD, UTC)</label
+              ><input
+                id="nm-monthly"
+                type="number"
+                min="0"
+                max="1000000"
+                step="0.000001"
+                required
+              />
+            </div>
+            <div class="np-field">
+              <label for="nm-operation">Per-operation limit (USD)</label
+              ><input
+                id="nm-operation"
+                type="number"
+                min="0"
+                max="1000000"
+                step="0.000001"
+                required
+              />
+            </div>
+          </div>
+          <p class="np-field-help">
+            An operation includes all reserved calls, such as planning and its review. Zero allows
+            calls with zero configured fees only. These limits do not purchase compute or pay a
+            provider invoice.
+          </p>
+          <div class="np-field">
+            <label for="nm-concurrent">Maximum concurrent calls</label
+            ><input id="nm-concurrent" type="number" min="1" max="32" step="1" required />
+          </div>
+          <label class="nt-checkbox" for="nm-paused"
+            ><input id="nm-paused" type="checkbox" />Pause new model dispatches</label
+          >
+        </fieldset>
+      </form>
+      <form id="nm-probe-form" hidden aria-labelledby="nm-probe-heading">
+        <h3 id="nm-probe-heading">Qualify model</h3>
+        <p id="nm-probe-description"></p>
+        <p class="np-field-help">
+          This sends one synthetic request without project documents. A successful check qualifies
+          basic text and structured JSON at the current model and credential revision. It is not a
+          broader quality assessment.
+        </p>
+        <fieldset>
+          <label class="nt-checkbox" for="nm-probe-consent"
+            ><input id="nm-probe-consent" type="checkbox" required />Run this model call within the
+            displayed limits</label
+          >
+        </fieldset>
+      </form>
+      <form id="nm-reconcile-form" hidden aria-labelledby="nm-reconcile-heading">
+        <h3 id="nm-reconcile-heading">Reconcile unknown charge</h3>
+        <p id="nm-reconcile-description"></p>
+        <p class="np-field-help">
+          Use provider records to determine the total charge for this call. This replaces its held
+          amount with the recorded charge and preserves your evidence in the audit history. It does
+          not refund the provider.
+        </p>
+        <fieldset>
+          <div class="np-field">
+            <label for="nm-charge">Verified total charge (USD)</label
+            ><input id="nm-charge" type="number" min="0" step="0.000001" required />
+          </div>
+          <div class="np-field">
+            <label for="nm-reason">Reason for reconciliation</label
+            ><textarea id="nm-reason" minlength="10" maxlength="1000" rows="3" required></textarea>
+          </div>
+          <div class="np-field">
+            <label for="nm-evidence">Provider evidence or record reference</label
+            ><textarea
+              id="nm-evidence"
+              minlength="10"
+              maxlength="2000"
+              rows="3"
+              required
+            ></textarea>
+          </div>
+        </fieldset>
+      </form>
+      <div id="nm-conflict" class="np-conflict" hidden>
+        <h3>The saved settings changed</h3>
+        <p>
+          Compare the latest settings with your draft. Keys are cleared after each attempt; re-enter
+          a new key only when you intend to replace it.
+        </p>
+        <pre id="nm-latest"></pre>
+        <button id="nm-rebase" class="np-button" type="button">
+          Use latest version and keep my draft
+        </button>
+      </div>
+      <div class="np-dialog-actions">
+        <button id="nm-cancel" class="np-button" type="button" hidden>Cancel edit</button>
+        <button id="nm-save" class="np-button np-primary" type="submit" hidden>Save</button>
+        <button id="nm-close" class="np-button" type="button">Done</button>
+      </div>
+    </dialog>
     <dialog id="np-task-dialog" class="np-dialog" aria-labelledby="np-task-heading">
       <form id="np-task-form">
         <div class="np-dialog-heading">

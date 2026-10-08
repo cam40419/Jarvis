@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Iterator
 from contextlib import AbstractContextManager, contextmanager
 from contextvars import ContextVar
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from threading import Lock
 from typing import Any
 from uuid import UUID
@@ -44,6 +44,15 @@ from simon.domain.native_intake import (
     IntakeRun,
     IntakeSource,
     NativeIntake,
+)
+from simon.domain.native_models import (
+    MODEL_MUTABLE_FIELDS,
+    MODEL_USAGE_MUTABLE_FIELDS,
+    ModelResourcePolicy,
+    ModelUsage,
+    ProjectModel,
+    ProjectModelCredential,
+    UsageTotals,
 )
 from simon.domain.native_projects import NativeProject, NativeProjectMember, NativeTask
 from simon.domain.voice import VoiceSession
@@ -839,6 +848,380 @@ class PostgresStore(InMemoryStore):
                     )
         except psycopg.IntegrityError as exc:
             raise InvalidTransitionError("Intake run context is unavailable") from exc
+
+    def project_models(self, workspace_id: UUID, project_id: UUID) -> tuple[ProjectModel, ...]:
+        with self.transaction():
+            rows = self.connection.execute(
+                "SELECT snapshot FROM project_models WHERE workspace_id=%s AND project_id=%s "
+                "ORDER BY created_at,id",
+                (workspace_id, project_id),
+            ).fetchall()
+            return tuple(ProjectModel.model_validate(row["snapshot"]) for row in rows)
+
+    def project_model(
+        self, workspace_id: UUID, project_id: UUID, model_id: UUID
+    ) -> ProjectModel | None:
+        with self.transaction():
+            row = self.connection.execute(
+                "SELECT snapshot FROM project_models WHERE workspace_id=%s AND project_id=%s "
+                "AND id=%s",
+                (workspace_id, project_id, model_id),
+            ).fetchone()
+            return ProjectModel.model_validate(row["snapshot"]) if row else None
+
+    def insert_project_model(self, value: ProjectModel) -> None:
+        if value.version != 1:
+            raise InvalidTransitionError("New model must start at version one")
+        try:
+            with self.transaction():
+                result = self.connection.execute(
+                    "INSERT INTO project_models (id,workspace_id,project_id,version,"
+                    "credential_revision,qualification_usage_id,created_by,created_at,snapshot) "
+                    "SELECT %s,%s,%s,%s,%s,%s,%s,%s,%s WHERE EXISTS "
+                    "(SELECT 1 FROM memberships WHERE workspace_id=%s AND user_id=%s)",
+                    (
+                        value.id,
+                        value.workspace_id,
+                        value.project_id,
+                        value.version,
+                        value.credential_revision,
+                        value.qualification_usage_id,
+                        value.created_by,
+                        value.created_at,
+                        Jsonb(value.model_dump(mode="json")),
+                        value.workspace_id,
+                        value.created_by,
+                    ),
+                )
+                if result.rowcount != 1:
+                    raise InvalidTransitionError("Model creator is unavailable")
+        except psycopg.IntegrityError as exc:
+            raise InvalidTransitionError("Model exists or its project is unavailable") from exc
+
+    def update_project_model(self, value: ProjectModel, expected_version: int) -> None:
+        if value.version != expected_version + 1:
+            raise InvalidTransitionError("Model must advance the version")
+        mutable, snapshot = sorted(MODEL_MUTABLE_FIELDS), Jsonb(value.model_dump(mode="json"))
+        try:
+            with self.transaction():
+                result = self.connection.execute(
+                    "UPDATE project_models SET version=%s,credential_revision=%s,"
+                    "qualification_usage_id=%s,snapshot=%s WHERE workspace_id=%s AND project_id=%s "
+                    "AND id=%s AND version=%s AND credential_revision<=%s "
+                    "AND snapshot - %s::text[] = %s::jsonb - %s::text[]",
+                    (
+                        value.version,
+                        value.credential_revision,
+                        value.qualification_usage_id,
+                        snapshot,
+                        value.workspace_id,
+                        value.project_id,
+                        value.id,
+                        expected_version,
+                        value.credential_revision,
+                        mutable,
+                        snapshot,
+                        mutable,
+                    ),
+                )
+                if result.rowcount != 1:
+                    raise InvalidTransitionError(
+                        "Model missing, stale or immutable identity changed"
+                    )
+        except psycopg.IntegrityError as exc:
+            raise InvalidTransitionError("Model qualification scope is unavailable") from exc
+
+    def project_model_credential(
+        self, workspace_id: UUID, project_id: UUID, model_id: UUID, revision: int
+    ) -> ProjectModelCredential | None:
+        with self.transaction():
+            row = self.connection.execute(
+                "SELECT snapshot FROM project_model_credentials WHERE workspace_id=%s "
+                "AND project_id=%s AND model_id=%s AND revision=%s",
+                (workspace_id, project_id, model_id, revision),
+            ).fetchone()
+            return ProjectModelCredential.model_validate(row["snapshot"]) if row else None
+
+    def insert_project_model_credential(self, value: ProjectModelCredential) -> None:
+        try:
+            with self.transaction():
+                result = self.connection.execute(
+                    "INSERT INTO project_model_credentials "
+                    "(id,workspace_id,project_id,model_id,revision,created_by,snapshot) "
+                    "SELECT %s,%s,%s,%s,%s,%s,%s WHERE EXISTS "
+                    "(SELECT 1 FROM memberships WHERE workspace_id=%s AND user_id=%s)",
+                    (
+                        value.id,
+                        value.workspace_id,
+                        value.project_id,
+                        value.model_id,
+                        value.revision,
+                        value.created_by,
+                        Jsonb(value.model_dump(mode="json")),
+                        value.workspace_id,
+                        value.created_by,
+                    ),
+                )
+                if result.rowcount != 1:
+                    raise InvalidTransitionError("Credential creator is unavailable")
+        except psycopg.IntegrityError as exc:
+            raise InvalidTransitionError(
+                "Model credential exists or its scope is unavailable"
+            ) from exc
+
+    def model_resource_policy(
+        self, workspace_id: UUID, project_id: UUID | None = None
+    ) -> ModelResourcePolicy | None:
+        with self.transaction():
+            if project_id is None:
+                row = self.connection.execute(
+                    "SELECT snapshot FROM workspace_model_policies WHERE workspace_id=%s",
+                    (workspace_id,),
+                ).fetchone()
+            else:
+                row = self.connection.execute(
+                    "SELECT snapshot FROM project_model_policies WHERE workspace_id=%s "
+                    "AND project_id=%s",
+                    (workspace_id, project_id),
+                ).fetchone()
+            return ModelResourcePolicy.model_validate(row["snapshot"]) if row else None
+
+    def save_model_resource_policy(self, value: ModelResourcePolicy, expected_version: int) -> None:
+        if value.version != expected_version + 1:
+            raise InvalidTransitionError("Model policy must advance the version")
+        snapshot = Jsonb(value.model_dump(mode="json"))
+        try:
+            with self.transaction():
+                if value.project_id is None:
+                    if expected_version == 0:
+                        result = self.connection.execute(
+                            "INSERT INTO workspace_model_policies (workspace_id,version,snapshot) "
+                            "VALUES (%s,%s,%s) ON CONFLICT DO NOTHING",
+                            (value.workspace_id, value.version, snapshot),
+                        )
+                    else:
+                        result = self.connection.execute(
+                            "UPDATE workspace_model_policies SET version=%s,snapshot=%s "
+                            "WHERE workspace_id=%s AND version=%s",
+                            (value.version, snapshot, value.workspace_id, expected_version),
+                        )
+                elif expected_version == 0:
+                    result = self.connection.execute(
+                        "INSERT INTO project_model_policies "
+                        "(workspace_id,project_id,version,planning_model_id,"
+                        "review_model_id,snapshot) "
+                        "VALUES (%s,%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING",
+                        (
+                            value.workspace_id,
+                            value.project_id,
+                            value.version,
+                            value.planning_model_id,
+                            value.review_model_id,
+                            snapshot,
+                        ),
+                    )
+                else:
+                    result = self.connection.execute(
+                        "UPDATE project_model_policies SET version=%s,planning_model_id=%s,"
+                        "review_model_id=%s,snapshot=%s WHERE workspace_id=%s AND project_id=%s "
+                        "AND version=%s",
+                        (
+                            value.version,
+                            value.planning_model_id,
+                            value.review_model_id,
+                            snapshot,
+                            value.workspace_id,
+                            value.project_id,
+                            expected_version,
+                        ),
+                    )
+                if result.rowcount != 1:
+                    raise InvalidTransitionError("Model policy missing or stale")
+        except psycopg.IntegrityError as exc:
+            raise InvalidTransitionError("Model policy scope is unavailable") from exc
+
+    def model_usage(
+        self, workspace_id: UUID, project_id: UUID, usage_id: UUID
+    ) -> ModelUsage | None:
+        with self.transaction():
+            row = self.connection.execute(
+                "SELECT snapshot FROM model_usage WHERE workspace_id=%s "
+                "AND project_id=%s AND id=%s",
+                (workspace_id, project_id, usage_id),
+            ).fetchone()
+            return ModelUsage.model_validate(row["snapshot"]) if row else None
+
+    def model_usage_for_operation(
+        self, workspace_id: UUID, project_id: UUID, operation_id: UUID
+    ) -> tuple[ModelUsage, ...]:
+        with self.transaction():
+            rows = self.connection.execute(
+                "SELECT snapshot FROM model_usage WHERE workspace_id=%s AND project_id=%s "
+                "AND operation_id=%s ORDER BY phase",
+                (workspace_id, project_id, operation_id),
+            ).fetchall()
+            return tuple(ModelUsage.model_validate(row["snapshot"]) for row in rows)
+
+    def model_usage_entries(
+        self, workspace_id: UUID, project_id: UUID | None = None, offset: int = 0, limit: int = 50
+    ) -> tuple[ModelUsage, ...]:
+        with self.transaction():
+            rows = self.connection.execute(
+                "SELECT snapshot FROM model_usage WHERE workspace_id=%s "
+                "AND (%s::uuid IS NULL OR project_id=%s) ORDER BY started_at DESC,id DESC "
+                "LIMIT %s OFFSET %s",
+                (workspace_id, project_id, project_id, limit, offset),
+            ).fetchall()
+            return tuple(ModelUsage.model_validate(row["snapshot"]) for row in rows)
+
+    def model_usage_expired(self, workspace_id: UUID, at: datetime) -> tuple[ModelUsage, ...]:
+        with self.transaction():
+            rows = self.connection.execute(
+                "SELECT snapshot FROM model_usage WHERE workspace_id=%s "
+                "AND status IN ('reserved','dispatched') AND deadline_at<=%s "
+                "ORDER BY deadline_at,id",
+                (workspace_id, at),
+            ).fetchall()
+            return tuple(ModelUsage.model_validate(row["snapshot"]) for row in rows)
+
+    def insert_model_usage(self, value: ModelUsage) -> None:
+        if value.version != 1:
+            raise InvalidTransitionError("New usage must start at version one")
+        try:
+            with self.transaction():
+                adjustment = self._late_model_usage_authorized(value)
+                if value.phase.startswith("late_") and not adjustment:
+                    raise InvalidTransitionError(
+                        "Late usage must match reconciled dispatch context"
+                    )
+                result = self.connection.execute(
+                    "INSERT INTO model_usage (id,workspace_id,project_id,operation_id,phase,"
+                    "requested_by,model_id,model_version,credential_revision,version,status,"
+                    "reserved_microusd,held_microusd,charged_microusd,started_at,deadline_at,finished_at,"
+                    "reconciliation_by,snapshot) SELECT "
+                    "%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,"
+                    "%s,%s,%s WHERE (%s OR EXISTS (SELECT 1 FROM memberships WHERE workspace_id=%s "
+                    "AND user_id=%s)) AND (%s::uuid IS NULL OR EXISTS "
+                    "(SELECT 1 FROM project_models "
+                    "WHERE workspace_id=%s AND project_id=%s AND id=%s AND version>=%s))",
+                    (
+                        value.id,
+                        value.workspace_id,
+                        value.project_id,
+                        value.operation_id,
+                        value.phase,
+                        value.requested_by,
+                        value.model_id,
+                        value.model_version,
+                        value.credential_revision,
+                        value.version,
+                        value.status,
+                        value.reserved_microusd,
+                        value.held_microusd,
+                        value.charged_microusd,
+                        value.started_at,
+                        value.deadline_at,
+                        value.finished_at,
+                        value.reconciliation_by,
+                        Jsonb(value.model_dump(mode="json")),
+                        adjustment,
+                        value.workspace_id,
+                        value.requested_by,
+                        value.model_id,
+                        value.workspace_id,
+                        value.project_id,
+                        value.model_id,
+                        value.model_version,
+                    ),
+                )
+                if result.rowcount != 1:
+                    raise InvalidTransitionError("Usage requester/model is unavailable")
+        except psycopg.IntegrityError as exc:
+            raise InvalidTransitionError(
+                "Model usage exists or its dispatch scope is unavailable"
+            ) from exc
+
+    def update_model_usage(self, value: ModelUsage, expected_version: int) -> None:
+        if value.version != expected_version + 1:
+            raise InvalidTransitionError("Usage must advance the version")
+        mutable = sorted(MODEL_USAGE_MUTABLE_FIELDS)
+        snapshot = Jsonb(value.model_dump(mode="json"))
+        try:
+            with self.transaction():
+                result = self.connection.execute(
+                    "UPDATE model_usage SET version=%s,status=%s,held_microusd=%s,"
+                    "charged_microusd=%s,"
+                    "finished_at=%s,reconciliation_by=%s,snapshot=%s WHERE workspace_id=%s "
+                    "AND project_id=%s AND id=%s AND version=%s "
+                    "AND status NOT IN ('settled','reconciled','released') "
+                    "AND snapshot - %s::text[] = %s::jsonb - %s::text[] "
+                    "AND (%s::uuid IS NULL OR EXISTS (SELECT 1 FROM memberships "
+                    "WHERE workspace_id=%s AND user_id=%s))",
+                    (
+                        value.version,
+                        value.status,
+                        value.held_microusd,
+                        value.charged_microusd,
+                        value.finished_at,
+                        value.reconciliation_by,
+                        snapshot,
+                        value.workspace_id,
+                        value.project_id,
+                        value.id,
+                        expected_version,
+                        mutable,
+                        snapshot,
+                        mutable,
+                        value.reconciliation_by,
+                        value.workspace_id,
+                        value.reconciliation_by,
+                    ),
+                )
+                if result.rowcount != 1:
+                    raise InvalidTransitionError(
+                        "Usage missing, resolved, stale or dispatch context changed"
+                    )
+        except psycopg.IntegrityError as exc:
+            raise InvalidTransitionError("Model usage accounting is invalid") from exc
+
+    def model_usage_totals(
+        self, workspace_id: UUID, project_id: UUID | None, at: datetime
+    ) -> UsageTotals:
+        at = at.astimezone(UTC)
+        day = at.replace(hour=0, minute=0, second=0, microsecond=0)
+        month = day.replace(day=1)
+        next_month = (month.replace(day=28) + timedelta(days=4)).replace(day=1)
+        with self.transaction():
+            row = self.connection.execute(
+                "SELECT COALESCE(sum(charged_microusd),0) AS charged_lifetime,"
+                "COALESCE(sum(charged_microusd) FILTER (WHERE started_at>=%s AND started_at<%s),0) "
+                "AS charged_day,COALESCE(sum(charged_microusd) FILTER "
+                "(WHERE started_at>=%s AND started_at<%s),0) AS charged_month,"
+                "COALESCE(sum(held_microusd),0) AS held_microusd,"
+                "count(*) FILTER (WHERE status IN ('reserved','dispatched','unknown')) "
+                "AS active_calls "
+                "FROM model_usage WHERE workspace_id=%s AND (%s::uuid IS NULL OR project_id=%s)",
+                (
+                    day,
+                    day + timedelta(days=1),
+                    month,
+                    next_month,
+                    workspace_id,
+                    project_id,
+                    project_id,
+                ),
+            ).fetchone()
+            assert row is not None
+            return UsageTotals(**{key: int(value) for key, value in row.items()})
+
+    def command_receipt(self, namespace: str, key: str) -> dict[str, Any] | None:
+        with self.transaction():
+            row = self.connection.execute(
+                "SELECT response FROM idempotency_records WHERE namespace=%s "
+                "AND idempotency_key=%s AND status='completed'",
+                (namespace, key),
+            ).fetchone()
+            return row["response"] if row else None
 
     def execute_once(
         self,

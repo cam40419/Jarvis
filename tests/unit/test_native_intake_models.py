@@ -57,10 +57,17 @@ def task(**changes):
     )
 
 
-@pytest.mark.parametrize("value", [True, 1.5, "12", float("inf"), -1, 1_000_000_001])
-def test_intake_budget_requires_bounded_integer_microusd(value):
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("budget_microusd", 0),
+        ("allow_cloud", False),
+        ("endpoint_id", "retired-catalog"),
+    ],
+)
+def test_intake_cannot_reintroduce_a_separate_model_authority(field, value):
     with pytest.raises(ValidationError):
-        UpdateNativeIntake(budget_microusd=value, expected_version=0, idempotency_key="save-intake")
+        UpdateNativeIntake(**{field: value}, expected_version=0, idempotency_key="save-intake")
 
 
 def test_answers_are_bounded_named_answers_without_invalid_unicode():

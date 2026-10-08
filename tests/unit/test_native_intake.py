@@ -1,7 +1,6 @@
 """Native intake authority, inference accounting and atomic team/board application."""
 
 import base64
-import copy
 import json
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
@@ -10,6 +9,8 @@ from uuid import uuid4
 
 import httpx
 import pytest
+from cryptography.fernet import Fernet
+from pydantic import SecretStr
 
 from simon.adapters.memory import InMemoryStore
 from simon.domain.accounts import ManagedAccount
@@ -23,6 +24,14 @@ from simon.domain.errors import (
 from simon.domain.models import ActorContext, Channel, utc_now
 from simon.domain.native_agents import UpdateNativeTeamPolicy
 from simon.domain.native_intake import AnalyzeIntake, IntakeSource, SourceUpload, UpdateNativeIntake
+from simon.domain.native_models import (
+    ModelResourcePolicy,
+    ModelTemplate,
+    ProjectModel,
+    ProjectModelCredential,
+    UpdateModelResourcePolicy,
+    UpdateProjectModel,
+)
 from simon.domain.native_projects import (
     CreateNativeTask,
     NativeProjectMember,
@@ -30,9 +39,10 @@ from simon.domain.native_projects import (
     VersionedNativeCommand,
 )
 from simon.services.identity import ROLE_SCOPES
-from simon.services.intake_planner import IntakePlanner
 from simon.services.intake_sources import IntakeSourceBytes
-from simon.services.native_intake import NativeIntakeService, configured_planner
+from simon.services.model_usage import ModelUsageService
+from simon.services.native_intake import NativeIntakeService
+from simon.services.project_models import ProjectModelService
 from tests.unit.test_intake_planner import endpoint, wire_result
 from tests.unit.test_native_teams import create_role, issue, setup_team
 
@@ -90,22 +100,35 @@ def setup_intake(tmp_path, *, free=False):
         text = document if isinstance(document, str) else json.dumps(document)
         return httpx.Response(200, json=wire_result("openai_compatible", text, **h.usage))
 
-    h.planner = IntakePlanner(
-        [
-            endpoint(
+    h.templates = [
+        ModelTemplate(
+            id="planning",
+            name="Synthetic planning",
+            workspace_ids=(h.workspace,),
+            credential_required=False,
+            endpoint=endpoint(
                 input_cost_per_million_usd=0 if free else 1,
                 output_cost_per_million_usd=0 if free else 2,
-            )
-        ],
-        environ={},
+            ),
+        )
+    ]
+    cipher = Fernet(Fernet.generate_key())
+    h.resource_usage = ModelUsageService(h.store, h.projects)
+    h.models = ProjectModelService(
+        h.store,
+        h.projects,
+        lambda _: tuple(h.templates),
+        lambda: cipher,
+        h.resource_usage,
         transport=httpx.MockTransport(respond),
     )
+    seed_qualified_model(h.models, h.workspace, h.first.id, h.owner)
     h.intake = NativeIntakeService(
         h.store,
         h.projects,
         h.teams,
         IntakeSourceBytes(tmp_path / "sources"),
-        lambda _: h.planner,
+        h.models,
     )
     configure(h)
     return h
@@ -116,12 +139,72 @@ def intake(tmp_path):
     return setup_intake(tmp_path)
 
 
+def seed_qualified_model(models, workspace_id, project_id, actor_id):
+    """Seed synthetic qualification without adding calls to an intake scenario."""
+    if models.store.project_models(workspace_id, project_id):
+        return
+    template = models.templates_factory(workspace_id)[0]
+    model = ProjectModel(
+        workspace_id=workspace_id,
+        project_id=project_id,
+        created_by=actor_id,
+        label="Synthetic intake model",
+        template_id=template.id,
+    )
+    binding = models._binding(model, require_qualified=False)
+    models.store.insert_project_model(
+        model.model_copy(
+            update={
+                "qualification_status": "ready",
+                "qualification_fingerprint": binding.fingerprint,
+                "qualified_at": utc_now(),
+            }
+        )
+    )
+    for scope in (None, project_id):
+        if models.store.model_resource_policy(workspace_id, scope) is None:
+            models.store.save_model_resource_policy(
+                ModelResourcePolicy(
+                    workspace_id=workspace_id,
+                    project_id=scope,
+                    version=1,
+                    lifetime_limit_microusd=1_000_000,
+                    daily_limit_microusd=1_000_000,
+                    monthly_limit_microusd=1_000_000,
+                    per_operation_limit_microusd=1_000_000,
+                    allow_paid=scope is not None,
+                ),
+                expected_version=0,
+            )
+
+
+def set_limit(h, amount):
+    current = h.resource_usage.policy(h.workspace, h.first.id)
+    return h.resource_usage.update_policy(
+        h.owner_actor,
+        h.first.id,
+        UpdateModelResourcePolicy(
+            **{
+                **current.model_dump(
+                    exclude={"workspace_id", "project_id", "version", "updated_at"}
+                ),
+                "lifetime_limit_microusd": amount,
+                "daily_limit_microusd": amount,
+                "monthly_limit_microusd": amount,
+                "per_operation_limit_microusd": amount,
+            },
+            expected_version=current.version,
+            idempotency_key=f"limit-{uuid4()}",
+        ),
+    )
+
+
 def configure(h, **changes):
     current = h.store.native_intake(h.workspace, h.first.id)
     values = (
         current.model_dump(exclude={"workspace_id", "project_id", "version", "updated_at"})
         if current
-        else {"endpoint_id": "planning", "budget_microusd": 1_000_000}
+        else {}
     )
     return h.intake.update(
         h.owner_actor,
@@ -452,13 +535,17 @@ def test_cancellation_and_concurrent_key_replay_never_redispatch_or_apply(intake
             assert running.status == "running" and running.reserved_microusd > 0
             with pytest.raises(InvalidTransitionError, match="already running"):
                 analyze(h)
-            with pytest.raises(InvalidTransitionError, match="allowance"):
-                configure(h, budget_microusd=0)
+            with pytest.raises(InvalidTransitionError, match="ceiling"):
+                set_limit(h, 0)
             cancelled = h.intake.cancel(
                 h.owner_actor, h.first.id, running.id, mutate_command(running.version)
             )
             assert cancelled.status == "cancelled"
-            assert cancelled.reserved_microusd == running.reserved_microusd
+            calls = h.store.model_usage_for_operation(h.workspace, h.first.id, running.id)
+            generation = next(entry for entry in calls if entry.phase == "generation")
+            review = next(entry for entry in calls if entry.phase == "review")
+            assert cancelled.reserved_microusd == generation.reserved_microusd
+            assert review.status == "released" and review.held_microusd == 0
         finally:
             release.set()
         settled = future.result(timeout=10)
@@ -468,7 +555,7 @@ def test_cancellation_and_concurrent_key_replay_never_redispatch_or_apply(intake
 
 
 @pytest.mark.parametrize("failure_at", [1, 2])
-def test_unknown_provider_outcome_holds_full_reservation_and_idempotent_retry_does_not_call(
+def test_unknown_provider_outcome_holds_its_call_reservation_and_retry_does_not_call(
     intake, failure_at
 ):
     h = intake
@@ -481,12 +568,15 @@ def test_unknown_provider_outcome_holds_full_reservation_and_idempotent_retry_do
     request = command(h)
     run = h.intake.analyze(h.owner_actor, h.first.id, request)
     assert run.status == "unknown" and run.reserved_microusd > 0
-    assert run.charged_microusd == 0
+    assert run.charged_microusd == (180 if failure_at == 2 else 0)
+    entries = h.store.model_usage_for_operation(h.workspace, h.first.id, run.id)
+    unknown = next(entry for entry in entries if entry.status == "unknown")
+    assert run.reserved_microusd == unknown.reserved_microusd
     assert "private" not in run.model_dump_json()
     assert h.intake.analyze(h.owner_actor, h.first.id, request) == run
     assert len(h.calls) == failure_at
-    configure(h, budget_microusd=run.reserved_microusd)
-    with pytest.raises(InvalidTransitionError, match="allowance"):
+    set_limit(h, run.reserved_microusd + run.charged_microusd)
+    with pytest.raises(InvalidTransitionError, match=r"ceiling|allowance"):
         analyze(h)
     assert len(h.calls) == failure_at
 
@@ -626,21 +716,6 @@ def test_changed_body_with_reused_planning_key_conflicts_before_dispatch(intake)
     assert h.store.native_intake_run(h.workspace, h.first.id, run.id) == run
 
 
-def test_catalog_is_admin_owned_workspace_scoped_and_fails_closed(tmp_path):
-    workspace = uuid4()
-    catalog = tmp_path / "model-catalog.json"
-    rows = [{"workspace_ids": [str(workspace)], "endpoint": endpoint().model_dump(mode="json")}]
-    catalog.write_text(json.dumps(rows), encoding="utf-8")
-    assert configured_planner(catalog, workspace).options()[0]["id"] == "planning"
-    assert configured_planner(catalog, uuid4()).options() == ()
-    assert configured_planner(None, workspace).options() == ()
-    invalid = copy.deepcopy(rows)
-    invalid[0]["arbitrary"] = "not allowed"
-    catalog.write_text(json.dumps(invalid), encoding="utf-8")
-    with pytest.raises(ValidationError, match="catalog"):
-        configured_planner(catalog, workspace)
-
-
 def test_composed_description_bound_stops_review_and_staffing_but_keeps_usage(intake):
     h = intake
     h.proposal["tasks"][0]["description"] = "x" * 7900
@@ -684,7 +759,7 @@ def test_provider_overreported_usage_remains_charged_and_stops_application(intak
     assert run.charged_microusd == 3000000 and not run.reserved_microusd
     assert len(h.calls) == 1
     assert h.store.native_agents(h.workspace, h.first.id, 0, 100) == ()
-    with pytest.raises(InvalidTransitionError, match="allowance"):
+    with pytest.raises(InvalidTransitionError, match="ceiling"):
         analyze(h)
 
 
@@ -769,17 +844,14 @@ def test_catalog_url_swap_under_same_endpoint_identity_stops_second_dispatch(int
 
     def swap_catalog(_request, number):
         assert number == 1
-        h.planner = IntakePlanner(
-            [
-                endpoint(
-                    base_url="http://127.0.0.1:19998/v1",
-                    input_cost_per_million_usd=1,
-                    output_cost_per_million_usd=2,
+        h.templates[0] = h.templates[0].model_copy(
+            update={
+                "endpoint": h.templates[0].endpoint.model_copy(
+                    update={"base_url": "http://127.0.0.1:19998/v1"}
                 )
-            ],
-            environ={},
-            transport=httpx.MockTransport(forbidden),
+            }
         )
+        h.models.transport = httpx.MockTransport(forbidden)
 
     h.hook = swap_catalog
     run = analyze(h)
@@ -787,3 +859,166 @@ def test_catalog_url_swap_under_same_endpoint_identity_stops_second_dispatch(int
     assert run.charged_microusd == 180 and run.reserved_microusd == 0
     assert len(h.calls) == 1
     assert h.store.native_agents(h.workspace, h.first.id, 0, 100) == ()
+
+
+def test_distinct_planning_and_review_models_settle_their_own_prices(intake):
+    h = intake
+    h.templates.append(
+        ModelTemplate(
+            id="reviewer",
+            name="Independent reviewer",
+            workspace_ids=(h.workspace,),
+            credential_required=False,
+            endpoint=endpoint(
+                id="reviewer",
+                model="reviewing-model",
+                input_cost_per_million_usd=10,
+                output_cost_per_million_usd=20,
+            ),
+        )
+    )
+    reviewer = ProjectModel(
+        workspace_id=h.workspace,
+        project_id=h.first.id,
+        created_by=h.owner,
+        template_id="reviewer",
+        label="Review",
+    )
+    bound = h.models._binding(reviewer, require_qualified=False)
+    h.store.insert_project_model(
+        reviewer.model_copy(
+            update={
+                "qualification_status": "ready",
+                "qualification_fingerprint": bound.fingerprint,
+                "qualified_at": utc_now(),
+            }
+        )
+    )
+    initial = h.store.project_models(h.workspace, h.first.id)[0]
+    current = h.resource_usage.policy(h.workspace, h.first.id)
+    h.resource_usage.update_policy(
+        h.owner_actor,
+        h.first.id,
+        UpdateModelResourcePolicy(
+            **{
+                **current.model_dump(
+                    exclude={"workspace_id", "project_id", "version", "updated_at"}
+                ),
+                "planning_model_id": initial.id,
+                "review_model_id": reviewer.id,
+            },
+            expected_version=current.version,
+            idempotency_key="separate-review-route",
+        ),
+    )
+    run = analyze(h)
+    assert run.status == "applied" and run.charged_microusd == 1980
+    assert run.model == "configured-model" and run.review_model == "reviewing-model"
+    assert run.endpoint_id != run.review_endpoint_id
+    calls = {
+        entry.phase: entry
+        for entry in h.store.model_usage_for_operation(h.workspace, h.first.id, run.id)
+    }
+    assert calls["generation"].charged_microusd == 180
+    assert calls["review"].charged_microusd == 1800
+    assert len(h.calls) == 2
+    assert [json.loads(request.content)["model"] for request in h.calls] == [
+        "configured-model",
+        "reviewing-model",
+    ]
+
+
+def test_resource_policy_change_during_generation_fences_review_and_staffing(intake):
+    h = intake
+
+    def pause_policy(_request, number):
+        assert number == 1
+        current = h.resource_usage.policy(h.workspace, h.first.id)
+        h.resource_usage.update_policy(
+            h.owner_actor,
+            h.first.id,
+            UpdateModelResourcePolicy(
+                **{
+                    **current.model_dump(
+                        exclude={"workspace_id", "project_id", "version", "updated_at"}
+                    ),
+                    "paused": True,
+                },
+                expected_version=current.version,
+                idempotency_key="pause-planning",
+            ),
+        )
+
+    h.hook = pause_policy
+    run = analyze(h)
+    assert run.status == "stale" and len(h.calls) == 1
+    assert run.charged_microusd == 180 and run.reserved_microusd == 0
+    assert not h.store.native_agents(h.workspace, h.first.id, 0, 100)
+
+
+@pytest.mark.parametrize("change", ["template_removed", "template_url", "disabled", "rotated_key"])
+def test_manual_apply_marks_changed_model_authority_stale_and_keeps_charges(intake, change):
+    h = intake
+    configure(h, auto_staff=False)
+    model = h.store.project_models(h.workspace, h.first.id)[0]
+    if change == "rotated_key":
+        h.templates[0] = h.templates[0].model_copy(
+            update={
+                "credential_required": True,
+                "endpoint": h.templates[0].endpoint.model_copy(
+                    update={"api_key_env": "MODEL_PROJECT_KEY"}
+                ),
+            }
+        )
+        model = model.model_copy(update={"credential_revision": 1, "version": model.version + 1})
+        h.store.update_project_model(model, expected_version=model.version - 1)
+        h.store.insert_project_model_credential(
+            ProjectModelCredential(
+                workspace_id=h.workspace,
+                project_id=h.first.id,
+                model_id=model.id,
+                revision=1,
+                encrypted_secret=h.models.secrets.encrypt(
+                    h.workspace, h.first.id, model.id, 1, SecretStr("synthetic-first-key")
+                ),
+                created_by=h.owner,
+            )
+        )
+        binding = h.models._binding(model, require_qualified=False)
+        model = model.model_copy(
+            update={"qualification_fingerprint": binding.fingerprint, "version": model.version + 1}
+        )
+        h.store.update_project_model(model, expected_version=model.version - 1)
+    run = analyze(h)
+    assert run.status == "ready"
+    if change == "template_removed":
+        h.templates = []
+    elif change == "template_url":
+        h.templates[0] = h.templates[0].model_copy(
+            update={
+                "endpoint": h.templates[0].endpoint.model_copy(
+                    update={"base_url": "http://127.0.0.1:19990/v1"}
+                )
+            }
+        )
+    else:
+        h.models.update(
+            h.owner_actor,
+            h.first.id,
+            model.id,
+            UpdateProjectModel(
+                expected_version=model.version,
+                label=model.label,
+                enabled=change != "disabled",
+                credential="synthetic-rotated-key" if change == "rotated_key" else None,
+                idempotency_key="change-model-after-planning",
+            ),
+        )
+    with pytest.raises(InvalidTransitionError, match="model"):
+        h.intake.apply(h.owner_actor, h.first.id, run.id, mutate_command(run.version))
+    current = h.intake.get_run(h.owner_actor, h.first.id, run.id)
+    assert current.status == "stale" and current.error_code == "planning_model_changed"
+    assert current.charged_microusd == 360 and current.reserved_microusd == 0
+    assert len(h.calls) == 2
+    assert not h.store.native_agents(h.workspace, h.first.id, 0, 100)
+    assert not h.store.native_tasks(h.workspace, h.first.id, 0, 100)

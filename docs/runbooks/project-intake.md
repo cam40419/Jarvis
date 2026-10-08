@@ -6,13 +6,15 @@ projects also open intake after their brief is saved. Saved context, evidence re
 and planning attempts survive reloads when PostgreSQL is configured.
 
 This slice invokes a configured text model, validates its structured proposal, then
-makes a separate review call with fresh context. The review uses the same selected
-endpoint with a different assessment prompt; it is not a claim that a different model
-or provider independently verified the work. Accepted proposals can create native roles
+makes a separate review call with fresh context. Planning and review use the project's
+configured routes, which may select the same or different models. A separate assessment
+prompt is not a claim that another provider independently verified the work. Accepted
+proposals can create native roles
 and tasks. They do not execute those tasks, invoke business tools, accept artifacts or
 authorize publication.
 
-Read with [native projects and scoped teams](native-projects.md), the
+Read with [native projects and scoped teams](native-projects.md),
+[project models and resource limits](project-models.md), the
 [delivery roadmap](../next-phases.md), and [storage recovery](storage-recovery.md).
 
 ## Project workflow
@@ -20,9 +22,10 @@ Read with [native projects and scoped teams](native-projects.md), the
 1. Describe the current situation, desired outcomes, constraints and unresolved decisions.
    The project objective remains the main goal. Later planning questions appear as answer
    fields; save the answers before requesting another plan.
-2. Choose an administrator-configured model. Cloud processing is off by default and needs
-   explicit project consent. Set the project's total planning allowance and whether
-   reviewed plans should add roles/work automatically; automatic staffing defaults on.
+2. Open **Models & usage** to enroll and qualify a model, choose planning/review routes
+   and configure project permissions and spending limits. Hosted and paid processing are
+   off by default. In intake, choose whether reviewed plans should add roles/work
+   automatically; automatic staffing defaults on.
 3. Save intake, then add files or a folder. Folder uploads preserve relative display labels.
    Inspect extracted previews, redactions, omitted files and revision history before
    selecting evidence for planning.
@@ -59,18 +62,18 @@ human session; writes additionally require same-origin CSRF and active owner aut
 The optional `X-Workspace-ID` header is an expectation guard, never a way to select
 another workspace or grant access.
 
-| Method and suffix                  | Behavior                                                                                                         |
-| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `GET` base                         | Saved/default intake, source metadata without text, latest 20 attempts, model options, authority and cost totals |
-| `PUT` base                         | Replace editable intake/context/settings with intake version comparison                                          |
-| `POST /sources`                    | Store bounded base64 original bytes and a new immutable source revision                                          |
-| `POST /sources/{source_id}/revoke` | Revoke evidence, clear affected stored proposals and advance context version                                     |
-| `GET /sources/{source_id}/content` | Authorized original attachment, with byte-size/hash integrity verification                                       |
-| `GET /sources/{source_id}/text`    | Extracted text and redaction/truncation/extraction metadata                                                      |
-| `POST /analyze`                    | Persist reservation and attempt, generate, review and optionally apply                                           |
-| `GET /runs/{run_id}`               | Current durable attempt, including unknown/cancelled/stale results                                               |
-| `POST /runs/{run_id}/apply`        | Apply a reviewed ready proposal against current context and run version                                          |
-| `POST /runs/{run_id}/cancel`       | Cancel an unapplied attempt without erasing possible usage                                                       |
+| Method and suffix                  | Behavior                                                                                                        |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `GET` base                         | Saved/default intake, source metadata without text, latest 20 attempts, authority and project model cost totals |
+| `PUT` base                         | Replace editable intake/context/settings with intake version comparison                                         |
+| `POST /sources`                    | Store bounded base64 original bytes and a new immutable source revision                                         |
+| `POST /sources/{source_id}/revoke` | Revoke evidence, clear affected stored proposals and advance context version                                    |
+| `GET /sources/{source_id}/content` | Authorized original attachment, with byte-size/hash integrity verification                                      |
+| `GET /sources/{source_id}/text`    | Extracted text and redaction/truncation/extraction metadata                                                     |
+| `POST /analyze`                    | Persist reservation and attempt, generate, review and optionally apply                                          |
+| `GET /runs/{run_id}`               | Current durable attempt, including unknown/cancelled/stale results                                              |
+| `POST /runs/{run_id}/apply`        | Apply a reviewed ready proposal against current context and run version                                         |
+| `POST /runs/{run_id}/cancel`       | Cancel an unapplied attempt without erasing possible usage                                                      |
 
 Every write carries an `idempotency_key`. Intake's initial unsaved version is zero;
 saving creates version one. Updating intake, adding a source and revoking a source
@@ -147,112 +150,59 @@ recorded independently of a denied or failed application. Paid calls never hold 
 locks. Model output must pass a strict bounded JSON schema before it can enter durable
 proposal fields; raw rejected output is not saved as a proposal.
 
-## Administrator model catalog
+## Models, limits and interruptions
 
-Set `SIMON_INTAKE_MODELS_FILE` to a private administrator-managed JSON file. Catalog rows
-bind endpoint configurations to allowed workspace UUIDs; a project can select only those
-available to its workspace. API keys remain environment-variable references, not JSON
-values, browser fields or prompt content. The file is limited to 1 MiB and 100 rows.
-An invalid catalog disables planning while preserving access to saved project intake.
+[Project models and resource limits](project-models.md) owns current catalog setup,
+write-only project credentials, qualification, routing, shared budgets and reconciliation.
+Intake has no separate model selector, cloud grant or planning allowance. Its model
+summary and spending totals use that shared project authority, including qualification
+charges. The automatic-staffing choice remains an intake setting.
 
-For a separately installed and tested local OpenAI-compatible text endpoint, the catalog
-shape is:
-
-```json
-[
-  {
-    "workspace_ids": ["11111111-1111-4111-8111-111111111111"],
-    "endpoint": {
-      "id": "local-intake",
-      "provider": "openai_compatible",
-      "model": "your-tested-model-id",
-      "base_url": "http://127.0.0.1:1234/v1",
-      "local": true,
-      "capabilities": ["text"],
-      "context_window_tokens": 131072,
-      "max_output_tokens": 8192,
-      "input_cost_per_million_usd": 0,
-      "output_cost_per_million_usd": 0
-    }
-  }
-]
-```
-
-Replace the workspace, model, address and capacity declarations with your actual tested
-deployment. This file does not install or start a model server. A `local` flag is an
-administrator trust assertion: verify that the server does not forward requests to cloud
-models. Existing chat's `SIMON_MODEL_PROVIDER=local` is an offline chat provider and does
-not supply AI intake. No configured endpoint means no model call and no canned fallback.
-
-Available text transports are `openai_responses`, `openai_compatible`, `anthropic` and
-`gemini`. A hosted endpoint needs `local: false`, its approved HTTPS base URL, an
-`api_key_env` name and both input/output prices in USD per million tokens. Set the named
-secret in the service's environment through the existing private configuration mechanism.
-Operators must verify provider prices and model limits before configuration. There is no
-project BYOK/key-enrollment UI, automatic hosted free-tier selection or account-wide
-billing ledger in this slice.
-
-Catalog readiness checks configuration, declared text capability, prices and the presence
-of referenced credentials. It does not probe the server or certify model quality. Review
-dispatch rechecks the endpoint configuration and referenced credential; changing
-either while generation is in flight stops the second call. Source revocation also fences
-late proposal/review text, including an attempt whose outcome was already marked unknown.
-The planner also checks context capacity before dispatch: a conservative UTF-8-byte input
+The planner checks context capacity before dispatch: a conservative UTF-8-byte input
 estimate plus framing, bounded by 64,000 input tokens per call; up to 8,192 generation
-output tokens and 2,048 review output tokens, clamped to endpoint limits. Proposal JSON is
-limited to 24 KiB. A model needs enough context for the evidence, schema and a complete
-review candidate; overlong input is rejected instead of silently truncated by the planner.
+output tokens and 2,048 review output tokens, clamped to the chosen endpoint limits.
+Proposal JSON is limited to 24 KiB. A model needs enough context for the evidence,
+schema and complete review candidate; overlong input is rejected before dispatch.
+A small qualification pass does not establish reliable handling of that whole context.
 
-## Allowance, interruptions and recovery
+Before dispatch, generation and review are reserved atomically against both workspace
+and project ceilings, with separate durable usage entries. Each reservation consumes
+a call slot, so intake needs at least two available slots. A project permits one running
+planning attempt. There is no automatic provider fallback, retry or schema-repair loop.
+Current authority, credentials, template and resource policy are rechecked before each
+call; context changes and source revocation prevent stale proposal application.
 
-The project planning allowance is a lifetime ceiling for this intake slice, recorded as
-integer micro-USD (1 USD = 1,000,000 micro-USD), default zero and maximum 1,000 USD.
-Before dispatch, one durable attempt reserves conservative generation **and** review
-costs. Concurrent attempts cannot both consume the same allowance; a project permits
-one running attempt. Each paid generation and review is explicit, with no automatic
-provider fallback, retry or schema-repair loop.
+Known usage settles independently even if another stage is uncertain. Unsent review
+reservations can be released; cancellation cannot erase a possibly incurred generation
+charge or promise cancellation at the provider. An expired five-minute attempt becomes
+unknown on recovery without redispatch. Unknown usage retains both money and a call
+slot until a definitive result or evidenced workspace-owner reconciliation resolves it.
+Late usage can settle without applying cancelled work. Reconciliation and any later
+provider-charge adjustment remain visible in **Models & usage**.
 
-Known token usage settles at configured prices, rounded upward. Calls from local/free
-endpoints can declare zero API cost, but local GPU time, electricity and hosted compute
-are not measured by this allowance. It is not a provider-enforced billing guarantee,
-subscription entitlement or the future ledger for execution, images, retries and tools.
-The administrator's price/capacity declarations must remain accurate.
+Migration `0032_native_intake.sql` stores context, source metadata/text and planning
+history; `0033_project_models.sql` adds the shared model ledger, imports any prior
+intake liabilities once, and removes the former intake-only model settings. Historical
+attempts remain evidence, not a second runtime budget or model authority.
 
-A missing provider usage record or uncertain dispatch keeps its reservation; cancellation
-does not release potentially spent money. Cancelling stops application and subsequent
-planning steps, but cannot promise cancellation of an already-dispatched provider call.
-An expired five-minute running attempt becomes `unknown` on the next read and never
-redispatches on reload/restart. If its original in-flight request returns definitive usage,
-that result can still settle costs without applying a cancelled plan. There is no operator
-UI for reconciling a permanently unknown reservation yet.
-
-Migration `0032_native_intake.sql` stores context, source metadata/text and run/proposal
-history with project-scoped references, immutable attempt identity and version checks.
-Use the normal migration workflow for a selected development installation; development
-acceptance itself only creates disposable databases. PostgreSQL and source originals must
-be recovered together. Backup bundles include `.project-sources` through the managed files
-root and the configured catalog as `configuration/intake-models.json`. During restoration,
-stage the bundle into a fresh directory, then explicitly set `SIMON_INTAKE_MODELS_FILE`
-and re-establish its named credentials. Process-only secrets need separate recovery.
+Recover the database, managed originals, administrator catalog and matching encryption
+key together using [storage recovery](storage-recovery.md). Source originals remain
+under the managed files root's `.project-sources` directory. The catalog is included as
+`configuration/model-catalog.json`; `SIMON_MODEL_CATALOG_FILE` points to its restored
+location. Enrolled provider keys reside as scoped ciphertext in the database and require
+the original master key. No provider environment variable restores project enrollment.
 
 ## Verification boundary
 
-Tests use synthetic transport responses and disposable workspaces to exercise actual
+Acceptance uses synthetic transport responses and disposable workspaces to exercise actual
 service/model-adapter calls, strict schemas, evidence grounding, staffing reuse, limits,
 authorization changes, source revisions/revocation, duplicate requests, cost settlement,
-uncertainty, cancellation and atomic application. Domain/memory checks passed 41 cases;
-the first PostgreSQL persistence/migration acceptance passed 16 cases on PostgreSQL
-16.15/pgvector 0.8.6 and stopped its cluster. The October 8 broader non-live regression
-passed 2,263 tests, including 59 browser cases, with 15 host-dependent skips and eight
-live-model cases excluded. The roadmap records consolidated evidence and remaining limits.
-
-The final focused acceptance run passed 194 tests, including 13 real-browser cases and
-PostgreSQL application restart/replay, with one Windows symlink-privilege skip. The five
-new intake API/domain/service modules achieved 95.81% branch coverage. Fresh combined
-coverage is 90.52%, above the unchanged 90% repository gate. Before combination, stale
-measurements for the three services updated during review were discarded and replaced
-with the final focused run. The broader and focused test counts overlap. Both disposable
-database clusters stopped; no coverage threshold was lowered for this phase.
+uncertainty, cancellation and atomic application. Database tests also cover application
+restart and replay without redispatch. Browser cases exercise source management,
+questions, review, application and changed authority with the shared model settings.
+The [roadmap](../next-phases.md#verification-and-remaining-limits) owns current consolidated
+test counts, coverage and remaining limits. Local database acceptance uses PostgreSQL
+16.15/pgvector 0.8.6; PostgreSQL 17 remains the CI/container target.
 
 ```powershell
 .\venv\Scripts\python.exe -m pytest tests/unit/test_native_intake_models.py tests/unit/test_native_intake.py tests/unit/test_intake_sources.py tests/unit/test_intake_planner.py tests/contract/test_native_intake_store.py tests/unit/test_backup_intake.py -q -m "not postgres"
@@ -263,6 +213,8 @@ $env:SIMON_BROWSER_CHANNEL = "msedge"
 ```
 
 No paid model call, real pilot archive ingestion, provider account enrollment or operator
-database/deployment change was made during this implementation. Capped real-model quality
-evaluation, full provider/key/resource authority, durable native execution and artifact
-review remain required before the core acceptance gate.
+database/deployment change was made during this implementation. Current project
+enrollment, routing and inference limits are described in the model
+runbook; the roadmap records the current validation results. Capped real-model quality
+evaluation, broader resource authority, durable native execution and artifact review
+remain required before the core acceptance gate.

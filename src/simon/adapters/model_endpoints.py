@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import os
 from collections.abc import Mapping, Sequence
+from math import isfinite
+from time import monotonic
 from typing import Any
 from urllib.parse import quote
 
@@ -40,7 +42,7 @@ class ModelEndpointClient:
         timeout_seconds: float = 120,
         max_response_bytes: int = 8 * 1024 * 1024,
     ) -> None:
-        if timeout_seconds <= 0 or max_response_bytes < 1:
+        if not isfinite(timeout_seconds) or timeout_seconds <= 0 or max_response_bytes < 1:
             raise ValueError("Timeout and response bound must be positive")
         self._environ = os.environ if environ is None else environ
         self._router = ModelRouter(endpoints, environ=self._environ)
@@ -54,11 +56,31 @@ class ModelEndpointClient:
     ) -> TextGenerationResult:
         endpoint = self._validate(decision, request)
         path, payload, headers = self._wire_request(endpoint, decision, request)
+        started = monotonic()
+
+        def check_deadline() -> None:
+            if monotonic() - started >= self._timeout:
+                raise ModelEndpointError(
+                    "provider_deadline_exceeded",
+                    "Model request exceeded its elapsed-time limit; it may have incurred cost",
+                    may_have_been_dispatched=True,
+                )
+
+        # HTTPX timeouts bound inactivity in individual network phases. Check the
+        # total elapsed time at headers and each body chunk as well, so a server
+        # cannot keep this call alive by slowly sending a bounded response. An
+        # in-progress socket operation may finish at its own inactivity bound.
+        inactivity = min(self._timeout, 120)
         try:
             with (
                 httpx.Client(
                     transport=self._transport,
-                    timeout=self._timeout,
+                    timeout=httpx.Timeout(
+                        inactivity,
+                        connect=min(inactivity, 10),
+                        pool=min(inactivity, 10),
+                        write=min(inactivity, 30),
+                    ),
                     trust_env=False,
                     follow_redirects=False,
                 ) as client,
@@ -66,6 +88,7 @@ class ModelEndpointClient:
                     "POST", f"{endpoint.base_url}{path}", json=payload, headers=headers
                 ) as response,
             ):
+                check_deadline()
                 if response.status_code != 200:
                     raise ModelEndpointError(
                         "provider_request_failed",
@@ -74,6 +97,7 @@ class ModelEndpointClient:
                     )
                 data = bytearray()
                 for chunk in response.iter_bytes():
+                    check_deadline()
                     data.extend(chunk)
                     if len(data) > self._max_response_bytes:
                         raise ModelEndpointError(
@@ -81,6 +105,7 @@ class ModelEndpointClient:
                             "Model response exceeded the configured byte limit",
                             may_have_been_dispatched=True,
                         )
+                check_deadline()
         except httpx.HTTPError:
             raise ModelEndpointError(
                 "provider_connection_failed",

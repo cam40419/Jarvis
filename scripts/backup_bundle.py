@@ -115,8 +115,8 @@ def main() -> None:
         configuration = {}
         if settings.external_providers_file is not None:
             configuration["external-providers.json"] = settings.external_providers_file
-        if settings.intake_models_file is not None:
-            configuration["intake-models.json"] = settings.intake_models_file
+        if settings.model_catalog_file is not None:
+            configuration["model-catalog.json"] = settings.model_catalog_file
         if args.include_secrets:
             configuration["server.env"] = ROOT / ".env"
             if settings.integration_key_file.is_file():
