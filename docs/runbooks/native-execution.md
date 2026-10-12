@@ -2,8 +2,10 @@
 
 Open **Execution** in a project to queue agent work, configure dependencies and schedules,
 follow its checkpoints and costs, answer questions, and cancel or safely retry interrupted
-work. A completed run produces a **candidate**, moves its task to **In review**, and keeps
-its trace. It does not accept an artifact, publish content or operate a business account.
+work. A completed run saves an immutable **candidate artifact**, moves its task to
+**In review**, and keeps its trace. [Artifacts and review](native-artifacts.md) provide
+independent review and exact owner acceptance; execution completion itself does not accept
+that file, publish content or operate a business account.
 
 This is a bounded controller backed by the native PostgreSQL records, with
 `engine=postgres` and `definition_version=1`. It is the small-deployment alternative in
@@ -87,12 +89,14 @@ cancel and start new work against the revised inputs.
 ## Dependencies, actions and schedules
 
 Dependencies are scoped to the same project, versioned and cycle-checked. A task can be
-queued before its prerequisites finish. Dispatch requires a completed native candidate
-for each prerequisite matching its current title, description and assignment. Manually
-moving a task to **Done** does not fabricate that candidate. The selected candidate and
-input digest are captured for the step and rechecked before applying its result.
-Dependency readiness is an execution contract, not artifact acceptance or publication
-permission; exact accepted artifact revisions belong to the next review slice.
+queued before its prerequisites finish. Dispatch requires a current supported text
+artifact for each prerequisite, with no pending repair. Its exact revision/hash, task
+input digest and current review/acceptance status are captured for the step and rechecked
+before applying the result. Corrections replace the dependency's old candidate text;
+an accepted owner-uploaded file can supply a prerequisite without a producing execution
+run. Manually moving a task to **Done** does not fabricate that file or its acceptance.
+Intermediate drafts may use an unaccepted candidate explicitly labelled with its review
+status; dependency readiness does not grant publication or acceptance authority.
 
 Each bounded model decision chooses one supported action:
 

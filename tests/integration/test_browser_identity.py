@@ -99,6 +99,7 @@ def test_browser_password_registration_login_logout_and_echo(postgres_url, tmp_p
             page.get_by_role("link", name="Open conversations").click()
             expect(page.locator("#welcome")).to_be_visible()
             expect(page.locator("#new-chat")).to_be_enabled()
+            page.wait_for_function("() => typeof window.SimonMarkdown?.render === 'function'")
             assert page.evaluate(
                 """() => {
                     const output = SimonMarkdown.render('# Heading\\n\\n**Bold** and `code`\\n\\n'

@@ -1,0 +1,319 @@
+[
+  {
+    "name": "Perplexity Computer and Projects",
+    "category": "General autonomous work agent",
+    "relationship": "direct",
+    "customer": "Individuals and teams doing research, files and continuing project work.",
+    "status": "Computer/Projects available; Brain packaging and rollout should be verified per plan. Portable Computer currently available on supported Windows/Linux hardware.",
+    "summary": "Computer combines persistent project files, connected sources and memory; Portable Computer adds local inference with approved cloud escalation.",
+    "strength": "Research distribution and a packaged local/cloud agent stack make it a close comparator.",
+    "opportunity": "Test accepted-output continuity after source change, interruption and multi-user correction; generic projects or local/cloud routing are established alternatives.",
+    "pricing": "Fetched pricing renders individual $17 Pro/$167 Max per month billed annually despite enterprise URL; Max shows 10,000 monthly credits. Enterprise Academy documents 500/15,000 seat credits and organization pools. Do not infer enterprise seat dollars from individual render.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Shared persistent project files and connected context; individual task accountability and acceptance mechanics require hands-on comparison.",
+        "urls": ["https://www.perplexity.ai/en-GB/hub/products/projects"]
+      },
+      "artifactReview": {
+        "state": "not_established",
+        "note": "Artifacts and continuing work shown; independent exact-revision quality acceptance contract not established in fetched pages.",
+        "urls": ["https://www.perplexity.ai/en-GB/hub/products/projects"]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Project Brain accumulates context; source permission rechecks and claim dependency granularity remain questions.",
+        "urls": [
+          "https://www.perplexity.ai/en-GB/hub/products/projects",
+          "https://www.perplexity.ai/help-center/en/articles/11187416-which-perplexity-subscription-plan-is-right-for-you"
+        ]
+      },
+      "durability": {
+        "state": "documented",
+        "note": "Enterprise tasks pause at credit exhaustion, retain progress and resume after funding. Crash/effect uncertainty guarantees not established.",
+        "urls": ["https://www.perplexity.ai/en-GB/hub/academy/managing-computer-credits"]
+      },
+      "costControls": {
+        "state": "documented",
+        "note": "Seat allocations, shared pool, member/group limits and optional refill ceilings; different unit from Simon dollar ledger.",
+        "urls": [
+          "https://www.perplexity.ai/en-GB/hub/academy/managing-computer-credits",
+          "https://www.perplexity.ai/enterprise/pricing"
+        ]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Cloud plus local harness/inference on supported Windows/Linux devices; hardware floor includes 24GB GPU memory and supported hardware. Cloud escalation asks approval.",
+        "urls": ["https://www.perplexity.ai/en-GB/hub/products/portable-computer"]
+      }
+    },
+    "sources": [
+      {
+        "title": "Projects",
+        "url": "https://www.perplexity.ai/en-GB/hub/products/projects"
+      },
+      {
+        "title": "Portable Computer",
+        "url": "https://www.perplexity.ai/en-GB/hub/products/portable-computer"
+      },
+      {
+        "title": "Computer credit management",
+        "url": "https://www.perplexity.ai/en-GB/hub/academy/managing-computer-credits"
+      },
+      {
+        "title": "Pricing render",
+        "url": "https://www.perplexity.ai/enterprise/pricing"
+      },
+      {
+        "title": "Subscription plans",
+        "url": "https://www.perplexity.ai/help-center/en/articles/11187416-which-perplexity-subscription-plan-is-right-for-you"
+      }
+    ]
+  },
+  {
+    "name": "Dust",
+    "category": "Agent workforce workspace",
+    "relationship": "direct",
+    "customer": "Teams combining company knowledge, agent conversations and shared tasks.",
+    "status": "Available; client-side MCP separately labeled preview in documentation.",
+    "summary": "Pods share tasks, files and conversations among humans and agents, with reusable skills and generated interactive Frames.",
+    "strength": "Matches Simon's shared human/agent project premise closely.",
+    "opportunity": "Compare evolving brief, current evidence, immutable accepted outputs and repair lifecycle; a shared board is not a novel claim.",
+    "pricing": "Fetched locale EUR: Free 500 lifetime credits; Pro €30 monthly/€24 annual, 8,000 credits/seat/month; Max €150/€120,40,000 credits. API line separately $0.01/credit; tax excluded. Enabled overages can be capped; in-flight responses may complete beyond quota.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Humans and agents can create, assign, work on and complete shared tasks; externally synced tasks require explicit authority to avoid loops.",
+        "urls": [
+          "https://docs.dust.tt/docs/user-documentation/pods/overview",
+          "https://docs.dust.tt/docs/user-documentation/pods/tasks"
+        ]
+      },
+      "artifactReview": {
+        "state": "documented",
+        "note": "Frames preview/export/share interactive files. Scheduled regeneration overwrites current file; immutable quality approval semantics not established.",
+        "urls": ["https://docs.dust.tt/docs/user-documentation/pods/frames"]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Shared Pod files/conversations become context; restricted membership/editor roles exist. Revoked-source derivative memory behavior not established.",
+        "urls": [
+          "https://docs.dust.tt/docs/user-documentation/pods/overview",
+          "https://docs.dust.tt/docs/user-documentation/pods/members-and-roles"
+        ]
+      },
+      "durability": {
+        "state": "not_established",
+        "note": "Scheduled work and saved linked conversations exist; crash-safe external effects and unknown-charge reservations not established.",
+        "urls": ["https://docs.dust.tt/docs/user-documentation/pods/tasks"]
+      },
+      "costControls": {
+        "state": "documented",
+        "note": "Per-seat credits, capped optional overages and programmatic tracking; completed in-flight response can exceed quota.",
+        "urls": ["https://dust.tt/home/pricing"]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Managed SaaS; pricing lists US/EU residency and enterprise single-tenant options. Whole-platform self-hosting not established.",
+        "urls": ["https://dust.tt/home/pricing"]
+      }
+    },
+    "sources": [
+      {
+        "title": "Pricing",
+        "url": "https://dust.tt/home/pricing"
+      },
+      {
+        "title": "Pods overview",
+        "url": "https://docs.dust.tt/docs/user-documentation/pods/overview"
+      },
+      {
+        "title": "Tasks",
+        "url": "https://docs.dust.tt/docs/user-documentation/pods/tasks"
+      },
+      {
+        "title": "Members and roles",
+        "url": "https://docs.dust.tt/docs/user-documentation/pods/members-and-roles"
+      },
+      {
+        "title": "Frames",
+        "url": "https://docs.dust.tt/docs/user-documentation/pods/frames"
+      }
+    ]
+  },
+  {
+    "name": "Glean Agents",
+    "category": "Enterprise knowledge and research",
+    "relationship": "adjacent",
+    "customer": "Organizations with connected enterprise knowledge and shared operational workflows.",
+    "status": "Auto/workflow agents available; independent agents explicitly beta and deployment dependent.",
+    "summary": "Knowledge-connected agents support configured workflows, delegation and independently attributed shared operations.",
+    "strength": "Enterprise retrieval, identity and existing workflow distribution.",
+    "opportunity": "Benchmark scoped memory after revocation and quality acceptance after changing requirements, rather than assuming citations or service identities are unique.",
+    "pricing": "Seat/agent commercial dollars not established from fetched documentation; obtain a comparable quote including deployment, usage and support.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Workflow branches/tools and dynamic delegated research; independent profiles/channels in beta.",
+        "urls": [
+          "https://docs.glean.com/agents/how-agents-work",
+          "https://docs.glean.com/agents/independent-agents"
+        ]
+      },
+      "artifactReview": {
+        "state": "not_established",
+        "note": "Agent publishing/write controls described; output-file exact-revision quality acceptance not established.",
+        "urls": ["https://docs.glean.com/agents/independent-agents"]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Workflow working memory and scoped knowledge; persistent procedures should receive human approval.",
+        "urls": [
+          "https://docs.glean.com/agents/how-agents-work",
+          "https://docs.glean.com/agents/independent-agents"
+        ]
+      },
+      "durability": {
+        "state": "documented",
+        "note": "Independent agents monitor events and continue shared workflows without an individual session; deployment dependent beta. External uncertain-effect semantics unknown.",
+        "urls": ["https://docs.glean.com/agents/independent-agents"]
+      },
+      "costControls": {
+        "state": "not_established",
+        "note": "Token context tuning documented; project monetary caps, unresolved-charge accounting and commercial units not established.",
+        "urls": ["https://docs.glean.com/agents/how-agents-work"]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Managed enterprise deployment with administrator scoped service credentials; independent capabilities depend on deployment.",
+        "urls": ["https://docs.glean.com/agents/independent-agents"]
+      }
+    },
+    "sources": [
+      {
+        "title": "How agents work",
+        "url": "https://docs.glean.com/agents/how-agents-work"
+      },
+      {
+        "title": "Independent agents overview",
+        "url": "https://docs.glean.com/agents/independent-agents"
+      }
+    ]
+  },
+  {
+    "name": "Hebbia",
+    "category": "Enterprise knowledge and research",
+    "relationship": "adjacent",
+    "customer": "Financial, legal and corporate research teams handling document-intensive analysis.",
+    "status": "Available; June 2026 shipped update describes cited PowerPoint and Tick-and-Tie checks.",
+    "summary": "Projects/Matrix research with source-grounded slides, metric verification, API and MCP.",
+    "strength": "Direct counterexample to generic source-linked deliverables and AI figure checking.",
+    "opportunity": "Evaluate non-financial production bundles, requirement change impact and measured review effort against strong specialist checks.",
+    "pricing": "No public commercial dollars established from fetched pages; quote required.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Shared projects, history and publish/unpublish controls.",
+        "urls": ["https://www.hebbia.com/blog/whats-new-june-disclosure-2026"]
+      },
+      "artifactReview": {
+        "state": "documented",
+        "note": "Generated PowerPoint source markers and Tick-and-Tie agent matching presentation figures to reference data. Version-bound human acceptance not established.",
+        "urls": ["https://www.hebbia.com/blog/whats-new-june-disclosure-2026"]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Inline citations across output and API/MCP; optional pre-run source review.",
+        "urls": ["https://www.hebbia.com/blog/whats-new-june-disclosure-2026"]
+      },
+      "durability": {
+        "state": "not_established",
+        "note": "Project history documented; fault/retry or uncertain external effect semantics not established.",
+        "urls": ["https://www.hebbia.com/blog/whats-new-june-disclosure-2026"]
+      },
+      "costControls": {
+        "state": "not_established",
+        "note": "Budget controls and prices not established from fetched update.",
+        "urls": ["https://www.hebbia.com/blog/whats-new-june-disclosure-2026"]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Hosted product plus API/MCP integration; whole-product local deployment not established.",
+        "urls": ["https://www.hebbia.com/blog/whats-new-june-disclosure-2026"]
+      }
+    },
+    "sources": [
+      {
+        "title": "June 2026 product disclosure",
+        "url": "https://www.hebbia.com/blog/whats-new-june-disclosure-2026"
+      }
+    ]
+  },
+  {
+    "name": "Gemini Notebook formerly NotebookLM",
+    "category": "Enterprise knowledge and research",
+    "relationship": "substitute",
+    "customer": "Individuals, educators and teams creating source-grounded briefings and presentations.",
+    "status": "Current official help now uses Gemini Notebook; availability and plan-dependent quotas apply.",
+    "summary": "Source-grounded notebooks with generated reports, media and slide decks.",
+    "strength": "Low-friction source synthesis and existing Google distribution.",
+    "opportunity": "Changing-source handling is already documented; test whether previously produced outputs become stale and revisions preserve evidence.",
+    "pricing": "Free and higher bundled plan limits documented; specific current commercial dollars not established from fetched help. Compare full bundle costs and actual task quotas.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Shared source notebooks and generated outputs; an accountable human/agent production board not established.",
+        "urls": [
+          "https://support.google.com/gemininotebook/answer/16215270?hl=en",
+          "https://support.google.com/gemininotebook/answer/16757456?hl=en"
+        ]
+      },
+      "artifactReview": {
+        "state": "documented",
+        "note": "Slide presentation, PDF/PPTX download and slide revisions documented. Official help says revisions currently do not consider sources; native-object editability has not been validated.",
+        "urls": ["https://support.google.com/gemininotebook/answer/16757456?hl=en"]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Source citations; Drive imports automatically sync and become inaccessible when Drive access is lost. Existing derivatives' treatment remains a separate question.",
+        "urls": ["https://support.google.com/gemininotebook/answer/16215270?hl=en"]
+      },
+      "durability": {
+        "state": "not_established",
+        "note": "Background generation and previous decks documented; durable multi-tool work and interruption reconciliation not established.",
+        "urls": ["https://support.google.com/gemininotebook/answer/16757456?hl=en"]
+      },
+      "costControls": {
+        "state": "documented",
+        "note": "Plan-based usage/source/deck limits; project hard dollar budgets not established.",
+        "urls": ["https://support.google.com/gemininotebook/answer/16213268?hl=en"]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Managed web/mobile Google service. Private/local execution not established.",
+        "urls": [
+          "https://support.google.com/gemininotebook/answer/16164461?hl=en",
+          "https://support.google.com/gemininotebook/answer/16213268?hl=en"
+        ]
+      }
+    },
+    "sources": [
+      {
+        "title": "Product overview",
+        "url": "https://support.google.com/gemininotebook/answer/16164461?hl=en"
+      },
+      {
+        "title": "Sources and sync",
+        "url": "https://support.google.com/gemininotebook/answer/16215270?hl=en"
+      },
+      {
+        "title": "Slide decks",
+        "url": "https://support.google.com/gemininotebook/answer/16757456?hl=en"
+      },
+      {
+        "title": "Plans",
+        "url": "https://support.google.com/gemininotebook/answer/16213268?hl=en"
+      }
+    ]
+  }
+]

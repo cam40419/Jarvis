@@ -1,0 +1,876 @@
+[
+  {
+    "name": "Manus",
+    "category": "General autonomous work agent",
+    "relationship": "direct",
+    "customer": "Individuals and teams commissioning research, files, websites and recurring work.",
+    "status": "Available; advanced automations explicitly beta.",
+    "summary": "Sandbox-computer agent with persistent project files/instructions, collaborative task sessions and schedules/events.",
+    "strength": "Broad finished-work production with browser, code, research and distribution surfaces.",
+    "opportunity": "Prove exact-version acceptance and source-change handling for shared projects; do not assume its task folders are a shared project board.",
+    "pricing": "Credit-based plans; precise current subscription dollars not established from fetched pricing. Credits cover models, VMs and external APIs; team pools documented.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Persistent project instructions/files and task organization; project invite does not automatically expose colleagues' tasks.",
+        "urls": ["https://manus.im/docs/features/projects", "https://manus.im/docs/features/collab"]
+      },
+      "artifactReview": {
+        "state": "documented",
+        "note": "Collaborative editing and intermediate review documented; Collab explicitly cautions against version-history-critical work. Exact-revision independent acceptance contract not established.",
+        "urls": [
+          "https://manus.im/docs/features/collab",
+          "https://manus.im/docs/introduction/plans"
+        ]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Project master instructions and file knowledge base persist; old tasks retain old file configuration.",
+        "urls": ["https://manus.im/docs/features/projects"]
+      },
+      "durability": {
+        "state": "not_established",
+        "note": "Schedules, triggers, run history and pause/failure guidance exist; crash-safe external-effect receipts and unknown-charge behavior not established.",
+        "urls": ["https://manus.im/docs/automations"]
+      },
+      "costControls": {
+        "state": "documented",
+        "note": "Usage history, low-balance alerts and pre-task estimates; resource-based credits and technical-failure refunds documented. Project-level hard dollar ceilings not established.",
+        "urls": ["https://manus.im/docs/introduction/plans", "https://manus.im/help/credits"]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Own cloud sandbox computer. Complete self-hosted platform and arbitrary local-model support not established.",
+        "urls": ["https://manus.im/docs/introduction/welcome"]
+      }
+    },
+    "sources": [
+      {
+        "title": "Projects",
+        "url": "https://manus.im/docs/features/projects"
+      },
+      {
+        "title": "Collab",
+        "url": "https://manus.im/docs/features/collab"
+      },
+      {
+        "title": "Automations",
+        "url": "https://manus.im/docs/automations"
+      },
+      {
+        "title": "Plans",
+        "url": "https://manus.im/docs/introduction/plans"
+      },
+      {
+        "title": "Credit accounting",
+        "url": "https://manus.im/help/credits"
+      },
+      {
+        "title": "Sandbox introduction",
+        "url": "https://manus.im/docs/introduction/welcome"
+      }
+    ]
+  },
+  {
+    "name": "Genspark / GenTeam",
+    "category": "AI workforce and office workspace",
+    "relationship": "direct",
+    "customer": "Solo operators through enterprise teams seeking ready-made roles and office deliverables.",
+    "status": "GenTeam web/desktop/mobile available; feature claims are vendor documentation, not hands-on validated.",
+    "summary": "People and role agents share chats, tasks, decisions and cloud-computer outputs; office agents produce docs, sheets and slides.",
+    "strength": "Extremely close product concept plus rich document creation and broad integrations.",
+    "opportunity": "Win measured acceptance quality, reviewer independence, stale-review rejection and bounded economics instead of generic AI-team positioning.",
+    "pricing": "Team $30/seat/month monthly, 10,000 credits and 60 GB/seat; Plus $24.99 monthly or $19.99/month annual. Enterprise custom, normally six-figure annual commitment.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Roles, shared human/agent group chats, task filing/tracking, assignments and finished files.",
+        "urls": ["https://www.genspark.ai/genteam"]
+      },
+      "artifactReview": {
+        "state": "documented",
+        "note": "Review and HITL checkpoints marketed; example tasks include In review/Done. Exact byte-bound quality acceptance and repair-state contract not established.",
+        "urls": ["https://www.genspark.ai/genteam", "https://www.genspark.ai/business"]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Persistent group-chat decisions/role context; cited research and workspace knowledge marketed.",
+        "urls": ["https://www.genspark.ai/genteam", "https://www.genspark.ai/business"]
+      },
+      "durability": {
+        "state": "not_established",
+        "note": "Long-running self-correcting agents marketed. Precise checkpoint replay, worker crash and external-effect recovery semantics not established.",
+        "urls": ["https://www.genspark.ai/business"]
+      },
+      "costControls": {
+        "state": "documented",
+        "note": "Credits, usage analytics and Enterprise spend alerts/model governance; hard per-project admission ceilings not established.",
+        "urls": ["https://www.genspark.ai/business/pricing"]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Cloud agent sandboxes plus own-computer, CLI and OpenClaw participation. Enterprise regional deployment/private networking marketed; full platform self-hosting not established.",
+        "urls": ["https://www.genspark.ai/genteam", "https://www.genspark.ai/business"]
+      }
+    },
+    "sources": [
+      {
+        "title": "GenTeam",
+        "url": "https://www.genspark.ai/genteam"
+      },
+      {
+        "title": "Business workspace",
+        "url": "https://www.genspark.ai/business"
+      },
+      {
+        "title": "Pricing updated September 17 2026",
+        "url": "https://www.genspark.ai/business/pricing"
+      }
+    ]
+  },
+  {
+    "name": "Lindy",
+    "category": "Slack-native business teammate",
+    "relationship": "direct",
+    "customer": "Teams delegating inbox, meetings, CRM, research and dashboards from existing communication tools.",
+    "status": "Available; current pricing and integration guardrail claims have material contradictions to resolve.",
+    "summary": "Shared Slack and private assistants with routines, skills, inspectable file memory and hosted artifacts.",
+    "strength": "Low-setup daily workflow adoption, real integrations and editable versioned memory.",
+    "opportunity": "Consistent channel-independent execution controls and separate quality acceptance; demonstrate lower review effort on multi-deliverable projects.",
+    "pricing": "Fetched page: from $49.99/active user/month with 5,000 pooled credits; top-ups $10/1,000 credits. Search snapshot showed $29.99/3,000; recheck before buying. Usage docs permit optional 2× overages.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Team routines and delegated tasks in Slack/personal chat; shared project dependency board not established.",
+        "urls": [
+          "https://docs.lindy.ai/account-billing/usage",
+          "https://docs.lindy.ai/integrations/overview"
+        ]
+      },
+      "artifactReview": {
+        "state": "documented",
+        "note": "Versioned files and hosted-page revisions; public publication asks approval. Independent exact-revision quality acceptance not established.",
+        "urls": [
+          "https://docs.lindy.ai/teammate/memory",
+          "https://docs.lindy.ai/teammate/artifacts"
+        ]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Personal/workspace/system files, editable durable memory and skills; every save versioned with restore.",
+        "urls": ["https://docs.lindy.ai/teammate/memory"]
+      },
+      "durability": {
+        "state": "documented",
+        "note": "Paused work preserves conversations/settings/history; manual restart required after credit reset. Exactly-once external-effect recovery not established.",
+        "urls": ["https://docs.lindy.ai/account-billing/usage"]
+      },
+      "costControls": {
+        "state": "documented",
+        "note": "Shared pool, per-person limits, unusual-task pause and exhaustion pause; opt-in overages at twice regular credit cost.",
+        "urls": ["https://docs.lindy.ai/account-billing/usage", "https://www.lindy.ai/pricing/"]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Hosted web/Slack/SMS and computer-use offering. Guardrails guide excludes web/DM/SMS from shared-thread guardrails, contradicting broad pricing FAQ; self-hosting not established.",
+        "urls": ["https://docs.lindy.ai/integrations/overview", "https://www.lindy.ai/pricing/"]
+      }
+    },
+    "sources": [
+      {
+        "title": "Memory",
+        "url": "https://docs.lindy.ai/teammate/memory"
+      },
+      {
+        "title": "Hosted artifacts",
+        "url": "https://docs.lindy.ai/teammate/artifacts"
+      },
+      {
+        "title": "Integration guardrail scope",
+        "url": "https://docs.lindy.ai/integrations/overview"
+      },
+      {
+        "title": "Usage and pauses",
+        "url": "https://docs.lindy.ai/account-billing/usage"
+      },
+      {
+        "title": "Pricing",
+        "url": "https://www.lindy.ai/pricing/"
+      }
+    ]
+  },
+  {
+    "name": "Relevance AI",
+    "category": "Agent and workforce builder",
+    "relationship": "direct",
+    "customer": "GTM operators, builders and enterprises assembling production business-agent processes.",
+    "status": "Available; Evals availability conflicts between current Evals guide and pricing matrix.",
+    "summary": "No-code specialists, tools, knowledge and visual handoffs; Invent builds and improves processes with approval.",
+    "strength": "Mature multi-agent design, BYOK, measurable evals/live monitoring and broad tool integration.",
+    "opportunity": "A simpler business-owner delivery and exact-artifact acceptance surface; no claim that reviewer agents or evals are unique to Simon.",
+    "pricing": "Organization plans: Pro $29/month monthly or $19/month annual, 2,500 Actions/month and $20 Vendor Credits; Team $349 monthly or $234/month annual, 7,000 Actions/$70 Vendor Credits. BYOK bypasses vendor credits, not Actions.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Visual multi-agent specialists and conditional/AI/fixed handoffs; Chat can invoke agents/workforces. Native shared project board equivalence not established.",
+        "urls": [
+          "https://relevanceai.com/docs/get-started/core-concepts/workforces",
+          "https://relevanceai.com/docs/build/introduction"
+        ]
+      },
+      "artifactReview": {
+        "state": "documented",
+        "note": "Researcher-writer-reviewer pipelines and Evals checks, publish thresholds/live monitoring. Exact artifact-head/policy acceptance contract not established.",
+        "urls": [
+          "https://relevanceai.com/docs/get-started/core-concepts/workforces",
+          "https://relevanceai.com/docs/build/agents/evals/introduction"
+        ]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Connected knowledge plus tools and process configuration; versioned provenance/revocation of derived memory not established.",
+        "urls": ["https://relevanceai.com/docs/build/introduction"]
+      },
+      "durability": {
+        "state": "not_established",
+        "note": "End-to-end workflow monitoring and handoff tracing documented; interruption-safe receipt behavior not established from reviewed pages.",
+        "urls": ["https://relevanceai.com/docs/get-started/core-concepts/workforces"]
+      },
+      "costControls": {
+        "state": "documented",
+        "note": "Separate Actions and wholesale Vendor Credits; per-test/per-component evaluation costs and BYOK visible. Aggregate hard admission guarantees not established.",
+        "urls": [
+          "https://relevanceai.com/docs/get-started/pricing",
+          "https://relevanceai.com/docs/build/agents/evals/introduction"
+        ]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Hosted platform supports BYOK and own LLM per pricing. Full self-hosted orchestration and arbitrary model-server guarantees not established.",
+        "urls": ["https://relevanceai.com/docs/get-started/pricing"]
+      }
+    },
+    "sources": [
+      {
+        "title": "Workforces",
+        "url": "https://relevanceai.com/docs/get-started/core-concepts/workforces"
+      },
+      {
+        "title": "Build and Invent",
+        "url": "https://relevanceai.com/docs/build/introduction"
+      },
+      {
+        "title": "Tool approvals",
+        "url": "https://relevanceai.com/docs/build/agents/give-your-agent-tasks/approval-mode"
+      },
+      {
+        "title": "Evals",
+        "url": "https://relevanceai.com/docs/build/agents/evals/introduction"
+      },
+      {
+        "title": "Pricing docs",
+        "url": "https://relevanceai.com/docs/get-started/pricing"
+      }
+    ]
+  },
+  {
+    "name": "Gumloop",
+    "category": "Agent automation platform",
+    "relationship": "direct",
+    "customer": "Teams building reusable connected agents and internal workflow automation.",
+    "status": "Available; legacy workflow vs current agent packaging differs.",
+    "summary": "Adaptive agents, skills, subagents, cited Company Brain, file artifacts, evaluations and reflection.",
+    "strength": "Rapidly converging full workforce with rich artifact previews/versioning, flexible approvals and post-run improvement.",
+    "opportunity": "Turn graded conversations into exact-revision delivery contracts, precise change-impact review and testable tool-effect recovery.",
+    "pricing": "Pro starts $37/month, 20,000 credits/month, unlimited seats, 35+ models and 8% orchestration fee displayed; Enterprise custom. Term and credit-to-dollar conversion require checkout/docs verification.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Tasks with history/files/cost, subagent tasks and a batch progress board; a general shared project portfolio board is not established.",
+        "urls": ["https://docs.gumloop.com/core-concepts/agents"]
+      },
+      "artifactReview": {
+        "state": "documented",
+        "note": "Automatic same-filename artifact versioning, previews and history; evaluations grade interactions. Exact revision acceptance/repair authority not established.",
+        "urls": [
+          "https://docs.gumloop.com/core-concepts/agent_artifacts",
+          "https://docs.gumloop.com/core-concepts/evaluations"
+        ]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Company Brain citations/synced sources, past-task search and reusable self-edited skills/instructions.",
+        "urls": ["https://docs.gumloop.com/core-concepts/agents"]
+      },
+      "durability": {
+        "state": "documented",
+        "note": "Queued background subagents and reconnect/sandbox recovery documented; exactly-once external writes and uncertain charges not established.",
+        "urls": [
+          "https://docs.gumloop.com/core-concepts/agents",
+          "https://www.gumloop.com/changelog"
+        ]
+      },
+      "costControls": {
+        "state": "documented",
+        "note": "Task credit costs, advanced limits and spend insights/fee pricing displayed; strict root-graph monetary accounting not established.",
+        "urls": ["https://docs.gumloop.com/core-concepts/agents", "https://www.gumloop.com/pricing"]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Hosted sandboxes and models; BYOK and optional Enterprise VPC/custom proxy shown. Full self-hosted platform not established.",
+        "urls": ["https://www.gumloop.com/pricing"]
+      }
+    },
+    "sources": [
+      {
+        "title": "Agents",
+        "url": "https://docs.gumloop.com/core-concepts/agents"
+      },
+      {
+        "title": "Artifacts and versions",
+        "url": "https://docs.gumloop.com/core-concepts/agent_artifacts"
+      },
+      {
+        "title": "Evaluations",
+        "url": "https://docs.gumloop.com/core-concepts/evaluations"
+      },
+      {
+        "title": "Pricing",
+        "url": "https://www.gumloop.com/pricing"
+      },
+      {
+        "title": "Changelog",
+        "url": "https://www.gumloop.com/changelog"
+      }
+    ]
+  },
+  {
+    "name": "Taskade / Genesis",
+    "category": "Agent project workspace and app builder",
+    "relationship": "direct",
+    "customer": "Small teams and agencies building hosted apps, projects and recurring agent workflows.",
+    "status": "Available; durable-execution details are official claims awaiting fault-injection validation.",
+    "summary": "Projects, agent teams, workspace memory, automations and generated live apps in one workspace.",
+    "strength": "Low price, fast app-to-workspace setup and explicit durable execution/approvals.",
+    "opportunity": "Measured accepted-deliverable quality and narrower tool governance; neither native projects nor durable workflows are unoccupied.",
+    "pricing": "Pro from $10/month billed annually per agent page; pricing lists 50,000 monthly credits and 10 included users. Enterprise BYOK. Displayed pricing toggles do not establish every monthly term.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Projects, agent teams, roles/tools and workspace-linked apps/automations.",
+        "urls": ["https://www.taskade.com/ai/agents", "https://www.taskade.com/pricing"]
+      },
+      "artifactReview": {
+        "state": "documented",
+        "note": "Human approval steps can pause flows for days; generated apps and files. Independent byte-bound revision acceptance not established.",
+        "urls": [
+          "https://www.taskade.com/wiki/autonomous/autonomous-workflows",
+          "https://www.taskade.com/ai/agents"
+        ]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Workspace memory combines project/file context, agents and automations.",
+        "urls": ["https://www.taskade.com/ai/agents"]
+      },
+      "durability": {
+        "state": "documented",
+        "note": "Official durable engine claims persisted state/crash recovery, exponential-backoff retries and approval waits.",
+        "urls": ["https://www.taskade.com/wiki/autonomous/autonomous-workflows"]
+      },
+      "costControls": {
+        "state": "documented",
+        "note": "Credit balance is documented as hard build ceiling; AI generation stops at exhaustion, existing/non-AI apps continue. Root-graph liability accounting not established.",
+        "urls": ["https://www.taskade.com/pricing"]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Hosted apps and desktop/mobile clients; Enterprise own provider API keys. Full orchestration self-hosting not established.",
+        "urls": ["https://www.taskade.com/ai/agents", "https://www.taskade.com/pricing"]
+      }
+    },
+    "sources": [
+      {
+        "title": "Agents",
+        "url": "https://www.taskade.com/ai/agents"
+      },
+      {
+        "title": "Autonomous workflows",
+        "url": "https://www.taskade.com/wiki/autonomous/autonomous-workflows"
+      },
+      {
+        "title": "Pricing and build ceilings",
+        "url": "https://www.taskade.com/pricing"
+      }
+    ]
+  },
+  {
+    "name": "ClickUp Brain / Super Agents",
+    "category": "Incumbent project-work platform",
+    "relationship": "direct",
+    "customer": "Teams already coordinating work, docs and chat in ClickUp.",
+    "status": "Available; plan/role restrictions apply.",
+    "summary": "Agent identities assigned to native tasks with trigger, skill, knowledge and memory controls.",
+    "strength": "Existing work-management breadth plus task/Docs actions, editable memory and automation distribution.",
+    "opportunity": "Provenance-preserving permission-aware memory, reliable artifact acceptance and lower supervision; replacing the entire PM suite is costly.",
+    "pricing": "AI page displays Brain $9/user/month with 1,500 credits and Everything AI $28 with 5,000; monthly/yearly toggle ambiguity remains. Additional credits $10/10,000; base work plan separate.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Agents collaborate in native tasks/chat/Docs, assignments, profiles and automation triggers; broad board/dependency platform established.",
+        "urls": [
+          "https://help.clickup.com/hc/en-us/articles/36487554975255-How-can-Super-Agents-help-your-team",
+          "https://clickup.com/pricing"
+        ]
+      },
+      "artifactReview": {
+        "state": "documented",
+        "note": "Task/Docs output and human checking via instructions; image/PDF proofing is in base product. Byte-bound independent delivery acceptance not established.",
+        "urls": [
+          "https://help.clickup.com/hc/en-us/articles/36926065055127-Super-Agent-privacy-security-and-permissions",
+          "https://clickup.com/pricing"
+        ]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Recent, Preferences and Intelligence memory. Intelligence may save private content and disclose it to agent users lacking source access; explicit warning, not alleged hidden behavior.",
+        "urls": [
+          "https://help.clickup.com/hc/en-us/articles/37038846655383-What-is-Super-Agent-Memory",
+          "https://help.clickup.com/hc/en-us/articles/36926065055127-Super-Agent-privacy-security-and-permissions"
+        ]
+      },
+      "durability": {
+        "state": "not_established",
+        "note": "Activity/audit logs and triggers documented; crash/replay/external-effect semantics not established.",
+        "urls": [
+          "https://help.clickup.com/hc/en-us/articles/36487554975255-How-can-Super-Agents-help-your-team"
+        ]
+      },
+      "costControls": {
+        "state": "documented",
+        "note": "Credits pooled per workspace, cost/action views and grace periods when exceeded. Hard monetary ceilings differ from credit usage limits.",
+        "urls": [
+          "https://help.clickup.com/hc/en-us/articles/37837088720151-How-are-AI-Credits-consumed",
+          "https://clickup.com/pricing"
+        ]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Hosted work platform/AI provider suite. Full self-hosting and arbitrary local model routing not established.",
+        "urls": ["https://clickup.com/pricing"]
+      }
+    },
+    "sources": [
+      {
+        "title": "Super Agent tasks and teams",
+        "url": "https://help.clickup.com/hc/en-us/articles/36487554975255-How-can-Super-Agents-help-your-team"
+      },
+      {
+        "title": "Privacy and permissions",
+        "url": "https://help.clickup.com/hc/en-us/articles/36926065055127-Super-Agent-privacy-security-and-permissions"
+      },
+      {
+        "title": "Memory",
+        "url": "https://help.clickup.com/hc/en-us/articles/37038846655383-What-is-Super-Agent-Memory"
+      },
+      {
+        "title": "Credits",
+        "url": "https://help.clickup.com/hc/en-us/articles/37837088720151-How-are-AI-Credits-consumed"
+      },
+      {
+        "title": "Pricing",
+        "url": "https://clickup.com/pricing"
+      }
+    ]
+  },
+  {
+    "name": "Asana AI Teammates / Dash / AI Studio",
+    "category": "Incumbent agentic work management",
+    "relationship": "direct",
+    "customer": "Cross-functional teams already using Asana projects, portfolios and approvals.",
+    "status": "AI Teammates/Dash documented on all paid plans; September 2026 usage packaging supersedes older beta-only material.",
+    "summary": "Shared project-context role agents plus chief-of-staff routing and no-code structured workflows.",
+    "strength": "Work Graph distribution, explicit human-agent work, governance and completed-unit billing.",
+    "opportunity": "Small-team artifact-first quality and recovery proof with less setup; scoped identity, checkpoints and review are already documented.",
+    "pricing": "Starter $10.99/user/month billed annually includes 5 Teammate/Dash requests per user up to 50/account and 50,000 Studio credits/account/month. Additional request/credit pricing not established.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Agents work in projects, split tasks into subtasks, leave comments, coordinate work; Dash routes work and Studio handles fixed flows.",
+        "urls": [
+          "https://asana.com/product/ai/ai-teammates",
+          "https://asana.com/product/ai/ai-studio"
+        ]
+      },
+      "artifactReview": {
+        "state": "documented",
+        "note": "Reviewing work, creative asset approval and human checkpoints explicitly documented. Immutable exact-byte/policy acceptance guarantees not established.",
+        "urls": [
+          "https://asana.com/product/ai/ai-teammates",
+          "https://asana.com/product/ai/ai-studio"
+        ]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Shared team memory and Work Graph context marketed/documented; precise source-revocation semantics require verification.",
+        "urls": ["https://asana.com/product/ai/ai-teammates"]
+      },
+      "durability": {
+        "state": "documented",
+        "note": "Checkpointable/reversible actions advertised. Worker-crash guarantees and ambiguous external-effect handling not established.",
+        "urls": ["https://asana.com/product/ai/ai-teammates"]
+      },
+      "costControls": {
+        "state": "documented",
+        "note": "Identity/spend controls and shared AI Requests. Successfully completed units count; failures/cancellations not charged as requests in official usage material, which browser fetch cannot render consistently.",
+        "urls": [
+          "https://asana.com/product/ai/ai-teammates",
+          "https://asana.com/pricing",
+          "https://help.asana.com/s/article/understanding-asana-ai-requests-and-usage-allocation?language=en_US"
+        ]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Hosted existing work platform and connected tools; self-hosted core/arbitrary local model policy not established.",
+        "urls": [
+          "https://asana.com/product/ai/ai-studio",
+          "https://asana.com/product/ai/ai-teammates"
+        ]
+      }
+    },
+    "sources": [
+      {
+        "title": "AI Teammates",
+        "url": "https://asana.com/product/ai/ai-teammates"
+      },
+      {
+        "title": "AI Studio",
+        "url": "https://asana.com/product/ai/ai-studio"
+      },
+      {
+        "title": "Current pricing",
+        "url": "https://asana.com/pricing"
+      },
+      {
+        "title": "AI request allocation, render limitations noted",
+        "url": "https://help.asana.com/s/article/understanding-asana-ai-requests-and-usage-allocation?language=en_US"
+      }
+    ]
+  },
+  {
+    "name": "monday AI agents",
+    "category": "Incumbent work platform and agent marketplace",
+    "relationship": "direct",
+    "customer": "Teams running monday boards, docs, CRM and service workflows.",
+    "status": "Agents available on monday AI platform; availability on all products coming soon; certain agent APIs are preview.",
+    "summary": "Custom/expert agents in boards, with jobs/triggers, tools, model selection, memory and artifact library.",
+    "strength": "Native operational data, visual live work, undo, shared agents, external-agent pathway and marketplace.",
+    "opportunity": "Exact quality acceptance and current-source authority with strong recovery tests; board agents, editable memory and bring-your-agent are already present.",
+    "pricing": "Single shared AI credit pool; official catalog lists USD $0.01/credit. Agents use complexity-dependent credits; subscription/bucket price and product availability must be verified separately.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Assign agents board items, run multi-agent flows and jobs; native boards/docs with scoped edit rights.",
+        "urls": [
+          "https://support.monday.com/hc/en-us/articles/33347027353746-AI-Agents-on-monday-com",
+          "https://support.monday.com/hc/en-us/articles/38411316441874-Run-and-manage-your-AI-agents"
+        ]
+      },
+      "artifactReview": {
+        "state": "documented",
+        "note": "Central artifact library and activity undo; formal immutable revision-bound independent quality acceptance not established.",
+        "urls": [
+          "https://support.monday.com/hc/en-us/articles/38411316441874-Run-and-manage-your-AI-agents"
+        ]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Memory across runs, inspectable/manageable/disableable; shared agents retain private context after explicit sharing review.",
+        "urls": [
+          "https://support.monday.com/hc/en-us/articles/38411316441874-Run-and-manage-your-AI-agents"
+        ]
+      },
+      "durability": {
+        "state": "documented",
+        "note": "Activity status, failed/partial-run diagnostics, pause and undo documented. Crash-safe receipt and unknown-effect semantics not established.",
+        "urls": [
+          "https://support.monday.com/hc/en-us/articles/38411316441874-Run-and-manage-your-AI-agents"
+        ]
+      },
+      "costControls": {
+        "state": "documented",
+        "note": "Shared credits, per-feature/user monitoring, usage limits and 80%/100% alerts; agent credit usage may arrive about 15 minutes after execution.",
+        "urls": [
+          "https://support.monday.com/hc/en-us/articles/36207944364434-AI-Models-and-Credits-understanding-and-optimizing-consumption",
+          "https://support.monday.com/hc/en-us/articles/24047211522194-AI-Feature-Catalog"
+        ]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Hosted monday platform, selectable orchestrator models and Bring Your Own Agent. Complete self-hosting not established.",
+        "urls": [
+          "https://support.monday.com/hc/en-us/articles/33347027353746-AI-Agents-on-monday-com",
+          "https://support.monday.com/hc/en-us/articles/36207944364434-AI-Models-and-Credits-understanding-and-optimizing-consumption"
+        ]
+      }
+    },
+    "sources": [
+      {
+        "title": "AI agents",
+        "url": "https://support.monday.com/hc/en-us/articles/33347027353746-AI-Agents-on-monday-com"
+      },
+      {
+        "title": "Run, memory, artifacts, sharing",
+        "url": "https://support.monday.com/hc/en-us/articles/38411316441874-Run-and-manage-your-AI-agents"
+      },
+      {
+        "title": "Models and consumption",
+        "url": "https://support.monday.com/hc/en-us/articles/36207944364434-AI-Models-and-Credits-understanding-and-optimizing-consumption"
+      },
+      {
+        "title": "AI catalog and credit cost",
+        "url": "https://support.monday.com/hc/en-us/articles/24047211522194-AI-Feature-Catalog"
+      },
+      {
+        "title": "Agentalent launch",
+        "url": "https://monday.com/p/press-release/monday-com-launches-agentalent-ai-a-hiring-platform-for-enterprise-ai-agents/"
+      }
+    ]
+  },
+  {
+    "name": "Notion Custom Agents",
+    "category": "Knowledge/project workspace agents",
+    "relationship": "direct",
+    "customer": "Teams whose knowledge, pages and database workflows already live in Notion.",
+    "status": "Available on Business/Enterprise; Workers mentioned in current usage docs are beta.",
+    "summary": "Shared background agents on page/database/Slack triggers, explicit access and delegated agents.",
+    "strength": "Knowledge and work in one familiar workspace with configuration history, model selection and granular sharing.",
+    "opportunity": "Permission-aware derived-memory chain and stricter pre-dispatch budget reservation; no claim that autonomous scheduled knowledge work is missing.",
+    "pricing": "Custom Agents use shared Notion credits, $10/1,000 monthly credits; Business/Enterprise base plan required. Retrieved base page localized to EUR; no invented USD seat comparison.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Pages/database work, automatic schedules/events, task creation and delegation to accessible Custom Agents.",
+        "urls": ["https://www.notion.com/help/custom-agents"]
+      },
+      "artifactReview": {
+        "state": "documented",
+        "note": "Agent configuration version history and reviewable/reversible runs; formal exact-output revision acceptance not established.",
+        "urls": ["https://www.notion.com/help/custom-agents"]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Explicitly scoped pages/databases/apps and workspace context; derived memory provenance/revocation semantics not established.",
+        "urls": ["https://www.notion.com/help/custom-agents"]
+      },
+      "durability": {
+        "state": "documented",
+        "note": "Background triggers, activity logs and historical configuration restore; full crash/replay/external-effect contract not established.",
+        "urls": ["https://www.notion.com/help/custom-agents"]
+      },
+      "costControls": {
+        "state": "documented",
+        "note": "Credit dashboard and per-agent limits, but already-running tasks can finish beyond limit; workspace exhaustion pauses agents.",
+        "urls": [
+          "https://www.notion.com/help/track-usage-in-the-notion-credits-dashboard",
+          "https://www.notion.com/help/buy-and-track-notion-credits-for-custom-agents"
+        ]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Hosted workspace with model choices, MCP and web toggle. Arbitrary local-provider execution/full self-hosted core not established.",
+        "urls": ["https://www.notion.com/help/custom-agents"]
+      }
+    },
+    "sources": [
+      {
+        "title": "Custom Agents",
+        "url": "https://www.notion.com/help/custom-agents"
+      },
+      {
+        "title": "Agent pricing",
+        "url": "https://www.notion.com/help/buy-and-track-notion-credits-for-custom-agents"
+      },
+      {
+        "title": "Usage dashboard and overruns",
+        "url": "https://www.notion.com/help/track-usage-in-the-notion-credits-dashboard"
+      },
+      {
+        "title": "Localized base pricing",
+        "url": "https://www.notion.com/pricing"
+      }
+    ]
+  },
+  {
+    "name": "Airtable Omni / Field Agents",
+    "category": "Structured-data app and workflow platform",
+    "relationship": "direct",
+    "customer": "Teams with structured operational records, campaign data, catalogs and custom apps.",
+    "status": "Available; image support and specific agent types vary by plan/Labs.",
+    "summary": "Omni builds apps/analyzes data; field agents retrieve, analyze and generate data per record.",
+    "strength": "Persistent relational operational truth, high-volume row work and configurable user-facing apps.",
+    "opportunity": "Artifact acceptance/evidence spanning a project across tools; preserve data strengths through integration instead of rebuilding databases.",
+    "pricing": "Team $20/editor/month annual, Business $45/editor/month annual; included shared AI credits. Extra 10,000 monthly AI credits $20/month or $200/year. Omni app-building and record updates are free per billing guide.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Structured records, interfaces, apps and automations; agents embedded in operational records rather than equivalent human/agent project roles.",
+        "urls": [
+          "https://www.airtable.com/platform/ai",
+          "https://support.airtable.com/articles/8052242094-using-airtable-ai-in-fields"
+        ]
+      },
+      "artifactReview": {
+        "state": "documented",
+        "note": "Field-agent configuration preview and generated outputs; project-level immutable independent acceptance contract not established.",
+        "urls": ["https://support.airtable.com/articles/8052242094-using-airtable-ai-in-fields"]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Record/linked-field context and document/web analysis; no blanket claim of permission-safe generated output.",
+        "urls": ["https://support.airtable.com/articles/8052242094-using-airtable-ai-in-fields"]
+      },
+      "durability": {
+        "state": "not_established",
+        "note": "Persistent data/automations documented. Agent worker crash/ambiguous-write receipt contracts not established from reviewed sources.",
+        "urls": ["https://www.airtable.com/platform/ai"]
+      },
+      "costControls": {
+        "state": "documented",
+        "note": "Shared included credits, pack purchase and 75% warning; official billing FAQ says day-by-day/historical AI credit timeline is unavailable.",
+        "urls": ["https://support.airtable.com/articles/3378106230-airtable-ai-billing"]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Hosted platform with multiple model providers; external AI instances not integrated per billing guide, dated June 2025 model list requires verification.",
+        "urls": ["https://support.airtable.com/articles/3378106230-airtable-ai-billing"]
+      }
+    },
+    "sources": [
+      {
+        "title": "AI platform",
+        "url": "https://www.airtable.com/platform/ai"
+      },
+      {
+        "title": "Field agents, updated October 5 2026",
+        "url": "https://support.airtable.com/articles/8052242094-using-airtable-ai-in-fields"
+      },
+      {
+        "title": "Pricing",
+        "url": "https://airtable.com/pricing"
+      },
+      {
+        "title": "AI billing",
+        "url": "https://support.airtable.com/articles/3378106230-airtable-ai-billing"
+      }
+    ]
+  },
+  {
+    "name": "Bardeen",
+    "category": "Browser and GTM automation",
+    "relationship": "adjacent",
+    "customer": "Sales, revenue operations and agencies sourcing/enriching leads across browser and CRM tools.",
+    "status": "Available; current pricing differs from older credit docs and vendor SEO pages.",
+    "summary": "Scrapers, enrichment and multi-app playbooks focused on GTM data work.",
+    "strength": "Specific GTM jobs, browser sourcing and simple output-row economics.",
+    "opportunity": "Consume it as a tool; broader evidence-backed project delivery is a different job from lead automation.",
+    "pricing": "Basic $10/month +100 credits/month; Premium $50/month +1,000 or $480/year +12,000 annual credits. Current pricing counts action output rows (1 credit), enrichment (3), with free import/utilities.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Multi-app GTM playbooks and workflow collaboration; independent AI/human project workforce not established.",
+        "urls": ["https://www.bardeen.ai/pricing"]
+      },
+      "artifactReview": {
+        "state": "not_established",
+        "note": "CSV results and builder/test-mode validation; immutable reviewed project artifacts/acceptance not established.",
+        "urls": [
+          "https://www.bardeen.ai/pricing",
+          "https://support.bardeen.ai/hc/en-us/articles/29239933939853-How-many-credits-do-I-need"
+        ]
+      },
+      "memoryEvidence": {
+        "state": "not_established",
+        "note": "Source data moved between business systems; persistent project decision/evidence memory not established.",
+        "urls": ["https://www.bardeen.ai/pricing"]
+      },
+      "durability": {
+        "state": "not_established",
+        "note": "Scheduled/always-on workflows exist in product material; current crash-safe replay/unknown-effect behavior not established.",
+        "urls": ["https://www.bardeen.ai/pricing"]
+      },
+      "costControls": {
+        "state": "documented",
+        "note": "Output-row/action credit units and expiry; older support calls each action one credit, so verify current behavior on target playbook.",
+        "urls": [
+          "https://www.bardeen.ai/pricing",
+          "https://support.bardeen.ai/hc/en-us/articles/29239933939853-How-many-credits-do-I-need"
+        ]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Hosted/browser automation platform; arbitrary model/local orchestration/full self-hosting not established.",
+        "urls": ["https://www.bardeen.ai/pricing"]
+      }
+    },
+    "sources": [
+      {
+        "title": "Current pricing and use cases",
+        "url": "https://www.bardeen.ai/pricing"
+      },
+      {
+        "title": "Older usage docs, discrepancy noted",
+        "url": "https://support.bardeen.ai/hc/en-us/articles/29239933939853-How-many-credits-do-I-need"
+      }
+    ]
+  },
+  {
+    "name": "Hyperagent (superagent.com redirect)",
+    "category": "General agent fleet",
+    "relationship": "direct",
+    "customer": "Individuals/teams commissioning recurring reports, research and content from role agents.",
+    "status": "Current official site available; prior Superagent URL redirects; ownership/pricing/package details require verification.",
+    "summary": "Agent fleet with own computing environments, steerable plans, artifacts and Slack delivery.",
+    "strength": "Very direct outcome-oriented multi-agent work and self-built memory/skills.",
+    "opportunity": "Prove exact-revision acceptance, accountable project handoffs and scope/budget controls; ownership or historical brand features must not be assumed.",
+    "pricing": "Current subscription/usage tariff not established; dollar/time examples on landing page are task demonstrations, not plan prices.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Role agents, steerable plans and recurring delivery advertised; full shared board/permissions behavior not established.",
+        "urls": ["https://www.hyperagent.com/"]
+      },
+      "artifactReview": {
+        "state": "documented",
+        "note": "Artifacts and polished deliverables advertised; independent exact-revision quality review and acceptance not established.",
+        "urls": ["https://www.hyperagent.com/"]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Site says agents generate memories and skills as they work; provenance/privacy semantics not established.",
+        "urls": ["https://www.hyperagent.com/"]
+      },
+      "durability": {
+        "state": "not_established",
+        "note": "Recurring upkeep promised; crash-safe workflow state, retries and external-effect receipts not established.",
+        "urls": ["https://www.hyperagent.com/"]
+      },
+      "costControls": {
+        "state": "not_established",
+        "note": "Landing-page examples show per-job time and dollar amounts; enforceable spend/usage cap behavior not established.",
+        "urls": ["https://www.hyperagent.com/"]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Each agent has its own compute environment and Slack integration; full self-hosting/local-provider support not established.",
+        "urls": ["https://www.hyperagent.com/"]
+      }
+    },
+    "sources": [
+      {
+        "title": "Current landing page",
+        "url": "https://www.hyperagent.com/"
+      }
+    ]
+  }
+]

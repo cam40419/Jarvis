@@ -43,6 +43,17 @@ from simon.domain.models import (
     utc_now,
 )
 from simon.domain.native_agents import NativeAgent, NativeAgentCredential, NativeTeamPolicy
+from simon.domain.native_artifacts import (
+    ARTIFACT_MUTABLE_FIELDS,
+    ARTIFACT_REVIEW_MUTABLE_FIELDS,
+    NativeArtifact,
+    NativeArtifactCheck,
+    NativeArtifactDecision,
+    NativeArtifactReview,
+    NativeArtifactRevision,
+    NativeReviewPolicy,
+)
+from simon.domain.native_delivery import NativeDeliveryPacket
 from simon.domain.native_execution import (
     EXECUTION_RUN_MUTABLE_FIELDS,
     EXECUTION_RUNNER_MUTABLE_FIELDS,
@@ -104,6 +115,17 @@ EXECUTION_MUTABLE = {
     "native_execution_schedules": EXECUTION_SCHEDULE_MUTABLE_FIELDS,
     "native_execution_runners": EXECUTION_RUNNER_MUTABLE_FIELDS,
 }
+ARTIFACT_MODELS: dict[str, type[BaseModel]] = {
+    "native_artifacts": NativeArtifact,
+    "native_artifact_revisions": NativeArtifactRevision,
+    "native_review_policies": NativeReviewPolicy,
+    "native_artifact_checks": NativeArtifactCheck,
+    "native_artifact_reviews": NativeArtifactReview,
+    "native_artifact_decisions": NativeArtifactDecision,
+    "native_delivery_packets": NativeDeliveryPacket,
+}
+ARTIFACT_KEYS = dict.fromkeys(ARTIFACT_MODELS, "id")
+ARTIFACT_KEYS["native_review_policies"] = "project_id"
 
 
 class InMemoryStore:
@@ -159,6 +181,7 @@ class InMemoryStore:
         self._execution_records: dict[str, dict[UUID, Any]] = {
             name: {} for name in EXECUTION_MODELS
         }
+        self._artifact_records: dict[str, dict[UUID, Any]] = {name: {} for name in ARTIFACT_MODELS}
 
     @contextmanager
     def transaction(self, workspace_id: UUID | None = None) -> Iterator[None]:
@@ -205,6 +228,7 @@ class InMemoryStore:
                     self._model_resource_policies,
                     self._model_usage,
                     self._execution_records,
+                    self._artifact_records,
                 )
             )
             try:
@@ -251,8 +275,522 @@ class InMemoryStore:
                     self._model_resource_policies,
                     self._model_usage,
                     self._execution_records,
+                    self._artifact_records,
                 ) = snapshot
                 raise
+
+    def _artifact_get(
+        self, table: str, workspace_id: UUID, project_id: UUID, identifier: UUID
+    ) -> Any:
+        with self._lock:
+            value = self._artifact_records[table].get(identifier)
+            return (
+                value.model_copy(deep=True)
+                if value is not None
+                and (value.workspace_id, value.project_id) == (workspace_id, project_id)
+                else None
+            )
+
+    def _artifact_list(
+        self,
+        table: str,
+        workspace_id: UUID,
+        project_id: UUID,
+        filters: dict[str, Any] | None = None,
+        *,
+        offset: int = 0,
+        limit: int | None = None,
+    ) -> tuple[Any, ...]:
+        with self._lock:
+            values = [
+                value
+                for value in self._artifact_records[table].values()
+                if (value.workspace_id, value.project_id) == (workspace_id, project_id)
+                and all(
+                    (value.task_id == expected or value.pending_repair_task_id == expected)
+                    if field == "artifact_task"
+                    else getattr(value, field) == expected
+                    for field, expected in (filters or {}).items()
+                )
+            ]
+            order = "sequence" if table == "native_artifact_revisions" else "created_at"
+            values.sort(key=lambda item: (getattr(item, order), item.id))
+            return tuple(
+                value.model_copy(deep=True)
+                for value in values[offset : None if limit is None else offset + limit]
+            )
+
+    def _artifact_write(self, table: str, value: Any, expected_version: int | None) -> None:
+        identifier = getattr(value, ARTIFACT_KEYS[table])
+        if expected_version in {None, 0} and identifier in self._artifact_records[table]:
+            raise InvalidTransitionError("Artifact identifier already exists.")
+        self._artifact_records[table][identifier] = value.model_copy(deep=True)
+
+    def _artifact_validate(self, table: str, value: Any, previous: Any) -> None:
+        ws, pid = value.workspace_id, value.project_id
+        if self.native_project(ws, pid) is None:
+            raise InvalidTransitionError("Artifact project is unavailable.")
+        human = (
+            getattr(value, "created_by", None)
+            or getattr(value, "requested_by", None)
+            or getattr(value, "decided_by", None)
+        )
+        if (
+            previous is None
+            and human is not None
+            and not any(item.workspace_id == ws for item in self.memberships(human))
+        ):
+            raise InvalidTransitionError("Artifact actor is outside its workspace.")
+        author = getattr(value, "created_by_agent_id", None)
+        if author is not None and self.native_agent(ws, pid, author) is None:
+            raise InvalidTransitionError("Artifact author is outside its project.")
+        if isinstance(value, NativeDeliveryPacket):
+            self._delivery_validate(value)
+            return
+        if isinstance(value, NativeReviewPolicy):
+            if (
+                value.reviewer_agent_id is not None
+                and self.native_agent(ws, pid, value.reviewer_agent_id) is None
+            ):
+                raise InvalidTransitionError("Review agent is outside its project.")
+            return
+        if isinstance(value, NativeArtifact):
+            if self.native_task(ws, pid, value.task_id) is None:
+                raise InvalidTransitionError("Artifact task is outside its project.")
+            if any(item.id != value.id for item in self.artifacts(ws, pid, value.task_id)):
+                raise InvalidTransitionError("A task already belongs to a logical deliverable.")
+            if value.pending_repair_task_id is not None and (
+                value.pending_repair_task_id == value.task_id
+                or self.native_task(ws, pid, value.pending_repair_task_id) is None
+            ):
+                raise InvalidTransitionError("Artifact repair task is outside its project.")
+            if value.pending_repair_task_id is not None and any(
+                item.id != value.id
+                for item in self.artifacts(ws, pid, value.pending_repair_task_id)
+            ):
+                raise InvalidTransitionError("The repair task already belongs to another artifact.")
+            if previous is None and value.current_revision_id is not None:
+                raise InvalidTransitionError(
+                    "A new artifact cannot identify an unpublished revision."
+                )
+            if previous is not None and previous.current_revision_id != value.current_revision_id:
+                head = (
+                    self.artifact_revision(ws, pid, value.current_revision_id)
+                    if value.current_revision_id
+                    else None
+                )
+                old = (
+                    self.artifact_revision(ws, pid, previous.current_revision_id)
+                    if previous.current_revision_id
+                    else None
+                )
+                if (
+                    head is None
+                    or head.artifact_id != value.id
+                    or head.parent_revision_id != previous.current_revision_id
+                    or head.sequence != (old.sequence + 1 if old else 1)
+                ):
+                    raise InvalidTransitionError(
+                        "Artifact head must advance to its next immutable revision."
+                    )
+            return
+        if isinstance(value, NativeArtifactRevision):
+            artifact = self.artifact(ws, pid, value.artifact_id)
+            if (
+                artifact is None
+                or value.task_id not in {artifact.task_id, artifact.pending_repair_task_id}
+                or self.native_task(ws, pid, value.task_id) is None
+            ):
+                raise InvalidTransitionError("Artifact revision task or artifact is unavailable.")
+            parent = (
+                self.artifact_revision(ws, pid, value.parent_revision_id)
+                if value.parent_revision_id
+                else None
+            )
+            if value.parent_revision_id != artifact.current_revision_id or (
+                value.sequence != (parent.sequence + 1 if parent else 1)
+                or (parent is not None and parent.artifact_id != artifact.id)
+            ):
+                raise InvalidTransitionError("Artifact revision must extend the current head.")
+            if any(
+                item.sequence == value.sequence
+                for item in self.artifact_revisions(ws, pid, artifact.id, limit=None)
+            ):
+                raise InvalidTransitionError("Artifact revision sequence already exists.")
+            if value.run_id is not None:
+                run = self.execution_run(ws, pid, value.run_id)
+                if (
+                    run is None
+                    or run.task_id != value.task_id
+                    or run.agent_id != value.created_by_agent_id
+                ):
+                    raise InvalidTransitionError(
+                        "Artifact revision execution or author does not match."
+                    )
+            return
+        revision = self.artifact_revision(ws, pid, value.revision_id)
+        if revision is None or revision.sha256 != value.sha256:
+            raise InvalidTransitionError(
+                "Review authority must identify the exact published content."
+            )
+        if isinstance(value, NativeArtifactCheck):
+            if any(
+                item.check_name == value.check_name
+                for item in self.artifact_checks(ws, pid, revision.id)
+            ):
+                raise InvalidTransitionError("Deterministic artifact check already exists.")
+            return
+        artifact = self.artifact(ws, pid, value.artifact_id)
+        if artifact is None or revision.artifact_id != artifact.id:
+            raise InvalidTransitionError("Review revision belongs to another artifact.")
+        if isinstance(value, NativeArtifactReview):
+            reviewer = self.native_agent(ws, pid, value.reviewer_agent_id)
+            task = self.native_task(ws, pid, artifact.task_id)
+            maker_ids = {
+                revision.created_by_agent_id,
+                artifact.created_by_agent_id,
+                task.assignment.agent_id if task else None,
+            }
+            if reviewer is None or (previous is None and value.reviewer_agent_id in maker_ids):
+                raise InvalidTransitionError(
+                    "Artifact review requires an independent project agent."
+                )
+            if self.project_model(ws, pid, value.model_id) is None:
+                raise InvalidTransitionError("Review model is outside its project.")
+            if value.usage_id is not None:
+                usage = self.model_usage(ws, pid, value.usage_id)
+                if usage is None or usage.model_id != value.model_id:
+                    raise InvalidTransitionError(
+                        "Review usage belongs to another model or project."
+                    )
+            if previous is None:
+                if value.review_task_id is not None:
+                    review_task = self.native_task(ws, pid, value.review_task_id)
+                    if (
+                        review_task is None
+                        or review_task.id in {artifact.task_id, revision.task_id}
+                        or review_task.version != value.review_task_version
+                        or review_task.assignment.agent_id != value.reviewer_agent_id
+                    ):
+                        raise InvalidTransitionError(
+                            "Review task must match its independent reviewer and captured version."
+                        )
+                if (
+                    value.status != "running"
+                    or artifact.current_revision_id != revision.id
+                    or value.artifact_version != artifact.version
+                ):
+                    raise InvalidTransitionError(
+                        "A review must start against the current artifact head."
+                    )
+                policy = self.review_policy(ws, pid)
+                task = self.native_task(ws, pid, artifact.task_id)
+                project = self.native_project(ws, pid)
+                model = self.project_model(ws, pid, value.model_id)
+                if (
+                    value.policy_version != (policy.version if policy else 0)
+                    or task is None
+                    or task.version != value.task_version
+                    or project is None
+                    or project.version != value.project_version
+                    or reviewer.version != value.reviewer_version
+                    or model is None
+                    or model.version != value.model_version
+                ):
+                    raise InvalidTransitionError("Review authority versions are stale.")
+                for item in self._artifact_list("native_artifact_reviews", ws, pid):
+                    if (
+                        item.requested_by == value.requested_by
+                        and item.idempotency_key == value.idempotency_key
+                    ) or (item.artifact_id == value.artifact_id and item.status == "running"):
+                        raise InvalidTransitionError("Artifact review attempt already exists.")
+            elif previous.status != "running" and not (
+                previous.status == "unknown" and value.status == "cancelled"
+            ):
+                raise InvalidTransitionError("Settled artifact reviews are immutable.")
+            return
+        if isinstance(value, NativeArtifactDecision):
+            if value.review_id is not None:
+                review = self.artifact_review(ws, pid, value.review_id)
+                if (
+                    review is None
+                    or review.revision_id != revision.id
+                    or review.sha256 != value.sha256
+                ):
+                    raise InvalidTransitionError("Decision review identifies different content.")
+            if (
+                value.repair_task_id is not None
+                and self.native_task(ws, pid, value.repair_task_id) is None
+            ):
+                raise InvalidTransitionError("Decision repair task is outside its project.")
+
+    def _delivery_validate(self, packet: NativeDeliveryPacket) -> None:
+        ws, pid = packet.workspace_id, packet.project_id
+        workspace_member = next(
+            (item for item in self.memberships(packet.created_by) if item.workspace_id == ws), None
+        )
+        if workspace_member is None or (
+            workspace_member.role != "owner"
+            and self.native_project_member(ws, pid, packet.created_by) is None
+        ):
+            raise InvalidTransitionError("Delivery creator is outside its project.")
+        project = self.native_project(ws, pid)
+        policy = self.review_policy(ws, pid)
+        if (
+            project is None
+            or project.version != packet.manifest.project_version
+            or (policy.version if policy else 0) != packet.manifest.policy_version
+        ):
+            raise InvalidTransitionError("Delivery project or review policy snapshot changed.")
+        if packet.previous_packet_id is not None:
+            parent = self.delivery_packet(ws, pid, packet.previous_packet_id)
+            if parent is None or packet.sequence != parent.sequence + 1:
+                raise InvalidTransitionError(
+                    "Delivery predecessor must be the prior scoped packet."
+                )
+            if self._artifact_list(
+                "native_delivery_packets",
+                ws,
+                pid,
+                {"previous_packet_id": packet.previous_packet_id},
+                limit=1,
+            ):
+                raise InvalidTransitionError("The delivery packet already has a successor.")
+        for component in packet.manifest.components:
+            artifact = self.artifact(ws, pid, component.artifact_id)
+            revision = self.artifact_revision(ws, pid, component.revision_id)
+            task = self.native_task(ws, pid, artifact.task_id) if artifact else None
+            if (
+                artifact is None
+                or revision is None
+                or task is None
+                or (
+                    revision.artifact_id != component.artifact_id
+                    or artifact.current_revision_id != revision.id
+                    or revision.sha256 != component.sha256
+                    or revision.filename != component.filename
+                    or revision.media_type != component.media_type
+                    or revision.size_bytes != component.size_bytes
+                    or artifact.version != component.artifact_version
+                    or task.version != component.task_version
+                )
+            ):
+                raise InvalidTransitionError(
+                    "Delivery component must match its exact scoped revision and snapshot versions."
+                )
+            checks = {item.id: item for item in self.artifact_checks(ws, pid, revision.id)}
+            decisions = {item.id: item for item in self.artifact_decisions(ws, pid, revision.id)}
+            if any(checks.get(item.id) != item for item in component.checks) or any(
+                decisions.get(item.id) != item for item in component.decisions
+            ):
+                raise InvalidTransitionError(
+                    "Delivery evidence must match its immutable persisted records."
+                )
+            for state in component.review_states:
+                review = self.artifact_review(ws, pid, state.id)
+                if review is None or (review.artifact_id, review.revision_id, review.sha256) != (
+                    artifact.id,
+                    revision.id,
+                    revision.sha256,
+                ):
+                    raise InvalidTransitionError(
+                        "Delivery review belongs to different scoped content."
+                    )
+                if (review.version, review.status, review.verdict) != (
+                    state.version,
+                    state.status,
+                    state.verdict,
+                ):
+                    raise InvalidTransitionError("Delivery review state changed before capture.")
+        sources = {item.id: item for item in self.native_intake_sources(ws, pid)}
+        if any(
+            identifier not in sources or sources[identifier].revoked_at is not None
+            for identifier in packet.manifest.source_revision_ids
+        ):
+            raise InvalidTransitionError(
+                "Delivery intake evidence is missing, revoked or outside its project."
+            )
+
+    def delivery_packet(
+        self, workspace_id: UUID, project_id: UUID, packet_id: UUID
+    ) -> NativeDeliveryPacket | None:
+        return cast(
+            NativeDeliveryPacket | None,
+            self._artifact_get("native_delivery_packets", workspace_id, project_id, packet_id),
+        )
+
+    def delivery_packets(
+        self, workspace_id: UUID, project_id: UUID, offset: int = 0, limit: int = 50
+    ) -> tuple[NativeDeliveryPacket, ...]:
+        return self._artifact_list(
+            "native_delivery_packets", workspace_id, project_id, offset=offset, limit=limit
+        )
+
+    def delivery_packet_successor(
+        self, workspace_id: UUID, project_id: UUID, packet_id: UUID
+    ) -> NativeDeliveryPacket | None:
+        rows = self._artifact_list(
+            "native_delivery_packets",
+            workspace_id,
+            project_id,
+            {"previous_packet_id": packet_id},
+            limit=1,
+        )
+        return rows[0] if rows else None
+
+    def insert_delivery_packet(self, value: NativeDeliveryPacket) -> None:
+        self._artifact_save("native_delivery_packets", value, None)
+
+    def _artifact_save(self, table: str, value: Any, expected_version: int | None) -> None:
+        with self.transaction(value.workspace_id):
+            try:
+                value = ARTIFACT_MODELS[table].model_validate(value.model_dump())
+            except ValueError as exc:
+                raise InvalidTransitionError("Invalid artifact record.") from exc
+            previous = self._artifact_get(
+                table, value.workspace_id, value.project_id, getattr(value, ARTIFACT_KEYS[table])
+            )
+            if expected_version is None:
+                if previous is not None or getattr(value, "version", 1) != 1:
+                    raise InvalidTransitionError(
+                        "Artifact record exists or has an invalid initial version."
+                    )
+            elif (
+                getattr(previous, "version", 0) != expected_version
+                or value.version != expected_version + 1
+            ):
+                raise InvalidTransitionError("Artifact record changed. Reload before retrying.")
+            if previous is not None and table != "native_review_policies":
+                mutable = (
+                    ARTIFACT_MUTABLE_FIELDS
+                    if table == "native_artifacts"
+                    else ARTIFACT_REVIEW_MUTABLE_FIELDS
+                )
+                if value.model_dump(exclude=mutable) != previous.model_dump(exclude=mutable):
+                    raise InvalidTransitionError(
+                        "Artifact identity and review inputs are immutable."
+                    )
+            self._artifact_validate(table, value, previous)
+            self._artifact_write(table, value, expected_version)
+
+    def artifact(
+        self, workspace_id: UUID, project_id: UUID, artifact_id: UUID
+    ) -> NativeArtifact | None:
+        return cast(
+            NativeArtifact | None,
+            self._artifact_get("native_artifacts", workspace_id, project_id, artifact_id),
+        )
+
+    def artifacts(
+        self,
+        workspace_id: UUID,
+        project_id: UUID,
+        task_id: UUID | None = None,
+        offset: int = 0,
+        limit: int = 50,
+    ) -> tuple[NativeArtifact, ...]:
+        return self._artifact_list(
+            "native_artifacts",
+            workspace_id,
+            project_id,
+            {"artifact_task": task_id} if task_id else None,
+            offset=offset,
+            limit=limit,
+        )
+
+    def insert_artifact(self, value: NativeArtifact) -> None:
+        self._artifact_save("native_artifacts", value, None)
+
+    def update_artifact(self, value: NativeArtifact, expected_version: int) -> None:
+        self._artifact_save("native_artifacts", value, expected_version)
+
+    def artifact_revision(
+        self, workspace_id: UUID, project_id: UUID, revision_id: UUID
+    ) -> NativeArtifactRevision | None:
+        return cast(
+            NativeArtifactRevision | None,
+            self._artifact_get("native_artifact_revisions", workspace_id, project_id, revision_id),
+        )
+
+    def artifact_revisions(
+        self,
+        workspace_id: UUID,
+        project_id: UUID,
+        artifact_id: UUID,
+        offset: int = 0,
+        limit: int | None = 50,
+    ) -> tuple[NativeArtifactRevision, ...]:
+        return self._artifact_list(
+            "native_artifact_revisions",
+            workspace_id,
+            project_id,
+            {"artifact_id": artifact_id},
+            offset=offset,
+            limit=limit,
+        )
+
+    def insert_artifact_revision(self, value: NativeArtifactRevision) -> None:
+        self._artifact_save("native_artifact_revisions", value, None)
+
+    def review_policy(self, workspace_id: UUID, project_id: UUID) -> NativeReviewPolicy | None:
+        return cast(
+            NativeReviewPolicy | None,
+            self._artifact_get("native_review_policies", workspace_id, project_id, project_id),
+        )
+
+    def save_review_policy(self, value: NativeReviewPolicy, expected_version: int) -> None:
+        self._artifact_save("native_review_policies", value, expected_version)
+
+    def artifact_checks(
+        self, workspace_id: UUID, project_id: UUID, revision_id: UUID
+    ) -> tuple[NativeArtifactCheck, ...]:
+        return self._artifact_list(
+            "native_artifact_checks", workspace_id, project_id, {"revision_id": revision_id}
+        )
+
+    def insert_artifact_check(self, value: NativeArtifactCheck) -> None:
+        self._artifact_save("native_artifact_checks", value, None)
+
+    def artifact_review(
+        self, workspace_id: UUID, project_id: UUID, review_id: UUID
+    ) -> NativeArtifactReview | None:
+        return cast(
+            NativeArtifactReview | None,
+            self._artifact_get("native_artifact_reviews", workspace_id, project_id, review_id),
+        )
+
+    def artifact_reviews(
+        self,
+        workspace_id: UUID,
+        project_id: UUID,
+        revision_id: UUID,
+        offset: int = 0,
+        limit: int | None = 50,
+    ) -> tuple[NativeArtifactReview, ...]:
+        return self._artifact_list(
+            "native_artifact_reviews",
+            workspace_id,
+            project_id,
+            {"revision_id": revision_id},
+            offset=offset,
+            limit=limit,
+        )
+
+    def insert_artifact_review(self, value: NativeArtifactReview) -> None:
+        self._artifact_save("native_artifact_reviews", value, None)
+
+    def update_artifact_review(self, value: NativeArtifactReview, expected_version: int) -> None:
+        self._artifact_save("native_artifact_reviews", value, expected_version)
+
+    def artifact_decisions(
+        self, workspace_id: UUID, project_id: UUID, revision_id: UUID
+    ) -> tuple[NativeArtifactDecision, ...]:
+        return self._artifact_list(
+            "native_artifact_decisions", workspace_id, project_id, {"revision_id": revision_id}
+        )
+
+    def insert_artifact_decision(self, value: NativeArtifactDecision) -> None:
+        self._artifact_save("native_artifact_decisions", value, None)
 
     def _execution_get(
         self, table: str, workspace_id: UUID, project_id: UUID, identifier: UUID

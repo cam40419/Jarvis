@@ -14,6 +14,8 @@
     <script src="/assets/native-intake.js" defer></script>
     <script src="/assets/native-models.js" defer></script>
     <script src="/assets/native-execution.js" defer></script>
+    <script src="/assets/native-artifacts.js" defer></script>
+    <script src="/assets/native-delivery.js" defer></script>
   </head>
   <body class="projects-page">
     <a class="np-skip" href="#np-main">Skip to projects</a>
@@ -84,6 +86,10 @@
             <button id="np-agents" class="np-button" type="button">Agents</button>
             <button id="np-models" class="np-button" type="button">Models &amp; usage</button>
             <button id="np-execution" class="np-button" type="button">Execution</button>
+            <button id="np-artifacts" class="np-button" type="button">
+              Artifacts &amp; review
+            </button>
+            <button id="np-delivery" class="np-button" type="button">Delivery packets</button>
             <button id="np-team" class="np-button" type="button">People</button>
             <button id="np-edit-project" class="np-button" type="button">Edit project</button>
           </div>
@@ -127,7 +133,8 @@
             tabindex="0"
           ></div>
           <p class="np-board-note">
-            In review tracks work awaiting review; artifact approval will be added separately.
+            In review tracks candidate work. Open Artifacts &amp; review to check a specific output
+            version and record acceptance or feedback.
           </p>
         </section>
       </section>
@@ -1207,6 +1214,318 @@
         <button id="ne-editor-cancel" class="np-button" type="button" hidden>Cancel edit</button>
         <button id="ne-save" class="np-button np-primary" type="submit" hidden>Save</button>
         <button id="ne-close" class="np-button" type="button">Done</button>
+      </div>
+    </dialog>
+    <dialog id="na-dialog" class="np-dialog ni-dialog" aria-labelledby="na-heading">
+      <div class="np-dialog-heading">
+        <p class="np-eyebrow">From candidate to accepted work</p>
+        <h2 id="na-heading" tabindex="-1">Artifacts &amp; review</h2>
+        <p id="na-project" class="np-muted"></p>
+        <p class="np-muted">
+          Inspect immutable output versions, independent review and evidence. Acceptance applies to
+          the exact version shown. Accepted work still needs separate publishing authority.
+        </p>
+      </div>
+      <div
+        id="na-feedback"
+        class="np-feedback"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      ></div>
+      <div id="na-uncertain" class="np-conflict" hidden>
+        <p>
+          The response could not be confirmed. Check the saved request or retry the same request
+          before continuing.
+        </p>
+        <div class="np-actions">
+          <button id="na-check" class="np-button" type="button">Check saved request</button>
+          <button id="na-retry" class="np-button" type="button">Retry same request</button>
+        </div>
+      </div>
+      <div class="ni-toolbar">
+        <p id="na-access" class="np-muted"></p>
+        <button id="na-refresh" class="np-button np-quiet" type="button">Refresh status</button>
+      </div>
+      <div id="na-overview">
+        <section aria-labelledby="na-policy-heading">
+          <h3 id="na-policy-heading">Review requirements</h3>
+          <p id="na-policy-summary" class="ni-objective"></p>
+          <div class="np-actions">
+            <button id="na-policy-edit" class="np-button" type="button" data-manage="true">
+              Review settings
+            </button>
+            <button
+              id="na-upload-new"
+              class="np-button np-primary"
+              type="button"
+              data-manage="true"
+            >
+              Upload artifact
+            </button>
+          </div>
+          <p class="np-field-help">
+            Each task has one artifact. Open an existing artifact to upload a revised version.
+          </p>
+        </section>
+        <section class="ni-section" aria-labelledby="na-list-heading">
+          <h3 id="na-list-heading">Project artifacts</h3>
+          <ul id="na-artifacts" class="ni-list"></ul>
+          <button id="na-more" class="np-button" type="button" hidden>Load more artifacts</button>
+        </section>
+      </div>
+      <div id="na-detail" hidden>
+        <h3 id="na-detail-heading" tabindex="-1"></h3>
+        <p id="na-detail-summary" class="np-muted"></p>
+        <div class="np-field">
+          <label for="na-revision">Output version</label>
+          <select id="na-revision"></select>
+          <p id="na-revision-summary" class="np-field-help"></p>
+        </div>
+        <section class="ni-preview" aria-labelledby="na-preview-heading">
+          <div class="ni-toolbar">
+            <h4 id="na-preview-heading">Preview</h4>
+            <button id="na-download" class="np-button np-quiet" type="button">
+              Download version
+            </button>
+          </div>
+          <div id="na-preview" class="na-preview"></div>
+        </section>
+        <section
+          id="na-difference-section"
+          class="ni-preview"
+          aria-labelledby="na-difference-heading"
+          hidden
+        >
+          <h4 id="na-difference-heading">Changes from the previous version</h4>
+          <pre id="na-difference"></pre>
+          <p id="na-difference-note" class="np-field-help"></p>
+        </section>
+        <section class="ni-section" aria-labelledby="na-checks-heading">
+          <h4 id="na-checks-heading">Validation checks</h4>
+          <ul id="na-checks" class="ni-list"></ul>
+        </section>
+        <section class="ni-section" aria-labelledby="na-reviews-heading">
+          <h4 id="na-reviews-heading">Independent agent review</h4>
+          <ul id="na-reviews" class="ni-list"></ul>
+          <div class="np-actions">
+            <button id="na-review-new" class="np-button" type="button" data-manage="true">
+              Request agent review
+            </button>
+            <button id="na-revision-new" class="np-button" type="button" data-manage="true">
+              Upload revised output
+            </button>
+          </div>
+        </section>
+        <section class="ni-section" aria-labelledby="na-decisions-heading">
+          <h4 id="na-decisions-heading">Owner decisions and repair work</h4>
+          <ul id="na-decisions" class="ni-list"></ul>
+          <p id="na-decision-reason" class="np-field-help"></p>
+          <div class="np-actions">
+            <button id="na-accept" class="np-button np-primary" type="button" data-manage="true">
+              Accept this version
+            </button>
+            <button id="na-changes" class="np-button" type="button" data-manage="true">
+              Request changes
+            </button>
+          </div>
+        </section>
+      </div>
+      <div id="na-editor" hidden>
+        <h3 id="na-editor-heading" tabindex="-1"></h3>
+        <form id="na-policy-form" hidden>
+          <label class="nt-checkbox" for="na-human-required">
+            <input id="na-human-required" type="checkbox" /> Require owner approval
+          </label>
+          <label class="nt-checkbox" for="na-agent-required">
+            <input id="na-agent-required" type="checkbox" /> Require independent agent review
+          </label>
+          <div class="np-field">
+            <label for="na-policy-reviewer">Default reviewer role</label>
+            <select id="na-policy-reviewer"></select>
+          </div>
+          <div class="np-field">
+            <label for="na-repair-limit">Maximum repair cycles</label>
+            <input id="na-repair-limit" type="number" min="0" max="8" required />
+          </div>
+          <p class="np-field-help">
+            Requirements are rechecked against the latest policy before acceptance.
+          </p>
+        </form>
+        <form id="na-upload-form" hidden>
+          <div id="na-upload-metadata">
+            <div class="np-field">
+              <label for="na-task">Linked task</label>
+              <select id="na-task" required></select>
+            </div>
+          </div>
+          <p id="na-upload-context" class="np-field-help"></p>
+          <div class="np-field">
+            <label for="na-file">Output file</label>
+            <input id="na-file" type="file" required />
+            <p id="na-upload-limit" class="np-field-help"></p>
+          </div>
+        </form>
+        <form id="na-review-form" hidden>
+          <p id="na-review-context" class="ni-objective"></p>
+          <div class="np-field">
+            <label for="na-reviewer">Independent reviewer role</label>
+            <select id="na-reviewer" required></select>
+            <p class="np-field-help">
+              The reviewer must be active, separate from the producing role, and have a qualified
+              model route.
+            </p>
+          </div>
+        </form>
+        <form id="na-decision-form" hidden>
+          <p id="na-decision-context" class="ni-objective"></p>
+          <div class="np-field">
+            <label for="na-comment">Decision feedback</label>
+            <textarea id="na-comment" maxlength="8000" rows="5"></textarea>
+            <p id="na-comment-help" class="np-field-help">
+              Describe the changes needed. A linked repair task records this feedback.
+            </p>
+          </div>
+        </form>
+      </div>
+      <div id="na-conflict" class="np-conflict" hidden>
+        <h3>The saved state changed</h3>
+        <p>
+          Your draft is preserved. Return to the current artifact and review its latest version
+          before submitting again.
+        </p>
+        <pre id="na-latest"></pre>
+        <button id="na-rebase" class="np-button" type="button">Review current state</button>
+      </div>
+      <div class="np-dialog-actions">
+        <button id="na-back" class="np-button" type="button" hidden>Back to artifacts</button>
+        <button id="na-editor-cancel" class="np-button" type="button" hidden>Cancel</button>
+        <button id="na-close" class="np-button" type="button">Close</button>
+        <button id="na-save" class="np-button np-primary" type="submit" hidden>Save</button>
+      </div>
+    </dialog>
+    <dialog id="nd-dialog" class="np-dialog ni-dialog" aria-labelledby="nd-heading">
+      <div class="np-dialog-heading">
+        <p class="np-eyebrow">Collect outputs for handoff</p>
+        <h2 id="nd-heading" tabindex="-1">Delivery packets</h2>
+        <p id="nd-project" class="np-muted"></p>
+        <p class="np-muted">
+          A packet preserves selected file versions, previews and stated limitations. Component
+          acceptance and whether those files are still current are tracked separately.
+        </p>
+      </div>
+      <div
+        id="nd-feedback"
+        class="np-feedback"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      ></div>
+      <div id="nd-uncertain" class="np-conflict" hidden>
+        <p>
+          The response could not be confirmed. Check the saved request or retry the same request
+          before continuing.
+        </p>
+        <div class="np-actions">
+          <button id="nd-check" class="np-button" type="button">Check saved request</button>
+          <button id="nd-retry" class="np-button" type="button">Retry same request</button>
+        </div>
+      </div>
+      <div class="ni-toolbar">
+        <p id="nd-access" class="np-muted"></p>
+        <button id="nd-refresh" class="np-button np-quiet" type="button">Refresh status</button>
+      </div>
+      <div id="nd-overview">
+        <div class="ni-toolbar">
+          <h3>Saved packets</h3>
+          <button id="nd-create" class="np-button np-primary" type="button" data-manage="true">
+            Create packet
+          </button>
+        </div>
+        <ul id="nd-packets" class="ni-list"></ul>
+        <button id="nd-more" class="np-button" type="button" hidden>Load more packets</button>
+      </div>
+      <div id="nd-detail" hidden>
+        <h3 id="nd-detail-heading" tabindex="-1"></h3>
+        <p id="nd-detail-summary" class="np-muted"></p>
+        <div id="nd-applicability" class="ni-objective"></div>
+        <ul id="nd-reasons" class="np-field-help"></ul>
+        <section class="ni-section" aria-labelledby="nd-components-heading">
+          <h4 id="nd-components-heading">Included file versions</h4>
+          <ul id="nd-components" class="ni-list"></ul>
+        </section>
+        <section class="ni-section" aria-labelledby="nd-previews-heading">
+          <h4 id="nd-previews-heading">Generated previews</h4>
+          <ul id="nd-previews" class="ni-list"></ul>
+        </section>
+        <section class="ni-section" aria-labelledby="nd-limitations-heading">
+          <h4 id="nd-limitations-heading">Limitations and handoff notes</h4>
+          <ul id="nd-limitations" class="np-field-help"></ul>
+          <p id="nd-manifest-hash" class="np-field-help"></p>
+        </section>
+        <div class="np-actions">
+          <button id="nd-download" class="np-button np-primary" type="button">
+            Download packet ZIP
+          </button>
+          <button id="nd-revise" class="np-button" type="button" data-manage="true">
+            Create new version
+          </button>
+        </div>
+        <p id="nd-version-reason" class="np-field-help"></p>
+      </div>
+      <form id="nd-form" hidden>
+        <h3 id="nd-editor-heading" tabindex="-1"></h3>
+        <p id="nd-editor-context" class="np-field-help"></p>
+        <div class="np-field">
+          <label for="nd-title">Packet title</label>
+          <input id="nd-title" required maxlength="240" autocomplete="off" />
+        </div>
+        <fieldset class="nd-files">
+          <legend>Select current file versions</legend>
+          <p class="np-field-help">
+            Choose up to 20 files, with at least one source. Evidence supports the sources;
+            attachments provide supplementary material. Text previews are generated from the
+            selected sources.
+          </p>
+          <ul id="nd-candidates" class="ni-list"></ul>
+          <button id="nd-artifacts-more" class="np-button" type="button" hidden>
+            Load more files
+          </button>
+          <p id="nd-selection-reason" class="np-field-help" aria-live="polite"></p>
+        </fieldset>
+        <div id="nd-source-preview" class="ni-preview" hidden>
+          <h4 id="nd-source-heading"></h4>
+          <pre id="nd-source-text"></pre>
+        </div>
+        <div class="np-field">
+          <label for="nd-notes">Limitations and handoff notes</label>
+          <textarea
+            id="nd-notes"
+            maxlength="8000"
+            rows="5"
+            aria-describedby="nd-notes-help"
+          ></textarea>
+          <p id="nd-notes-help" class="np-field-help">
+            One note per line. Record assumptions, missing evidence and format limitations that a
+            recipient needs to know.
+          </p>
+        </div>
+      </form>
+      <div id="nd-conflict" class="np-conflict" hidden>
+        <h3>The selected files or packet history changed</h3>
+        <p>
+          Your title and notes are preserved. Reload the current file versions and review the
+          selection before creating the packet again.
+        </p>
+        <button id="nd-reload" class="np-button" type="button">Reload current files</button>
+      </div>
+      <div class="np-dialog-actions">
+        <button id="nd-back" class="np-button" type="button" hidden>Back to packets</button>
+        <button id="nd-cancel" class="np-button" type="button" hidden>Cancel</button>
+        <button id="nd-close" class="np-button" type="button">Close</button>
+        <button id="nd-save" class="np-button np-primary" type="submit" form="nd-form" hidden>
+          Create packet
+        </button>
       </div>
     </dialog>
   </body>

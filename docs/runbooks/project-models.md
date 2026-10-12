@@ -2,8 +2,9 @@
 
 Open **Models & usage** on a project to enroll a model, qualify it, choose planning and
 review routes, set resource limits and inspect usage. These controls currently govern
-native model qualification, [project intake](project-intake.md), and specialist steps in
-[native execution](native-execution.md). They do not yet govern independent chat or
+native model qualification, [project intake](project-intake.md), specialist steps in
+[native execution](native-execution.md), and [artifact review](native-artifacts.md).
+They do not yet govern independent chat or
 business tools.
 
 The administrator approves provider/model templates and their server addresses. Project
@@ -156,7 +157,9 @@ Native task execution selects the planning route at admission and retains that p
 model identity for its root and children. Each specialist step rechecks qualification,
 configuration, privacy, paid consent and shared ceilings before reserving its own call.
 Run-level limits additionally bound the entire delegation graph. Execution does not yet
-use the review route to accept its candidates; independent artifact review is a later slice.
+use the review route to accept its candidates. Independent artifact review uses a separate
+role, fresh exact-revision context and one review-route call under the same ledger. Human
+approval is a separate decision under the project's artifact review policy.
 
 ## Limits, usage and reconciliation
 
@@ -268,7 +271,7 @@ database. The extended timeout accommodates the full Windows database/browser su
 
 No paid live qualification, actual provider enrollment or pilot output-quality evaluation
 was performed during implementation. Native specialist execution now uses this ledger;
-business-tool calls, artifact review, all-tool billing, subscription entitlements, compute/storage admission,
+business-tool calls, visual/application review, all-tool billing, subscription entitlements, compute/storage admission,
 administrator catalog editing in the browser and broader capability/quality evaluation
 remain later core work. Configure and accept each enforcing service before presenting
 those capabilities as available.

@@ -1,0 +1,1088 @@
+[
+  {
+    "name": "Microsoft Copilot Studio / Microsoft 365 Copilot",
+    "category": "Enterprise work ecosystem",
+    "relationship": "adjacent",
+    "customer": "Microsoft 365 organizations and low-code enterprise builders",
+    "status": "Commercial; harness and licensing scope varies",
+    "summary": "Agents and workflows distributed through Microsoft productivity channels.",
+    "strength": "Existing permissions, business data and distribution.",
+    "opportunity": "Test exact deliverable acceptance and owner supervision against configured M365 workflows.",
+    "pricing": "M365 Copilot $30/user/month yearly plus qualifying plan; Studio $200/25,000-credit monthly pack.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Agent co-authoring and flows; shared human-agent project board not established.",
+        "urls": ["https://www.microsoft.com/en-us/copilot/pricing/copilot-studio"]
+      },
+      "artifactReview": {
+        "state": "not_established",
+        "note": "Computer-use supervision is action-oriented; independent exact-version quality review unresolved.",
+        "urls": [
+          "https://learn.microsoft.com/en-us/microsoft-copilot-studio/human-supervision-computer-use"
+        ]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Graph grounding, usage reporting and agent/flow versions.",
+        "urls": [
+          "https://www.microsoft.com/en-us/copilot/pricing/copilot-studio",
+          "https://learn.microsoft.com/en-us/microsoft-copilot-studio/requirements-messages-management"
+        ]
+      },
+      "durability": {
+        "state": "not_established",
+        "note": "Agent flows documented; arbitrary restart/ambiguous-effect guarantees require testing.",
+        "urls": [
+          "https://learn.microsoft.com/en-us/microsoft-copilot-studio/requirements-messages-management"
+        ]
+      },
+      "costControls": {
+        "state": "documented",
+        "note": "Per-agent caps and capacity enforcement; trigger and in-flight rules differ.",
+        "urls": [
+          "https://learn.microsoft.com/en-us/microsoft-copilot-studio/requirements-messages-management"
+        ]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "M365 internal and standalone external channels; Azure subscription for standalone usage.",
+        "urls": ["https://www.microsoft.com/en-us/copilot/pricing/copilot-studio"]
+      }
+    },
+    "sources": [
+      {
+        "title": "Plans and pricing",
+        "url": "https://www.microsoft.com/en-us/copilot/pricing/copilot-studio"
+      },
+      {
+        "title": "Billing and enforcement",
+        "url": "https://learn.microsoft.com/en-us/microsoft-copilot-studio/requirements-messages-management"
+      },
+      {
+        "title": "Computer-use supervision",
+        "url": "https://learn.microsoft.com/en-us/microsoft-copilot-studio/human-supervision-computer-use"
+      }
+    ]
+  },
+  {
+    "name": "Salesforce Agentforce",
+    "category": "Enterprise work ecosystem",
+    "relationship": "adjacent",
+    "customer": "Salesforce sales, service and industry organizations",
+    "status": "Commercial; edition/consumption choice matters",
+    "summary": "CRM-native agent actions with scripted and model-driven behavior.",
+    "strength": "System-of-record data, deterministic actions and Salesforce distribution.",
+    "opportunity": "Integrate native CRM actions; benchmark generic project deliverables separately.",
+    "pricing": "$500/100,000 Flex Credits; standard action 20 credits; alternative user/conversation plans.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "CRM/business processes; general human-agent deliverable board unresolved.",
+        "urls": [
+          "https://developer.salesforce.com/docs/ai/agentforce/guide/agent-dx-nga-author-agent.html"
+        ]
+      },
+      "artifactReview": {
+        "state": "not_established",
+        "note": "Scripted process gates documented; independent immutable artifact review not established.",
+        "urls": ["https://www.salesforce.com/agentforce/levels-of-determinism/"]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Variables, grounding and version-controlled behavior definition.",
+        "urls": ["https://www.salesforce.com/agentforce/levels-of-determinism/"]
+      },
+      "durability": {
+        "state": "not_established",
+        "note": "Deterministic action routing does not settle crash/unknown external-effect behavior.",
+        "urls": [
+          "https://developer.salesforce.com/docs/ai/agentforce/guide/agent-dx-nga-author-agent.html"
+        ]
+      },
+      "costControls": {
+        "state": "documented",
+        "note": "Digital Wallet consumption tracking; unknown-liability reservation behavior unresolved.",
+        "urls": ["https://www.salesforce.com/agentforce/pricing/"]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Salesforce-native agents and governed external MCP access.",
+        "urls": [
+          "https://help.salesforce.com/s/articleView?id=ai.agent_mcp.htm&language=en_US&type=5"
+        ]
+      }
+    },
+    "sources": [
+      {
+        "title": "Pricing",
+        "url": "https://www.salesforce.com/agentforce/pricing/"
+      },
+      {
+        "title": "Agent authoring",
+        "url": "https://developer.salesforce.com/docs/ai/agentforce/guide/agent-dx-nga-author-agent.html"
+      },
+      {
+        "title": "Deterministic behavior",
+        "url": "https://www.salesforce.com/agentforce/levels-of-determinism/"
+      },
+      {
+        "title": "MCP governance",
+        "url": "https://help.salesforce.com/s/articleView?id=ai.agent_mcp.htm&language=en_US&type=5"
+      }
+    ]
+  },
+  {
+    "name": "ServiceNow AI Agents / AI Control Tower",
+    "category": "Enterprise work ecosystem",
+    "relationship": "adjacent",
+    "customer": "Enterprise service/workflow operations and AI governance teams",
+    "status": "Commercial; release and contract scope matter",
+    "summary": "Agents inside enterprise workflows plus cross-system governance.",
+    "strength": "Existing workflow authority, lifecycle governance and enterprise procurement.",
+    "opportunity": "Test lighter project setup and accepted-output review for small teams.",
+    "pricing": "Quote required on inspected product page.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Workflow tasks and AI lifecycle management; generic artifact project semantics unresolved.",
+        "urls": ["https://www.servicenow.com/products/ai-control-tower.html"]
+      },
+      "artifactReview": {
+        "state": "not_established",
+        "note": "Supervised tool actions and approvals differ from independent exact-version artifact validation.",
+        "urls": [
+          "https://www.servicenow.com/docs/r/intelligent-experiences/aia-security-implementation.html"
+        ]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "AI asset oversight, evaluation and activity evidence.",
+        "urls": ["https://www.servicenow.com/products/ai-control-tower.html"]
+      },
+      "durability": {
+        "state": "not_established",
+        "note": "Workflow ecosystem is documented; selected agent's crash/retry guarantees require configuration testing.",
+        "urls": ["https://www.servicenow.com/products/ai-control-tower.html"]
+      },
+      "costControls": {
+        "state": "not_established",
+        "note": "Value/governance positioning; exact reservations and unresolved-provider accounting not established.",
+        "urls": ["https://www.servicenow.com/products/ai-control-tower.html"]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Enterprise platform with external AI discovery/containment integrations; verify entitlement.",
+        "urls": [
+          "https://newsroom.servicenow.com/press-releases/details/2026/ServiceNow-expands-AI-Control-Tower-to-discover-observe-govern-secure-and-measure-AI-deployed-across-any-system-in-the-enterprise/default.aspx"
+        ]
+      }
+    },
+    "sources": [
+      {
+        "title": "AI Control Tower",
+        "url": "https://www.servicenow.com/products/ai-control-tower.html"
+      },
+      {
+        "title": "Access-control documentation",
+        "url": "https://www.servicenow.com/docs/r/intelligent-experiences/aia-security-implementation.html"
+      },
+      {
+        "title": "2026 expansion announcement",
+        "url": "https://newsroom.servicenow.com/press-releases/details/2026/ServiceNow-expands-AI-Control-Tower-to-discover-observe-govern-secure-and-measure-AI-deployed-across-any-system-in-the-enterprise/default.aspx"
+      }
+    ]
+  },
+  {
+    "name": "Gemini Enterprise / Gemini for Business",
+    "category": "Enterprise work ecosystem",
+    "relationship": "direct",
+    "customer": "Business teams wanting permission-aware AI across existing applications",
+    "status": "Commercial editions; universal-agent functions partly early access",
+    "summary": "Employee AI surface with enterprise search, skills and agents.",
+    "strength": "Enterprise data/connectors and Google's platform distribution.",
+    "opportunity": "Compare accepted-work lifecycle and supervision, with early-access features labeled.",
+    "pricing": "Editions and PAYG confirmed; current numeric employee-app price unresolved.",
+    "capabilities": {
+      "projectWork": {
+        "state": "announced",
+        "note": "Background multistep universal-agent work is partly early access.",
+        "urls": ["https://cloud.google.com/gemini-enterprise"]
+      },
+      "artifactReview": {
+        "state": "not_established",
+        "note": "Content/task generation documented; independent exact-version artifact acceptance not established.",
+        "urls": ["https://cloud.google.com/gemini-enterprise"]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Enterprise grounding and skills; broader cross-device memory marketed with availability caveats.",
+        "urls": [
+          "https://docs.cloud.google.com/gemini/enterprise/docs/editions",
+          "https://cloud.google.com/gemini-enterprise"
+        ]
+      },
+      "durability": {
+        "state": "announced",
+        "note": "Secure background machines marketed; broad availability and failure semantics unresolved.",
+        "urls": ["https://cloud.google.com/gemini-enterprise"]
+      },
+      "costControls": {
+        "state": "announced",
+        "note": "Product markets project caps/pause; implementation and entitlement need testing.",
+        "urls": ["https://cloud.google.com/gemini-enterprise"]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Business/Standard/Plus/PAYG/Frontline editions; features differ.",
+        "urls": ["https://docs.cloud.google.com/gemini/enterprise/docs/editions"]
+      }
+    },
+    "sources": [
+      {
+        "title": "Live employee product and availability notes",
+        "url": "https://cloud.google.com/gemini-enterprise"
+      },
+      {
+        "title": "Current editions",
+        "url": "https://docs.cloud.google.com/gemini/enterprise/docs/editions"
+      }
+    ]
+  },
+  {
+    "name": "Google Gemini Enterprise Agent Platform / ADK",
+    "category": "Agent infrastructure",
+    "relationship": "infrastructure",
+    "customer": "Agent developers and enterprise platform/security teams",
+    "status": "Documented managed platform; individual component stages vary",
+    "summary": "Agent construction/runtime, identity, memory, gateway and evaluation stack.",
+    "strength": "Integrated cloud governance and ecosystem.",
+    "opportunity": "Benchmark as execution/provider substrate while keeping Simon work contracts.",
+    "pricing": "Service-specific platform/resource/model meters; employee app licensing is separate.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Studio/ADK multi-agent construction; finished business project board is application-specific.",
+        "urls": ["https://docs.cloud.google.com/gemini-enterprise-agent-platform/build/adk"]
+      },
+      "artifactReview": {
+        "state": "not_established",
+        "note": "Evaluation services differ from exact immutable deliverable acceptance.",
+        "urls": ["https://docs.cloud.google.com/gemini-enterprise-agent-platform/agents"]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Sessions, Memory Bank and observability.",
+        "urls": ["https://docs.cloud.google.com/gemini-enterprise-agent-platform/agents"]
+      },
+      "durability": {
+        "state": "not_established",
+        "note": "Managed runtime/sessions documented; selected workload restart/unknown-effect guarantees need tests.",
+        "urls": ["https://docs.cloud.google.com/gemini-enterprise-agent-platform/agents"]
+      },
+      "costControls": {
+        "state": "documented",
+        "note": "Usage/cost telemetry; exact outcome-level liability handling is app-specific.",
+        "urls": ["https://docs.cloud.google.com/gemini-enterprise-agent-platform/agents"]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Managed runtime; ADK local, Cloud Run or GKE paths.",
+        "urls": ["https://docs.cloud.google.com/gemini-enterprise-agent-platform/build/adk"]
+      }
+    },
+    "sources": [
+      {
+        "title": "Platform overview",
+        "url": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/agents"
+      },
+      {
+        "title": "ADK",
+        "url": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/build/adk"
+      },
+      {
+        "title": "Platform pricing",
+        "url": "https://cloud.google.com/products/gemini-enterprise-agent-platform"
+      }
+    ]
+  },
+  {
+    "name": "UiPath Maestro",
+    "category": "Automation and orchestration",
+    "relationship": "substitute",
+    "customer": "Organizations coordinating agents, robots, systems and human processes",
+    "status": "Commercial; BPMN/Case/Flow and entitlement scope vary",
+    "summary": "Long-lived process orchestration across agents, automation and people.",
+    "strength": "Durable human/process control plus existing automation estate.",
+    "opportunity": "Integrate proven actions; test smaller owner setup and accepted-work semantics.",
+    "pricing": "Inspected plan/agent-call matrix; comparable dollar workload quote unresolved.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Human/robot/agent BPMN, Case and Flow processes.",
+        "urls": ["https://www.uipath.com/product/maestro"]
+      },
+      "artifactReview": {
+        "state": "not_established",
+        "note": "Human process steps do not alone establish independent exact-version quality acceptance.",
+        "urls": ["https://www.uipath.com/product/maestro"]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "State and live instance inspection; semantic evidence graph unresolved.",
+        "urls": ["https://www.uipath.com/product/maestro"]
+      },
+      "durability": {
+        "state": "documented",
+        "note": "Hours/days/weeks state and retry/pause/resume/migrate controls described.",
+        "urls": ["https://www.uipath.com/product/maestro"]
+      },
+      "costControls": {
+        "state": "not_established",
+        "note": "Agent-call entitlements documented; exact spend reservation/reconciliation unresolved.",
+        "urls": ["https://www.uipath.com/pricing"]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "UiPath platform and existing systems; verify chosen plan/runtime.",
+        "urls": ["https://www.uipath.com/pricing"]
+      }
+    },
+    "sources": [
+      {
+        "title": "Maestro",
+        "url": "https://www.uipath.com/product/maestro"
+      },
+      {
+        "title": "Plans",
+        "url": "https://www.uipath.com/pricing"
+      }
+    ]
+  },
+  {
+    "name": "Workato Agent Studio / GO / MCP",
+    "category": "Automation and orchestration",
+    "relationship": "direct",
+    "customer": "Cross-system business teams and enterprise integration owners",
+    "status": "Commercial; region/plan/headless constraints matter",
+    "summary": "Managed genies, reusable integration skills and action/KPI dashboards.",
+    "strength": "Individual-user tool access and existing integration estate.",
+    "opportunity": "Benchmark linked accepted deliverables and headless approval recovery.",
+    "pricing": "Free one-time 50,000 credits; Pro $100/month/3,500 credits; enterprise contractual.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "GO Action Board exposes KPIs, events and approvals; task/artifact graph equivalence unresolved.",
+        "urls": ["https://www.workato.com/the-connector/action-board-go/"]
+      },
+      "artifactReview": {
+        "state": "not_established",
+        "note": "Parameter confirmation/business approval; independent exact-version artifact validation not established.",
+        "urls": [
+          "https://docs.workato.com/en/agentic/skills/user-confirmation.html",
+          "https://docs.workato.com/en/agentic/agent-studio/business-approvals.html"
+        ]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Shared knowledge, conversation context and KPI evidence.",
+        "urls": ["https://docs.workato.com/en/agentic/faqs"]
+      },
+      "durability": {
+        "state": "not_established",
+        "note": "Multi-step recipes documented; intended headless approval/restart semantics require tests.",
+        "urls": ["https://docs.workato.com/en/agentic/agent-studio/business-approvals.html"]
+      },
+      "costControls": {
+        "state": "documented",
+        "note": "Usage-capacity plans; uncertain outcome-level liabilities unresolved.",
+        "urls": ["https://docs.workato.com/pricing/"]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Managed genies/MCP, external clients and BYOLLM connections.",
+        "urls": ["https://docs.workato.com/en/agentic/faqs"]
+      }
+    },
+    "sources": [
+      {
+        "title": "FAQ",
+        "url": "https://docs.workato.com/en/agentic/faqs"
+      },
+      {
+        "title": "Action Board",
+        "url": "https://www.workato.com/the-connector/action-board-go/"
+      },
+      {
+        "title": "User confirmation",
+        "url": "https://docs.workato.com/en/agentic/skills/user-confirmation.html"
+      },
+      {
+        "title": "Business approvals",
+        "url": "https://docs.workato.com/en/agentic/agent-studio/business-approvals.html"
+      },
+      {
+        "title": "Self-service pricing",
+        "url": "https://www.workato.com/free"
+      },
+      {
+        "title": "Billing",
+        "url": "https://docs.workato.com/pricing/"
+      }
+    ]
+  },
+  {
+    "name": "Zapier Agents / AI by Zapier",
+    "category": "Automation and orchestration",
+    "relationship": "substitute",
+    "customer": "Business users with existing app/Zap automations",
+    "status": "Agents migrating to AI by Zapier; no shutdown date established",
+    "summary": "Agentic actions moving into ordinary Zap workflows.",
+    "strength": "Connector distribution and familiar deterministic automation.",
+    "opportunity": "Reuse actions; test changing multi-day deliverables and uncertain-effect recovery.",
+    "pricing": "AI by Zapier task billing; model tiers 1x/3x/5x, BYOK 1x; legacy activities differ.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Agentic and deterministic Zap steps; shared deliverable project board unresolved.",
+        "urls": [
+          "https://help.zapier.com/hc/en-us/articles/47402591569805-Migrating-from-Agents-to-AI-by-Zapier"
+        ]
+      },
+      "artifactReview": {
+        "state": "not_established",
+        "note": "Per-tool approval/publishing review; independent exact-version output validation not established.",
+        "urls": [
+          "https://help.zapier.com/hc/en-us/articles/47402591569805-Migrating-from-Agents-to-AI-by-Zapier"
+        ]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Zap history includes tools, data, tiers and consumption.",
+        "urls": [
+          "https://help.zapier.com/hc/en-us/articles/47402591569805-Migrating-from-Agents-to-AI-by-Zapier"
+        ]
+      },
+      "durability": {
+        "state": "not_established",
+        "note": "Common Zap infrastructure; arbitrary agent restart/ambiguous effects require testing.",
+        "urls": [
+          "https://help.zapier.com/hc/en-us/articles/47402591569805-Migrating-from-Agents-to-AI-by-Zapier"
+        ]
+      },
+      "costControls": {
+        "state": "documented",
+        "note": "Per-run task guardrails; model/tool multipliers.",
+        "urls": [
+          "https://help.zapier.com/hc/en-us/articles/46425475442829-AI-by-Zapier-model-tier-pricing"
+        ]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Zap-editor migration; legacy Agents remains during transition.",
+        "urls": [
+          "https://help.zapier.com/hc/en-us/articles/47402591569805-Migrating-from-Agents-to-AI-by-Zapier"
+        ]
+      }
+    },
+    "sources": [
+      {
+        "title": "Migration",
+        "url": "https://help.zapier.com/hc/en-us/articles/47402591569805-Migrating-from-Agents-to-AI-by-Zapier"
+      },
+      {
+        "title": "Model-tier metering",
+        "url": "https://help.zapier.com/hc/en-us/articles/46425475442829-AI-by-Zapier-model-tier-pricing"
+      },
+      {
+        "title": "Legacy activity metering",
+        "url": "https://help.zapier.com/hc/en-us/articles/26559132765325-How-is-Zapier-Agents-usage-measured"
+      }
+    ]
+  },
+  {
+    "name": "n8n",
+    "category": "Automation and orchestration",
+    "relationship": "substitute",
+    "customer": "Technical operators building cross-system workflows",
+    "status": "Cloud and self-hosted; fair-code/commercial use scope differs",
+    "summary": "Visual workflows with AI, MCP and enforced tool approvals.",
+    "strength": "Composable nodes, technical flexibility and per-execution metering.",
+    "opportunity": "Integrate customer instances; compare contract-to-accepted-output operator burden.",
+    "pricing": "Annual billing: Starter €20/2,500 executions, Pro €50/10,000, self-hosted Business €667/40,000.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Shared workflow projects; human-agent work-board equivalence unresolved.",
+        "urls": ["https://n8n.io/pricing/"]
+      },
+      "artifactReview": {
+        "state": "not_established",
+        "note": "Tool-call parameter approval documented; independent exact-version artifact quality review not established.",
+        "urls": [
+          "https://docs.n8n.io/build/integrate-ai/ai-examples/human-in-the-loop-for-tools.md"
+        ]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Workflow/execution history and evaluations; business evidence graph is custom.",
+        "urls": ["https://n8n.io/pricing/"]
+      },
+      "durability": {
+        "state": "documented",
+        "note": "Approval pauses/resumes execution; broader failure guarantees depend on deployment.",
+        "urls": [
+          "https://docs.n8n.io/build/integrate-ai/ai-examples/human-in-the-loop-for-tools.md"
+        ]
+      },
+      "costControls": {
+        "state": "documented",
+        "note": "Execution allowances and AI controls; unresolved-provider money semantics require testing.",
+        "urls": ["https://n8n.io/pricing/"]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Cloud/self-hosted; external customer workflow configuration needs commercial licensing.",
+        "urls": ["https://support.n8n.io/article/can-i-use-your-license-for-my-use-case"]
+      }
+    },
+    "sources": [
+      {
+        "title": "Pricing",
+        "url": "https://n8n.io/pricing/"
+      },
+      {
+        "title": "Tool approval",
+        "url": "https://docs.n8n.io/build/integrate-ai/ai-examples/human-in-the-loop-for-tools.md"
+      },
+      {
+        "title": "Current license guidance",
+        "url": "https://support.n8n.io/article/can-i-use-your-license-for-my-use-case"
+      }
+    ]
+  },
+  {
+    "name": "Make",
+    "category": "Automation and orchestration",
+    "relationship": "substitute",
+    "customer": "Visual automation operators and business teams",
+    "status": "Commercial scenarios; new AI agent app in open beta",
+    "summary": "Visual scenarios with agent tools/knowledge and bounded calls.",
+    "strength": "Visual integrations and transparent per-step execution context.",
+    "opportunity": "Integrate scenarios; benchmark multi-day acceptance and owner decision load.",
+    "pricing": "Displayed monthly 10,000 credits: Core $12, Pro $21, Teams $38; provider tokens may add charges.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Shared scenarios; general persistent deliverable project board unresolved.",
+        "urls": ["https://www.make.com/en/pricing"]
+      },
+      "artifactReview": {
+        "state": "not_established",
+        "note": "Review can be composed; independent exact-version quality acceptance not established.",
+        "urls": ["https://help.make.com/make-ai-agent-new-app"]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Conversation IDs, history limits, compaction and run metadata.",
+        "urls": ["https://help.make.com/make-ai-agent-new-app"]
+      },
+      "durability": {
+        "state": "not_established",
+        "note": "Agent step timeout max 600 seconds; arbitrary multi-day recovery not established here.",
+        "urls": ["https://help.make.com/make-ai-agent-new-app"]
+      },
+      "costControls": {
+        "state": "documented",
+        "note": "Credits/quotas and call limits; external provider billing separately applies.",
+        "urls": ["https://help.make.com/credit-usage-for-ai-agents"]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Managed scenarios and paid custom-provider connections.",
+        "urls": ["https://help.make.com/credit-usage-for-ai-agents"]
+      }
+    },
+    "sources": [
+      {
+        "title": "Pricing",
+        "url": "https://www.make.com/en/pricing"
+      },
+      {
+        "title": "New agent reference",
+        "url": "https://help.make.com/make-ai-agent-new-app"
+      },
+      {
+        "title": "Agent metering",
+        "url": "https://help.make.com/credit-usage-for-ai-agents"
+      }
+    ]
+  },
+  {
+    "name": "LangGraph / LangSmith",
+    "category": "Agent frameworks and platforms",
+    "relationship": "infrastructure",
+    "customer": "Developers and teams deploying/evaluating agents",
+    "status": "Open framework plus commercial managed platform; service stages vary",
+    "summary": "Persistent agent graphs, interrupts, evaluation and deployment.",
+    "strength": "Developer flexibility and rich state/evaluation tooling.",
+    "opportunity": "Keep business domain in Simon; reuse traces/evals or execution after benchmarks.",
+    "pricing": "Developer one-seat $0; Plus $39/seat/month plus usage; LCU $1.50, LSU $1.00.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Stateful agent threads and cross-thread stores; finished business board is custom.",
+        "urls": ["https://docs.langchain.com/oss/python/langgraph/persistence"]
+      },
+      "artifactReview": {
+        "state": "documented",
+        "note": "Human review/edit interrupts; independent exact-version quality acceptance requires application design.",
+        "urls": ["https://docs.langchain.com/oss/python/langgraph/interrupts"]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Persistent checkpoints and cross-thread stores.",
+        "urls": ["https://docs.langchain.com/oss/python/langgraph/persistence"]
+      },
+      "durability": {
+        "state": "documented",
+        "note": "Persistent checkpointers/interrupts; RAM savers do not survive restart.",
+        "urls": ["https://docs.langchain.com/oss/python/langgraph/persistence"]
+      },
+      "costControls": {
+        "state": "documented",
+        "note": "Gateway controls documented; outcome liability semantics are application-specific.",
+        "urls": ["https://www.langchain.com/pricing"]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Managed deployment; Enterprise hybrid/self-hosted choices.",
+        "urls": ["https://www.langchain.com/pricing"]
+      }
+    },
+    "sources": [
+      {
+        "title": "Persistence",
+        "url": "https://docs.langchain.com/oss/python/langgraph/persistence"
+      },
+      {
+        "title": "Interrupts",
+        "url": "https://docs.langchain.com/oss/python/langgraph/interrupts"
+      },
+      {
+        "title": "Platform pricing",
+        "url": "https://www.langchain.com/pricing"
+      }
+    ]
+  },
+  {
+    "name": "CrewAI",
+    "category": "Agent frameworks and platforms",
+    "relationship": "infrastructure",
+    "customer": "Agent builders and governed enterprise workflow teams",
+    "status": "Framework and enterprise platform; current Free/Enterprise plans",
+    "summary": "Crews/Flows with persistence and asynchronous human feedback.",
+    "strength": "Multi-agent construction and feedback-aware workflow primitives.",
+    "opportunity": "Test inspectable, scoped, reversible learned rules and exact acceptance.",
+    "pricing": "Free 50 workflow executions/month; Enterprise custom.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Crews/Flows and workflow chat; business artifact board is application-specific.",
+        "urls": ["https://crewai.com/pricing"]
+      },
+      "artifactReview": {
+        "state": "documented",
+        "note": "Human review/routing and learned feedback; exact-version independent validation unresolved.",
+        "urls": ["https://docs.crewai.com/en/learn/human-feedback-in-flows"]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Learned HITL corrections and persisted state.",
+        "urls": ["https://docs.crewai.com/en/learn/human-feedback-in-flows"]
+      },
+      "durability": {
+        "state": "documented",
+        "note": "Flow persistence plus asynchronous feedback pause/resume.",
+        "urls": [
+          "https://docs.crewai.com/en/concepts/flows",
+          "https://docs.crewai.com/en/learn/human-feedback-in-flows"
+        ]
+      },
+      "costControls": {
+        "state": "documented",
+        "note": "Usage/token dashboards; exact unknown-spend holding behavior not established.",
+        "urls": ["https://crewai.com/pricing"]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Cloud, customer VPC or infrastructure under enterprise terms.",
+        "urls": ["https://crewai.com/pricing"]
+      }
+    },
+    "sources": [
+      {
+        "title": "Pricing",
+        "url": "https://crewai.com/pricing"
+      },
+      {
+        "title": "Flows",
+        "url": "https://docs.crewai.com/en/concepts/flows"
+      },
+      {
+        "title": "Human feedback",
+        "url": "https://docs.crewai.com/en/learn/human-feedback-in-flows"
+      }
+    ]
+  },
+  {
+    "name": "Dify",
+    "category": "Agent frameworks and platforms",
+    "relationship": "substitute",
+    "customer": "Teams building visual AI apps and workflows",
+    "status": "Cloud/community/enterprise; source multitenancy requires authorization",
+    "summary": "Workflow studio, plugins/models and native human review forms.",
+    "strength": "Integrated low-code build experience and review/regeneration loops.",
+    "opportunity": "Compare immutable artifact lifecycle and current authority; avoid assuming unrestricted source embedding.",
+    "pricing": "Annual Cloud Professional $590/workspace, Team $1,590/workspace; Enterprise custom.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Workspace apps/workflows; human-agent work board not established.",
+        "urls": ["https://www.dify.ai/pricing"]
+      },
+      "artifactReview": {
+        "state": "documented",
+        "note": "Human review/edit/regenerate/escalate; independent exact-version quality validation not established.",
+        "urls": [
+          "https://dify.ai/blog/the-human-input-node-bringing-human-judgment-into-automated-workflows"
+        ]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Knowledge/logs; Asqav plugin claims independently verifiable action/authorization receipts.",
+        "urls": [
+          "https://dify.ai/blog/asqav-joins-dify-marketplace-to-make-every-agent-action-verifiable"
+        ]
+      },
+      "durability": {
+        "state": "documented",
+        "note": "Human Input pauses/resumes with timeout routing; arbitrary crash semantics need testing.",
+        "urls": [
+          "https://dify.ai/blog/the-human-input-node-bringing-human-judgment-into-automated-workflows"
+        ]
+      },
+      "costControls": {
+        "state": "documented",
+        "note": "Message/trigger/storage allowances; unknown-provider liabilities not established.",
+        "urls": ["https://www.dify.ai/pricing"]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Cloud/self-hosted; source license restricts multitenancy absent written authorization.",
+        "urls": ["https://github.com/langgenius/dify/blob/main/LICENSE"]
+      }
+    },
+    "sources": [
+      {
+        "title": "Pricing",
+        "url": "https://www.dify.ai/pricing"
+      },
+      {
+        "title": "Human Input",
+        "url": "https://dify.ai/blog/the-human-input-node-bringing-human-judgment-into-automated-workflows"
+      },
+      {
+        "title": "Asqav action receipts",
+        "url": "https://dify.ai/blog/asqav-joins-dify-marketplace-to-make-every-agent-action-verifiable"
+      },
+      {
+        "title": "License",
+        "url": "https://github.com/langgenius/dify/blob/main/LICENSE"
+      }
+    ]
+  },
+  {
+    "name": "Flowise",
+    "category": "Agent frameworks and platforms",
+    "relationship": "infrastructure",
+    "customer": "Existing visual-agent installations and fork maintainers",
+    "status": "Past official EOL date (August 31, 2026); source available for forks",
+    "summary": "Historical visual AgentFlow V2 reference with restart-safe human waits.",
+    "strength": "Accessible supervisor/worker and explicit orchestration patterns.",
+    "opportunity": "Study patterns; require a maintained fork before operational dependency.",
+    "pricing": "Old prices not suitable for current procurement; fork/hosting/model costs remain.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Supervisor/worker shared flow state; generic business work board unresolved.",
+        "urls": ["https://docs.flowiseai.com/using-flowise/agentflowv2"]
+      },
+      "artifactReview": {
+        "state": "not_established",
+        "note": "Human Input/approval nodes; independent exact-version quality validation not established.",
+        "urls": ["https://docs.flowiseai.com/using-flowise/agentflowv2"]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Flow state and conversation context; evidence graph custom.",
+        "urls": ["https://docs.flowiseai.com/using-flowise/agentflowv2"]
+      },
+      "durability": {
+        "state": "documented",
+        "note": "Checkpointed human waits described as restart-safe.",
+        "urls": ["https://docs.flowiseai.com/using-flowise/agentflowv2"]
+      },
+      "costControls": {
+        "state": "not_established",
+        "note": "Loop/configuration primitives do not establish monetary liability guarantees.",
+        "urls": ["https://docs.flowiseai.com/using-flowise/agentflowv2"]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Official EOL; Apache 2.0 source remains for forks.",
+        "urls": ["https://flowiseai.com/sunset"]
+      }
+    },
+    "sources": [
+      {
+        "title": "AgentFlow V2",
+        "url": "https://docs.flowiseai.com/using-flowise/agentflowv2"
+      },
+      {
+        "title": "Official sunset",
+        "url": "https://flowiseai.com/sunset"
+      }
+    ]
+  },
+  {
+    "name": "Microsoft Agent Framework",
+    "category": "Agent frameworks and platforms",
+    "relationship": "infrastructure",
+    "customer": "Developers building .NET/Python/Go agents and workflows",
+    "status": "Successor to AutoGen/Semantic Kernel; Go preview in current overview",
+    "summary": "Agent/harness SDK and graph workflows with durable hosting extension.",
+    "strength": "Open SDK, provider breadth and managed/self-hosted durable paths.",
+    "opportunity": "Benchmark execution substrate; retain Simon domain acceptance/authority contracts.",
+    "pricing": "Host/storage/inference dependent; no universal per-project SDK subscription established.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Harness planning/todos and multi-agent workflows; business board is app-specific.",
+        "urls": ["https://learn.microsoft.com/en-us/agent-framework/overview/"]
+      },
+      "artifactReview": {
+        "state": "not_established",
+        "note": "HITL request primitives; independent exact-version quality review needs application design.",
+        "urls": ["https://learn.microsoft.com/en-us/agent-framework/hosting/azure-functions"]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Agent sessions/context providers and observability.",
+        "urls": ["https://learn.microsoft.com/en-us/agent-framework/overview/"]
+      },
+      "durability": {
+        "state": "documented",
+        "note": "Durable Extension offers checkpoint/resume, waits and distributed execution.",
+        "urls": ["https://learn.microsoft.com/en-us/agent-framework/hosting/azure-functions"]
+      },
+      "costControls": {
+        "state": "not_established",
+        "note": "Application/provider control required for exact budget and unknown liability semantics.",
+        "urls": ["https://learn.microsoft.com/en-us/agent-framework/overview/"]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Azure Functions or self-hosted workers; provider choices include Ollama.",
+        "urls": [
+          "https://learn.microsoft.com/en-us/agent-framework/overview/",
+          "https://learn.microsoft.com/en-us/agent-framework/hosting/azure-functions"
+        ]
+      }
+    },
+    "sources": [
+      {
+        "title": "Overview",
+        "url": "https://learn.microsoft.com/en-us/agent-framework/overview/"
+      },
+      {
+        "title": "Durable Extension",
+        "url": "https://learn.microsoft.com/en-us/agent-framework/hosting/azure-functions"
+      },
+      {
+        "title": "1.0 announcement",
+        "url": "https://devblogs.microsoft.com/agent-framework/microsoft-agent-framework-version-1-0/"
+      }
+    ]
+  },
+  {
+    "name": "Temporal",
+    "category": "Durable execution infrastructure",
+    "relationship": "infrastructure",
+    "customer": "Engineering teams operating long-lived reliable workflows",
+    "status": "Open platform and commercial Cloud; some runtime controls preview",
+    "summary": "Durable histories, timers, signals and retries beneath agent applications.",
+    "strength": "Purpose-built durable control flow and deployment/versioning primitives.",
+    "opportunity": "Benchmark orchestration replacement without outsourcing Simon's work domain.",
+    "pricing": "Cloud from $50/million actions, storage and support additional; no base monthly fee shown.",
+    "capabilities": {
+      "projectWork": {
+        "state": "not_applicable",
+        "note": "Business work/project application must be built above workflow primitives.",
+        "urls": ["https://temporal.io/pricing"]
+      },
+      "artifactReview": {
+        "state": "not_established",
+        "note": "Durable human approval tutorial; independent exact-version quality validation is custom.",
+        "urls": [
+          "https://learn.temporal.io/tutorials/ai/building-durable-ai-applications/human-in-the-loop/"
+        ]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Workflow event histories; semantic project evidence is custom.",
+        "urls": ["https://temporal.io/pricing"]
+      },
+      "durability": {
+        "state": "documented",
+        "note": "Crash/redeploy persistence, timers, retries and versioning.",
+        "urls": ["https://temporal.io/pricing"]
+      },
+      "costControls": {
+        "state": "not_established",
+        "note": "Usage metering is not an application model/tool budget or unknown-liability policy.",
+        "urls": ["https://temporal.io/pricing"]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Cloud/self-managed workers and SDK integrations.",
+        "urls": ["https://temporal.io/pricing"]
+      }
+    },
+    "sources": [
+      {
+        "title": "Pricing/capabilities",
+        "url": "https://temporal.io/pricing"
+      },
+      {
+        "title": "Durable HITL tutorial",
+        "url": "https://learn.temporal.io/tutorials/ai/building-durable-ai-applications/human-in-the-loop/"
+      }
+    ]
+  },
+  {
+    "name": "Amazon Bedrock AgentCore",
+    "category": "Agent infrastructure",
+    "relationship": "infrastructure",
+    "customer": "AWS agent developers and platform/security teams",
+    "status": "Managed modular platform; version/region/stage varies",
+    "summary": "Agent runtime, identity, governed tool access and evaluation services.",
+    "strength": "Platform-enforced tool policy and model/framework independence.",
+    "opportunity": "Benchmark hosting/governance substrate; retain owner-facing acceptance.",
+    "pricing": "Observed v1 $0.0895/vCPU-hour + $0.00945/GB-hour; other meters/inference extra.",
+    "capabilities": {
+      "projectWork": {
+        "state": "not_applicable",
+        "note": "Finished business project interface belongs to the application.",
+        "urls": ["https://aws.amazon.com/bedrock/agentcore/"]
+      },
+      "artifactReview": {
+        "state": "not_established",
+        "note": "Evaluation and action policy do not establish independent immutable artifact acceptance.",
+        "urls": ["https://aws.amazon.com/bedrock/agentcore/"]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Memory, traces and evaluation services; evidence domain is application-specific.",
+        "urls": ["https://aws.amazon.com/bedrock/agentcore/pricing/"]
+      },
+      "durability": {
+        "state": "not_established",
+        "note": "Managed runtime is documented; application restart/unknown-effect semantics need testing.",
+        "urls": ["https://aws.amazon.com/bedrock/agentcore/"]
+      },
+      "costControls": {
+        "state": "documented",
+        "note": "Session-aware policies can require prior approval and cumulative thresholds.",
+        "urls": [
+          "https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/policy-core-concepts.html"
+        ]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "AWS-managed runtime with multiple frameworks/models.",
+        "urls": ["https://aws.amazon.com/bedrock/agentcore/"]
+      }
+    },
+    "sources": [
+      {
+        "title": "Product",
+        "url": "https://aws.amazon.com/bedrock/agentcore/"
+      },
+      {
+        "title": "Pricing",
+        "url": "https://aws.amazon.com/bedrock/agentcore/pricing/"
+      },
+      {
+        "title": "Policy concepts",
+        "url": "https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/policy-core-concepts.html"
+      }
+    ]
+  },
+  {
+    "name": "IBM watsonx Orchestrate",
+    "category": "Enterprise work ecosystem",
+    "relationship": "adjacent",
+    "customer": "Enterprise teams building and governing cross-system agents",
+    "status": "Commercial multicloud/on-prem options; entitlement scope varies",
+    "summary": "No/pro-code and imported agents with shared context and MCP/API gateway.",
+    "strength": "Enterprise deployment choice and external-agent interoperability.",
+    "opportunity": "Test smaller-team setup and exact accepted-output/recovery lifecycle.",
+    "pricing": "Essentials from $530/month; Standard from $6,360/month; Premium custom.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Agent workflows with shared context; generic artifact work board unresolved.",
+        "urls": ["https://www.ibm.com/products/watsonx-orchestrate/pricing"]
+      },
+      "artifactReview": {
+        "state": "not_established",
+        "note": "Configured human workflows; independent exact-version artifact validation not established.",
+        "urls": ["https://www.ibm.com/products/watsonx-orchestrate/pricing"]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Shared context and external-agent observability example.",
+        "urls": ["https://developer.ibm.com/articles/watsonx-orchestrate-agentic-control-plane/"]
+      },
+      "durability": {
+        "state": "not_established",
+        "note": "Orchestration documented; crash/ambiguous-effect semantics require chosen-workflow tests.",
+        "urls": ["https://www.ibm.com/products/watsonx-orchestrate/pricing"]
+      },
+      "costControls": {
+        "state": "documented",
+        "note": "Usage/capacity tiers; exact uncertain-liability enforcement unresolved.",
+        "urls": ["https://www.ibm.com/products/watsonx-orchestrate/pricing"]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "IBM Cloud/AWS/on-prem; imported external agents via A2A example.",
+        "urls": [
+          "https://www.ibm.com/products/watsonx-orchestrate/pricing",
+          "https://developer.ibm.com/articles/watsonx-orchestrate-agentic-control-plane/"
+        ]
+      }
+    },
+    "sources": [
+      {
+        "title": "Pricing and capabilities",
+        "url": "https://www.ibm.com/products/watsonx-orchestrate/pricing"
+      },
+      {
+        "title": "External-agent control plane",
+        "url": "https://developer.ibm.com/articles/watsonx-orchestrate-agentic-control-plane/"
+      }
+    ]
+  }
+]

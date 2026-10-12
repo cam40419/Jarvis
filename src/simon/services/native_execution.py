@@ -38,6 +38,8 @@ from simon.domain.native_projects import (
 from simon.domain.ports import Store
 from simon.services.canonical import digest
 from simon.services.identity import IDENTITY_LOCK
+from simon.services.intake_sources import redact
+from simon.services.native_artifacts import NativeArtifactService
 from simon.services.native_projects import NativeProjectService
 from simon.services.native_workflows import (
     LIVE,
@@ -60,6 +62,44 @@ class NativeExecutionService(NativeWorkflowService):
     ) -> None:
         super().__init__(store, projects, models)
         self.reference = ReferenceWork(store)
+        self.artifacts = NativeArtifactService(store, projects, models)
+
+    def _dependencies(self, run: NativeExecutionRun) -> tuple[dict[str, Any], ...] | None:
+        results: list[dict[str, Any]] = []
+        for value in run.context["dependency_ids"]:
+            task_id = UUID(value)
+            task = self.store.native_task(run.workspace_id, run.project_id, task_id)
+            if task is None or task.status == "cancelled":
+                return None
+            artifacts = self.store.artifacts(run.workspace_id, run.project_id, task_id=task_id)
+            artifact = next((a for a in artifacts if a.task_id == task_id), None)
+            if artifact is None:
+                return None
+            if artifact.pending_repair_task_id:
+                return None
+            revision = self.artifacts._revision(artifact)
+            try:
+                self.artifacts.assert_disclosable_revision(artifact, revision)
+                text, redactions = redact(self.artifacts._text(revision))
+            except (AuthorizationError, ValidationError):
+                return None
+            status = self.artifacts._status(artifact)
+            results.append(
+                {
+                    "task_id": str(task_id),
+                    "run_id": str(revision.run_id) if revision.run_id else None,
+                    "task_digest": task_digest(task),
+                    "title": task.title,
+                    "candidate": text,
+                    "artifact_id": str(artifact.id),
+                    "revision_id": str(revision.id),
+                    "sha256": revision.sha256,
+                    "review_status": status,
+                    "accepted": status == "accepted",
+                    "redactions": redactions,
+                }
+            )
+        return tuple(results)
 
     def _unlease(self, run: NativeExecutionRun, **changes: Any) -> NativeExecutionRun:
         return self._save(run, runner_id=None, lease_token_hash=None, lease_until=None, **changes)
@@ -1023,7 +1063,15 @@ class NativeExecutionService(NativeWorkflowService):
                 result_task_version=updated.version,
                 finished_at=utc_now(),
             )
-            self._event(result, "candidate_ready", task_version=updated.version, accepted=False)
+            artifact = self.artifacts.publish_candidate(result, action.output or "")
+            self._event(
+                result,
+                "candidate_ready",
+                task_version=updated.version,
+                accepted=False,
+                artifact_id=str(artifact.id),
+                revision_id=str(artifact.current_revision_id),
+            )
             return result
         if action.kind == "question":
             return self._wait(run, step, "human", question=action.question or "")

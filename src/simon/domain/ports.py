@@ -31,6 +31,15 @@ from simon.domain.models import (
     OutboxEvent,
 )
 from simon.domain.native_agents import NativeAgent, NativeAgentCredential, NativeTeamPolicy
+from simon.domain.native_artifacts import (
+    NativeArtifact,
+    NativeArtifactCheck,
+    NativeArtifactDecision,
+    NativeArtifactReview,
+    NativeArtifactRevision,
+    NativeReviewPolicy,
+)
+from simon.domain.native_delivery import NativeDeliveryPacket
 from simon.domain.native_execution import (
     NativeExecutionEvent,
     NativeExecutionPolicy,
@@ -542,6 +551,72 @@ class NativeExecutionStore(TransactionStore, Protocol):
     def execution_project_scopes(self) -> tuple[tuple[UUID, UUID], ...]: ...
 
 
+class NativeArtifactStore(TransactionStore, Protocol):
+    def artifact(
+        self, workspace_id: UUID, project_id: UUID, artifact_id: UUID
+    ) -> NativeArtifact | None: ...
+    def artifacts(
+        self,
+        workspace_id: UUID,
+        project_id: UUID,
+        task_id: UUID | None = None,
+        offset: int = 0,
+        limit: int = 50,
+    ) -> tuple[NativeArtifact, ...]: ...
+    def insert_artifact(self, value: NativeArtifact) -> None: ...
+    def update_artifact(self, value: NativeArtifact, expected_version: int) -> None: ...
+    def artifact_revision(
+        self, workspace_id: UUID, project_id: UUID, revision_id: UUID
+    ) -> NativeArtifactRevision | None: ...
+    def artifact_revisions(
+        self,
+        workspace_id: UUID,
+        project_id: UUID,
+        artifact_id: UUID,
+        offset: int = 0,
+        limit: int | None = 50,
+    ) -> tuple[NativeArtifactRevision, ...]: ...
+    def insert_artifact_revision(self, value: NativeArtifactRevision) -> None: ...
+    def review_policy(self, workspace_id: UUID, project_id: UUID) -> NativeReviewPolicy | None: ...
+    def save_review_policy(self, value: NativeReviewPolicy, expected_version: int) -> None: ...
+    def artifact_checks(
+        self, workspace_id: UUID, project_id: UUID, revision_id: UUID
+    ) -> tuple[NativeArtifactCheck, ...]: ...
+    def insert_artifact_check(self, value: NativeArtifactCheck) -> None: ...
+    def artifact_review(
+        self, workspace_id: UUID, project_id: UUID, review_id: UUID
+    ) -> NativeArtifactReview | None: ...
+    def artifact_reviews(
+        self,
+        workspace_id: UUID,
+        project_id: UUID,
+        revision_id: UUID,
+        offset: int = 0,
+        limit: int | None = 50,
+    ) -> tuple[NativeArtifactReview, ...]: ...
+    def insert_artifact_review(self, value: NativeArtifactReview) -> None: ...
+    def update_artifact_review(
+        self, value: NativeArtifactReview, expected_version: int
+    ) -> None: ...
+    def artifact_decisions(
+        self, workspace_id: UUID, project_id: UUID, revision_id: UUID
+    ) -> tuple[NativeArtifactDecision, ...]: ...
+    def insert_artifact_decision(self, value: NativeArtifactDecision) -> None: ...
+
+
+class NativeDeliveryStore(TransactionStore, Protocol):
+    def delivery_packet(
+        self, workspace_id: UUID, project_id: UUID, packet_id: UUID
+    ) -> NativeDeliveryPacket | None: ...
+    def delivery_packet_successor(
+        self, workspace_id: UUID, project_id: UUID, packet_id: UUID
+    ) -> NativeDeliveryPacket | None: ...
+    def delivery_packets(
+        self, workspace_id: UUID, project_id: UUID, offset: int = 0, limit: int = 50
+    ) -> tuple[NativeDeliveryPacket, ...]: ...
+    def insert_delivery_packet(self, value: NativeDeliveryPacket) -> None: ...
+
+
 class Store(
     CapabilityStore,
     InvocationStore,
@@ -559,6 +634,8 @@ class Store(
     NativeIntakeStore,
     NativeModelStore,
     NativeExecutionStore,
+    NativeArtifactStore,
+    NativeDeliveryStore,
     Protocol,
 ):
     """One transaction boundary for state, audit records, and delivery intents."""

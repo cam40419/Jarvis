@@ -15,7 +15,13 @@ from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 from psycopg_pool import ConnectionPool
 
-from simon.adapters.memory import EXECUTION_KEYS, EXECUTION_MODELS, InMemoryStore
+from simon.adapters.memory import (
+    ARTIFACT_KEYS,
+    ARTIFACT_MODELS,
+    EXECUTION_KEYS,
+    EXECUTION_MODELS,
+    InMemoryStore,
+)
 from simon.domain.accounts import ManagedAccount
 from simon.domain.connected_tools import ActionProposal, GoogleConnection, GoogleOAuthState
 from simon.domain.context import ExplicitMemory, RecallDocument
@@ -39,6 +45,7 @@ from simon.domain.integrations import IntegrationConnection
 from simon.domain.interaction import ResponsePreferences, RunFeedback
 from simon.domain.models import AuditEvent, Job, JobStatus, OutboxEvent
 from simon.domain.native_agents import NativeAgent, NativeAgentCredential, NativeTeamPolicy
+from simon.domain.native_delivery import manifest_bytes
 from simon.domain.native_intake import (
     INTAKE_RUN_MUTABLE_FIELDS,
     IntakeRun,
@@ -147,6 +154,94 @@ EXECUTION_COLUMNS: dict[str, tuple[str, ...]] = {
         "expires_at",
     ),
 }
+ARTIFACT_COLUMNS: dict[str, tuple[str, ...]] = {
+    "native_artifacts": (
+        "id",
+        "workspace_id",
+        "project_id",
+        "task_id",
+        "current_revision_id",
+        "pending_repair_task_id",
+        "version",
+        "created_by",
+        "created_by_agent_id",
+        "created_at",
+    ),
+    "native_artifact_revisions": (
+        "id",
+        "workspace_id",
+        "project_id",
+        "artifact_id",
+        "task_id",
+        "run_id",
+        "sequence",
+        "parent_revision_id",
+        "sha256",
+        "size_bytes",
+        "created_by",
+        "created_by_agent_id",
+        "created_at",
+    ),
+    "native_review_policies": (
+        "workspace_id",
+        "project_id",
+        "reviewer_agent_id",
+        "version",
+        "updated_at",
+    ),
+    "native_artifact_checks": (
+        "id",
+        "workspace_id",
+        "project_id",
+        "revision_id",
+        "sha256",
+        "check_name",
+        "status",
+        "created_at",
+    ),
+    "native_artifact_reviews": (
+        "id",
+        "workspace_id",
+        "project_id",
+        "artifact_id",
+        "revision_id",
+        "sha256",
+        "reviewer_agent_id",
+        "review_task_id",
+        "model_id",
+        "usage_id",
+        "requested_by",
+        "idempotency_key",
+        "status",
+        "version",
+        "created_at",
+        "finished_at",
+    ),
+    "native_artifact_decisions": (
+        "id",
+        "workspace_id",
+        "project_id",
+        "artifact_id",
+        "revision_id",
+        "sha256",
+        "review_id",
+        "repair_task_id",
+        "decided_by",
+        "decision",
+        "created_at",
+    ),
+    "native_delivery_packets": (
+        "id",
+        "workspace_id",
+        "project_id",
+        "created_by",
+        "created_at",
+        "previous_packet_id",
+        "sequence",
+        "manifest_sha256",
+        "manifest_bytes",
+    ),
+}
 
 
 class PostgresStore(InMemoryStore):
@@ -166,6 +261,87 @@ class PostgresStore(InMemoryStore):
         self._connection: ContextVar[psycopg.Connection[dict[str, Any]] | None] = ContextVar(
             "simon_connection", default=None
         )
+
+    def _artifact_get(
+        self, table: str, workspace_id: UUID, project_id: UUID, identifier: UUID
+    ) -> Any:
+        with self.transaction():
+            row = self.connection.execute(
+                f"SELECT snapshot FROM {table} WHERE workspace_id=%s AND project_id=%s "
+                f"AND {ARTIFACT_KEYS[table]}=%s",
+                (workspace_id, project_id, identifier),
+            ).fetchone()
+            return ARTIFACT_MODELS[table].model_validate(row["snapshot"]) if row else None
+
+    def _artifact_list(
+        self,
+        table: str,
+        workspace_id: UUID,
+        project_id: UUID,
+        filters: dict[str, Any] | None = None,
+        *,
+        offset: int = 0,
+        limit: int | None = None,
+    ) -> tuple[Any, ...]:
+        conditions = ["workspace_id=%s", "project_id=%s"]
+        values: list[Any] = [workspace_id, project_id]
+        for field, expected in (filters or {}).items():
+            if field == "artifact_task" and table == "native_artifacts":
+                conditions.append("(task_id=%s OR pending_repair_task_id=%s)")
+                values.extend((expected, expected))
+            elif field in ARTIFACT_COLUMNS[table]:
+                conditions.append(f"{field}=%s")
+                values.append(expected)
+            else:
+                raise ValueError("Artifact query field is unavailable.")
+        order = "sequence" if table == "native_artifact_revisions" else "created_at"
+        with self.transaction():
+            rows = self.connection.execute(
+                f"SELECT snapshot FROM {table} WHERE {' AND '.join(conditions)} "
+                f"ORDER BY {order},id LIMIT %s OFFSET %s",
+                (*values, limit, offset),
+            ).fetchall()
+            return tuple(ARTIFACT_MODELS[table].model_validate(row["snapshot"]) for row in rows)
+
+    def _artifact_write(self, table: str, value: Any, expected_version: int | None) -> None:
+        columns = ARTIFACT_COLUMNS[table]
+        values = (
+            *(
+                manifest_bytes(value.manifest) if name == "manifest_bytes" else getattr(value, name)
+                for name in columns
+            ),
+            Jsonb(value.model_dump(mode="json")),
+        )
+        try:
+            with self.transaction():
+                if expected_version in {None, 0}:
+                    self.connection.execute(
+                        f"INSERT INTO {table} ({','.join(columns)},snapshot) "
+                        f"VALUES ({','.join(['%s'] * len(values))})",
+                        values,
+                    )
+                else:
+                    result = self.connection.execute(
+                        f"UPDATE {table} SET "
+                        + ",".join(f"{field}=%s" for field in (*columns, "snapshot"))
+                        + " WHERE workspace_id=%s AND project_id=%s "
+                        + f"AND {ARTIFACT_KEYS[table]}=%s AND version=%s",
+                        (
+                            *values,
+                            value.workspace_id,
+                            value.project_id,
+                            getattr(value, ARTIFACT_KEYS[table]),
+                            expected_version,
+                        ),
+                    )
+                    if result.rowcount != 1:
+                        raise InvalidTransitionError(
+                            "Artifact record changed. Reload before retrying."
+                        )
+        except psycopg.IntegrityError as exc:
+            raise InvalidTransitionError(
+                "Artifact record conflicts with current scope or state."
+            ) from exc
 
     def _execution_get(
         self, table: str, workspace_id: UUID, project_id: UUID, identifier: UUID

@@ -1,0 +1,1880 @@
+[
+  {
+    "name": "OpenClaw",
+    "category": "Local personal agents",
+    "relationship": "direct",
+    "customer": "Technical individuals and trusted teams",
+    "status": "Documented; optional plugins and configuration matter",
+    "summary": "Self-hosted gateway connecting agents, workspaces and chat channels.",
+    "strength": "Already spans boards, multi-agent routing, approvals and restart reconciliation.",
+    "opportunity": "Hypothesis: mixed-trust team authority and cross-tool deliverable acceptance; no uniqueness established.",
+    "pricing": "MIT/open source; infrastructure and model charges remain.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Optional Workboard tracks cards, assignees and linked runs.",
+        "urls": ["https://docs.openclaw.ai/plugins/workboard"]
+      },
+      "artifactReview": {
+        "state": "documented",
+        "note": "Lobster approval checkpoints govern workflow continuation; general quality acceptance unestablished.",
+        "urls": ["https://docs.openclaw.ai/tools/lobster"]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Session state plus bounded provenance receipts; not a compliance archive.",
+        "urls": [
+          "https://docs.openclaw.ai/concepts/multi-agent",
+          "https://docs.openclaw.ai/start/why-openclaw/provenance"
+        ]
+      },
+      "durability": {
+        "state": "documented",
+        "note": "Restart recovery preserves authority and reconciles uncertain interrupted actions without blind replay.",
+        "urls": ["https://docs.openclaw.ai/gateway/restart-recovery"]
+      },
+      "costControls": {
+        "state": "not_established",
+        "note": "Provider usage controls exist in the ecosystem; Simon-style cross-provider monetary ledger not established here.",
+        "urls": []
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Self-hosted gateway; security boundary is one trusted operator/team, not adversarial tenants.",
+        "urls": ["https://docs.openclaw.ai/", "https://docs.openclaw.ai/gateway/security"]
+      }
+    },
+    "sources": [
+      {
+        "title": "Overview",
+        "url": "https://docs.openclaw.ai/"
+      },
+      {
+        "title": "Workboard",
+        "url": "https://docs.openclaw.ai/plugins/workboard"
+      },
+      {
+        "title": "Lobster",
+        "url": "https://docs.openclaw.ai/tools/lobster"
+      },
+      {
+        "title": "Restart recovery",
+        "url": "https://docs.openclaw.ai/gateway/restart-recovery"
+      },
+      {
+        "title": "Security boundary",
+        "url": "https://docs.openclaw.ai/gateway/security"
+      },
+      {
+        "title": "Agent separation",
+        "url": "https://docs.openclaw.ai/concepts/multi-agent"
+      },
+      {
+        "title": "Provenance",
+        "url": "https://docs.openclaw.ai/start/why-openclaw/provenance"
+      }
+    ]
+  },
+  {
+    "name": "Hermes Agent",
+    "category": "Local personal agents",
+    "relationship": "direct",
+    "customer": "Individuals seeking persistent assistants",
+    "status": "Documented open-source system",
+    "summary": "Persistent personal agent with skills, schedules, chat integrations and multiple model providers.",
+    "strength": "Bot profiles and bundled Portal services reduce setup friction.",
+    "opportunity": "Hypothesis: shared business outcomes, artifact lineage and independent domain review.",
+    "pricing": "Open-source software; Portal subscription/model/hosting charges separate. Current Portal dollar tiers not verified.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Bot profiles support specialist assistants and group conversations.",
+        "urls": ["https://hermes-agent.nousresearch.com/docs/user-guide/bot-mode"]
+      },
+      "artifactReview": {
+        "state": "not_established",
+        "note": "Version-bound deliverable acceptance not established.",
+        "urls": []
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Persistent memory, sessions and reusable skills.",
+        "urls": [
+          "https://hermes-agent.nousresearch.com/docs/",
+          "https://hermes-agent.nousresearch.com/docs/user-guide/bot-mode"
+        ]
+      },
+      "durability": {
+        "state": "documented",
+        "note": "Scheduled recurring work documented; exact restart/side-effect contract not audited.",
+        "urls": ["https://hermes-agent.nousresearch.com/docs/"]
+      },
+      "costControls": {
+        "state": "not_established",
+        "note": "Cross-provider reservations and uncertain-charge settlement not established.",
+        "urls": []
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Local installation and optional hosted model/tool Portal.",
+        "urls": [
+          "https://hermes-agent.nousresearch.com/docs/",
+          "https://hermes-agent.nousresearch.com/docs/integrations/nous-portal"
+        ]
+      }
+    },
+    "sources": [
+      {
+        "title": "Documentation",
+        "url": "https://hermes-agent.nousresearch.com/docs/"
+      },
+      {
+        "title": "Bot Mode",
+        "url": "https://hermes-agent.nousresearch.com/docs/user-guide/bot-mode"
+      },
+      {
+        "title": "Nous Portal",
+        "url": "https://hermes-agent.nousresearch.com/docs/integrations/nous-portal"
+      }
+    ]
+  },
+  {
+    "name": "OpenCode",
+    "category": "Coding agents",
+    "relationship": "adjacent",
+    "customer": "Developers wanting provider choice",
+    "status": "Documented open-source coding tool",
+    "summary": "Terminal-centered coding agent with configurable permissions.",
+    "strength": "Provider choice and explicit allow/ask/deny controls.",
+    "opportunity": "Potential engine adapter; product-level business review remains a separate hypothesis.",
+    "pricing": "Open-source client; selected provider and infrastructure costs. Hosted plan prices not verified.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Repository-oriented work; business board orchestration not established.",
+        "urls": ["https://opencode.ai/docs/"]
+      },
+      "artifactReview": {
+        "state": "documented",
+        "note": "Tool permission decisions; exact-revision quality acceptance not established.",
+        "urls": ["https://opencode.ai/docs/permissions/"]
+      },
+      "memoryEvidence": {
+        "state": "not_established",
+        "note": "Cross-artifact evidence model not established in reviewed pages.",
+        "urls": []
+      },
+      "durability": {
+        "state": "not_established",
+        "note": "Business workflow restart guarantees not established.",
+        "urls": []
+      },
+      "costControls": {
+        "state": "not_established",
+        "note": "Shared monetary reservation ledger not established.",
+        "urls": []
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Local client with configurable model providers.",
+        "urls": ["https://opencode.ai/docs/"]
+      }
+    },
+    "sources": [
+      {
+        "title": "Documentation",
+        "url": "https://opencode.ai/docs/"
+      },
+      {
+        "title": "Permissions",
+        "url": "https://opencode.ai/docs/permissions/"
+      }
+    ]
+  },
+  {
+    "name": "OpenHands",
+    "category": "Coding and agent control planes",
+    "relationship": "adjacent",
+    "customer": "Developers and enterprise engineering teams",
+    "status": "Documented OSS/cloud/enterprise offerings",
+    "summary": "Model-agnostic software agents plus enterprise control plane.",
+    "strength": "Enterprise routing, budgets, secrets, observability, isolated runs and BYO agents challenge generic governance positioning.",
+    "opportunity": "Potential execution engine; hypothesize domain-specific acceptance spanning non-code deliverables.",
+    "pricing": "OSS free; individual cloud platform free with BYOK/at-cost providers and limits; Enterprise custom.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Issue/cron/integration-triggered agents and PR delivery.",
+        "urls": ["https://www.openhands.dev/enterprise"]
+      },
+      "artifactReview": {
+        "state": "documented",
+        "note": "Action-risk analysis and confirmation policies; output-quality acceptance distinct.",
+        "urls": ["https://docs.openhands.dev/sdk/guides/security"]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Attributed run observability and governed context advertised; independent audit not performed.",
+        "urls": ["https://www.openhands.dev/enterprise"]
+      },
+      "durability": {
+        "state": "documented",
+        "note": "SDK execution infrastructure documented; uncertain external effects not fully audited.",
+        "urls": ["https://docs.openhands.dev/sdk"]
+      },
+      "costControls": {
+        "state": "documented",
+        "note": "Enterprise budgets, LLM gateway and centralized billing.",
+        "urls": ["https://www.openhands.dev/enterprise", "https://www.openhands.dev/pricing"]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Local OSS, cloud and private/VPC enterprise configurations.",
+        "urls": ["https://www.openhands.dev/pricing"]
+      }
+    },
+    "sources": [
+      {
+        "title": "Pricing",
+        "url": "https://www.openhands.dev/pricing"
+      },
+      {
+        "title": "Enterprise",
+        "url": "https://www.openhands.dev/enterprise"
+      },
+      {
+        "title": "SDK",
+        "url": "https://docs.openhands.dev/sdk"
+      },
+      {
+        "title": "Security",
+        "url": "https://docs.openhands.dev/sdk/guides/security"
+      }
+    ]
+  },
+  {
+    "name": "Devin",
+    "category": "Coding agents",
+    "relationship": "adjacent",
+    "customer": "Engineering teams and developers",
+    "status": "Current documented desktop/CLI/cloud offering",
+    "summary": "Autonomous software work with its own execution environment.",
+    "strength": "Cloud delegation, PR review, testing and recordings provide visible evidence.",
+    "opportunity": "Hypothesis: creative/business outputs with supplier-ready acceptance, beyond software delivery.",
+    "pricing": "USD Pro $20/month; Max $200/month; Teams $80/month base plus $40/full developer seat. Quotas and extra usage apply.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Background issue-driven software tasks and cloud handoff.",
+        "urls": ["https://docs.devin.ai/get-started/devin-intro"]
+      },
+      "artifactReview": {
+        "state": "documented",
+        "note": "PR review and testing/recordings; broader exact-revision business acceptance unestablished.",
+        "urls": [
+          "https://docs.devin.ai/work-with-devin/devin-review",
+          "https://docs.devin.ai/work-with-devin/testing-and-recordings"
+        ]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Logs and test recordings support review evidence.",
+        "urls": ["https://docs.devin.ai/work-with-devin/testing-and-recordings"]
+      },
+      "durability": {
+        "state": "documented",
+        "note": "Cloud background execution; ambiguous external-write recovery not established in reviewed pages.",
+        "urls": ["https://docs.devin.ai/get-started/devin-intro"]
+      },
+      "costControls": {
+        "state": "documented",
+        "note": "Daily/weekly plan quotas and extra usage at API prices; task cost varies.",
+        "urls": ["https://devin.ai/pricing"]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Managed desktop/CLI/cloud; Enterprise dedicated VPC and isolation options.",
+        "urls": ["https://devin.ai/pricing", "https://docs.devin.ai/get-started/devin-intro"]
+      }
+    },
+    "sources": [
+      {
+        "title": "Pricing",
+        "url": "https://devin.ai/pricing"
+      },
+      {
+        "title": "Introduction",
+        "url": "https://docs.devin.ai/get-started/devin-intro"
+      },
+      {
+        "title": "Devin Review",
+        "url": "https://docs.devin.ai/work-with-devin/devin-review"
+      },
+      {
+        "title": "Testing and recordings",
+        "url": "https://docs.devin.ai/work-with-devin/testing-and-recordings"
+      }
+    ]
+  },
+  {
+    "name": "Cursor",
+    "category": "Coding agents",
+    "relationship": "adjacent",
+    "customer": "Developers and engineering teams",
+    "status": "Documented cloud agents, automations and enterprise workers",
+    "summary": "Parallel cloud coding agents with computer-use evidence and team workflows.",
+    "strength": "Screenshots, videos, logs, recurring tasks and remote takeover are established.",
+    "opportunity": "Hypothesis: coordination of accepted business assets across specialist tools.",
+    "pricing": "USD Pro $20/month; Teams $40/user/month. Cloud model usage is API-priced; included usage and limits vary.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Parallel agents, PRs, multi-repository work and event/cron automations.",
+        "urls": [
+          "https://cursor.com/docs/cloud-agent",
+          "https://cursor.com/docs/cloud-agent/automations"
+        ]
+      },
+      "artifactReview": {
+        "state": "documented",
+        "note": "Tests, screenshots/videos and optional PR review actions; independent business-quality acceptance unestablished.",
+        "urls": [
+          "https://cursor.com/docs/cloud-agent",
+          "https://cursor.com/docs/cloud-agent/automations"
+        ]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Artifacts/logs and automation memory; untrusted-input caveats documented.",
+        "urls": [
+          "https://cursor.com/docs/cloud-agent",
+          "https://cursor.com/docs/cloud-agent/automations"
+        ]
+      },
+      "durability": {
+        "state": "documented",
+        "note": "Background isolated environments and automations; external-effect reconciliation not established.",
+        "urls": ["https://cursor.com/docs/cloud-agent"]
+      },
+      "costControls": {
+        "state": "documented",
+        "note": "Model-rate cloud usage and spend-limit setup.",
+        "urls": ["https://cursor.com/docs/cloud-agent", "https://cursor.com/pricing"]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Self-hosted workers execute tools locally; orchestration/inference and some artifacts still use Cursor cloud.",
+        "urls": ["https://cursor.com/docs/cloud-agent/self-hosted"]
+      }
+    },
+    "sources": [
+      {
+        "title": "Pricing",
+        "url": "https://cursor.com/pricing"
+      },
+      {
+        "title": "Cloud agents",
+        "url": "https://cursor.com/docs/cloud-agent"
+      },
+      {
+        "title": "Automations",
+        "url": "https://cursor.com/docs/cloud-agent/automations"
+      },
+      {
+        "title": "Self-hosted boundary",
+        "url": "https://cursor.com/docs/cloud-agent/self-hosted"
+      }
+    ]
+  },
+  {
+    "name": "Claude Code",
+    "category": "Coding agents",
+    "relationship": "adjacent",
+    "customer": "Developers and software teams",
+    "status": "Documented; agent teams experimental",
+    "summary": "Coding assistant with coordinated experimental agent teams and file checkpoints.",
+    "strength": "Shared team task lists and teammate communication already exist.",
+    "opportunity": "Potential tool adapter; avoid building generic multi-agent coding as a moat.",
+    "pricing": "Claude subscription/API routes; Pro $20/month and Max $100/$200 monthly tiers shown on current pricing.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Experimental agent teams share tasks and communicate; limitations include no resumed in-process teammates.",
+        "urls": ["https://code.claude.com/docs/en/agent-teams"]
+      },
+      "artifactReview": {
+        "state": "documented",
+        "note": "File checkpoints allow rewind; this is distinct from independent quality acceptance.",
+        "urls": ["https://code.claude.com/docs/en/checkpointing"]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Session-associated file history; project-wide evidence graph not established.",
+        "urls": ["https://code.claude.com/docs/en/checkpointing"]
+      },
+      "durability": {
+        "state": "documented",
+        "note": "Checkpoints documented; experimental team lifecycle limitations remain.",
+        "urls": [
+          "https://code.claude.com/docs/en/agent-teams",
+          "https://code.claude.com/docs/en/checkpointing"
+        ]
+      },
+      "costControls": {
+        "state": "documented",
+        "note": "Subscription/API usage constraints; pooled project monetary reservations not established.",
+        "urls": ["https://claude.com/pricing"]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Local coding client; team behavior depends on configuration.",
+        "urls": [
+          "https://code.claude.com/docs/en/agent-teams",
+          "https://code.claude.com/docs/en/checkpointing"
+        ]
+      }
+    },
+    "sources": [
+      {
+        "title": "Agent teams and limitations",
+        "url": "https://code.claude.com/docs/en/agent-teams"
+      },
+      {
+        "title": "Checkpointing",
+        "url": "https://code.claude.com/docs/en/checkpointing"
+      },
+      {
+        "title": "Claude pricing",
+        "url": "https://claude.com/pricing"
+      }
+    ]
+  },
+  {
+    "name": "Claude Cowork",
+    "category": "General work agents",
+    "relationship": "direct",
+    "customer": "Individuals and business knowledge workers",
+    "status": "Current cloud/web/mobile beta rollout and desktop offering",
+    "summary": "Multi-step work over files, connected tools and browser tasks.",
+    "strength": "Offline cloud schedules and polished work delivery remove older desktop-only distinctions.",
+    "opportunity": "Hypothesis: shared commercial outcome contracts and explicit accepted-revision lineage.",
+    "pricing": "USD Pro $20/month or $200/year; Max 5x $100/month, Max 20x $200/month. Usage shared with other Claude features.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Multi-step file/tool work and parallel work chunks.",
+        "urls": ["https://claude.com/product/cowork"]
+      },
+      "artifactReview": {
+        "state": "documented",
+        "note": "Reviewable work outputs and user steering; exact-revision acceptance contract not established.",
+        "urls": ["https://claude.com/product/cowork"]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Projects/context across supported surfaces; artifact lineage specifics not established.",
+        "urls": [
+          "https://claude.com/product/cowork",
+          "https://claude.com/resources/articles/cowork-web-mobile"
+        ]
+      },
+      "durability": {
+        "state": "documented",
+        "note": "Current July 7 article documents cloud work/schedules with devices offline; access rollout varies.",
+        "urls": ["https://claude.com/resources/articles/cowork-web-mobile"]
+      },
+      "costControls": {
+        "state": "documented",
+        "note": "Shared plan usage limits; cross-provider budgets not established.",
+        "urls": ["https://claude.com/pricing"]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Desktop plus cloud/web/mobile rollout; current source supersedes older awake-desktop scheduling guidance.",
+        "urls": [
+          "https://claude.com/product/cowork",
+          "https://claude.com/resources/articles/cowork-web-mobile"
+        ]
+      }
+    },
+    "sources": [
+      {
+        "title": "Cowork",
+        "url": "https://claude.com/product/cowork"
+      },
+      {
+        "title": "July 7 cloud/web/mobile update",
+        "url": "https://claude.com/resources/articles/cowork-web-mobile"
+      },
+      {
+        "title": "Pricing",
+        "url": "https://claude.com/pricing"
+      }
+    ]
+  },
+  {
+    "name": "OpenAI Codex",
+    "category": "Coding agents",
+    "relationship": "adjacent",
+    "customer": "Developers and teams",
+    "status": "Documented local and cloud work",
+    "summary": "Coding execution, long-running goals, parallel work and action controls.",
+    "strength": "Broad execution surfaces, ongoing goals and approvals reduce orchestration-only differentiation.",
+    "opportunity": "Potential engine adapter; test value from cross-tool business acceptance.",
+    "pricing": "ChatGPT/Codex shared subscription allowances; Plus USD $20/month and Pro $100/$200/$500 tiers; API/credits distinct.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Long-running goals, steering and parallel tasks.",
+        "urls": ["https://learn.chatgpt.com/docs/long-running-work"]
+      },
+      "artifactReview": {
+        "state": "documented",
+        "note": "Action approval/security and work outputs; permission approval is not a quality verdict.",
+        "urls": [
+          "https://learn.chatgpt.com/docs/agent-approvals-security",
+          "https://learn.chatgpt.com/docs/features"
+        ]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Project/file context and task output evidence; durable business lineage not established.",
+        "urls": ["https://learn.chatgpt.com/docs/features"]
+      },
+      "durability": {
+        "state": "documented",
+        "note": "Local/cloud work and scheduled automations; local tasks need a running computer.",
+        "urls": [
+          "https://learn.chatgpt.com/docs/long-running-work",
+          "https://learn.chatgpt.com/docs/automations"
+        ]
+      },
+      "costControls": {
+        "state": "documented",
+        "note": "Shared plan usage and separate credit/API billing; project ledger comparability unestablished.",
+        "urls": ["https://learn.chatgpt.com/docs/pricing"]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "CLI/IDE/desktop local environments and hosted cloud work have different policies.",
+        "urls": [
+          "https://learn.chatgpt.com/docs/agent-approvals-security",
+          "https://learn.chatgpt.com/docs/long-running-work"
+        ]
+      }
+    },
+    "sources": [
+      {
+        "title": "Long-running work",
+        "url": "https://learn.chatgpt.com/docs/long-running-work"
+      },
+      {
+        "title": "Approvals",
+        "url": "https://learn.chatgpt.com/docs/agent-approvals-security"
+      },
+      {
+        "title": "Automations",
+        "url": "https://learn.chatgpt.com/docs/automations"
+      },
+      {
+        "title": "Features",
+        "url": "https://learn.chatgpt.com/docs/features"
+      },
+      {
+        "title": "Pricing",
+        "url": "https://learn.chatgpt.com/docs/pricing"
+      }
+    ]
+  },
+  {
+    "name": "ChatGPT Work, Projects and Space",
+    "category": "General work workspaces",
+    "relationship": "direct",
+    "customer": "Knowledge workers and collaborative teams",
+    "status": "Documented current workspace features",
+    "summary": "Projects and shared Space pages connect agent work, sources and collaborative outputs.",
+    "strength": "Native documents, apps, pages and existing distribution challenge Simon's shared workspace thesis.",
+    "opportunity": "Hypothesis: vendor-neutral accepted deliverables with downstream change control.",
+    "pricing": "ChatGPT plan usage applies; see current pricing, separate credits/API billing.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Projects share instructions/files; Space supports nested shared pages and collaboration.",
+        "urls": ["https://learn.chatgpt.com/docs/projects", "https://learn.chatgpt.com/docs/space"]
+      },
+      "artifactReview": {
+        "state": "documented",
+        "note": "Human page editing/comments and output review; exact-revision quality gate not established.",
+        "urls": ["https://learn.chatgpt.com/docs/space"]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Project sources and page context; copied summaries inherit destination audience, not original permissions.",
+        "urls": ["https://learn.chatgpt.com/docs/projects", "https://learn.chatgpt.com/docs/space"]
+      },
+      "durability": {
+        "state": "documented",
+        "note": "Cloud Team Tasks and schedules; local automations still depend on device availability.",
+        "urls": ["https://learn.chatgpt.com/docs/automations"]
+      },
+      "costControls": {
+        "state": "documented",
+        "note": "Plan quotas and credits; end-to-end accepted-deliverable cost ledger not established.",
+        "urls": ["https://learn.chatgpt.com/docs/pricing"]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Managed cloud workspace and approved connected/local tools; lifecycle/security scopes differ.",
+        "urls": ["https://learn.chatgpt.com/docs/enterprise/chatgpt-work-cloud-security"]
+      }
+    },
+    "sources": [
+      {
+        "title": "Projects",
+        "url": "https://learn.chatgpt.com/docs/projects"
+      },
+      {
+        "title": "Space",
+        "url": "https://learn.chatgpt.com/docs/space"
+      },
+      {
+        "title": "Automations",
+        "url": "https://learn.chatgpt.com/docs/automations"
+      },
+      {
+        "title": "Cloud security",
+        "url": "https://learn.chatgpt.com/docs/enterprise/chatgpt-work-cloud-security"
+      },
+      {
+        "title": "Pricing",
+        "url": "https://learn.chatgpt.com/docs/pricing"
+      }
+    ]
+  },
+  {
+    "name": "ChatGPT Workspace Agents",
+    "category": "Shared enterprise agents",
+    "relationship": "direct",
+    "customer": "Business, Enterprise and Edu workspaces",
+    "status": "April research preview; current beta run API documented",
+    "summary": "Saved shared agents combine skills, connected sources and schedules.",
+    "strength": "Reusable workspace agents and asynchronous triggers address team workflow automation.",
+    "opportunity": "Hypothesis: cross-vendor lifecycle contracts, accepted artifacts and domain verification.",
+    "pricing": "Plan eligibility documented; incremental per-run pricing not established.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Reusable shared agents with skills, connections and recurring responsibilities.",
+        "urls": [
+          "https://developers.openai.com/cookbook/articles/chatgpt-agents-sales-meeting-prep"
+        ]
+      },
+      "artifactReview": {
+        "state": "documented",
+        "note": "Agent/app approval remains distinct from deliverable quality; exact quality gate unestablished.",
+        "urls": [
+          "https://developers.openai.com/cookbook/examples/chatgpt/workspace_agents/workspace-agents-api-trigger"
+        ]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Connected source-grounded agent work; lineage/retention contracts not fully established.",
+        "urls": [
+          "https://developers.openai.com/cookbook/articles/chatgpt-agents-sales-meeting-prep"
+        ]
+      },
+      "durability": {
+        "state": "documented",
+        "note": "Asynchronous run acceptance, polling and idempotent triggering documented.",
+        "urls": [
+          "https://learn.chatgpt.com/workspace-agents/trigger-runs",
+          "https://developers.openai.com/cookbook/examples/chatgpt/workspace_agents/workspace-agents-api-trigger"
+        ]
+      },
+      "costControls": {
+        "state": "not_established",
+        "note": "Current per-run pricing and project monetary controls not established.",
+        "urls": []
+      },
+      "deployment": {
+        "state": "announced",
+        "note": "Research-preview workspace availability; beta API and scoped authorization requirements.",
+        "urls": [
+          "https://developers.openai.com/cookbook/articles/chatgpt-agents-sales-meeting-prep",
+          "https://learn.chatgpt.com/workspace-agents/trigger-runs"
+        ]
+      }
+    },
+    "sources": [
+      {
+        "title": "Workspace agent research preview",
+        "url": "https://developers.openai.com/cookbook/articles/chatgpt-agents-sales-meeting-prep"
+      },
+      {
+        "title": "Run API",
+        "url": "https://learn.chatgpt.com/workspace-agents/trigger-runs"
+      },
+      {
+        "title": "API trigger example",
+        "url": "https://developers.openai.com/cookbook/examples/chatgpt/workspace_agents/workspace-agents-api-trigger"
+      }
+    ]
+  },
+  {
+    "name": "ChatGPT dots",
+    "category": "Always-on personal agents",
+    "relationship": "direct",
+    "customer": "Eligible ChatGPT users and workspaces",
+    "status": "September 29 announcement; gradual eligible-account rollout",
+    "summary": "Cloud agent coordinating continuing responsibilities, memory and background workers.",
+    "strength": "Always-on work, proactive follow-up, its own computer and cross-channel access threaten generic autonomy positioning.",
+    "opportunity": "Hypothesis: explicit business acceptance and full economic accounting; must be tested against eligible live product.",
+    "pricing": "Access varies by plan, region and workspace; exact incremental pricing not established.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Ongoing responsibilities and parallel background tasks; tasks retain their original execution environment.",
+        "urls": [
+          "https://learn.chatgpt.com/docs/dots",
+          "https://learn.chatgpt.com/docs/dots/tasks-and-memory"
+        ]
+      },
+      "artifactReview": {
+        "state": "documented",
+        "note": "Outputs/errors require review; completed run explicitly does not prove delivery; action auto-review differs from quality.",
+        "urls": [
+          "https://learn.chatgpt.com/docs/dots/tasks-and-memory",
+          "https://learn.chatgpt.com/docs/dots/controls"
+        ]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Saved notes, selected conversation context and relevant ChatGPT memory carry across channels.",
+        "urls": [
+          "https://learn.chatgpt.com/docs/dots",
+          "https://learn.chatgpt.com/docs/dots/tasks-and-memory"
+        ]
+      },
+      "durability": {
+        "state": "documented",
+        "note": "Cloud work while devices are off; local delegated tasks need connected running devices.",
+        "urls": [
+          "https://learn.chatgpt.com/docs/dots",
+          "https://learn.chatgpt.com/docs/dots/tasks-and-memory"
+        ]
+      },
+      "costControls": {
+        "state": "not_established",
+        "note": "Project-level reservations, compute accounting and unknown-charge settlement not established.",
+        "urls": []
+      },
+      "deployment": {
+        "state": "announced",
+        "note": "Gradual rollout; own cloud computer and optional connected local computer.",
+        "urls": [
+          "https://learn.chatgpt.com/docs/dots",
+          "https://learn.chatgpt.com/docs/whats-new/devday-2026"
+        ]
+      }
+    },
+    "sources": [
+      {
+        "title": "Meet dots",
+        "url": "https://learn.chatgpt.com/docs/dots"
+      },
+      {
+        "title": "Tasks and memory",
+        "url": "https://learn.chatgpt.com/docs/dots/tasks-and-memory"
+      },
+      {
+        "title": "Controls",
+        "url": "https://learn.chatgpt.com/docs/dots/controls"
+      },
+      {
+        "title": "DevDay announcement",
+        "url": "https://learn.chatgpt.com/docs/whats-new/devday-2026"
+      }
+    ]
+  },
+  {
+    "name": "ChatGPT Sites",
+    "category": "Application builders",
+    "relationship": "substitute",
+    "customer": "Users creating hosted sites and small applications",
+    "status": "Documented public beta",
+    "summary": "Build and host web applications within the ChatGPT work ecosystem.",
+    "strength": "Integrated creation, saved versions and publishing remove small-site handoff friction.",
+    "opportunity": "Hypothesis: coordinate assets and business approval before publishing through existing hosts.",
+    "pricing": "Eligible paid ChatGPT plans; displayed usage limits vary by account.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Site creation/import and hosting documented.",
+        "urls": ["https://learn.chatgpt.com/docs/sites"]
+      },
+      "artifactReview": {
+        "state": "documented",
+        "note": "Saved versions can be reviewed before deployment; broader acceptance/evidence contract unestablished.",
+        "urls": ["https://learn.chatgpt.com/docs/sites"]
+      },
+      "memoryEvidence": {
+        "state": "not_established",
+        "note": "Cross-tool artifact provenance not established.",
+        "urls": []
+      },
+      "durability": {
+        "state": "documented",
+        "note": "Version save and production deployment distinguished; external effects not audited.",
+        "urls": ["https://learn.chatgpt.com/docs/sites"]
+      },
+      "costControls": {
+        "state": "documented",
+        "note": "Account-specific limits and ChatGPT plan eligibility.",
+        "urls": ["https://learn.chatgpt.com/docs/sites"]
+      },
+      "deployment": {
+        "state": "announced",
+        "note": "Public beta hosted Sites with production URLs.",
+        "urls": ["https://learn.chatgpt.com/docs/sites"]
+      }
+    },
+    "sources": [
+      {
+        "title": "Sites",
+        "url": "https://learn.chatgpt.com/docs/sites"
+      },
+      {
+        "title": "Pricing",
+        "url": "https://learn.chatgpt.com/docs/pricing"
+      }
+    ]
+  },
+  {
+    "name": "Replit Agent",
+    "category": "General work and application builders",
+    "relationship": "direct",
+    "customer": "Builders, small teams and business users",
+    "status": "Current general agent and project artifacts documented",
+    "summary": "General work plus deployable apps in a managed project environment.",
+    "strength": "Kanban tasks, connected business tools, multiple artifact types and cost controls already coexist.",
+    "opportunity": "Hypothesis: acceptance across independently owned tools and physical-business outputs.",
+    "pricing": "Effort-based paid requests/checkpoints plus provider usage; credit allowances vary. Current plan sticker dollars not reliably retrieved.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "General agent creates documents/research/apps and uses connected tools; tasks/artifacts scoped to project.",
+        "urls": [
+          "https://docs.replit.com/features/agent/general-agent",
+          "https://docs.replit.com/features/projects-and-artifacts/artifacts",
+          "https://docs.replit.com/billing/ai-billing"
+        ]
+      },
+      "artifactReview": {
+        "state": "documented",
+        "note": "Checkpoint review and rollback; semantic independent acceptance not established.",
+        "urls": ["https://docs.replit.com/features/version-control/checkpoints-and-rollbacks"]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Project artifacts share backend/data; up to seven artifacts documented.",
+        "urls": ["https://docs.replit.com/features/projects-and-artifacts/artifacts"]
+      },
+      "durability": {
+        "state": "documented",
+        "note": "Snapshots include files/conversation/config/memory; development database rollback optional, production recovery separate.",
+        "urls": ["https://docs.replit.com/features/version-control/checkpoints-and-rollbacks"]
+      },
+      "costControls": {
+        "state": "documented",
+        "note": "Effort-priced requests, cost checkpoints, alerts and budgets; usage display can lag.",
+        "urls": ["https://docs.replit.com/billing/ai-billing"]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Hosted development/deployment; publishing includes the project, not independently each artifact.",
+        "urls": [
+          "https://docs.replit.com/features/projects-and-artifacts/artifacts",
+          "https://replit.com/pricing"
+        ]
+      }
+    },
+    "sources": [
+      {
+        "title": "General agent",
+        "url": "https://docs.replit.com/features/agent/general-agent"
+      },
+      {
+        "title": "Artifacts",
+        "url": "https://docs.replit.com/features/projects-and-artifacts/artifacts"
+      },
+      {
+        "title": "Billing",
+        "url": "https://docs.replit.com/billing/ai-billing"
+      },
+      {
+        "title": "Checkpoints",
+        "url": "https://docs.replit.com/features/version-control/checkpoints-and-rollbacks"
+      },
+      {
+        "title": "Pricing",
+        "url": "https://replit.com/pricing"
+      }
+    ]
+  },
+  {
+    "name": "Lovable",
+    "category": "Application builders",
+    "relationship": "substitute",
+    "customer": "Founders, small businesses and product teams",
+    "status": "Documented hosted product",
+    "summary": "Prompt-driven app development with hosting, AI usage and repository integration.",
+    "strength": "Fast production app path and current-version security/publish gates.",
+    "opportunity": "Hypothesis: outcome acceptance across software and external business assets.",
+    "pricing": "Credits vary by plan/action; planning message one credit; hosting/app-AI balances separate. Paid sticker tiers not reliably retrieved.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Application development with GitHub synchronization.",
+        "urls": ["https://docs.lovable.dev/integrations/github"]
+      },
+      "artifactReview": {
+        "state": "documented",
+        "note": "Version-specific security checks and Enterprise critical-finding publish blocks; not a general semantic acceptance proof.",
+        "urls": ["https://docs.lovable.dev/features/security"]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Current application scans and synchronized repository context.",
+        "urls": [
+          "https://docs.lovable.dev/features/security",
+          "https://docs.lovable.dev/integrations/github"
+        ]
+      },
+      "durability": {
+        "state": "documented",
+        "note": "Repository sync documented; uncertain external-side-effect recovery not established.",
+        "urls": ["https://docs.lovable.dev/integrations/github"]
+      },
+      "costControls": {
+        "state": "documented",
+        "note": "Workspace credit balances; building/cloud/app AI have different units.",
+        "urls": ["https://lovable.dev/pricing"]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Hosted builder with code synchronization; full deployment independence not tested.",
+        "urls": ["https://docs.lovable.dev/integrations/github"]
+      }
+    },
+    "sources": [
+      {
+        "title": "Pricing and units",
+        "url": "https://lovable.dev/pricing"
+      },
+      {
+        "title": "Security review",
+        "url": "https://docs.lovable.dev/features/security"
+      },
+      {
+        "title": "GitHub",
+        "url": "https://docs.lovable.dev/integrations/github"
+      }
+    ]
+  },
+  {
+    "name": "Bolt",
+    "category": "Application builders",
+    "relationship": "substitute",
+    "customer": "Individuals and small app teams",
+    "status": "Documented hosted builder",
+    "summary": "Token-priced application building with hosting and databases.",
+    "strength": "Low entry price and integrated publishing stack.",
+    "opportunity": "Hypothesis: accepted business outcomes and revision-safe downstream assets.",
+    "pricing": "USD Pro starts $25/month with 10M tokens/month; Teams $30/member/month, token allowances per member.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "App building, hosting and databases included by plan.",
+        "urls": ["https://bolt.new/pricing"]
+      },
+      "artifactReview": {
+        "state": "not_established",
+        "note": "Independent exact-revision quality acceptance not established in verified page.",
+        "urls": []
+      },
+      "memoryEvidence": {
+        "state": "not_established",
+        "note": "Cross-artifact source/evidence graph not established.",
+        "urls": []
+      },
+      "durability": {
+        "state": "not_established",
+        "note": "External-action reconciliation not established; do not treat code restore as database rollback.",
+        "urls": []
+      },
+      "costControls": {
+        "state": "documented",
+        "note": "Free daily/monthly token limits; paid allowances and limited rollover.",
+        "urls": ["https://bolt.new/pricing"]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Hosted app production tools and private projects by plan.",
+        "urls": ["https://bolt.new/pricing"]
+      }
+    },
+    "sources": [
+      {
+        "title": "Current pricing",
+        "url": "https://bolt.new/pricing"
+      }
+    ]
+  },
+  {
+    "name": "Base44",
+    "category": "Application builders",
+    "relationship": "substitute",
+    "customer": "Business builders and developers",
+    "status": "Current hosted and developer platform documented",
+    "summary": "Managed app backend plus builder and developer tooling.",
+    "strength": "Turnkey auth/data/functions and GitHub ownership reduce build-to-production work.",
+    "opportunity": "Potential managed backend adapter; acceptance remains a separate value hypothesis.",
+    "pricing": "USD annual-billing equivalents: Starter $16/month, Builder $40, Pro $80, Elite $160. Message/integration credits differ.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Prompt-built apps and headless developer backend.",
+        "urls": ["https://base44.com/pricing", "https://base44.com/developers"]
+      },
+      "artifactReview": {
+        "state": "not_established",
+        "note": "Independent semantic acceptance gate not established.",
+        "urls": []
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Entities/backend and source synchronization documented; evidence graph not established.",
+        "urls": ["https://base44.com/developers"]
+      },
+      "durability": {
+        "state": "not_established",
+        "note": "Cross-service failure/side-effect reconciliation not established.",
+        "urls": []
+      },
+      "costControls": {
+        "state": "documented",
+        "note": "Separate message and integration credits with variable action/model consumption.",
+        "urls": ["https://base44.com/pricing"]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Hosted backend; vendor states code/data ownership and GitHub source sync.",
+        "urls": ["https://base44.com/pricing", "https://base44.com/developers"]
+      }
+    },
+    "sources": [
+      {
+        "title": "Pricing and ownership",
+        "url": "https://base44.com/pricing"
+      },
+      {
+        "title": "Developer platform",
+        "url": "https://base44.com/developers"
+      }
+    ]
+  },
+  {
+    "name": "Canva",
+    "category": "Creative production suites",
+    "relationship": "direct",
+    "customer": "Creators, marketers and collaborative businesses",
+    "status": "AI 2.0 availability varies by plan/account",
+    "summary": "Editable creative production with agentic iterations, research, memory and schedules.",
+    "strength": "Brand controls, design approvals and creative distribution are established; not a blank canvas opportunity.",
+    "opportunity": "Hypothesis: coordinate commercial truth and accepted versions across Canva, suppliers and sales tools.",
+    "pricing": "USD Pro $144/year for one person; Business $250/year/person displayed. AI allowances/top-ups apply.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Agentic editable designs plus research/connectors and scheduled creation.",
+        "urls": ["https://www.canva.com/help/using-canva-ai/"]
+      },
+      "artifactReview": {
+        "state": "documented",
+        "note": "Brand/design approval before publication; this is genuine creative proofing, though broader lineage contract unestablished.",
+        "urls": ["https://www.canva.com/help/brand-control/"]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "AI memory and connected research; brand controls apply to supported folders.",
+        "urls": [
+          "https://www.canva.com/help/using-canva-ai/",
+          "https://www.canva.com/help/brand-control/"
+        ]
+      },
+      "durability": {
+        "state": "documented",
+        "note": "Recurring AI tasks documented; current limit ten tasks and access rollout caveats.",
+        "urls": ["https://www.canva.com/help/using-canva-ai/"]
+      },
+      "costControls": {
+        "state": "documented",
+        "note": "Plan AI allowances and top-ups; unlimited AI not established.",
+        "urls": ["https://www.canva.com/pricing/"]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Managed collaborative suite and distribution/export workflows.",
+        "urls": ["https://www.canva.com/help/using-canva-ai/", "https://www.canva.com/pricing/"]
+      }
+    },
+    "sources": [
+      {
+        "title": "Using Canva AI",
+        "url": "https://www.canva.com/help/using-canva-ai/"
+      },
+      {
+        "title": "Brand control and approval",
+        "url": "https://www.canva.com/help/brand-control/"
+      },
+      {
+        "title": "Pricing",
+        "url": "https://www.canva.com/pricing/"
+      }
+    ]
+  },
+  {
+    "name": "Adobe Firefly and Creative Cloud",
+    "category": "Creative production suites",
+    "relationship": "adjacent",
+    "customer": "Professional creatives and branded content teams",
+    "status": "Documented tools; custom models public beta",
+    "summary": "Multi-model image/video generation and shared creative Boards within Adobe workflows.",
+    "strength": "Professional editability, partner models and custom brand models challenge generic multimodel creativity.",
+    "opportunity": "Potential production engines; hypothesize commercial correctness and release contracts across tools.",
+    "pricing": "Plans use generative credits; Standard 2,000/month and Pro 4,000/month shown. Retrieved dollar prices localized, not normalized.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Boards organize/remix collaborative creative work and hand off into Adobe tools.",
+        "urls": [
+          "https://www.adobe.com/products/firefly.html",
+          "https://www.adobe.com/products/firefly/features/moodboard.html"
+        ]
+      },
+      "artifactReview": {
+        "state": "documented",
+        "note": "Creative editing and Content Credentials; neither automatically proves business correctness.",
+        "urls": ["https://www.adobe.com/products/firefly.html"]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Content Credentials and custom brand-model inputs documented.",
+        "urls": [
+          "https://www.adobe.com/products/firefly.html",
+          "https://www.adobe.com/products/firefly/features/custom-models.html"
+        ]
+      },
+      "durability": {
+        "state": "not_established",
+        "note": "General autonomous workflow restart and external-write reconciliation not established.",
+        "urls": []
+      },
+      "costControls": {
+        "state": "documented",
+        "note": "Model/feature-dependent generative credits and plan allowances.",
+        "urls": ["https://www.adobe.com/products/firefly/plans.html"]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Managed services integrated with desktop creative applications.",
+        "urls": ["https://www.adobe.com/products/firefly.html"]
+      }
+    },
+    "sources": [
+      {
+        "title": "Firefly",
+        "url": "https://www.adobe.com/products/firefly.html"
+      },
+      {
+        "title": "Plans",
+        "url": "https://www.adobe.com/products/firefly/plans.html"
+      },
+      {
+        "title": "Boards",
+        "url": "https://www.adobe.com/products/firefly/features/moodboard.html"
+      },
+      {
+        "title": "Custom models",
+        "url": "https://www.adobe.com/products/firefly/features/custom-models.html"
+      }
+    ]
+  },
+  {
+    "name": "Figma Design and Make",
+    "category": "Creative production suites",
+    "relationship": "adjacent",
+    "customer": "Design/product teams",
+    "status": "Agent in Design GA October 6; capabilities plan-dependent",
+    "summary": "Collaborative design plus agentic design/code creation.",
+    "strength": "Native editable production context and live collaboration are difficult to recreate.",
+    "opportunity": "Potential reviewed design/code engine; hypothesis is downstream outcome coordination.",
+    "pricing": "Full-seat displayed prices vary by billing basis; Organization $55/month and Enterprise $90/month billed annually. AI credits separate.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Collaborative Design and agentic Make/Design work documented.",
+        "urls": [
+          "https://www.figma.com/pricing/",
+          "https://help.figma.com/hc/en-us/articles/42614902212887-AI-credit-updates-FAQ"
+        ]
+      },
+      "artifactReview": {
+        "state": "documented",
+        "note": "Human design iteration in native workspace; binding independent general quality gate unestablished.",
+        "urls": ["https://www.figma.com/pricing/"]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Shared design context; cross-vendor evidence lineage not established.",
+        "urls": ["https://www.figma.com/pricing/"]
+      },
+      "durability": {
+        "state": "not_established",
+        "note": "General long-running business workflow recovery not established.",
+        "urls": []
+      },
+      "costControls": {
+        "state": "documented",
+        "note": "AI credit budgets; agentic consumption depends on complexity, model and context.",
+        "urls": [
+          "https://help.figma.com/hc/en-us/articles/33459875669015-How-Figma-AI-credits-work"
+        ]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Managed team design workspace.",
+        "urls": ["https://www.figma.com/pricing/"]
+      }
+    },
+    "sources": [
+      {
+        "title": "Pricing",
+        "url": "https://www.figma.com/pricing/"
+      },
+      {
+        "title": "October 6 AI availability",
+        "url": "https://help.figma.com/hc/en-us/articles/42614902212887-AI-credit-updates-FAQ"
+      },
+      {
+        "title": "AI credits",
+        "url": "https://help.figma.com/hc/en-us/articles/33459875669015-How-Figma-AI-credits-work"
+      }
+    ]
+  },
+  {
+    "name": "Figma Weave",
+    "category": "Creative workflow graphs",
+    "relationship": "adjacent",
+    "customer": "Creative teams and technical production users",
+    "status": "Weave tools GA in Figma October 6; separate product/account units",
+    "summary": "Multi-model visual workflows and reusable creative production.",
+    "strength": "Broad media workflows, API access and enterprise BYOK already exist.",
+    "opportunity": "Potential creative execution adapter; hypothesis is evidence-bound approval of a complete commercial packet.",
+    "pricing": "Credit allowances and seat/team tiers; monthly stickers/annual totals conflicted in retrieval, so no normalized dollar comparison.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Reusable workflows and multi-model creative tools.",
+        "urls": [
+          "https://weave.figma.com/pricing",
+          "https://help.figma.com/hc/en-us/articles/42614902212887-AI-credit-updates-FAQ"
+        ]
+      },
+      "artifactReview": {
+        "state": "not_established",
+        "note": "Exact-revision independent creative quality acceptance not established.",
+        "urls": []
+      },
+      "memoryEvidence": {
+        "state": "not_established",
+        "note": "Cross-tool proof/lineage graph not established.",
+        "urls": []
+      },
+      "durability": {
+        "state": "not_established",
+        "note": "External-action durability contract not established.",
+        "urls": []
+      },
+      "costControls": {
+        "state": "documented",
+        "note": "Separate Weave/Figma credit balances; team pools and Enterprise BYOK documented.",
+        "urls": [
+          "https://weave.figma.com/pricing",
+          "https://help.figma.com/hc/en-us/articles/33459875669015-How-Figma-AI-credits-work"
+        ]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Hosted workflows with API access and Enterprise configurations.",
+        "urls": ["https://weave.figma.com/pricing"]
+      }
+    },
+    "sources": [
+      {
+        "title": "Weave pricing/features",
+        "url": "https://weave.figma.com/pricing"
+      },
+      {
+        "title": "GA availability",
+        "url": "https://help.figma.com/hc/en-us/articles/42614902212887-AI-credit-updates-FAQ"
+      },
+      {
+        "title": "Figma credit context",
+        "url": "https://help.figma.com/hc/en-us/articles/33459875669015-How-Figma-AI-credits-work"
+      }
+    ]
+  },
+  {
+    "name": "Miro",
+    "category": "Collaborative workflow canvases",
+    "relationship": "adjacent",
+    "customer": "Cross-functional teams and enterprises",
+    "status": "Documented plan-dependent Sidekicks/Flows",
+    "summary": "Shared canvas with expert Sidekicks and multi-step AI Flows.",
+    "strength": "Live collaborative planning-to-deliverable workflows and existing team distribution.",
+    "opportunity": "Hypothesis: durable accepted deliverables with tool effects and business facts tied to revisions.",
+    "pricing": "USD Starter $8/member/month and Business $20/member/month billed annually; pooled monthly AI credits.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Sidekicks and visual multi-step Flows produce documents, prototypes and diagrams.",
+        "urls": [
+          "https://help.miro.com/hc/en-us/articles/29722516406546-Miro-AI-Workflows-overview"
+        ]
+      },
+      "artifactReview": {
+        "state": "documented",
+        "note": "Collaborative human canvas review; independent exact-revision business acceptance unestablished.",
+        "urls": [
+          "https://help.miro.com/hc/en-us/articles/29722516406546-Miro-AI-Workflows-overview"
+        ]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Shared board context and integrations; proof-quality lineage unestablished.",
+        "urls": [
+          "https://help.miro.com/hc/en-us/articles/29722516406546-Miro-AI-Workflows-overview",
+          "https://miro.com/pricing/"
+        ]
+      },
+      "durability": {
+        "state": "not_established",
+        "note": "Failure reconciliation for autonomous external writes not established.",
+        "urls": []
+      },
+      "costControls": {
+        "state": "documented",
+        "note": "Team credit pool, no rollover; charge on generation even if result discarded.",
+        "urls": ["https://help.miro.com/hc/en-us/articles/19756209116178-Miro-AI-credits"]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Managed collaborative boards and integrations.",
+        "urls": ["https://miro.com/pricing/"]
+      }
+    },
+    "sources": [
+      {
+        "title": "AI Workflows",
+        "url": "https://help.miro.com/hc/en-us/articles/29722516406546-Miro-AI-Workflows-overview"
+      },
+      {
+        "title": "AI credits",
+        "url": "https://help.miro.com/hc/en-us/articles/19756209116178-Miro-AI-credits"
+      },
+      {
+        "title": "Pricing",
+        "url": "https://miro.com/pricing/"
+      }
+    ]
+  },
+  {
+    "name": "Krea",
+    "category": "Creative agents and workflow graphs",
+    "relationship": "adjacent",
+    "customer": "Creators, brand teams and technical creatives",
+    "status": "Current agents/nodes and business controls documented",
+    "summary": "Creative agent, reusable Nodes workflows and multi-model media generation.",
+    "strength": "Style training, shared units, model permissions and member budgets already exist.",
+    "opportunity": "Potential generation engine; hypothesis is measurable creative acceptance and complete downstream business packet.",
+    "pricing": "Consumer plans use compute units; API wallet separate. Krea 2 API: Turbo $0.015/image, Medium $0.03, Large $0.06 before extras.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Krea Agent and Nodes/Node Apps support iterative reusable creative workflows.",
+        "urls": ["https://www.krea.ai/pricing"]
+      },
+      "artifactReview": {
+        "state": "documented",
+        "note": "Creative iteration; independent accepted-revision domain quality contract unestablished.",
+        "urls": ["https://www.krea.ai/pricing"]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Custom style/model training documented; commercial fact/evidence lineage unestablished.",
+        "urls": ["https://www.krea.ai/pricing"]
+      },
+      "durability": {
+        "state": "not_established",
+        "note": "External side-effect restart/reconciliation not established.",
+        "urls": []
+      },
+      "costControls": {
+        "state": "documented",
+        "note": "Business member budgets, shared units/model controls; API balance separate.",
+        "urls": ["https://www.krea.ai/pricing", "https://www.krea.ai/app/api/pricing"]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Managed creative workspace and API; local openness depends on separate model license.",
+        "urls": ["https://www.krea.ai/pricing", "https://www.krea.ai/app/api/pricing"]
+      }
+    },
+    "sources": [
+      {
+        "title": "Plans and capabilities",
+        "url": "https://www.krea.ai/pricing"
+      },
+      {
+        "title": "API pricing",
+        "url": "https://www.krea.ai/app/api/pricing"
+      }
+    ]
+  },
+  {
+    "name": "Runway Workflows",
+    "category": "Creative workflow graphs",
+    "relationship": "adjacent",
+    "customer": "Media creators and creative developers",
+    "status": "Documented workflows and API deployment",
+    "summary": "Visual multi-model generation pipelines exposed as a reusable API.",
+    "strength": "Product/fashion recipes, branch variants and locked outputs fit the stdout pilot directly.",
+    "opportunity": "Potential execution engine; hypothesis is supplier/commercial acceptance rather than rebuilding node tools.",
+    "pricing": "API credits USD $0.01 each; workflow charges its model/processing steps, not one universal workflow price.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Reusable multi-step visual workflows published behind one API endpoint.",
+        "urls": ["https://dev.runwayml.com/workflows"]
+      },
+      "artifactReview": {
+        "state": "documented",
+        "note": "Human iteration and locked node outputs; independent quality gate unestablished.",
+        "urls": [
+          "https://help.runwayml.com/hc/en-us/articles/45763528999699-Introduction-to-Workflows"
+        ]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Reusable pipeline structure and preserved locked outputs.",
+        "urls": [
+          "https://help.runwayml.com/hc/en-us/articles/45763528999699-Introduction-to-Workflows"
+        ]
+      },
+      "durability": {
+        "state": "documented",
+        "note": "Published workflow edits require republishing; external-effect reconciliation unestablished.",
+        "urls": ["https://dev.runwayml.com/workflows"]
+      },
+      "costControls": {
+        "state": "documented",
+        "note": "Per-step/model API pricing; realized model route determines cost.",
+        "urls": [
+          "https://dev.runwayml.com/workflows",
+          "https://docs.dev.runwayml.com/guides/pricing/"
+        ]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Hosted workflows and API integrations.",
+        "urls": ["https://dev.runwayml.com/workflows"]
+      }
+    },
+    "sources": [
+      {
+        "title": "Developer workflows",
+        "url": "https://dev.runwayml.com/workflows"
+      },
+      {
+        "title": "Workflow behavior",
+        "url": "https://help.runwayml.com/hc/en-us/articles/45763528999699-Introduction-to-Workflows"
+      },
+      {
+        "title": "API pricing",
+        "url": "https://docs.dev.runwayml.com/guides/pricing/"
+      }
+    ]
+  },
+  {
+    "name": "ComfyUI and Comfy Cloud",
+    "category": "Creative workflow infrastructure",
+    "relationship": "infrastructure",
+    "customer": "Technical creatives and local-compute users",
+    "status": "Documented local and cloud ecosystem",
+    "summary": "Node-based creative execution locally or in managed GPU workflows.",
+    "strength": "Local control and broad reusable model workflows challenge rebuilding generation machinery.",
+    "opportunity": "Potential optional creative runner; independent custom-node supply-chain assurance needed.",
+    "pricing": "USD Cloud Standard $20/month or $192/year; Creator $35/month or $336/year; Pro $100/month or $960/year.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Node workflows and cloud/import capabilities.",
+        "urls": ["https://docs.comfy.org/", "https://comfy.org/pricing"]
+      },
+      "artifactReview": {
+        "state": "not_established",
+        "note": "Independent semantic creative acceptance not established.",
+        "urls": []
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Saved workflow structure; business evidence lineage unestablished.",
+        "urls": ["https://docs.comfy.org/"]
+      },
+      "durability": {
+        "state": "documented",
+        "note": "Cloud workflow execution limits vary by plan; side-effect reconciliation unestablished.",
+        "urls": ["https://comfy.org/pricing"]
+      },
+      "costControls": {
+        "state": "documented",
+        "note": "Cloud credit/time allowances and partner API usage; local GPU costs are separate.",
+        "urls": ["https://comfy.org/pricing"]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Local workflow engine and managed GPU cloud.",
+        "urls": ["https://docs.comfy.org/", "https://comfy.org/pricing"]
+      }
+    },
+    "sources": [
+      {
+        "title": "Documentation",
+        "url": "https://docs.comfy.org/"
+      },
+      {
+        "title": "Cloud pricing",
+        "url": "https://comfy.org/pricing"
+      }
+    ]
+  },
+  {
+    "name": "Frame.io and Workfront integration",
+    "category": "Creative proofing and DAM",
+    "relationship": "adjacent",
+    "customer": "Creative teams; eligible enterprise Workfront customers",
+    "status": "V4 integration documented with eligibility restrictions",
+    "summary": "Creative review surface connected to enterprise marketing work management.",
+    "strength": "Workfront assets, permissions and approvals sync with Frame.io; review lineage is mature competition.",
+    "opportunity": "Hypothesis: orchestrate generation/repair and cross-tool commercial truth; integrate existing proofing where possible.",
+    "pricing": "Pricing source displays Pro USD $15/member/month and Team $25/member/month plus tax; annual discount; Enterprise custom.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Eligible Workfront integration unifies creative work and asset access.",
+        "urls": ["https://help.frame.io/en/articles/12242607-adobe-workfront-integration-overview"]
+      },
+      "artifactReview": {
+        "state": "documented",
+        "note": "Frame.io replaces Workfront Proof review surface; stakeholder approval is genuine artifact review.",
+        "urls": ["https://help.frame.io/en/articles/12242607-adobe-workfront-integration-overview"]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Synced asset access and project permissions; complete agent evidence graph unestablished.",
+        "urls": ["https://help.frame.io/en/articles/12242607-adobe-workfront-integration-overview"]
+      },
+      "durability": {
+        "state": "documented",
+        "note": "Managed review workflows; autonomous generation/recovery not established.",
+        "urls": ["https://help.frame.io/en/articles/12242607-adobe-workfront-integration-overview"]
+      },
+      "costControls": {
+        "state": "documented",
+        "note": "Member/storage plan pricing; not a per-model cost ledger.",
+        "urls": ["https://frame.io/pricing"]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Managed Frame.io V4; integration limited to eligible Adobe-managed accounts.",
+        "urls": ["https://help.frame.io/en/articles/12242607-adobe-workfront-integration-overview"]
+      }
+    },
+    "sources": [
+      {
+        "title": "Workfront integration",
+        "url": "https://help.frame.io/en/articles/12242607-adobe-workfront-integration-overview"
+      },
+      {
+        "title": "Current pricing (later direct reopen succeeded)",
+        "url": "https://frame.io/pricing"
+      }
+    ]
+  },
+  {
+    "name": "Filestage",
+    "category": "Creative proofing and DAM",
+    "relationship": "adjacent",
+    "customer": "Marketing, agencies and stakeholder review teams",
+    "status": "Documented review/proofing platform",
+    "summary": "Version-specific review and approval records for creative files.",
+    "strength": "Exportable comments, replies and decisions tied to a file version directly challenge acceptance novelty.",
+    "opportunity": "Hypothesis: couple review results to autonomous repair, cost and downstream release across services.",
+    "pricing": "Plan/features verified; current dollar sticker prices not available in retrieved page.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Project/reviewer-group creative file review.",
+        "urls": ["https://filestage.io/pricing/"]
+      },
+      "artifactReview": {
+        "state": "documented",
+        "note": "Review reports explicitly summarize one file version and its decisions.",
+        "urls": [
+          "https://help.filestage.io/en/articles/1482207-export-review-report-to-print-it-or-save-it-locally"
+        ]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Exportable review report with comments/replies/decisions.",
+        "urls": [
+          "https://help.filestage.io/en/articles/1482207-export-review-report-to-print-it-or-save-it-locally"
+        ]
+      },
+      "durability": {
+        "state": "documented",
+        "note": "Managed review lifecycle; autonomous effect recovery unestablished.",
+        "urls": ["https://filestage.io/pricing/"]
+      },
+      "costControls": {
+        "state": "not_established",
+        "note": "Model/workflow monetary budgeting not established.",
+        "urls": []
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Managed collaborative proofing service.",
+        "urls": ["https://filestage.io/pricing/"]
+      }
+    },
+    "sources": [
+      {
+        "title": "Version-specific review report",
+        "url": "https://help.filestage.io/en/articles/1482207-export-review-report-to-print-it-or-save-it-locally"
+      },
+      {
+        "title": "Plans/features",
+        "url": "https://filestage.io/pricing/"
+      }
+    ]
+  },
+  {
+    "name": "Ziflow",
+    "category": "Creative proofing and DAM",
+    "relationship": "adjacent",
+    "customer": "Agencies, creative teams and regulated enterprises",
+    "status": "Current proofing/ReviewAI product documented",
+    "summary": "Multimedia proofing with version comparison and staged approvals.",
+    "strength": "Pixel comparison, campaign review, native Adobe proofing and ReviewAI checklist recommendations are direct prior art.",
+    "opportunity": "Hypothesis: accepted complete business packets and governed autonomous repair, not another proof viewer.",
+    "pricing": "USD Standard $199/month and Pro $329/month billed annually; includes 15/20 proof-manager users; Enterprise/ReviewAI custom.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Staged workflows, briefs and multi-asset/campaign review.",
+        "urls": ["https://www.ziflow.com/pricing"]
+      },
+      "artifactReview": {
+        "state": "documented",
+        "note": "Unlimited versions, pixel comparison and ReviewAI checklist pass/fail suggestions; humans remain reviewers.",
+        "urls": ["https://www.ziflow.com/", "https://www.ziflow.com/pricing"]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Version history and plan-dependent audit trails; exact storage/durability implementation not audited.",
+        "urls": ["https://www.ziflow.com/pricing"]
+      },
+      "durability": {
+        "state": "documented",
+        "note": "Managed staged approval workflows; external-action execution recovery unestablished.",
+        "urls": ["https://www.ziflow.com/pricing"]
+      },
+      "costControls": {
+        "state": "documented",
+        "note": "Subscription/storage/proof-manager pricing; reviewers do not require paid seats.",
+        "urls": ["https://www.ziflow.com/pricing"]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Managed proofing, Adobe plugins, integrations and enterprise access controls.",
+        "urls": ["https://www.ziflow.com/pricing"]
+      }
+    },
+    "sources": [
+      {
+        "title": "ReviewAI product",
+        "url": "https://www.ziflow.com/"
+      },
+      {
+        "title": "Pricing and proofing features",
+        "url": "https://www.ziflow.com/pricing"
+      }
+    ]
+  },
+  {
+    "name": "Frontify",
+    "category": "Creative proofing and DAM",
+    "relationship": "adjacent",
+    "customer": "Brand operations and enterprise creative teams",
+    "status": "Brand MCP documented; May guide labels beta; Specs prototype rollout unverified",
+    "summary": "Brand asset/guideline infrastructure connected to AI tools via MCP.",
+    "strength": "Machine-readable brand context and governed access challenge brand-memory positioning.",
+    "opportunity": "Potential authoritative brand source; hypothesis is verified application of facts to dependent deliverables.",
+    "pricing": "MCP May guide states free during beta with possible future charges; main commercial pricing not verified.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Agents can access guidelines, assets and templates via MCP.",
+        "urls": ["https://help.frontify.com/en/articles/14787214-frontify-mcp"]
+      },
+      "artifactReview": {
+        "state": "announced",
+        "note": "Specs January FAQ describes an internal prototype, not customer beta; later release not established.",
+        "urls": ["https://help.frontify.com/en/articles/13673117-inside-frontify-january-2026"]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Structured brand source/context; external AI receives accessed data.",
+        "urls": [
+          "https://help.frontify.com/en/articles/14787214-frontify-mcp",
+          "https://www.frontify.com/en/guide/dam-mcp"
+        ]
+      },
+      "durability": {
+        "state": "not_established",
+        "note": "Autonomous effect/recovery contract not established.",
+        "urls": []
+      },
+      "costControls": {
+        "state": "documented",
+        "note": "Beta MCP commercial terms documented; model usage billed elsewhere.",
+        "urls": ["https://www.frontify.com/en/guide/dam-mcp"]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Managed brand system with MCP access; request/access permissions matter.",
+        "urls": [
+          "https://help.frontify.com/en/articles/14787214-frontify-mcp",
+          "https://www.frontify.com/en/guide/dam-mcp"
+        ]
+      }
+    },
+    "sources": [
+      {
+        "title": "MCP help",
+        "url": "https://help.frontify.com/en/articles/14787214-frontify-mcp"
+      },
+      {
+        "title": "MCP maturity/commercial/data guidance",
+        "url": "https://www.frontify.com/en/guide/dam-mcp"
+      },
+      {
+        "title": "Specs prototype FAQ",
+        "url": "https://help.frontify.com/en/articles/13673117-inside-frontify-january-2026"
+      }
+    ]
+  },
+  {
+    "name": "Claude apps: Docs, Slides and Design",
+    "category": "Creative and office production suites",
+    "relationship": "direct",
+    "customer": "Individuals and collaborative creative/business teams",
+    "status": "October 8 Docs/Slides/Design out of beta; Dashboards and Motion remain plan-dependent beta",
+    "summary": "Native editable collaborative outputs and exports within Claude; separate Google Workspace editing extension.",
+    "strength": "Shared production, editable Slides handoff and artifact templates strongly challenge a new creative review workspace.",
+    "opportunity": "Hypothesis: operation-specific commercial-fact propagation and authoritative delivery across tools; fidelity untested.",
+    "pricing": "Docs/Slides/Design available on Free and paid plans; usage limits apply. Dashboards beta paid; Motion beta Team/Enterprise.",
+    "capabilities": {
+      "projectWork": {
+        "state": "documented",
+        "note": "Shared artifact editing, design context and native outputs; beta data dashboards.",
+        "urls": [
+          "https://support.claude.com/en/articles/17153992-what-are-artifacts-and-how-do-i-use-them",
+          "https://support.claude.com/en/articles/17454700-get-started-with-claude-dashboards"
+        ]
+      },
+      "artifactReview": {
+        "state": "documented",
+        "note": "Human object comments/editing and editable exports; independent exact-revision quality acceptance unestablished.",
+        "urls": [
+          "https://support.claude.com/en/articles/17153992-what-are-artifacts-and-how-do-i-use-them",
+          "https://support.claude.com/en/articles/17457950-use-artifacts-with-a-keyboard-or-screen-reader"
+        ]
+      },
+      "memoryEvidence": {
+        "state": "documented",
+        "note": "Artifacts persist across conversations; dashboard queries/refresh times inspectable.",
+        "urls": [
+          "https://support.claude.com/en/articles/17153992-what-are-artifacts-and-how-do-i-use-them",
+          "https://support.claude.com/en/articles/17454700-get-started-with-claude-dashboards"
+        ]
+      },
+      "durability": {
+        "state": "documented",
+        "note": "Saved artifacts; Google extension stops when sidebar closes and operations capped at six minutes.",
+        "urls": [
+          "https://support.claude.com/en/articles/17153992-what-are-artifacts-and-how-do-i-use-them",
+          "https://support.claude.com/en/articles/16951679-use-claude-in-google-docs-sheets-and-slides"
+        ]
+      },
+      "costControls": {
+        "state": "documented",
+        "note": "Artifact use shares plan limits; per-deliverable monetary liabilities not established.",
+        "urls": [
+          "https://support.claude.com/en/articles/17454700-get-started-with-claude-dashboards"
+        ]
+      },
+      "deployment": {
+        "state": "documented",
+        "note": "Managed apps; Enterprise default activation October 15, earlier owner enablement; standalone Design planned closure December 14 with chats/comments/links not retained.",
+        "urls": [
+          "https://support.claude.com/en/articles/17457950-use-artifacts-with-a-keyboard-or-screen-reader",
+          "https://claude.com/resources/articles/dashboards-and-motion"
+        ]
+      }
+    },
+    "sources": [
+      {
+        "title": "October 8 announcement (official search content; direct open failed in this pass)",
+        "url": "https://claude.com/resources/articles/dashboards-and-motion"
+      },
+      {
+        "title": "Artifacts and native export",
+        "url": "https://support.claude.com/en/articles/17153992-what-are-artifacts-and-how-do-i-use-them"
+      },
+      {
+        "title": "Availability, comments and keyboard editing",
+        "url": "https://support.claude.com/en/articles/17457950-use-artifacts-with-a-keyboard-or-screen-reader"
+      },
+      {
+        "title": "Dashboard beta/query/usage",
+        "url": "https://support.claude.com/en/articles/17454700-get-started-with-claude-dashboards"
+      },
+      {
+        "title": "Google Workspace extension boundaries",
+        "url": "https://support.claude.com/en/articles/16951679-use-claude-in-google-docs-sheets-and-slides"
+      }
+    ]
+  }
+]

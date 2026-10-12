@@ -1,10 +1,28 @@
 # Simon roadmap
 
-Updated October 8, 2026. This is the authoritative delivery order for Simon. Detailed
+Updated October 10, 2026. This is the authoritative delivery order for Simon. Detailed
 architecture documents explain design choices; runbooks describe implemented behavior.
 Use the core-first sequence below for implementation and acceptance.
 
-Simon is being designed for public SaaS, starting with local development and later hosted operation with optional local workers. The next milestone is **an accepted platform core**: create and steer a project/team, manage human and agent work, review versioned artifacts, enforce resource/model limits and recover interruptions. Real business tools follow individually after that gate.
+The [October 9 competitive research](research/2026-10-09/README.md) maps comparable
+products, challenges proposed advantages and defines bounded evaluation experiments.
+Its market findings remain dated research. The owner's October 10 decision makes change
+impact/repair, usable delivery packets, lower review effort, reliable completion and
+authorized continuity mandatory base-platform requirements, as specified in the
+[baseline quality implementation plan](architecture/platform-baseline-quality-plan.md).
+Other innovation candidates remain research hypotheses; this roadmap governs delivery.
+
+The next implementation slice now provides **immutable delivery snapshots** with exact
+multi-file ZIP exports, safe source previews, captured checks/decisions/review states,
+durable receipts and current applicability/disclosure checks. Artifact acceptance now
+tracks human-only authority and all source revisions beyond the bounded review excerpts;
+stale accepted work can be repaired and known revoked evidence is withheld from downstream
+execution. See [the artifact runbook](runbooks/native-artifacts.md#delivery-packets).
+This is partial baseline work. Typed fact dependencies and selective/transitive repair,
+required-file package acceptance, native-format validation, resource metering and the
+comparative core gate remain required and unaccepted.
+
+Simon is being designed for public SaaS, starting with local development and later hosted operation with optional local workers. The next milestone is **an accepted platform core**: create and steer a project/team, manage human and agent work, repair changed inputs across affected outputs, deliver usable versioned packets, minimize review effort, enforce resource/model limits, recover interruptions and support authorized takeover. The goal is parity or better with the strongest relevant platforms serving the same supported workflows. Real business tools follow individually after that gate and inherit the same baseline contracts.
 
 **The AI platform is the primary deliverable. Stdout is its pilot and evaluation project.** Use the supplied brand archive to specify and test reusable platform behavior. Brand strategy, collection development and company operations become work performed through accepted platform capabilities; resolving those business decisions is not a prerequisite for architecture or core development. The prepared private review package is input evidence, not proof that Simon can produce it autonomously.
 
@@ -15,6 +33,12 @@ The owner selected eventual public SaaS with configurable full administration; l
 No meaningful Simon projects require migration, so a clean rebuild is permitted where justified. The separate stdout brand archive is valuable existing work: 218 source files remain preserved unchanged in `Downloads/stdout_context`. Private intake inventories, product details and review drafts stay outside committed platform documentation.
 
 **Complete and test the initial core, then implement and accept one business tool at a time.** Model transport, generic files and reference/test tools are necessary core infrastructure. They do not imply implementing all business adapters during the foundation build.
+
+The five baseline capabilities are required core work, not optional enhancements or a
+proposal to narrow Simon to one buyer/workflow. Representative workflows measure the
+general platform. Core acceptance includes fair configured comparisons and retained
+quality/review/recovery/cost evidence; feature presence and synthetic regression tests
+alone do not establish parity.
 
 | Order | Work                                                                                                  | Acceptance reference                                                                                                                      |
 | ----- | ----------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
@@ -30,6 +54,33 @@ The first implementation uses native project and board records, reusing Python/F
 
 Estimate remaining work from this core backlog. The confirmed direction above governs
 sequencing across the architecture and integration plans.
+
+## Mandatory base-platform quality
+
+All six work packages below are dependencies of CORE-ACCEPT. Existing slices implement
+parts of these contracts; none is declared complete by adding it to the plan.
+
+| Core package                     | Required behavior                                                                                                                                                                | Acceptance                                                                                                           |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| BASE-01 Change impact and repair | Track typed fact/requirement dependencies, detect affected work, preserve unaffected outputs and route bounded corrections; historical approval does not certify changed inputs. | CORE-19: material/irrelevant edits, missing dependencies and revoked evidence.                                       |
+| BASE-02 Usable delivery packets  | Keep editable originals, previews, evidence, checks, exact decisions and unresolved limits in one versioned package; verify supported reopen/edit and manifest identity.         | CORE-20: actual multi-file fixture and missing/stale/mismatched components.                                          |
+| BASE-03 Lower review effort      | Present meaningful differences, material findings and necessary decisions with visible uncertainty; measure owner effort without weakening quality checks.                       | CORE-21: blind defect checks, correction loop and comparative review burden.                                         |
+| BASE-04 Reliable completion      | Recover interrupted/uncertain work without blind duplicate effects, lost state, hidden charges or indefinite starvation; reconcile before retry.                                 | CORE-22: dispatch/lease/restore failures, costs and progress under uncertainty.                                      |
+| BASE-05 Continuity               | Another authorized human/runtime resumes with current sources, files, decisions and pending obligations; transfer neither secrets nor revoked disclosure/action rights.          | CORE-23: takeover, model/runtime replacement and permission-safe handoff.                                            |
+| BASE-06 Comparative quality      | Match or exceed the strongest eligible same-goal baseline on registered supported-workflow measures; include a strong configured existing stack and retain all attempts.         | CORE-24: per-workflow quality/usability/effort/recovery/cost evidence, no aggregate score hiding a material deficit. |
+
+The [baseline plan](architecture/platform-baseline-quality-plan.md) defines deliverables,
+dependencies and implementation order; the [pilot charter](architecture/clothing-brand-pilot-charter.md#core-acceptance-matrix)
+defines CORE-01 through CORE-24. Generic package/dependency/validator/recovery/handoff
+infrastructure and supported-file proofs belong in the core. Native authoring/rendering
+and external writes for each real application remain individually accepted tools. Each
+tool must satisfy the baseline for its declared format/provider scope before enablement.
+
+Register comparator configurations, privacy/model/resource constraints, metrics and
+materiality thresholds before trials. Resolve material parity deficits and evidence gaps
+before accepting the affected capability. The former 30% review-effort improvement idea
+is an optional stretch target; parity or better is the required floor. The October 9
+[evaluation protocol](research/2026-10-09/evaluation-plan.md) supplies measurement methods.
 
 ## Implemented core slices
 
@@ -108,10 +159,30 @@ Migration 0034 persists this slice. Completed candidates move tasks to **In revi
 accepted/done; manual board status does not prove output quality.
 
 This controller is the bounded PostgreSQL alternative in the architecture plan. Temporal,
-isolated local shell/CAD/GPU work, actual resource meters, broad source retrieval and
-artifact acceptance remain open. The runner coordinates server-side execution; it does
+isolated local shell/CAD/GPU work, actual resource meters and broad source retrieval
+remain open. The runner coordinates server-side execution; it does
 not relocate inference to its own machine. Scheduling progresses while workers poll,
 and repeating schedules create separate occurrence tasks with coalesced missed intervals.
+
+[Native artifacts and review](runbooks/native-artifacts.md) now extend ART-01, REVIEW-01
+and UI-01. Completed execution drafts automatically create immutable exact-byte revisions
+with hashes, mechanical checks and producing-run attribution. Owners can upload generic
+files, inspect safe text previews and download authorized originals. One logical deliverable
+per task retains up to 100 revisions; files are limited to 1 MiB.
+
+A separate reviewer role receives a fresh bounded context and one reserved model call on
+the qualified project review route. Review is recorded board work, independent of its maker.
+Current artifact, task, source, role, model and policy authority fence stale results while
+known charges remain settled and uncertain dispatches retain their liabilities. Owner
+decisions bind exact revision/hash and policy; configurable automatic acceptance requires
+a passing independent review. Feedback creates a bounded linked repair task whose output
+revises the same artifact and requires a new review. Manual board status creates no acceptance.
+
+The browser provides review policy, checks, costs, findings, owner decisions and revision
+history. Independent model review/preview currently supports UTF-8 text up to 48,000 bytes
+within the full request admission bound, with limited current source excerpts. Visual,
+application and broad source-quality checks, live pilot calibration, streaming/object-store
+uploads and physical storage quotas remain open. Migration 0035 persists the artifact slice.
 
 The legacy Work interface, manifest profiles/teams, dispatcher/scheduler, v1 project and
 assistant-task boards, project storage/replication services, migrations of old project
@@ -127,11 +198,7 @@ project capability.
 
 ## Next implementation slices
 
-1. **Artifact and review loop.** Save candidates automatically, immutable content revisions,
-   exact-version validation, independent agent review, configurable human approval and
-   repair cycles. Do not treat a manual board status as proof of quality or permission
-   to publish. Provide a coherent user view of progress, cost, evidence and pending decisions.
-2. **Model evaluation and remaining resource authority.** Accept capped live qualification
+1. **Model evaluation and remaining resource authority.** Accept capped live qualification
    and pilot quality after explicit key/cap enrollment; no paid call has been made during
    implementation. Broaden capability and task-quality evaluations beyond basic text/JSON.
    Extend context retrieval and role capability/model requirements as their enforcing
@@ -139,14 +206,25 @@ project capability.
    admission, entitlements and administrator
    catalog UI before claiming unified all-tool billing or commercial readiness. Pending
    live-model evaluation does not block synthetic development of execution and review.
-3. **Core acceptance and SaaS controls.** Complete tenant/platform admin, entitlements,
+2. **Finish the mandatory baseline quality contracts.** Implement BASE-01 through BASE-05
+   across project/source dependencies, package manifests and supported editable originals,
+   the review inbox, complete recovery/accounting and authorized takeover. Preserve current
+   review/lease/cost authority while closing selective change impact, multi-file delivery,
+   measured owner effort, economic liveness and derived-content revocation gaps. Exercise
+   actual supported files and reference operations; a declaration or schema alone cannot
+   complete a package.
+3. **Core acceptance, comparative quality and SaaS controls.** Complete tenant/platform admin, entitlements,
    security/concurrency/recovery/restore scenarios, usability, model quality and capacity
    measurements. Validate PostgreSQL 17 (the CI/container target); current local database
-   acceptance uses PostgreSQL 16.15 with pgvector 0.8.6. Record limits before claiming beta readiness.
+   acceptance uses PostgreSQL 16.15 with pgvector 0.8.6. Pass CORE-01 through CORE-24 and
+   BASE-06's registered same-goal comparisons. Record limits and resolve material quality
+   deficits before declaring the core accepted or claiming beta readiness.
 4. **One real business tool at a time.** Select and accept the next
    [integration work package](architecture/integration-delivery-plan.md), using the clothing
    pilot's actual work. Creative generation, documents, spreadsheets, apparel design,
-   Git/code and website operations are separate deliverables after the core gate.
+   Git/code and website operations are separate deliverables after the core gate. Every
+   tool inherits BASE-01 through BASE-05 and validates the relevant comparative quality
+   for its actual outputs and operation scope.
 
 ## Verification and remaining limits
 
@@ -158,19 +236,34 @@ Browser tests use authenticated isolated services for role editing, policy, assi
 conflicts, unknown writes, one-time credentials, pagination and mobile layouts. The
 [native project runbook](runbooks/native-projects.md) owns reproducible commands and limits.
 
-The October 8 execution regression passed **2,750 tests**, including PostgreSQL and
-authenticated Edge browser scenarios, with **91.26% fresh coverage** (branches enabled).
-The unchanged repository gate is 90%. This was one full non-live run against the final
-Python implementation; it did not combine earlier coverage measurements. The run took
-41 minutes 54 seconds, skipped 16 Windows symlink/POSIX FIFO cases and excluded eight
-live-model cases. Its disposable PostgreSQL 16.15/pgvector 0.8.6 cluster stopped.
+October 9 verification covered **2,955 passing tests**, including PostgreSQL and
+authenticated Edge browser scenarios, with **91.29% fresh coverage** (branches enabled).
+The unchanged repository gate is 90%. The full non-live run initially passed 2,951 tests,
+with three failures and one fixture error. A historical migration expectation omitted
+0035, and the identity browser test evaluated a deferred Markdown helper before it loaded;
+both test issues were corrected. A database connection timeout and browser connection
+reset passed on retry without product changes. All four cases then passed together in a
+fresh disposable cluster. Sixteen Windows symlink/POSIX FIFO cases were skipped and eight
+live-model cases excluded.
 
-The full run includes all **11 execution browser scenarios**, worker/API authority,
+Production source stayed fixed across the full run and retries. Coverage began fresh for
+the full run and appended only those four current retries; no historical measurements
+were merged. Both disposable PostgreSQL 16.15/pgvector 0.8.6 clusters stopped.
+
+The full run includes all **11 artifact and 11 execution browser scenarios**, worker/API authority,
 atomic delegation, shared graph limits, paid synthetic accounting, unknown outcomes,
 reference receipts, database restart, simultaneous claims, stale leases and checkpoint
-recovery without redispatch. Formatting, lint, typing across 152 source files and all ten
-connector checks pass. The [execution runbook](runbooks/native-execution.md#verification-and-remaining-scope)
+recovery without redispatch. Formatting, lint, typing across 157 source files and all ten
+connector checks pass. The [artifact runbook](runbooks/native-artifacts.md#verification-and-remaining-scope)
 records reproducible commands and limits.
+
+The October 9 focused artifact command/service/API suite plus the existing paid dependency
+race regression passed **88 tests in 29.19 seconds**. It covers candidate persistence,
+exact revision/hash checks, independent reviewer board work and model routing, owner
+acceptance/repair, interrupted review recovery, late charges and current corrected
+dependency content and rejected review-context admission without work or charges. This
+focused synthetic run did not measure repository coverage; the full run and retries above
+provide broader evidence, also recorded in the [artifact runbook](runbooks/native-artifacts.md).
 
 Provider responses in these tests are synthetic. PostgreSQL 17, paid live qualification
 and pilot output-quality acceptance remain unverified; no paid model call or operator
@@ -179,8 +272,9 @@ database/deployment change was made during implementation.
 A scoped board credential grants no shell, model, provider, publishing, spending or
 platform-admin rights. Team-size limits are persistent active-role limits, not compute
 quotas. Coarse identity/workspace transactions remain the conservative write boundary;
-large-tenant throughput is unmeasured. Per-run activity is available; full board revision
-browsing, validated task acceptance and automatic artifact-quality review remain open. Model review of a staffing
+large-tenant throughput is unmeasured. Per-run activity and exact artifact acceptance are
+available; full board revision browsing, visual/application review and live artifact-quality
+calibration remain open. Model review of a staffing
 proposal is not acceptance of future deliverables. Passing these foundation tests does
 not complete the [core acceptance matrix](architecture/clothing-brand-pilot-charter.md#core-acceptance-matrix).
 

@@ -2,7 +2,7 @@
 
 The platform foundation provides shared projects and boards at `/projects`, backed by `/v2/projects`. It uses explicit records and project membership, independent of personal memory, Drive and external boards. The former Work interface and separate project/task authorities have been removed.
 
-Read with the [platform architecture](../architecture/autonomous-work-platform-plan.md) and [roadmap](../next-phases.md). [AI-assisted intake and automatic staffing](project-intake.md) provide evidence ingestion and reviewed team/work proposals. [Project models and resource limits](project-models.md) provide encrypted keys, qualified routes and shared inference ceilings. [Native execution](native-execution.md) adds dependencies, leased workflows, checkpoints, waits, schedules and candidate output. The initial core is not complete: artifact review, compute/storage entitlements and hosted SaaS administration remain subsequent work.
+Read with the [platform architecture](../architecture/autonomous-work-platform-plan.md) and [roadmap](../next-phases.md). [AI-assisted intake and automatic staffing](project-intake.md) provide evidence ingestion and reviewed team/work proposals. [Project models and resource limits](project-models.md) provide encrypted keys, qualified routes and shared inference ceilings. [Native execution](native-execution.md) adds dependencies, leased workflows, checkpoints, waits, schedules and candidate output. [Artifacts and review](native-artifacts.md) adds immutable files, independent review and exact owner acceptance with repairs. The initial core is not complete: visual/application review, compute/storage entitlements and hosted SaaS administration remain subsequent work.
 
 ## Using Projects
 
@@ -27,6 +27,8 @@ attempts. `0033_project_models.sql` adds encrypted model credentials, resource p
 and per-call usage; it retains prior intake liabilities once without a legacy runtime.
 `0034_native_execution.sql` adds workflow grants, dependencies, execution history,
 waits/signals, schedules and separate runner credentials.
+`0035_native_artifacts_review.sql` adds logical deliverables, immutable file revisions, checks,
+review policy, model attempts and exact owner decisions with repair links.
 This is a clean cutover with no legacy-project backfill or compatibility reader.
 Apply pending migrations through the normal development database workflow. Automated
 verification uses disposable databases and does not migrate an operator's database.
@@ -74,7 +76,7 @@ Native project, membership and task timestamps serialize in UTC. Database connec
 
 Task assignments support `{"kind":"pool"}`, `{"kind":"human","actor_id":"..."}` or `{"kind":"agent","agent_id":"..."}`. Exactly one matching identity is allowed. Human and agent task creators are recorded separately; an agent never impersonates a user. A pool claim assigns the caller and changes `todo` to `in_progress`; concurrent claims cannot both succeed. This is board ownership, not a worker execution lease.
 
-Statuses are `todo`, `in_progress`, `in_review`, `blocked`, `done` and `cancelled`. A manual status change does not certify an artifact, approve spending or authorize publication. Those contracts belong to later core work. Archived projects remain readable and reject new board work until restored.
+Statuses are `todo`, `in_progress`, `in_review`, `blocked`, `done` and `cancelled`. A manual status change does not certify an artifact, approve spending or authorize publication. Exact acceptance uses [Artifacts and review](native-artifacts.md), and inference spending uses [model policy](project-models.md); business publishing remains subsequent work. Archived projects remain readable and reject new board work until restored.
 
 ## Scoped roles and team management
 

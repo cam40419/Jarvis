@@ -30,6 +30,8 @@ from simon.api.external_actions import external_actions_router
 from simon.api.integrations import integrations_router
 from simon.api.local_files import local_file_router
 from simon.api.model_stream import model_stream
+from simon.api.native_artifacts import native_artifacts_router
+from simon.api.native_delivery import native_delivery_router
 from simon.api.native_execution import native_execution_router, native_execution_worker_router
 from simon.api.native_intake import native_intake_router
 from simon.api.native_models import native_models_router
@@ -72,6 +74,7 @@ from simon.services.jobs import JobService
 from simon.services.memory import MemoryService
 from simon.services.model_conversations import ModelConversationService
 from simon.services.model_usage import ModelUsageService
+from simon.services.native_delivery import NativeDeliveryService
 from simon.services.native_execution import NativeExecutionService
 from simon.services.native_intake import NativeIntakeService
 from simon.services.native_projects import NativeProjectService
@@ -143,6 +146,8 @@ class AppContainer:
         self.native_execution = NativeExecutionService(
             self.store, self.native_projects, self.project_models
         )
+        self.native_artifacts = self.native_execution.artifacts
+        self.native_delivery = NativeDeliveryService(self.store, self.native_artifacts)
         self.accounts = AccountService(self.identity)
         self.audit = AuditService(self.store)
         self.connected = ConnectedService(self.store, self.audit, self.settings, self.identity)
@@ -316,6 +321,8 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
                 "default-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'none'"
                 "; media-src 'self' blob:; connect-src 'self'"
             )
+            if path == "/projects":
+                response.headers["Content-Security-Policy"] += "; img-src 'self' blob:"
         response.headers["Permissions-Policy"] = "microphone=(self), camera=(), geolocation=()"
         return response
 
@@ -338,6 +345,8 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
         native_models_router(services.project_models, services.model_usage, checked_actor)
     )
     app.include_router(native_execution_router(services.native_execution, checked_actor))
+    app.include_router(native_artifacts_router(services.native_artifacts, checked_actor))
+    app.include_router(native_delivery_router(services.native_delivery, checked_actor))
     app.include_router(native_execution_worker_router(services.native_execution))
     app.include_router(external_actions_router(services.external_actions, checked_actor))
     app.include_router(integrations_router(services.connected.integrations, checked_actor))

@@ -88,6 +88,34 @@
     throw Error('This board is too large to load. Narrow its scope before continuing.');
   }
 
+  async function download(url) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000);
+    try {
+      const response = await fetch(appPath(url), {
+        signal: controller.signal,
+        credentials: 'same-origin',
+        headers: { 'X-Workspace-ID': session.workspace_id },
+      });
+      if (response.status === 401) {
+        location.assign(appPath('/login'));
+        throw Object.assign(Error('Sign in to continue.'), { status: 401 });
+      }
+      if (!response.ok) {
+        const data = await response.json();
+        throw Object.assign(Error(data.error?.message || 'The file could not be loaded.'), {
+          status: response.status,
+        });
+      }
+      return await response.blob();
+    } catch (error) {
+      if (controller.signal.aborted) throw Error('The file request timed out. Please try again.');
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
   async function agents(id, ticket) {
     const result = [],
       seen = new Set();
@@ -779,6 +807,7 @@
   });
   window.SimonNativeProjects = {
     request,
+    download,
     getProject: () => project,
     getWorkspaceId: () => session?.workspace_id,
     onTeamChanged: async () => load(project.id),

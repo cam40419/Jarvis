@@ -1,6 +1,6 @@
 # Simon autonomous work platform plan
 
-Updated October 8, 2026 with the owner's SaaS, hosting, pilot, model and delivery-order decisions and the model/resource implementation checkpoint. Status: architecture proposal with confirmed requirements and remaining design choices. Audience: the owner and the engineers designing the next version of Simon.
+Updated October 10, 2026 with the owner's SaaS, hosting, pilot, model, delivery-order and mandatory baseline-quality decisions. Status: architecture proposal with confirmed requirements and remaining design choices. Audience: the owner and the engineers designing the next version of Simon.
 
 **Build a locally developed, hosted SaaS foundation, accepting a clean rebuild where it produces a better design. Complete and test that core before adding business tools individually.** The target is a project and company operating workspace: an AI coordinator understands an outcome, assembles an appropriate team, manages work on boards, produces checked deliverables, and brings the owner clear decisions. Persistent roles provide continuity; bounded execution attempts do the work. The owner can inspect and change either.
 
@@ -23,6 +23,14 @@ The following requirements come directly from the requested direction:
 - Preserve project context, source evidence, drafts, accepted files, decisions, and costs with full user visibility.
 - Support independently configurable model providers and models, including local and open-weight deployments.
 
+The owner confirmed on October 10 that change impact/repair, usable editable-source delivery
+packets, lower review effort, reliable completion and authorized continuity are mandatory
+base-platform behavior. They are not innovation claims or optional market experiments.
+Simon must match or exceed the strongest relevant comparable platforms for the same
+supported workflows. The [baseline quality plan](platform-baseline-quality-plan.md)
+specifies BASE-01 through BASE-06 and their core acceptance evidence. A representative
+workflow evaluates the general platform; it does not narrow its purpose to one vertical.
+
 Confirmed direction: eventual public SaaS; configurable full platform administration for the owner; local development first; hosted operation with optional local workers; subscription entitlements for compute/storage; full project-board operations for both agents and humans; the stdout clothing-brand pilot; iterative creative reviews configured per project; a free default model policy for future SaaS users with paid project API keys and limits; and no meaningful historical Simon projects requiring migration. Paid OpenAI use is authorized for stdout, with secure key enrollment and a spending cap pending. The core must be completed and tested before new business tools are implemented one at a time. Native boards are the project task authority; cloud file and third-party board integrations are later tools.
 
 The AI platform is the primary deliverable; stdout is the pilot used to derive and validate reusable requirements. Its existing external brand archive must be preserved independently of any Simon rebuild. Prepared brand/product drafts and the private task register are evaluation inputs, not evidence of implemented autonomous capability or a competing engineering backlog. Formal brand direction, collection design and operations are eventual work for Simon to perform through accepted tools. Their unresolved business decisions do not block platform architecture or core development. The source-art and authorship policy remains open until owner review. Private source details and board links belong in the pilot workspace rather than shared platform documentation.
@@ -41,20 +49,27 @@ versioned source evidence, bounded model planning, a separate review call and at
 staffing/work proposals under project consent. [Project models and resource limits](../runbooks/project-models.md)
 now provide scoped encrypted keys, basic text/JSON qualification, separate planning/review
 routes and shared project/workspace inference ceilings. The model catalog remains
-administrator-managed and workspace-scoped; native execution, compute/storage meters,
-all-tool accounting and broader model quality acceptance remain later work.
+administrator-managed and workspace-scoped. [Native execution](../runbooks/native-execution.md)
+now adds bounded PostgreSQL workflows, checkpoints, waits and scoped optional runners;
+[native artifacts and review](../runbooks/native-artifacts.md) adds immutable revisions,
+exact owner acceptance and linked repairs, and now immutable multi-file delivery snapshots
+with original files, safe source previews, evidence, limitations and current disclosure/
+applicability checks. Acceptance authority includes source changes beyond review excerpts
+and human-only decisions. Field-level/transitive repair, package acceptance and native
+format validators remain open. Compute/storage meters, all-tool accounting,
+full hosted administration and broader model quality acceptance remain later work.
 PostgreSQL and the memory test adapter enforce
 workspace/project scope, current membership, revision checks, atomic claims and
 durable mutation receipts. [Runtime adapters](../runbooks/runtime-adapters.md)
 preserve independently tested model, tool, environment and artifact building blocks.
-They still require explicit integration with native agent authorization before
-project execution can run. The delivery roadmap owns what is complete and what is next.
+Business adapters still require explicit integration and acceptance under native agent
+authorization. The delivery roadmap owns what is complete and what is next.
 
 The reusable stack is Python/FastAPI/Pydantic, PostgreSQL, explicit domain/services/
 adapters, a small browser client, account-scoped connections and separate background
-chat work. These foundations do not yet establish complete autonomous intake,
-artifact review, long-running workflow, production deployment or supported business
-tools. Keep those as separate acceptance gates below.
+chat work. These foundations establish bounded intake, execution and text artifact review;
+they do not yet establish the complete core acceptance gate, general native/visual output
+quality, production deployment or supported business tools. Keep those as separate gates below.
 
 ## Lessons from established systems
 
@@ -457,17 +472,17 @@ Extract interfaces around models, artifact storage, connector operations and wor
 
 ## Phased delivery and acceptance
 
-The owner has selected **core first, thoroughly tested, then one business tool at a time**. Core model transports, generic file handling and a deterministic reference tool are necessary to exercise the platform; they are not a commitment to implement the entire tool catalog during the core build. The [pilot charter](clothing-brand-pilot-charter.md) defines that boundary and 18 acceptance scenarios.
+The owner has selected **core first, thoroughly tested, then one business tool at a time**. Core model transports, generic file handling and a deterministic reference tool are necessary to exercise the platform; they are not a commitment to implement the entire tool catalog during the core build. All five [baseline quality contracts](platform-baseline-quality-plan.md) and BASE-06 comparative acceptance belong before CORE-ACCEPT. The [pilot charter](clothing-brand-pilot-charter.md) defines that boundary and 24 mandatory core scenarios. Later tools inherit the baseline and prove their application-specific outputs individually.
 
-| Stage                                | Scope                                                                                                                                            | Exit evidence                                                                                                                                                                                    |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 0 PLAN-01 and architecture decisions | Platform workflow contracts and evaluation scenarios using stdout inputs; board/hosting/model choices, rebuild/reuse comparison and core backlog | Platform acceptance scope, declared assumptions, draft UX and test contracts; final brand choices are not prerequisites.                                                                         |
-| 1 SaaS and project foundation        | Tenants, admin, project/task/role entities, board operations, artifact identity, model registry, entitlement and spend contracts                 | Two-tenant isolation, full authorized board/admin operations, consistent task claims and budget reservations.                                                                                    |
-| 2 Complete core experience           | Interactive intake, AI staffing, bounded execution, generic file/revision/review loop, project free/BYOK settings, user steering                 | End-to-end clothing scenarios using fixtures/reference tools and configured inference, including paid pilot and free-default policy tests; no technical setup required for ordinary product use. |
-| 3 Durable execution and capacity     | Events, schedules/waits, execution leases, optional local runner, cancellations, unknown effects, shared queues, restoration                     | Failure-injection and concurrent-tenant tests; no cloud-only user dependency on a local runner; reconciled restore.                                                                              |
-| 4 Core acceptance                    | Local packaging, security, usability, accessibility, evaluation and resource baselines; admin-assigned subscription tiers                        | Mandatory core matrix passes, owner reviews actual workflows, unresolved limits documented. No claim that future business tools are validated.                                                   |
-| 5 Individual tool delivery           | Select one production tool; implement, test, run a real pilot task, inspect quality and recovery, document and enable it                         | One accepted tool at a time; next tool follows the clothing pilot's observed needs.                                                                                                              |
-| 6 Hosted beta and commercial release | Selected hosting, live metering, billing integration, tenant lifecycle, operational/support readiness and hosted capacity validation             | Separately accepted public release with measured economics and usable supported tools.                                                                                                           |
+| Stage                                | Scope                                                                                                                                                      | Exit evidence                                                                                                                                                        |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0 PLAN-01 and architecture decisions | Platform workflow contracts and evaluation scenarios using stdout inputs; board/hosting/model choices, rebuild/reuse comparison and core backlog           | Platform acceptance scope, declared assumptions, draft UX and test contracts; final brand choices are not prerequisites.                                             |
+| 1 SaaS and project foundation        | Tenants, admin, project/task/role entities, board operations, artifact identity, model registry, entitlement and spend contracts                           | Two-tenant isolation, full authorized board/admin operations, consistent task claims and budget reservations.                                                        |
+| 2 Complete core experience           | Intake, AI staffing, execution, typed change dependencies/repair, editable-source package manifests and low-effort review; free/BYOK settings and steering | Actual supported files, source-change/correction and packet handoff fixtures; configured inference and privacy/cost policies; ordinary use through the UI.           |
+| 3 Durable execution and capacity     | Events, waits, leases, optional runner, cancellations/unknown effects, full incurred-resource accounting, fair queues, restore and authorized takeover     | Failure-injection, economic-liveness and second-person/runtime tests; preserved permitted state; no cloud-only dependency on a local runner.                         |
+| 4 Core acceptance                    | BASE-01 through BASE-06, local packaging/security/accessibility/admin, CORE-01 through CORE-24 and configured comparative quality                          | Mandatory scenarios and preregistered parity-or-better measures pass; material deficits/evidence gaps resolved; future application tools remain separately accepted. |
+| 5 Individual tool delivery           | Select one production tool; implement, test, run a real pilot task, inspect quality and recovery, document and enable it                                   | One accepted tool at a time; next tool follows the clothing pilot's observed needs.                                                                                  |
+| 6 Hosted beta and commercial release | Selected hosting, live metering, billing integration, tenant lifecycle, operational/support readiness and hosted capacity validation                       | Separately accepted public release with measured economics and usable supported tools.                                                                               |
 
 Do not reuse the earlier 20-37 person-week range for this revised scope: it mixed several business connectors into a private pilot while excluding the requested SaaS foundation. Re-estimate the dependency-ordered core backlog after the design prototype. The hosting comparison gives infrastructure examples; it is not an engineering delivery quote. Later tool effort remains package-specific in the companion plan.
 
@@ -479,31 +494,51 @@ Implementation checkpoint, October 7: the [native project foundation](../runbook
 
 The [intake extension](../runbooks/project-intake.md) provides source revisions, resumable context/answers, model planning and separate proposal review, role/task reuse and atomic automatic staffing within existing authority. The [model/resource extension](../runbooks/project-models.md) implements project key enrollment, basic synthetic qualification, qualified free/local routing, distinct planning/review selection and shared per-call reservations/settlement for native qualification, intake and specialist execution. Unknown calls retain monetary holds and concurrency slots until resolved; workspace owners can reconcile them with evidence. These advance MODEL-01/COST-01 without claiming all-tool billing, compute/storage entitlements or live model quality acceptance.
 
-The [native execution extension](../runbooks/native-execution.md) adds owner grants, versioned dependencies, leased runs, bounded delegation, checkpoints, correlated waits, schedules, cancellation, safe retries and an activity UI. It implements the bounded PostgreSQL controller alternative with explicit engine/definition versions. Optional outbound runners hold separate scoped authority and coordinate server-side model/reference steps; they do not execute local shell/CAD/GPU work or receive provider keys. Completed candidates enter board review and do not establish artifact acceptance. Temporal rollout, accepted artifact revisions, deliverable review, physical resource meters and production restoration remain open.
+The [native execution extension](../runbooks/native-execution.md) adds owner grants, versioned dependencies, leased runs, bounded delegation, checkpoints, correlated waits, schedules, cancellation, safe retries and an activity UI. It implements the bounded PostgreSQL controller alternative with explicit engine/definition versions. Optional outbound runners hold separate scoped authority and coordinate server-side model/reference steps; they do not execute local shell/CAD/GPU work or receive provider keys. Completed candidates are saved automatically as immutable artifact revisions and enter board review.
+
+The October 9 [artifact/review extension](../runbooks/native-artifacts.md) implements ART-01/REVIEW-01 for one logical deliverable per task: exact file revisions, mechanical checks, independent bounded text review on separate reviewer-assigned board work, owner or explicitly configured automatic acceptance, and linked repair tasks/revisions. Review calls use the shared model ledger and changed inputs/authority fence stale results. Visual/application checks, live reviewer quality calibration, broad retrieval, physical resource meters, Temporal rollout and production restoration remain open; manual board status and synthetic provider tests do not establish pilot-quality or publishing authority.
+
+The October 10 baseline packages extend this partial implementation. Selective cross-output
+impact, multi-file source/preview/evidence manifests, measured low-effort review, complete
+recovery economics and permission-safe human/runtime handoff remain required work. BASE-01
+through BASE-06 extend the existing tickets rather than becoming a separate optional backlog;
+all are dependencies of CORE-ACCEPT. Their accepted behavior must be demonstrated in current
+supported scope and compared fairly against relevant same-goal platforms.
 
 Isolated PostgreSQL 16.15 with pgvector 0.8.6 is locally tested; PostgreSQL 17 CI/container validation remains pending. No paid model calls or live pilot output-quality acceptance were performed during implementation. This does not complete AGENT-01, the core gate or PLAN-01's full evaluation program; the roadmap owns final validation counts.
 
-| ID          | Deliverable                                                                        | Acceptance and sequencing                                                                                                                                   |
-| ----------- | ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| PLAN-01     | Platform workflow contracts and pilot-based evaluation set                         | Stdout inputs map to reusable intake, staffing, boards, review, model, cost and recovery behavior with expected results and failure cases.                  |
-| PLAN-02     | Architecture decisions for board, hosting, free-model profile and workflow owner   | Distinguish confirmed owner requirements from the selected technical solution.                                                                              |
-| SAAS-01     | Tenants, platform admin and versioned subscription entitlements                    | Two independent tenants; configurable privileged access; audited overrides and safe synthetic plan transitions.                                             |
-| DATA-01     | Explicit shared project/membership/task schema                                     | Fresh schema permitted; preserve access/task invariants without mandatory legacy backfill.                                                                  |
-| DATA-02     | Human/agent/pool assignments, dependencies and claiming                            | One owner per claim; reassignment fences old work; complete scoped board operations for both humans and agents.                                             |
-| MODEL-01    | Unified model registry, project credentials, no-paid profile and capability probes | Enrollment/basic qualification and free/local/no-paid routing are implemented; capped live pilot quality and broader capability acceptance remain required. |
-| COST-01     | Model reservations and platform resource meters                                    | Parallel work cannot spend the same allowance; unknown usage remains visible; keys stay within their authorized project.                                    |
-| ART-01      | Generic artifact inventory, versioning and storage interface                       | Hashes, filenames, drafts, previews and acceptance references remain consistent and authorized.                                                             |
-| REVIEW-01   | Independent review contract and owner revision loop                                | Seeded fixture defects fail review; comments create linked revisions; changed files invalidate stale acceptance.                                            |
-| UI-01       | Usable project/board/team/review/model/admin interfaces                            | Ordinary use through UI; responsive, accessible, conflict and error states tested.                                                                          |
-| FLOW-01     | Durable waits, schedules and reference-provider operation ledger                   | Restart, duplicate event, timeout, stale approval and unknown-write cases pass.                                                                             |
-| AGENT-01    | AI team creation/growth with manual steering                                       | Qualified roles reused; additions explained; no privilege/budget enlargement through delegation.                                                            |
-| RUNNER-01   | Local development runner and optional remote/local worker contract                 | Authenticated enrollment, task-scoped access, resource limits, reconnect and stale-lease fencing.                                                           |
-| CONNECT-00  | Connector registry/SDK and deterministic reference tool                            | Exercises reads, delayed jobs, commitments and reconciliation without live business effects.                                                                |
-| OPS-01      | Reproducible local deployment and recovery                                         | Database/files/keys and workflow/provider receipts reconciled with dispatch disabled; measured recovery evidence.                                           |
-| CORE-ACCEPT | Execute and review mandatory core matrix                                           | No unresolved release-blocking access, spending, loss or recovery defect; owner can run the core workflow.                                                  |
-| CONNECT-01  | First selected real business tool                                                  | Begins after CORE-ACCEPT; actual output quality and provider behavior accepted before the next tool.                                                        |
+| ID          | Deliverable                                                                        | Acceptance and sequencing                                                                                                                                                |
+| ----------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| PLAN-01     | Platform workflow contracts and pilot-based evaluation set                         | Stdout inputs map to reusable intake, staffing, boards, review, model, cost and recovery behavior with expected results and failure cases.                               |
+| PLAN-02     | Architecture decisions for board, hosting, free-model profile and workflow owner   | Distinguish confirmed owner requirements from the selected technical solution.                                                                                           |
+| SAAS-01     | Tenants, platform admin and versioned subscription entitlements                    | Two independent tenants; configurable privileged access; audited overrides and safe synthetic plan transitions.                                                          |
+| DATA-01     | Explicit shared project/membership/task schema                                     | Fresh schema permitted; preserve access/task invariants without mandatory legacy backfill.                                                                               |
+| DATA-02     | Human/agent/pool assignments, dependencies and claiming                            | One owner per claim; reassignment fences old work; complete scoped board operations for both humans and agents.                                                          |
+| MODEL-01    | Unified model registry, project credentials, no-paid profile and capability probes | Enrollment/basic qualification and free/local/no-paid routing are implemented; capped live pilot quality and broader capability acceptance remain required.              |
+| COST-01     | Model reservations and platform resource meters                                    | Parallel work cannot spend the same allowance; unknown usage remains visible; keys stay within their authorized project.                                                 |
+| ART-01      | Generic artifact inventory, versioning and storage interface                       | Hashes, filenames, drafts, previews and acceptance references remain consistent and authorized.                                                                          |
+| REVIEW-01   | Independent review contract and owner revision loop                                | Seeded fixture defects fail review; comments create linked revisions; changed files invalidate stale acceptance.                                                         |
+| UI-01       | Usable project/board/team/review/model/admin interfaces                            | Ordinary use through UI; responsive, accessible, conflict and error states tested.                                                                                       |
+| FLOW-01     | Durable waits, schedules and reference-provider operation ledger                   | Restart, duplicate event, timeout, stale approval and unknown-write cases pass.                                                                                          |
+| AGENT-01    | AI team creation/growth with manual steering                                       | Qualified roles reused; additions explained; no privilege/budget enlargement through delegation.                                                                         |
+| RUNNER-01   | Local development runner and optional remote/local worker contract                 | Authenticated enrollment, task-scoped access, resource limits, reconnect and stale-lease fencing.                                                                        |
+| CONNECT-00  | Connector registry/SDK and deterministic reference tool                            | Exercises reads, delayed jobs, commitments and reconciliation without live business effects.                                                                             |
+| OPS-01      | Reproducible local deployment and recovery                                         | Database/files/keys and workflow/provider receipts reconciled with dispatch disabled; measured recovery evidence.                                                        |
+| BASE-01     | Typed source/requirement change impact and bounded cross-output repair             | Extends DATA-02/ART-01/REVIEW-01/FLOW-01; CORE-19 detects material effects, preserves unrelated work and records coverage gaps before core completion.                   |
+| BASE-02     | Versioned usable editable-source/preview/evidence/checks/limits packets            | Extends ART-01/CONNECT-00/UI-01; CORE-20 proves manifest identity and supported reopen/edit behavior; every real tool inherits the contract.                             |
+| BASE-03     | Decision inbox, meaningful differences and measured low-effort review              | Extends REVIEW-01/UI-01/COST-01; CORE-21 meets the comparative review floor without hiding defects, uncertainty or unsupported checks.                                   |
+| BASE-04     | Reliable completion, complete accounting and economic liveness                     | Extends FLOW-01/COST-01/RUNNER-01/OPS-01; CORE-22 preserves state/liabilities and safely recovers without blind duplicates or indefinite starvation.                     |
+| BASE-05     | Permission-safe human/runtime continuity and useful takeover/export                | Extends DATA-01/02/AGENT-01/ART-01/SAAS-01; CORE-23 resumes current permitted work without secret/grant transfer or revoked-content leakage.                             |
+| BASE-06     | Same-goal comparative platform-quality program                                     | Extends PLAN-01/02/MODEL-01; CORE-24 uses strong configured alternatives and retained evidence; parity or better is a core acceptance floor.                             |
+| CORE-ACCEPT | Execute CORE-01 through CORE-24 and accept BASE-01 through BASE-06                 | All baseline packages and mandatory scenarios pass; comparative evidence meets registered targets; no unresolved material quality/access/spending/loss/recovery deficit. |
+| CONNECT-01  | First selected real business tool                                                  | Begins after CORE-ACCEPT; actual output quality and provider behavior accepted before the next tool.                                                                     |
 
 Each ticket needs an accountable owner, inputs, review owner, acceptance evidence, dependencies, effort estimate and release/rollback path. These entries are a proposed development backlog, not tasks published to an external service.
+
+BASE-01 through BASE-06 are mandatory owner-confirmed scope. Their implementation details
+remain design choices in the [baseline plan](platform-baseline-quality-plan.md); failure
+of one approach requires improving or replacing that approach, not deleting the requirement.
+Other innovation work follows a completed baseline and a separate scope decision.
 
 ### Replacement and rollout sequence
 
