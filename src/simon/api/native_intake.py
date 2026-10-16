@@ -13,6 +13,7 @@ from simon.domain.native_intake import (
     AnalyzeIntake,
     IntakeRun,
     NativeIntake,
+    ReconcileSourceUpload,
     SourceUpload,
     UpdateNativeIntake,
 )
@@ -64,6 +65,15 @@ def native_intake_router(
                 "X-Content-Type-Options": "nosniff",
             },
         )
+
+    @router.post("/sources/{source_id}/reconcile")
+    def reconcile(
+        project_id: UUID,
+        source_id: UUID,
+        body: ReconcileSourceUpload,
+        current: Annotated[ActorContext, Depends(actor)],
+    ) -> dict[str, Any]:
+        return service.reconcile_upload(current, project_id, source_id, body)
 
     @router.get("/sources/{source_id}/text")
     def text(

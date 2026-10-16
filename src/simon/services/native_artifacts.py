@@ -34,7 +34,7 @@ from simon.domain.native_artifacts import (
     NativeReviewPolicy,
 )
 from simon.domain.native_execution import NativeExecutionRun
-from simon.domain.native_intake import IntakeSource
+from simon.domain.native_intake import MAX_INTAKE_SOURCE_REVISIONS, IntakeSource
 from simon.domain.native_models import ModelUsage
 from simon.domain.native_projects import CreateNativeTask, NativeCommand, NativeTask, TaskAssignment
 from simon.domain.ports import Store
@@ -42,6 +42,7 @@ from simon.services.artifact_reviewer import ArtifactReviewer, ArtifactReviewRes
 from simon.services.canonical import digest
 from simon.services.identity import IDENTITY_LOCK, ROLE_SCOPES
 from simon.services.intake_sources import redact
+from simon.services.native_dependencies import DependencyAuthority
 from simon.services.native_projects import NativeProjectService
 from simon.services.project_models import ProjectModelService, ResolvedProjectModel
 from simon.services.workflow_executor import PreparedWorkflowStep, WorkflowPlanningError
@@ -49,7 +50,7 @@ from simon.services.workflow_executor import PreparedWorkflowStep, WorkflowPlann
 MAX_REVISIONS = 100
 MAX_REVIEW_ATTEMPTS = 100
 MAX_REVIEW_TEXT_BYTES = 48_000
-MAX_SOURCE_AUTHORITIES = 512
+MAX_SOURCE_AUTHORITIES = MAX_INTAKE_SOURCE_REVISIONS
 _ACCESS_ERRORS = (AuthorizationError, InvalidTransitionError, NotFoundError, ValidationError)
 
 
@@ -62,6 +63,7 @@ class NativeArtifactService:
         self, store: Store, projects: NativeProjectService, models: ProjectModelService
     ) -> None:
         self.store, self.projects, self.models, self.usage = store, projects, models, models.usage
+        self.dependencies = DependencyAuthority(store)
 
     def _access(self, actor: ActorContext, project_id: UUID, *, write: bool = False) -> None:
         if not isinstance(actor, ActorContext) or actor.channel != Channel.API:
@@ -174,6 +176,21 @@ class NativeArtifactService:
         self.store.update_native_task(updated, task.version)
         return updated
 
+    def assert_unshared_tasks(self, artifact: NativeArtifact, task: NativeTask) -> None:
+        """One output owns each task lifecycle; repair must preserve other approvals."""
+        identifiers = {artifact.task_id, task.id}
+        if artifact.pending_repair_task_id is not None:
+            identifiers.add(artifact.pending_repair_task_id)
+        if artifact.current_revision_id is not None:
+            identifiers.add(self._revision(artifact).task_id)
+        if self.store.artifact_task_conflict(
+            artifact.workspace_id, artifact.project_id, artifact.id, tuple(sorted(identifiers))
+        ):
+            raise InvalidTransitionError(
+                "This output shares an original, maker or repair task with another artifact. "
+                "Supported review and repair require a separate task for each output."
+            )
+
     def _publish(
         self,
         artifact: NativeArtifact,
@@ -186,6 +203,7 @@ class NativeArtifactService:
         agent_id: UUID | None = None,
         run_id: UUID | None = None,
     ) -> NativeArtifact:
+        self.assert_unshared_tasks(artifact, task)
         previous = self._revision(artifact) if artifact.current_revision_id else None
         sequence = previous.sequence + 1 if previous else 1
         if sequence > MAX_REVISIONS:
@@ -402,6 +420,7 @@ class NativeArtifactService:
         self.projects._version(artifact.version, command.expected_version)
         revision = self._revision(artifact)
         task, policy = self._task(artifact), self._policy(actor.workspace_id, project_id)
+        self.assert_unshared_tasks(artifact, task)
         self.projects._version(policy.version, command.expected_policy_version)
         self.projects._version(task.version, command.expected_task_version)
         if (revision.id, revision.sha256) != (command.revision_id, command.sha256):
@@ -461,8 +480,8 @@ class NativeArtifactService:
         sources = self.store.native_intake_sources(workspace_id, project_id)
         if len(sources) > MAX_SOURCE_AUTHORITIES:
             raise ValidationError(
-                "Artifact authority supports at most 512 source revision records. "
-                "Reduce the source inventory before admitting review or acceptance."
+                f"Artifact authority supports at most {MAX_SOURCE_AUTHORITIES} "
+                "source revision records; the stored inventory exceeds the intake limit."
             )
         latest = self._latest_sources(sources)
         available = [source for source in latest if not source.revoked_at]
@@ -512,23 +531,87 @@ class NativeArtifactService:
             if not s.revoked_at and s.extraction_status == "text"
         ][:8]
 
+    def dependency_snapshot(self, revision: NativeArtifactRevision) -> dict[str, Any] | None:
+        return self.dependencies.snapshot(revision.workspace_id, revision.project_id, revision.id)
+
+    @staticmethod
+    def _complete_dependencies(snapshot: dict[str, Any] | None) -> bool:
+        return snapshot is not None and snapshot.get("coverage") == "complete"
+
+    def _revision_source_authority(
+        self, revision: NativeArtifactRevision, snapshot: dict[str, Any] | None
+    ) -> dict[str, Any]:
+        if not self._complete_dependencies(snapshot):
+            return self.source_authority(revision.workspace_id, revision.project_id)
+        assert snapshot is not None
+        identifiers = list(snapshot["source_ids"])
+        return {
+            "fingerprint": snapshot["fingerprint"],
+            "source_ids": identifiers,
+            "total_sources": len(identifiers),
+            "source_revision_count": len(identifiers),
+            "included_source_ids": [],
+            "omitted_source_ids": identifiers,
+            "omitted_count": len(identifiers),
+            "coverage": "incomplete" if identifiers else "complete",
+            "scope": "typed_dependencies",
+        }
+
+    def _assert_dependencies_applicable(
+        self, revision: NativeArtifactRevision, snapshot: dict[str, Any] | None
+    ) -> None:
+        if snapshot is not None:
+            self.dependencies.assert_applicable(
+                revision.workspace_id, revision.project_id, revision.id, snapshot
+            )
+
+    def disclosure_source_ids(
+        self, artifact: NativeArtifact, revision: NativeArtifactRevision
+    ) -> set[str]:
+        """Known historical evidence stays attached to the immutable output bytes."""
+        identifiers: set[str] = set()
+        snapshot = self.dependency_snapshot(revision)
+        if snapshot is not None:
+            identifiers.update(snapshot.get("source_ids", []))
+        for review in self.store.artifact_reviews(
+            artifact.workspace_id, artifact.project_id, revision.id, 0, MAX_REVIEW_ATTEMPTS
+        ):
+            identifiers.update(review.context.get("source_authority", {}).get("source_ids", []))
+            identifiers.update(source["id"] for source in review.context.get("sources", []))
+            identifiers.update(review.context.get("dependency_snapshot", {}).get("source_ids", []))
+        for decision in self.store.artifact_decisions(
+            artifact.workspace_id, artifact.project_id, revision.id
+        ):
+            identifiers.update(
+                decision.authority_snapshot.get("source_authority", {}).get("source_ids", [])
+            )
+            identifiers.update(
+                decision.authority_snapshot.get("dependency_snapshot", {}).get("source_ids", [])
+            )
+        return identifiers
+
     def assert_disclosable_revision(
         self, artifact: NativeArtifact, revision: NativeArtifactRevision
     ) -> None:
         """Retention does not grant disclosure of known unavailable source evidence."""
-        source_ids: set[str] = set()
+        self.dependencies.assert_revision_disclosable(
+            artifact.workspace_id, artifact.project_id, revision.id
+        )
         for review in self.store.artifact_reviews(
             artifact.workspace_id, artifact.project_id, revision.id, 0, MAX_REVIEW_ATTEMPTS
         ):
-            source_ids.update(review.context.get("source_authority", {}).get("source_ids", []))
-            source_ids.update(source["id"] for source in review.context.get("sources", []))
+            if snapshot := review.context.get("dependency_snapshot"):
+                self.dependencies.assert_disclosable(
+                    artifact.workspace_id, artifact.project_id, snapshot
+                )
         for decision in self.store.artifact_decisions(
             artifact.workspace_id, artifact.project_id, revision.id
         ):
-            source_ids.update(
-                decision.authority_snapshot.get("source_authority", {}).get("source_ids", [])
-            )
-        for source_id in source_ids:
+            if snapshot := decision.authority_snapshot.get("dependency_snapshot"):
+                self.dependencies.assert_disclosable(
+                    artifact.workspace_id, artifact.project_id, snapshot
+                )
+        for source_id in self.disclosure_source_ids(artifact, revision):
             source = self.store.native_intake_source(
                 artifact.workspace_id, artifact.project_id, UUID(source_id)
             )
@@ -591,12 +674,17 @@ class NativeArtifactService:
             artifact.workspace_id, artifact.project_id, revision.task_id
         )
         assert project is not None and maker_task is not None
-        return {
+        snapshot = self.dependency_snapshot(revision)
+        self._assert_dependencies_applicable(revision, snapshot)
+        authority = {
             "project_version": project.version,
             "owner_authority": self._owner_authority(actor, artifact.project_id),
-            "source_authority": self.source_authority(artifact.workspace_id, artifact.project_id),
+            "source_authority": self._revision_source_authority(revision, snapshot),
             "maker_task_version": maker_task.version,
         }
+        if snapshot is not None:
+            authority["dependency_snapshot"] = snapshot
+        return authority
 
     def _decision_authority_current(
         self,
@@ -615,9 +703,18 @@ class NativeArtifactService:
         )
         try:
             self.assert_disclosable_revision(artifact, revision)
+            captured = decision.authority_snapshot.get("dependency_snapshot")
+            self._assert_dependencies_applicable(revision, captured)
             current = self._acceptance_authority(actor, artifact, revision)
         except _ACCESS_ERRORS:
             return False
+        if self._complete_dependencies(captured):
+            if not self._complete_dependencies(current.get("dependency_snapshot")):
+                return False
+            ignored = {"source_authority", "dependency_snapshot"}
+            return {k: v for k, v in current.items() if k not in ignored} == {
+                k: v for k, v in decision.authority_snapshot.items() if k not in ignored
+            }
         return current == decision.authority_snapshot
 
     def acceptance_current(self, artifact: NativeArtifact) -> bool:
@@ -639,6 +736,8 @@ class NativeArtifactService:
             artifact.workspace_id, artifact.project_id, revision.task_id
         )
         assert maker_task is not None
+        snapshot = self.dependency_snapshot(revision)
+        self._assert_dependencies_applicable(revision, snapshot)
         feedback = [
             self._public_decision(artifact, prior, decision)
             for prior in self.store.artifact_revisions(
@@ -668,8 +767,10 @@ class NativeArtifactService:
             "reviewer": reviewer.model_dump(
                 mode="json", include={"id", "instructions", "success_criteria"}
             ),
-            "sources": self._sources(artifact.workspace_id, artifact.project_id),
-            "source_authority": self.source_authority(artifact.workspace_id, artifact.project_id),
+            "sources": []
+            if self._complete_dependencies(snapshot)
+            else self._sources(artifact.workspace_id, artifact.project_id),
+            "source_authority": self._revision_source_authority(revision, snapshot),
             "checks": [
                 c.model_dump(mode="json")
                 for c in self.store.artifact_checks(
@@ -677,6 +778,9 @@ class NativeArtifactService:
                 )
             ],
         }
+        if snapshot is not None:
+            context["dependency_snapshot"] = snapshot
+            context["review_facts"] = snapshot.get("review_facts", [])
 
         def clean(value: Any) -> Any:
             if isinstance(value, str):
@@ -723,6 +827,8 @@ class NativeArtifactService:
             fromfile=f"revision-{prior.sequence}",
             tofile=f"revision-{revision.sequence}",
         ):
+            if not line.endswith("\n"):
+                line += "\n\\ No newline at end of file\n"
             if length + len(line) > 4000:
                 chunks.append(line[: 4000 - length])
                 result["truncated"] = True
@@ -751,10 +857,20 @@ class NativeArtifactService:
         )
         runtime = self.models.runtime(actor, review.project_id)
         binding = runtime.bindings[runtime.review_endpoint_id]
-        sources = [
-            (s["id"], s["sha256"]) for s in self._sources(review.workspace_id, review.project_id)
-        ]
-        reviewed_sources = [(s["id"], s["sha256"]) for s in review.context.get("sources", [])]
+        snapshot = review.context.get("dependency_snapshot")
+        self._assert_dependencies_applicable(revision, snapshot)
+        sources_changed = False
+        if not self._complete_dependencies(snapshot):
+            sources = [
+                (s["id"], s["sha256"])
+                for s in self._sources(review.workspace_id, review.project_id)
+            ]
+            reviewed_sources = [(s["id"], s["sha256"]) for s in review.context.get("sources", [])]
+            sources_changed = (
+                sources != reviewed_sources
+                or review.context.get("source_authority", {}).get("fingerprint")
+                != self.source_authority(review.workspace_id, review.project_id)["fingerprint"]
+            )
         maker_task = self.store.native_task(
             review.workspace_id, review.project_id, revision.task_id
         )
@@ -787,9 +903,7 @@ class NativeArtifactService:
             or binding.model.id != review.model_id
             or binding.model.version != review.model_version
             or binding.fingerprint != review.endpoint_fingerprint
-            or sources != reviewed_sources
-            or review.context.get("source_authority", {}).get("fingerprint")
-            != self.source_authority(review.workspace_id, review.project_id)["fingerprint"]
+            or sources_changed
             or maker_task is None
             or maker_task.version != maker_version + int(accepted)
         ):
@@ -839,12 +953,63 @@ class NativeArtifactService:
         artifact = self._artifact(review.workspace_id, review.project_id, review.artifact_id)
         revision = self._revision(artifact, review.revision_id)
         value["disclosure_allowed"] = self._disclosure_allowed(artifact, revision)
+        value["dependency_snapshot"] = (
+            review.context.get("dependency_snapshot") if value["disclosure_allowed"] else None
+        )
         if not value["disclosure_allowed"]:
             value.update(summary="", findings=[])
         value["usage"] = (
             usage.model_dump(mode="json", exclude={"endpoint_snapshot"}) if usage else None
         )
         return value
+
+    def unresolved_review_usage(self, artifact: NativeArtifact) -> bool:
+        """Historical unknown effects remain actionable after a new head or decision."""
+        for revision in self.store.artifact_revisions(
+            artifact.workspace_id, artifact.project_id, artifact.id, 0, MAX_REVISIONS
+        ):
+            for review in self.store.artifact_reviews(
+                artifact.workspace_id, artifact.project_id, revision.id, 0, MAX_REVIEW_ATTEMPTS
+            ):
+                usage = (
+                    self.store.model_usage(
+                        artifact.workspace_id, artifact.project_id, review.usage_id
+                    )
+                    if review.usage_id
+                    else None
+                )
+                if usage and usage.status == "unknown":
+                    return True
+                if review.status == "unknown" and (
+                    usage is None or usage.status in {"reserved", "dispatched"}
+                ):
+                    return True
+        return False
+
+    def _review_capacity(self, artifact: NativeArtifact, policy: NativeReviewPolicy) -> None:
+        """Reserve human attention before provider dispatch, under the workspace lock."""
+        outputs = self.store.artifacts(artifact.workspace_id, artifact.project_id, limit=1001)
+        if len(outputs) > 1000:
+            raise ValidationError("Review admission supports at most 1,000 project outputs.")
+        pending = 0
+        for other in outputs:
+            if other.id == artifact.id or other.current_revision_id is None:
+                continue
+            status = self._status(other)
+            needs_repair_decision = (
+                status == "changes_requested" and not other.pending_repair_task_id
+            )
+            if (
+                status in {"reviewing", "awaiting_approval"}
+                or needs_repair_decision
+                or self.unresolved_review_usage(other)
+            ):
+                pending += 1
+                if pending >= policy.max_pending_reviews:
+                    raise InvalidTransitionError(
+                        "The pending review limit has been reached. Resolve an existing "
+                        "decision or uncertain review before starting another provider call."
+                    )
 
     def review(
         self,
@@ -853,6 +1018,7 @@ class NativeArtifactService:
         artifact_id: UUID,
         command: ReviewNativeArtifact,
     ) -> dict[str, Any]:
+        recovery_epoch = self.usage.recovery.assert_active()
         admitted = False
         prepared: PreparedWorkflowStep | None = None
         reviewer_client: ArtifactReviewer | None = None
@@ -865,6 +1031,7 @@ class NativeArtifactService:
                 artifact, revision, task, policy = self._exact(
                     actor, project_id, artifact_id, command
                 )
+                self._review_capacity(artifact, policy)
                 if not self._checks_pass(revision):
                     raise InvalidTransitionError("Deterministic artifact checks failed.")
                 attempts = self.store.artifact_reviews(
@@ -904,6 +1071,11 @@ class NativeArtifactService:
                             raise InvalidTransitionError(
                                 "An independent review is already running."
                             )
+                if self.unresolved_review_usage(artifact):
+                    raise InvalidTransitionError(
+                        "This artifact has an unresolved review effect; reconcile its usage "
+                        "before starting another concurrent review."
+                    )
                 reviewer_id = command.reviewer_agent_id or policy.reviewer_agent_id
                 reviewer = (
                     self.store.native_agent(actor.workspace_id, project_id, reviewer_id)
@@ -1031,6 +1203,7 @@ class NativeArtifactService:
         error, unknown = None, False
         assert reviewer_client is not None and prepared is not None
         try:
+            self.usage.recovery.assert_epoch(recovery_epoch)
             output, result = reviewer_client.generate(prepared)
             if (output.revision_id, output.sha256) != (review.revision_id, review.sha256):
                 error = "review_revision_mismatch"
@@ -1055,7 +1228,12 @@ class NativeArtifactService:
             unknown, error = True, error or "review_usage_unknown"
         if settled.error_code == "provider_usage_exceeded_reservation":
             error = settled.error_code
-        with self.store.transaction(IDENTITY_LOCK), self.store.transaction(actor.workspace_id):
+        with (
+            self.store.transaction(IDENTITY_LOCK),
+            self.store.transaction(actor.workspace_id),
+            self.usage.recovery.operation(),
+        ):
+            self.usage.recovery.assert_epoch(recovery_epoch)
             current = self.store.artifact_review(actor.workspace_id, project_id, review.id)
             assert current is not None
             if current.status != "running":
@@ -1260,6 +1438,11 @@ class NativeArtifactService:
             return "changes_requested"
         if not self._checks_pass(revision):
             return "validation_failed"
+        try:
+            snapshot = self.dependency_snapshot(revision)
+            self._assert_dependencies_applicable(revision, snapshot)
+        except _ACCESS_ERRORS:
+            return "stale"
         policy, task = (
             self._policy(artifact.workspace_id, artifact.project_id),
             self._task(artifact),
@@ -1269,6 +1452,11 @@ class NativeArtifactService:
         )
         if decisions:
             decision = decisions[-1]
+            captured = decision.authority_snapshot.get("dependency_snapshot")
+            try:
+                self._assert_dependencies_applicable(revision, captured)
+            except _ACCESS_ERRORS:
+                return "stale"
             if (
                 decision.decision == "approved"
                 and decision.policy_version == policy.version
@@ -1287,6 +1475,11 @@ class NativeArtifactService:
         reviews = self.store.artifact_reviews(
             artifact.workspace_id, artifact.project_id, revision.id, 0, MAX_REVIEW_ATTEMPTS
         )
+        if reviews and (captured := reviews[-1].context.get("dependency_snapshot")):
+            try:
+                self._assert_dependencies_applicable(revision, captured)
+            except _ACCESS_ERRORS:
+                return "stale"
         if any(r.status == "running" for r in reviews):
             return "reviewing"
         if (
@@ -1307,6 +1500,11 @@ class NativeArtifactService:
         value["disclosure_allowed"] = self._disclosure_allowed(artifact, revision)
         if not value["disclosure_allowed"]:
             value["feedback"] = ""
+            value["authority_snapshot"] = {
+                key: item
+                for key, item in value["authority_snapshot"].items()
+                if key != "dependency_snapshot"
+            }
         return value
 
     def view(
@@ -1364,6 +1562,10 @@ class NativeArtifactService:
             except _ACCESS_ERRORS:
                 pass
             disclosure_allowed = self._disclosure_allowed(artifact, revision)
+            try:
+                dependencies = self.dependency_snapshot(revision)
+            except _ACCESS_ERRORS:
+                dependencies = None
             return {
                 "artifact": artifact.model_dump(mode="json"),
                 "status": self._status(artifact),
@@ -1387,6 +1589,7 @@ class NativeArtifactService:
                 else None,
                 "difference": self._difference(artifact, revision),
                 "disclosure_allowed": disclosure_allowed,
+                "dependency_snapshot": dependencies if disclosure_allowed else None,
                 "can_manage": can_manage,
                 "revisions": [revision_metadata(r) for r in revisions],
                 "checks": [

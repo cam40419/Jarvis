@@ -105,17 +105,22 @@ class IntakeSourceBytes:
                     raise ValidationError("Source storage cannot contain filesystem redirects.")
         return path
 
-    def put(self, workspace_id: UUID, project_id: UUID, raw: bytes) -> str:
+    def put(
+        self, workspace_id: UUID, project_id: UUID, raw: bytes, *, operation_id: UUID | None = None
+    ) -> str:
         if len(raw) > MAX_SOURCE_BYTES:
             raise ValidationError("Source exceeds the 5 MiB limit.")
         sha256 = hashlib.sha256(raw).hexdigest()
         path = self._path(workspace_id, project_id, sha256)
         path.parent.mkdir(parents=True, exist_ok=True)
+        if operation_id is not None:
+            self.discard_upload(workspace_id, project_id, sha256, operation_id, preserve_blob=True)
         if path.exists():
             if self.read(workspace_id, project_id, sha256, len(raw)) != raw:
                 raise ValidationError("Stored source does not match its digest.")
             return sha256
-        descriptor, name = tempfile.mkstemp(prefix=".upload-", dir=path.parent)
+        prefix = f".upload-{operation_id}-" if operation_id is not None else ".upload-"
+        descriptor, name = tempfile.mkstemp(prefix=prefix, dir=path.parent)
         temporary = Path(name)
         try:
             with os.fdopen(descriptor, "wb") as stream:
@@ -129,6 +134,65 @@ class IntakeSourceBytes:
         finally:
             temporary.unlink(missing_ok=True)
         return sha256
+
+    def discard_upload(
+        self,
+        workspace_id: UUID,
+        project_id: UUID,
+        sha256: str,
+        operation_id: UUID,
+        *,
+        preserve_blob: bool = False,
+    ) -> None:
+        """Caller holds project authority and the workspace lock for this admitted upload."""
+        path = self._path(workspace_id, project_id, sha256)
+        try:
+            if not preserve_blob:
+                try:
+                    path.lstat()
+                except FileNotFoundError:
+                    pass
+                else:
+                    with open_regular_nofollow(path) as stream:
+                        raw = stream.read(MAX_SOURCE_BYTES + 1)
+                    if len(raw) > MAX_SOURCE_BYTES or hashlib.sha256(raw).hexdigest() != sha256:
+                        raise ValidationError(
+                            "Pending source failed integrity verification; keep its reservation."
+                        )
+                    path.unlink()
+            try:
+                staging = list(path.parent.iterdir())
+            except FileNotFoundError:
+                staging = []
+            for temporary in staging:
+                if temporary.name.startswith(f".upload-{operation_id}-"):
+                    # Reject redirected/nonregular staging entries rather than following them.
+                    with open_regular_nofollow(temporary):
+                        pass
+                    temporary.unlink()
+        except OSError:
+            raise ValidationError(
+                "Source cleanup failed; its storage reservation remains held."
+            ) from None
+
+    def upload_size(self, workspace_id: UUID, project_id: UUID, sha256: str) -> int | None:
+        path = self._path(workspace_id, project_id, sha256)
+        try:
+            path.lstat()
+        except FileNotFoundError:
+            return None
+        try:
+            with open_regular_nofollow(path) as stream:
+                raw = stream.read(MAX_SOURCE_BYTES + 1)
+        except OSError:
+            raise ValidationError(
+                "Pending source could not be verified; keep its reservation."
+            ) from None
+        if len(raw) > MAX_SOURCE_BYTES or hashlib.sha256(raw).hexdigest() != sha256:
+            raise ValidationError(
+                "Pending source failed integrity verification; keep its reservation."
+            )
+        return len(raw)
 
     def read(self, workspace_id: UUID, project_id: UUID, sha256: str, size: int) -> bytes:
         path = self._path(workspace_id, project_id, sha256)

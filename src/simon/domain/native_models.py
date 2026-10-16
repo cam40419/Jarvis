@@ -161,6 +161,7 @@ class ModelResourcePolicy(ModelPolicyFields):
 
 class ModelUsage(NativeModel):
     id: UUID = Field(default_factory=uuid4)
+    recovery_epoch: str | None = Field(default=None, min_length=1, max_length=64)
     workspace_id: UUID
     project_id: UUID
     operation_id: UUID

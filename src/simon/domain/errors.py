@@ -24,6 +24,14 @@ class InvalidTransitionError(DomainError):
     code = "invalid_transition"
 
 
+class StorageQuotaExceededError(InvalidTransitionError):
+    code = "storage_quota_exceeded"
+
+
+class RecoveryQuarantinedError(InvalidTransitionError):
+    code = "recovery_quarantined"
+
+
 class ValidationError(DomainError):
     code = "validation_error"
 

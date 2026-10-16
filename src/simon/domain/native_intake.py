@@ -13,6 +13,7 @@ Slug = Annotated[str, StringConstraints(pattern=r"^[a-z][a-z0-9-]{0,63}$")]
 Answer = Annotated[str, StringConstraints(max_length=2000)]
 Digest = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
 Amount = Annotated[int, Field(ge=0, le=9_223_372_036_854_775_807, strict=True)]
+MAX_INTAKE_SOURCE_REVISIONS = 2000
 
 # Attempt context and dispatch identity cannot change when a result is settled.
 INTAKE_RUN_MUTABLE_FIELDS = frozenset(
@@ -57,6 +58,11 @@ class NativeIntake(IntakeFields):
 
 class UpdateNativeIntake(IntakeFields, NativeCommand):
     expected_version: int = Field(ge=0, strict=True)
+
+
+class ReconcileSourceUpload(NativeCommand):
+    expected_version: int = Field(ge=0, strict=True)
+    reason: str = Field(min_length=1, max_length=2000)
 
 
 class SourceFields(NativeModel):

@@ -144,6 +144,22 @@ def test_route_caps_cover_current_uploads_and_text_actions_only(app):
     )
 
 
+def test_handoff_verification_admits_bundle_bytes_only_on_the_bounded_exact_route(app):
+    application, bodies = app
+    middleware = RequestIngressMiddleware(application, public_path="/simon")
+    identifier = "11111111-1111-4111-8111-111111111111"
+    path = f"/v2/projects/{identifier}/handoffs/{identifier}/verify"
+    payload = b"a" * (2 * 1024 * 1024 + 1)
+    assert run(middleware, scope("/simon" + path), chunks=(payload,))[0]["status"] == 200
+    assert bodies == [payload]
+    oversized = [(b"content-length", str(middleware.limit_for(path) + 1).encode())]
+    assert run(middleware, scope(path, headers=oversized))[0]["status"] == 413
+    assert (
+        run(middleware, scope(path.replace("/verify", "/resume")), chunks=(payload,))[0]["status"]
+        == 413
+    )
+
+
 def test_auth_limiter_ignores_spoofed_forwarding_and_keeps_other_peers_independent(app):
     middleware = RequestIngressMiddleware(app[0], auth_rate_limit=1, auth_rate_window_seconds=60)
     path = "/auth/passkeys/login/options"

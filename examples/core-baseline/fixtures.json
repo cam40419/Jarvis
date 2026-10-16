@@ -1,0 +1,117 @@
+{
+  "schema_version": 1,
+  "registered_date": "2026-10-12",
+  "status": "prospective_acceptance_inputs",
+  "dependency_implementation": {
+    "status": "executable_bounded_text_json_workflow",
+    "tests": "tests/unit/test_native_dependencies.py",
+    "runbook": "docs/runbooks/native-dependencies.md",
+    "comparative_acceptance": "not_established"
+  },
+  "fixtures": [
+    {
+      "id": "apparel-price-change",
+      "fact": { "id": "unit-price", "before": 20, "after": 25, "unit": "USD" },
+      "direct_output": {
+        "path": "spec.json",
+        "selector": "/unit_price",
+        "before": { "unit_price": 20, "color": "navy" },
+        "after": { "unit_price": 25, "color": "navy" }
+      },
+      "transitive_output": {
+        "path": "line-sheet.md",
+        "before": "Unit price: USD 20. Color: navy.",
+        "after": "Unit price: USD 25. Color: navy."
+      },
+      "unrelated_accepted_output": {
+        "path": "brand.txt",
+        "content": "Approved wordmark: STDOUT",
+        "approval_id": "brand-approval-1"
+      },
+      "partial_coverage_output": {
+        "path": "notes.md",
+        "content": "Pricing discussion awaiting review",
+        "expected": "explicit_uncertainty"
+      },
+      "edges": [
+        ["unit-price", "spec.json"],
+        ["spec.json", "line-sheet.md"],
+        ["line-sheet.md", "spec.json"]
+      ],
+      "required_faults": [
+        "concurrent_human_edit",
+        "source_revocation",
+        "missing_dependency",
+        "same_value_new_revision"
+      ]
+    },
+    {
+      "id": "equipment-interval-change",
+      "fact": { "id": "inspection-interval", "before": 90, "after": 60, "unit": "days" },
+      "direct_output": {
+        "path": "spec.json",
+        "selector": "/inspection_days",
+        "before": { "inspection_days": 90, "equipment": "pump-a" },
+        "after": { "inspection_days": 60, "equipment": "pump-a" }
+      },
+      "transitive_output": {
+        "path": "schedule.md",
+        "before": "Inspect pump-a every 90 days.",
+        "after": "Inspect pump-a every 60 days."
+      },
+      "unrelated_accepted_output": {
+        "path": "location.txt",
+        "content": "Pump-a: north utility room",
+        "approval_id": "location-approval-1"
+      },
+      "partial_coverage_output": {
+        "path": "notes.md",
+        "content": "Inspection notes awaiting review",
+        "expected": "explicit_uncertainty"
+      },
+      "edges": [
+        ["inspection-interval", "spec.json"],
+        ["spec.json", "schedule.md"],
+        ["schedule.md", "spec.json"]
+      ],
+      "required_faults": [
+        "concurrent_human_edit",
+        "source_revocation",
+        "missing_dependency",
+        "same_value_new_revision"
+      ]
+    }
+  ],
+  "delivery_profile": {
+    "name": "editable-text-json",
+    "version": 1,
+    "required_roles": [
+      "json_specification",
+      "markdown_rationale",
+      "schema_and_check_report",
+      "derived_safe_preview"
+    ],
+    "required_faults": [
+      "missing_original",
+      "duplicate_required_role",
+      "invalid_json",
+      "failed_validator",
+      "unknown_validator_version",
+      "preview_source_mismatch",
+      "stale_decision",
+      "revoked_evidence"
+    ]
+  },
+  "continuity": {
+    "human_operators": 2,
+    "runtime_identities": 2,
+    "required_faults": [
+      "revoked_source",
+      "altered_file",
+      "expired_credential",
+      "unresolved_effect",
+      "storage_downgrade",
+      "recipient_revoked_during_resume"
+    ]
+  }
+}

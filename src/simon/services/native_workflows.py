@@ -3,6 +3,7 @@
 import hashlib
 import secrets
 from collections.abc import Callable
+from contextlib import nullcontext
 from datetime import UTC, datetime, timedelta
 from typing import Any, TypeVar
 from uuid import UUID, uuid4, uuid5
@@ -62,13 +63,22 @@ def task_digest(task: NativeTask) -> str:
 def public_run(run: NativeExecutionRun) -> dict[str, Any]:
     return {
         **run.model_dump(mode="json", exclude={"lease_token_hash", "context"}),
+        "bounds": public_policy(run.bounds),
         "task_title": run.context.get("task", {}).get("title", ""),
         "agent_name": run.context.get("role", {}).get("name", ""),
     }
 
 
 def public_runner(runner: NativeExecutionRunner) -> dict[str, Any]:
-    return runner.model_dump(mode="json", exclude={"token_hash"})
+    return runner.model_dump(mode="json", exclude={"token_hash", "recovery_epoch"})
+
+
+def public_policy(policy: NativeExecutionPolicy) -> dict[str, Any]:
+    return policy.model_dump(mode="json", exclude={"recovery_epoch"})
+
+
+def public_schedule(schedule: NativeExecutionSchedule) -> dict[str, Any]:
+    return schedule.model_dump(mode="json", exclude={"recovery_epoch"})
 
 
 class NativeWorkflowService:
@@ -76,6 +86,7 @@ class NativeWorkflowService:
         self, store: Store, projects: NativeProjectService, models: ProjectModelService
     ) -> None:
         self.store, self.projects, self.models, self.usage = store, projects, models, models.usage
+        self.recovery = self.usage.recovery
 
     def _access(self, actor: ActorContext, project_id: UUID, *, write: bool = False) -> None:
         if not isinstance(actor, ActorContext) or actor.channel != Channel.API:
@@ -183,7 +194,11 @@ class NativeWorkflowService:
     def update_policy(
         self, actor: ActorContext, project_id: UUID, command: UpdateExecutionPolicy
     ) -> NativeExecutionPolicy:
-        with self.store.transaction(IDENTITY_LOCK), self.store.transaction(actor.workspace_id):
+        with (
+            self.store.transaction(IDENTITY_LOCK),
+            self.store.transaction(actor.workspace_id),
+            self.recovery.operation() if command.enabled else nullcontext(None) as recovery_epoch,
+        ):
             self._access(actor, project_id, write=True)
 
             def save() -> UUID:
@@ -194,6 +209,7 @@ class NativeWorkflowService:
                     project_id=project_id,
                     version=current.version + 1,
                     issued_by=actor.actor_id,
+                    recovery_epoch=recovery_epoch,
                     **command.model_dump(exclude={"expected_version", "idempotency_key"}),
                 )
                 self.store.save_execution_policy(value, current.version)
@@ -278,6 +294,7 @@ class NativeWorkflowService:
         self, workspace_id: UUID, project_id: UUID
     ) -> tuple[NativeExecutionPolicy, ActorContext]:
         policy = self._policy(workspace_id, project_id)
+        self.recovery.assert_epoch(policy.recovery_epoch)
         if not policy.enabled or policy.issued_by is None:
             raise InvalidTransitionError(
                 "Enable an owner-issued execution policy before starting work."
@@ -296,6 +313,11 @@ class NativeWorkflowService:
         run_id: UUID | None = None,
     ) -> NativeExecutionRun:
         policy, issuer = self._grant(actor.workspace_id, project_id)
+        recovery_epoch = self.recovery.assert_active()
+        if parent is not None:
+            self.recovery.assert_epoch(parent.context.get("recovery_epoch"))
+        if schedule is not None:
+            self.recovery.assert_epoch(schedule.recovery_epoch)
         active = self.store.execution_active_runs(actor.workspace_id, project_id)
         if len(active) >= policy.max_queued_runs or any(r.task_id == task.id for r in active):
             raise InvalidTransitionError(
@@ -348,6 +370,7 @@ class NativeWorkflowService:
         )
         identifier = run_id or uuid4()
         context = {
+            "recovery_epoch": recovery_epoch,
             "project": {"name": project.name, "objective": project.objective},
             "task": {"title": task.title, "description": task.description},
             "task_digest": task_digest(task),
@@ -419,7 +442,11 @@ class NativeWorkflowService:
     def start(
         self, actor: ActorContext, project_id: UUID, task_id: UUID, command: StartExecution
     ) -> dict[str, Any]:
-        with self.store.transaction(IDENTITY_LOCK), self.store.transaction(actor.workspace_id):
+        with (
+            self.store.transaction(IDENTITY_LOCK),
+            self.store.transaction(actor.workspace_id),
+            self.recovery.operation(),
+        ):
             self._access(actor, project_id, write=True)
 
             def create() -> UUID:
@@ -431,6 +458,7 @@ class NativeWorkflowService:
             return public_run(self._run(actor.workspace_id, project_id, identifier))
 
     def _authority(self, run: NativeExecutionRun) -> ActorContext:
+        self.recovery.assert_epoch(run.context.get("recovery_epoch"))
         actor = self._issuer(run.workspace_id, run.project_id, run.issued_by)
         policy = self._policy(run.workspace_id, run.project_id)
         if (
@@ -545,7 +573,7 @@ class NativeWorkflowService:
             self.projects._page(offset, limit)
             rows = self.store.execution_schedules(actor.workspace_id, project_id, offset, limit)
             return {
-                "items": [r.model_dump(mode="json") for r in rows],
+                "items": [public_schedule(r) for r in rows],
                 "has_more": bool(
                     self.store.execution_schedules(
                         actor.workspace_id, project_id, offset + limit, 1
@@ -577,7 +605,11 @@ class NativeWorkflowService:
     def create_schedule(
         self, actor: ActorContext, project_id: UUID, task_id: UUID, command: CreateExecutionSchedule
     ) -> NativeExecutionSchedule:
-        with self.store.transaction(IDENTITY_LOCK), self.store.transaction(actor.workspace_id):
+        with (
+            self.store.transaction(IDENTITY_LOCK),
+            self.store.transaction(actor.workspace_id),
+            self.recovery.operation() as recovery_epoch,
+        ):
             self._access(actor, project_id, write=True)
 
             def create() -> UUID:
@@ -591,6 +623,7 @@ class NativeWorkflowService:
                     project_id=project_id,
                     task_id=task_id,
                     issued_by=actor.actor_id,
+                    recovery_epoch=recovery_epoch,
                     **command.model_dump(exclude={"expected_task_version", "idempotency_key"}),
                 )
                 self.store.insert_execution_schedule(schedule)
@@ -608,7 +641,11 @@ class NativeWorkflowService:
         schedule_id: UUID,
         command: UpdateExecutionSchedule,
     ) -> NativeExecutionSchedule:
-        with self.store.transaction(IDENTITY_LOCK), self.store.transaction(actor.workspace_id):
+        with (
+            self.store.transaction(IDENTITY_LOCK),
+            self.store.transaction(actor.workspace_id),
+            self.recovery.operation() if command.enabled else nullcontext(None) as recovery_epoch,
+        ):
             self._access(actor, project_id, write=True)
 
             def update() -> UUID:
@@ -621,6 +658,7 @@ class NativeWorkflowService:
                 self._save(
                     current,
                     definition_version=current.definition_version + 1,
+                    recovery_epoch=recovery_epoch,
                     **command.model_dump(exclude={"expected_version", "idempotency_key"}),
                 )
                 return current.id
@@ -633,7 +671,11 @@ class NativeWorkflowService:
     def enroll_runner(
         self, actor: ActorContext, project_id: UUID, command: EnrollExecutionRunner
     ) -> dict[str, Any]:
-        with self.store.transaction(IDENTITY_LOCK), self.store.transaction(actor.workspace_id):
+        with (
+            self.store.transaction(IDENTITY_LOCK),
+            self.store.transaction(actor.workspace_id),
+            self.recovery.operation() as recovery_epoch,
+        ):
             self._access(actor, project_id, write=True)
             token: str | None = None
 
@@ -650,6 +692,7 @@ class NativeWorkflowService:
                     project_id=project_id,
                     name=command.name,
                     issued_by=actor.actor_id,
+                    recovery_epoch=recovery_epoch,
                     token_hash=token_hash(token),
                     max_concurrent_runs=command.max_concurrent_runs,
                     expires_at=utc_now() + timedelta(seconds=command.ttl_seconds),
@@ -703,6 +746,7 @@ class NativeWorkflowService:
             or current.token_hash != runner.token_hash
         ):
             raise AuthorizationError("Execution runner authority expired or was revoked.")
+        self.recovery.assert_epoch(current.recovery_epoch)
         self._issuer(current.workspace_id, current.project_id, current.issued_by)
         return current
 

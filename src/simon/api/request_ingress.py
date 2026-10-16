@@ -15,6 +15,7 @@ from time import monotonic
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from simon.domain.native_continuity import MAX_CONTINUITY_EXPORT_BYTES
 from simon.services.local_files import MAX_FILE
 
 _SPOOL_MEMORY = 1024 * 1024
@@ -133,6 +134,8 @@ class RequestIngressMiddleware:
             return self.local_upload_max_body_bytes
         if re.fullmatch(r"/v2/projects/[0-9a-fA-F-]{36}/intake/sources", path):
             return 8 * 1024 * 1024
+        if re.fullmatch(r"/v2/projects/[0-9a-fA-F-]{36}/handoffs/[0-9a-fA-F-]{36}/verify", path):
+            return 4 * ((MAX_CONTINUITY_EXPORT_BYTES + 2) // 3) + 1024
         if path == "/v1/local-files/action":
             # Allow bounded local text, including Unicode encoded as JSON surrogate escapes.
             return 32 * 1024 * 1024

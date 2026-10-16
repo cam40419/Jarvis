@@ -284,12 +284,31 @@ def test_database_intake_rejects_cross_project_identity_and_snapshot_drift(postg
         ):
             with pytest.raises(psycopg.errors.CheckViolation), store.transaction():
                 store.connection.execute(statement, params)
-        # Change the column and snapshot together to isolate the composite FK constraint.
-        with pytest.raises(psycopg.errors.ForeignKeyViolation), store.transaction():
+        # Even a consistent column/snapshot rewrite cannot move immutable source history.
+        with pytest.raises(psycopg.errors.CheckViolation), store.transaction():
             store.connection.execute(
                 "UPDATE native_intake_sources SET workspace_id=%s,"
                 "snapshot=jsonb_set(snapshot,'{workspace_id}',to_jsonb(%s::text)) WHERE id=%s",
                 (h.foreign_workspace, str(h.foreign_workspace), evidence.id),
+            )
+        # A fresh insert still exercises the composite project/workspace FK directly.
+        foreign_id = uuid4()
+        with pytest.raises(psycopg.errors.ForeignKeyViolation), store.transaction():
+            store.connection.execute(
+                "INSERT INTO native_intake_sources "
+                "(id,workspace_id,project_id,source_key,revision,sha256,size_bytes,"
+                "created_by,created_at,revoked_at,snapshot) "
+                "SELECT %s,%s,project_id,source_key,revision,sha256,size_bytes,"
+                "created_by,created_at,revoked_at,"
+                "jsonb_set(jsonb_set(snapshot,'{id}',to_jsonb(%s::text)),"
+                "'{workspace_id}',to_jsonb(%s::text)) FROM native_intake_sources WHERE id=%s",
+                (
+                    foreign_id,
+                    h.foreign_workspace,
+                    str(foreign_id),
+                    str(h.foreign_workspace),
+                    evidence.id,
+                ),
             )
         store.close()
         assert store.native_intake(h.workspace, h.first.id) == h.intake

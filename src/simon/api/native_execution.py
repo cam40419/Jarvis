@@ -12,9 +12,7 @@ from simon.domain.native_execution import (
     CreateExecutionSchedule,
     EnrollExecutionRunner,
     ExecutionCommand,
-    NativeExecutionPolicy,
     NativeExecutionRunner,
-    NativeExecutionSchedule,
     NativeTaskWorkflow,
     RunnerLeaseCommand,
     SignalExecution,
@@ -25,6 +23,7 @@ from simon.domain.native_execution import (
 )
 from simon.domain.native_projects import NativeCommand
 from simon.services.native_execution import NativeExecutionService
+from simon.services.native_workflows import public_policy, public_schedule
 
 
 class CreateScheduleRequest(CreateExecutionSchedule):
@@ -53,8 +52,8 @@ def native_execution_router(
         project_id: UUID,
         body: UpdateExecutionPolicy,
         current: Annotated[ActorContext, Depends(actor)],
-    ) -> NativeExecutionPolicy:
-        return service.update_policy(current, project_id, body)
+    ) -> dict[str, Any]:
+        return public_policy(service.update_policy(current, project_id, body))
 
     @router.get("/tasks/{task_id}/workflow")
     def workflow(
@@ -146,9 +145,9 @@ def native_execution_router(
         project_id: UUID,
         body: CreateScheduleRequest,
         current: Annotated[ActorContext, Depends(actor)],
-    ) -> NativeExecutionSchedule:
+    ) -> dict[str, Any]:
         command = CreateExecutionSchedule.model_validate(body.model_dump(exclude={"task_id"}))
-        return service.create_schedule(current, project_id, body.task_id, command)
+        return public_schedule(service.create_schedule(current, project_id, body.task_id, command))
 
     @router.put("/schedules/{schedule_id}")
     def update_schedule(
@@ -156,8 +155,8 @@ def native_execution_router(
         schedule_id: UUID,
         body: UpdateExecutionSchedule,
         current: Annotated[ActorContext, Depends(actor)],
-    ) -> NativeExecutionSchedule:
-        return service.update_schedule(current, project_id, schedule_id, body)
+    ) -> dict[str, Any]:
+        return public_schedule(service.update_schedule(current, project_id, schedule_id, body))
 
     @router.post("/runners", status_code=201)
     def enroll_runner(

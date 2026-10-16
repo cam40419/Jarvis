@@ -23,7 +23,13 @@ from simon.domain.errors import (
 )
 from simon.domain.models import ActorContext, Channel, utc_now
 from simon.domain.native_agents import UpdateNativeTeamPolicy
-from simon.domain.native_intake import AnalyzeIntake, IntakeSource, SourceUpload, UpdateNativeIntake
+from simon.domain.native_intake import (
+    MAX_INTAKE_SOURCE_REVISIONS,
+    AnalyzeIntake,
+    IntakeSource,
+    SourceUpload,
+    UpdateNativeIntake,
+)
 from simon.domain.native_models import (
     ModelResourcePolicy,
     ModelTemplate,
@@ -663,7 +669,7 @@ def test_redaction_applies_to_nested_answers_sources_and_role_context_without_br
 @pytest.mark.parametrize("limit", ["keys", "bytes", "revisions"])
 def test_source_inventory_quotas_cover_all_revisions_including_revoked(intake, limit):
     h = intake
-    count = {"keys": 500, "bytes": 20, "revisions": 2000}[limit]
+    count = {"keys": 500, "bytes": 20, "revisions": MAX_INTAKE_SOURCE_REVISIONS}[limit]
     for index in range(count):
         source = IntakeSource(
             workspace_id=h.workspace,
@@ -681,6 +687,37 @@ def test_source_inventory_quotas_cover_all_revisions_including_revoked(intake, l
     with pytest.raises(ValidationError, match="capacity"):
         upload(h, b"new", key="new-key.txt")
     assert h.store.native_intake(h.workspace, h.first.id).version == 1
+
+
+@pytest.mark.parametrize(
+    "existing", [512, MAX_INTAKE_SOURCE_REVISIONS - 1, MAX_INTAKE_SOURCE_REVISIONS]
+)
+def test_source_revision_admission_matches_authority_bound_and_retains_revoked_records(
+    intake, existing
+):
+    h = intake
+    for index in range(existing):
+        item = IntakeSource(
+            workspace_id=h.workspace,
+            project_id=h.first.id,
+            source_key="history.txt",
+            filename="history.txt",
+            media_type="text/plain",
+            revision=index + 1,
+            sha256="e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            size_bytes=0,
+            text="",
+            extraction_status="text",
+            created_by=h.owner,
+        )
+        h.store.insert_native_intake_source(item)
+    h.store.revoke_native_intake_source(h.workspace, h.first.id, item.id, utc_now())
+    assert len(h.store.native_intake_sources(h.workspace, h.first.id)) == existing
+    if existing < MAX_INTAKE_SOURCE_REVISIONS:
+        h.intake._source_capacity(h.workspace, h.first.id, "history.txt", 1, uuid4())
+    else:
+        with pytest.raises(ValidationError, match="capacity"):
+            h.intake._source_capacity(h.workspace, h.first.id, "history.txt", 1, uuid4())
 
 
 def test_member_reads_but_cannot_change_or_spend_and_scoped_agent_cannot_read(intake):

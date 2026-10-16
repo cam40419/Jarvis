@@ -169,7 +169,9 @@ prompts or arbitrary execution commands, run local shell/CAD/GPU jobs, or transf
 files. Hosting it on another computer does not move inference to that computer. The approved
 model endpoint controls where inference occurs. One CLI process handles one claim at a time;
 runner enrollment permits a ceiling for concurrent processes, not automatic process creation.
-Measured CPU/GPU/storage capacity and isolated local tool execution remain later core work.
+Measured CPU/GPU/physical-storage capacity and isolated local tool execution remain later
+core work. [Workspace storage](workspace-storage.md) now enforces a separate allowance for
+retained content, including execution-produced artifact revisions.
 
 ## Checkpoints, retries and unknown outcomes
 
@@ -178,6 +180,11 @@ network work. Model calls happen outside database locks. Their known usage is se
 if cancellation, access loss or a stale lease prevents result application. A completed
 checkpoint persists before its candidate, children or wait are applied; recovery can apply
 that checkpoint without repeating the model call.
+
+An artifact admission denied by the workspace allowance records `storage_quota_exceeded`.
+It preserves the paid checkpoint and known usage. Restore capacity and use **Retry run**
+within the original authority, attempt and deadline bounds to publish the saved result
+without another model call. Checkpoint trace bytes are outside the retained-file meter.
 
 Expired leases with no uncertain dispatched step can return to the queue within their
 attempt allowance. A sent step with an unresolved outcome becomes **unknown**. Its ledger
@@ -235,13 +242,15 @@ credential, without cookies or CSRF/session credentials: `POST /claim`, `/heartb
 `/step`, and `GET /runs/{id}`. Workers cannot submit their own model, prompt, tool result
 or target project. Provider keys stay on the server.
 
-Follow [storage recovery](storage-recovery.md), including the model catalog and encryption
-master key. Keep runners stopped and isolated from a restored server. Before reconnecting
-them, disable restored execution grants/schedules, revoke pre-restore runner credentials,
-and reconcile model/provider work since the backup point. Re-enable reviewed projects
-with newly enrolled runners. A database restore cannot undo a provider call. This is an
-operator recovery procedure; automated recovery-mode enforcement and measured production
-restoration acceptance remain open.
+Follow [storage recovery](storage-recovery.md#enforced-native-core-restoration-quarantine),
+including the model catalog and encryption master key. Persistent native execution now
+requires an external recovery witness. Begin quarantine before restoring; verify matching
+state and reconcile provider effects/costs before explicit completion. Old grants,
+schedules, runners, reservations and checkpoint authority cannot execute in the new
+generation. Reissue reviewed authority and enroll fresh runners. Late responses cannot
+publish into restored state. Reads and cancellation remain available; unknown liabilities
+are retained. This enforces the supported operator restore workflow; automatic provider
+reconciliation and measured production restoration acceptance remain open.
 
 ## Verification and remaining scope
 

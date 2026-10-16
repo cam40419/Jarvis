@@ -1,17 +1,49 @@
-The next milestone is an accepted platform core. The latest pull (9dba33e) adds substantial artifact and delivery functionality, but the [roadmap (line 199)](C:/Users/cam40/Desktop/Coding/Personal Projects/Jarvis/docs/next-phases.md:199) still places resource enforcement, baseline quality, and core acceptance ahead of business integrations.
-Simon now supports the project → intake → staffing → execution → artifact → independent review → repair → delivery-packet flow. The remaining work is making that flow complete, measurable, and recoverable.
-I recommend this sequence, following the [baseline implementation plan (line 202)](C:/Users/cam40/Desktop/Coding/Personal Projects/Jarvis/docs/architecture/platform-baseline-quality-plan.md:202):
-Priority	Next work	Evidence needed to finish it
-1	Resource authority and administration — versioned entitlements, storage/compute admission, audited overrides, model-catalog UI, and tenant fairness.	Concurrent work respects shared limits; exhausting one tenant’s allowance preserves other tenants’ progress. Synthetic plans suffice before payment integration.
-2	Typed dependencies and selective repair — BASE-01. Replace conservative source invalidation with tracked fact/requirement dependencies and transitive impact records.	A material change repairs affected outputs while preserving unrelated bytes and approvals. Missing dependency coverage and revocations remain explicit.
-3	Complete delivery acceptance — BASE-02. Extend existing snapshots with required-component profiles, versioned validators, and package-level acceptance.	A supported multi-file fixture can be edited, reopened, and rendered; missing files, stale previews, and mismatched checks prevent acceptance.
-4	Review experience — BASE-03. Build a focused decision inbox with useful differences, evidence coverage, findings, costs, and repair escalation.	Seeded defects remain detectable while measured review effort meets the comparative baseline.
-5	Recovery and continuity — BASE-04/05. Enforce restoration quarantine, finish bounded runner/resource behavior, and support authorized human/runtime takeover.	Failure drills preserve accepted work and unknown liabilities, prevent duplicate effects, and let another authorized operator resume safely.
-6	Core acceptance and comparative evaluation — BASE-06. Complete model-quality trials, PostgreSQL 17 validation, capacity measurements, and CORE-01–24.	Retained workflow evidence meets registered quality, effort, recovery, and cost targets.
+# Current platform state and next implementation
 
+The milestone remains an accepted platform core. Simon supports project intake,
+staffing, native execution, artifacts, independent review, repair and delivery
+snapshots. Workspace storage entitlements now enforce atomic logical-content
+admission and retain an audited administrator history.
 
-For the very next PR, I would choose workspace storage entitlements with atomic admission and audited overrides. Count retained source/artifact revisions and previews, handle concurrent uploads, and prove safe quota exhaustion and downgrade behavior across two tenants. This is a bounded start to the roadmap’s first remaining authority package.
-Alongside that, define the dependency contracts and acceptance fixtures for BASE-01/02/05, and register comparison criteria before trials. Capped live-model evaluation can follow secure enrollment; it does not block synthetic development.
-There is also documentation drift to reconcile: the execution runbook still lists independent artifact review as future work, persistence describes native execution as unavailable, and the integration inventory still lists multi-file delivery as wholly outstanding. The [artifact runbook (line 16)](C:/Users/cam40/Desktop/Coding/Personal Projects/Jarvis/docs/runbooks/native-artifacts.md:16) describes the newer implementation and its remaining limits.
-I ran the focused delivery/source-authority suite: 83 passed. PostgreSQL, browser, live-model, and full-coverage checks were outside this run; historical coverage does not establish acceptance of the latest changes.
-Business tools should follow CORE-ACCEPT, one accepted integration at a time, using stdout’s actual needs to select the first.
+The October 12 correctness follow-up addresses three concrete findings:
+
+- Intake and artifact authority share a 2,000 retained-source-revision bound;
+  complete historical and revoked metadata still participates in authority checks.
+- Workspace existence survives removal of its last member, preserving platform
+  storage administration without granting former members access.
+- Supported native-core restores require an external recovery witness. Quarantine
+  blocks dispatch and publication; old runners, grants, schedules and reservations
+  stay fenced after explicit reconciliation and completion. Retained costs and
+  unknown liabilities are not cleared by automatic retry or expiry assumptions.
+
+Persistent installations need migration 0038 and the documented
+[recovery procedure](runbooks/storage-recovery.md#enforced-native-core-restoration-quarantine).
+Implementation does not migrate, restart or change a deployed installation.
+
+[Typed dependencies and selective repair](runbooks/native-dependencies.md) now support this workflow:
+version a fact or requirement, declare exact output dependencies, assess direct/transitive
+impact, preview a bounded text/JSON repair and commit the batch atomically. Repaired outputs
+require fresh review; unrelated bytes and approval identities are preserved. Missing coverage,
+concurrent changes and revocation remain explicit. The
+[registered fixtures](architecture/core-baseline-fixtures.md) now execute the apparel and
+equipment repair workflows. Persistent installations also require migration 0039.
+
+**Step 3 is implemented for the registered text/JSON and native-worker scope:**
+[delivery acceptance, review inbox and authorized handoff](runbooks/delivery-review-continuity.md)
+add required component roles, computed reopen/edit/render evidence, exact owner package
+decisions, bounded review admission and permission-checked checkpoint succession.
+Application-specific formats and measured review/takeover quality remain acceptance work.
+Persistent installations require migration `0040_native_acceptance_continuity.sql`.
+**Step 4:** physical capacity, compute isolation/admission, tenant
+fairness, model-catalog administration and model-quality trials remain parallel
+core work. Selective repair also exposes follow-up needs for metadata accounting,
+history retention and graph/concurrency capacity measurements. Recovery still requires
+truthful operator/provider reconciliation and
+does not claim automatic detection of privileged database rewinds that bypass the
+supported procedure.
+
+The [roadmap](next-phases.md) and
+[baseline quality plan](architecture/platform-baseline-quality-plan.md) govern the
+remaining work. CORE-01 through CORE-24, PostgreSQL 17 validation and registered
+comparative trials remain acceptance requirements. Business integrations follow
+CORE-ACCEPT; historical coverage and synthetic tests do not establish that gate.

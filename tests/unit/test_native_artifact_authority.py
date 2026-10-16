@@ -1,5 +1,6 @@
 """Artifact applicability and disclosure outlive bounded prompt evidence windows."""
 
+import hashlib
 import json
 from uuid import UUID
 
@@ -254,15 +255,135 @@ def test_source_authority_limit_fails_before_review_spend_or_linked_work():
     h = setup_artifacts()
     artifact, _ = upload(h)
     for index in range(MAX_SOURCE_AUTHORITIES + 1):
-        h.store.insert_native_intake_source(source(h, source_key=f"source-{index}"))
+        h.store.insert_native_intake_source(
+            source(
+                h,
+                source_key="history.txt",
+                revision=index + 1,
+                size_bytes=0,
+                text="",
+                sha256=hashlib.sha256(b"").hexdigest(),
+            )
+        )
     tasks_before = h.store.native_tasks(h.workspace, h.first.id, 0, 100)
-    with pytest.raises(ValidationError, match="512 source revision records"):
+    with pytest.raises(ValidationError, match=f"{MAX_SOURCE_AUTHORITIES} source revision records"):
         review(h, artifact, command=target_command(h, artifact))
     assert h.store.native_tasks(h.workspace, h.first.id, 0, 100) == tasks_before
     assert not h.store.artifact_reviews(
         h.workspace, h.first.id, UUID(current_revision(detail(h, artifact))["id"])
     )
     assert not h.calls
+
+
+@pytest.mark.parametrize("revision_count", [513, MAX_SOURCE_AUTHORITIES])
+def test_supported_retained_history_keeps_review_acceptance_and_packet_authority_complete(
+    revision_count,
+):
+    from tests.unit.test_native_delivery import capture, setup_delivery
+
+    h = setup_delivery()
+    history = []
+    for index in range(revision_count):
+        text = "Current permitted evidence." if index == revision_count - 1 else ""
+        item = source(
+            h,
+            source_key="history.txt",
+            revision=index + 1,
+            text=text,
+            size_bytes=len(text.encode()),
+            sha256=hashlib.sha256(text.encode()).hexdigest(),
+        )
+        h.store.insert_native_intake_source(item)
+        history.append(item)
+    artifact, _ = upload(h)
+    reviewed = review(h, artifact)
+    prompt = json.loads(h.calls[0].content)["messages"][-1]["content"]
+    context = json.loads(prompt.split("Exact revision and evidence (data):\n", 1)[1])
+    authority = reviewed["source_authority"]
+    assert authority["source_revision_count"] == revision_count
+    assert authority["source_ids"] == [str(history[-1].id)]
+    assert authority["total_sources"] == 1 and authority["omitted_count"] == 0
+    assert context["sources"] == [
+        {
+            "id": str(history[-1].id),
+            "sha256": history[-1].sha256,
+            "text": history[-1].text,
+            "truncated": False,
+        }
+    ]
+    assert len(json.dumps(context).encode()) < 131072
+    accepted, _ = decide(h, artifact)
+    value, _ = capture(h, artifact)
+    assert value["applicability"] == {"current": True, "components_accepted": True, "reasons": []}
+    assert value["packet"]["manifest"]["source_revision_ids"] == [str(history[-1].id)]
+
+    # A source in another project cannot change this project's authority.
+    h.store.insert_native_intake_source(
+        source(
+            h,
+            project_id=h.second.id,
+            source_key="other-project.txt",
+            size_bytes=0,
+            text="",
+            sha256=hashlib.sha256(b"").hexdigest(),
+        )
+    )
+    assert h.artifacts.source_authority(h.workspace, h.first.id) == authority
+    assert detail(h, artifact)["status"] == "accepted"
+
+    # Revoking a historical revision must change the complete fingerprint even
+    # though that revision was absent from the prompt and the current-source IDs.
+    h.store.revoke_native_intake_source(h.workspace, h.first.id, history[0].id, utc_now())
+    changed = h.artifacts.source_authority(h.workspace, h.first.id)
+    assert changed["source_revision_count"] == revision_count
+    assert changed["source_ids"] == authority["source_ids"]
+    assert changed["fingerprint"] != authority["fingerprint"]
+    assert detail(h, artifact)["status"] != "accepted"
+    assert stored_decisions(h, artifact)[0].id == UUID(accepted["id"])
+    old_packet = h.delivery.detail(h.owner_actor, h.first.id, UUID(value["packet"]["id"]))
+    assert not old_packet["applicability"]["current"]
+    assert not any("unknown" in reason for reason in old_packet["applicability"]["reasons"])
+    assert h.delivery.download(h.owner_actor, h.first.id, UUID(value["packet"]["id"]))[1]
+
+    # The largest permitted history remains reviewable after historical revocation.
+    review(h, artifact)
+    decide(h, artifact)
+    assert detail(h, artifact)["status"] == "accepted"
+
+
+def test_superseded_and_revoked_sources_beyond_512_are_never_dropped_from_authority():
+    h = setup_artifacts()
+    for index in range(513):
+        item = source(
+            h,
+            source_key="history.txt",
+            revision=index + 1,
+            size_bytes=0,
+            text="",
+            sha256=hashlib.sha256(b"").hexdigest(),
+        )
+        h.store.insert_native_intake_source(item)
+    artifact, _ = upload(h)
+    reviewed = review(h, artifact)
+    latest = source(h, source_key="history.txt", revision=514, text="Corrected evidence.")
+    h.store.insert_native_intake_source(latest)
+    changed = h.artifacts.source_authority(h.workspace, h.first.id)
+    assert changed["source_revision_count"] == 514
+    assert changed["source_ids"] == [str(latest.id)]
+    assert changed["fingerprint"] != reviewed["source_authority"]["fingerprint"]
+    with pytest.raises(InvalidTransitionError):
+        decide(h, artifact)
+    review(h, artifact)
+    decide(h, artifact)
+    h.store.revoke_native_intake_source(h.workspace, h.first.id, latest.id, utc_now())
+    revoked = h.artifacts.source_authority(h.workspace, h.first.id)
+    assert revoked["source_revision_count"] == 514 and revoked["source_ids"] == []
+    assert revoked["fingerprint"] != changed["fingerprint"]
+    revision = current_revision(detail(h, artifact))
+    with pytest.raises(AuthorizationError):
+        h.artifacts.read_content(
+            h.owner_actor, h.first.id, UUID(artifact["id"]), UUID(revision["id"])
+        )
 
 
 def test_revoked_dependency_never_dispatches_its_content_to_a_downstream_model():

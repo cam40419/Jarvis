@@ -58,6 +58,7 @@ class Settings(BaseSettings):
     google_token_key: SecretStr | None = None
     local_files_enabled: bool = True
     local_files_dir: Path = Path(".local/files")
+    recovery_state_file: Path | None = None
     local_files_actor_id: UUID | None = None
     local_file_roots: dict[str, Path] = Field(default_factory=dict)
     external_providers_file: Path | None = None
@@ -75,10 +76,21 @@ class Settings(BaseSettings):
     voice_name: Literal["marin", "cedar", "meridian", "vesper"] = "cedar"
     voice_max_seconds: int = Field(default=900, ge=60, le=1800)
 
-    @field_validator("external_providers_file", "model_catalog_file", mode="before")
+    @field_validator(
+        "external_providers_file", "model_catalog_file", "recovery_state_file", mode="before"
+    )
     @classmethod
     def empty_manifest(cls, value: object) -> object:
         return None if value == "" else value
+
+    @model_validator(mode="after")
+    def validate_recovery_path(self) -> "Settings":
+        if self.recovery_state_file is not None:
+            if not self.recovery_state_file.is_absolute():
+                raise ValueError("Recovery witness requires an absolute private path.")
+            if self.recovery_state_file.resolve().is_relative_to(self.local_files_dir.resolve()):
+                raise ValueError("Recovery witness must be outside the restored managed files.")
+        return self
 
     @model_validator(mode="after")
     def validate_google(self) -> "Settings":

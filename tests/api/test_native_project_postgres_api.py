@@ -52,6 +52,11 @@ def postgres_native_api(postgres_url, tmp_path):
     finally:
         bootstrap.close()
 
+    from tests.recovery_helpers import activate
+
+    recovery_path = tmp_path / "recovery" / "witness.json"
+    activate(recovery_path)
+
     settings = Settings(
         _env_file=None,
         environment="test",
@@ -66,6 +71,7 @@ def postgres_native_api(postgres_url, tmp_path):
         local_files_enabled=False,
         local_files_dir=tmp_path / "files",
         integration_key_file=tmp_path / "credentials.key",
+        recovery_state_file=recovery_path,
         voice_enabled=False,
     )
 

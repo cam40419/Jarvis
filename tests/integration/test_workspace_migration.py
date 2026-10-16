@@ -83,6 +83,10 @@ def test_historical_workspace_rename_preserves_sql_rows_and_ledger(postgres_base
                 "0034_native_execution.sql",
                 "0035_native_artifacts_review.sql",
                 "0036_native_delivery_packets.sql",
+                "0037_native_storage_entitlements.sql",
+                "0038_recovery_epochs.sql",
+                "0039_native_dependencies.sql",
+                "0040_native_acceptance_continuity.sql",
             ]
             assert migrate(url) == []
             with psycopg.connect(url) as connection:

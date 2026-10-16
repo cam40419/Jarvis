@@ -543,6 +543,7 @@
     $('na-human-required').checked = snapshot.policy.require_human_approval;
     $('na-agent-required').checked = snapshot.policy.require_agent_review;
     $('na-repair-limit').value = snapshot.policy.max_repair_cycles;
+    $('na-review-queue-limit').value = snapshot.policy.max_pending_reviews || 20;
     roleOptions($('na-policy-reviewer'), { optional: true });
     $('na-policy-reviewer').value = snapshot.policy.reviewer_agent_id || '';
     $('na-human-required').focus();
@@ -640,6 +641,7 @@
           require_agent_review: $('na-agent-required').checked,
           reviewer_agent_id: $('na-policy-reviewer').value || null,
           max_repair_cycles: Number($('na-repair-limit').value),
+          max_pending_reviews: Number($('na-review-queue-limit').value),
         },
       };
     if (record.kind === 'upload') {
@@ -865,7 +867,7 @@
     if (dialog.open) dialog.close();
   }
 
-  async function open() {
+  async function open(target = null) {
     const project = bridge().getProject();
     if (!project || dialog.open) return;
     reset();
@@ -881,7 +883,18 @@
     feedback('Loading artifacts…');
     try {
       await refresh();
-      if (active(ticket)) feedback();
+      if (!active(ticket)) return;
+      if (target?.artifactId) {
+        const record = await bridge().request(path('/' + target.artifactId));
+        if (!active(ticket)) return;
+        detail = record;
+        renderDetail(target.revisionId);
+      }
+      feedback();
+      if (target?.policy) {
+        busy = false;
+        editPolicy();
+      }
     } catch (error) {
       if (active(ticket)) failure(error);
     } finally {
@@ -949,6 +962,12 @@
   $('na-review-new').onclick = editReview;
   $('na-accept').onclick = () => editDecision('approved');
   $('na-changes').onclick = () => editDecision('changes_requested');
+  $('na-dependencies').onclick = () => {
+    if (busy || uncertain || !detail || !revision()) return;
+    const target = { artifactId: detail.artifact.id, revisionId: revision().id };
+    reset();
+    window.SimonNativeDependencies?.open(target);
+  };
   $('na-retry').onclick = perform;
   $('na-check').onclick = checkOperation;
   $('na-revision').onchange = () => {

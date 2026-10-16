@@ -105,6 +105,7 @@
     $('nd-refresh').disabled = busy || Boolean(editing);
     $('nd-reload').disabled = busy || uncertain || !conflict;
     $('nd-download').disabled ||= !available(detail);
+    $('nd-acceptance').disabled ||= !available(detail);
     $('nd-revise').disabled ||=
       !available(detail) || hasSuccessor(detail.packet.id) || hasSuppliedPreview(detail);
     $('nd-create').disabled ||= !artifactMore && !candidates.some((item) => item.current_revision);
@@ -844,6 +845,12 @@
   $('nd-create').onclick = () => editor();
   $('nd-revise').onclick = () => editor(detail);
   $('nd-download').onclick = download;
+  $('nd-acceptance').onclick = () => {
+    if (busy || uncertain || !available(detail)) return;
+    const packetId = detail.packet.id;
+    reset();
+    window.SimonNativeAcceptance?.open({ packetId });
+  };
   $('nd-retry').onclick = perform;
   $('nd-check').onclick = checkOperation;
   $('nd-reload').onclick = reloadConflict;

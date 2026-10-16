@@ -6,7 +6,7 @@ import io
 import json
 import re
 import zipfile
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from pydantic import ValidationError as ModelValidationError
@@ -38,6 +38,9 @@ from simon.services.native_artifacts import (
 )
 
 MAX_PACKET_CHAIN = 100
+if TYPE_CHECKING:
+    from simon.services.native_acceptance import NativeAcceptanceService
+
 MAX_PACKETS_PER_PROJECT = 1000
 MAX_PREVIEW_BYTES = 48_000
 BASE_LIMITATIONS = (
@@ -128,6 +131,7 @@ class NativeDeliveryService:
     def __init__(self, store: Store, artifacts: NativeArtifactService) -> None:
         self.store, self.artifacts = store, artifacts
         self.projects = artifacts.projects
+        self.acceptance: NativeAcceptanceService | None = None
 
     @staticmethod
     def _namespace(actor: ActorContext, project_id: UUID) -> str:
@@ -166,6 +170,17 @@ class NativeDeliveryService:
             return False
         return True
 
+    def _complete_component_dependencies(
+        self, component: DeliveryComponent
+    ) -> dict[str, Any] | None:
+        if component.status_at_creation != "accepted" or not component.decisions:
+            return None
+        decision = component.decisions[-1]
+        snapshot = decision.authority_snapshot.get("dependency_snapshot")
+        if decision.decision != "approved" or not self.artifacts._complete_dependencies(snapshot):
+            return None
+        return snapshot
+
     def _applicability(self, packet: NativeDeliveryPacket) -> dict[str, Any]:
         reasons: list[str] = []
         accepted = True
@@ -178,19 +193,37 @@ class NativeDeliveryService:
             != packet.manifest.policy_version
         ):
             reasons.append("The review policy changed after this packet was captured.")
-        try:
-            current_sources = self._source_authority(packet.workspace_id, packet.project_id)
-        except ValidationError:
-            accepted = False
-            reasons.append(
-                "Source authority exceeds the supported inventory bound; "
-                "current applicability is unknown."
-            )
+        dependencies = [
+            self._complete_component_dependencies(component)
+            for component in packet.manifest.components
+        ]
+        if all(snapshot is not None for snapshot in dependencies):
+            for component, snapshot in zip(packet.manifest.components, dependencies, strict=True):
+                assert snapshot is not None
+                try:
+                    self.artifacts.dependencies.assert_applicable(
+                        packet.workspace_id, packet.project_id, component.revision_id, snapshot
+                    )
+                except (AuthorizationError, InvalidTransitionError, NotFoundError, ValidationError):
+                    accepted = False
+                    reasons.append(
+                        f"Component {component.revision_id} dependencies changed; "
+                        "reassessment is required."
+                    )
         else:
-            if current_sources["fingerprint"] != packet.manifest.source_fingerprint:
+            try:
+                current_sources = self._source_authority(packet.workspace_id, packet.project_id)
+            except ValidationError:
+                accepted = False
                 reasons.append(
-                    "Project source evidence changed; affected components require reassessment."
+                    "Source authority exceeds the supported inventory bound; "
+                    "current applicability is unknown."
                 )
+            else:
+                if current_sources["fingerprint"] != packet.manifest.source_fingerprint:
+                    reasons.append(
+                        "Project source evidence changed; affected components require reassessment."
+                    )
         for component in packet.manifest.components:
             artifact = self.artifacts._artifact(
                 packet.workspace_id, packet.project_id, component.artifact_id
@@ -255,6 +288,9 @@ class NativeDeliveryService:
             "successor_id": self._successor_id(packet),
             "can_manage": self._can_manage(actor, packet.project_id),
             "limitations": list(packet.manifest.limitations),
+            "acceptance": self.acceptance.status(actor, packet.project_id, packet.id)
+            if self.acceptance
+            else {"assigned": False},
         }
 
     def _successor_id(self, packet: NativeDeliveryPacket) -> str | None:
@@ -451,13 +487,34 @@ class NativeDeliveryService:
                         previews.append(preview)
                         if preview.limitation:
                             limitations.append(f"{revision.id}: {preview.limitation}")
+                complete_dependencies = all(
+                    self._complete_component_dependencies(component) is not None
+                    for component in components
+                )
+                source_ids = authority["source_ids"]
+                baseline_limits = BASE_LIMITATIONS
+                if complete_dependencies:
+                    identifiers: set[str] = set()
+                    for component in components:
+                        artifact = self.artifacts._artifact(
+                            actor.workspace_id, project_id, component.artifact_id
+                        )
+                        revision = self.artifacts._revision(artifact, component.revision_id)
+                        identifiers.update(self.artifacts.disclosure_source_ids(artifact, revision))
+                    source_ids = sorted(identifiers)
+                    baseline_limits = (
+                        "Declared complete typed dependency coverage is rechecked for every "
+                        "component. Original evidence remains subject to current disclosure "
+                        "rights.",
+                        *BASE_LIMITATIONS[1:],
+                    )
                 manifest = NativeDeliveryManifest(
                     title=command.title,
                     declared_limitations=command.limitations,
                     components=tuple(components),
                     previews=tuple(previews),
-                    limitations=tuple(dict.fromkeys([*BASE_LIMITATIONS, *limitations])),
-                    source_revision_ids=tuple(UUID(str(v)) for v in authority["source_ids"]),
+                    limitations=tuple(dict.fromkeys([*baseline_limits, *limitations])),
+                    source_revision_ids=tuple(UUID(str(v)) for v in source_ids),
                     source_fingerprint=authority["fingerprint"],
                     project_version=project.version,
                     policy_version=self.artifacts._policy(actor.workspace_id, project_id).version,
@@ -534,6 +591,8 @@ class NativeDeliveryService:
                         )
                     files[preview.path] = rendered
             files["export-paths.json"] = json_bytes(paths)
+            if self.acceptance:
+                files.update(self.acceptance.export_evidence(actor, project_id, packet_id))
             files["current-status.json"] = json_bytes(
                 {
                     "packet_id": str(packet.id),

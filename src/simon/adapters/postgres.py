@@ -32,6 +32,7 @@ from simon.domain.errors import (
     IdempotencyConflictError,
     InvalidTransitionError,
     NotFoundError,
+    StorageQuotaExceededError,
 )
 from simon.domain.identity import (
     Challenge,
@@ -45,7 +46,9 @@ from simon.domain.integrations import IntegrationConnection
 from simon.domain.interaction import ResponsePreferences, RunFeedback
 from simon.domain.models import AuditEvent, Job, JobStatus, OutboxEvent
 from simon.domain.native_agents import NativeAgent, NativeAgentCredential, NativeTeamPolicy
+from simon.domain.native_continuity import continuity_manifest_bytes
 from simon.domain.native_delivery import manifest_bytes
+from simon.domain.native_dependencies import NativeDependencyDeclaration, canonical_bytes
 from simon.domain.native_intake import (
     INTAKE_RUN_MUTABLE_FIELDS,
     IntakeRun,
@@ -62,6 +65,12 @@ from simon.domain.native_models import (
     UsageTotals,
 )
 from simon.domain.native_projects import NativeProject, NativeProjectMember, NativeTask
+from simon.domain.native_storage import (
+    MAX_STORAGE_LIMIT_BYTES,
+    StorageCharge,
+    StorageEntitlement,
+    StorageObjectKind,
+)
 from simon.domain.voice import VoiceSession
 
 EXECUTION_COLUMNS: dict[str, tuple[str, ...]] = {
@@ -155,6 +164,117 @@ EXECUTION_COLUMNS: dict[str, tuple[str, ...]] = {
     ),
 }
 ARTIFACT_COLUMNS: dict[str, tuple[str, ...]] = {
+    "native_delivery_profile_assignments": (
+        "id",
+        "workspace_id",
+        "project_id",
+        "packet_id",
+        "version",
+        "manifest_sha256",
+        "created_by",
+        "created_at",
+        "record_bytes",
+    ),
+    "native_delivery_validations": (
+        "id",
+        "workspace_id",
+        "project_id",
+        "packet_id",
+        "assignment_id",
+        "profile_version",
+        "manifest_sha256",
+        "authority_sha256",
+        "passed",
+        "created_by",
+        "created_at",
+        "record_bytes",
+    ),
+    "native_delivery_acceptances": (
+        "id",
+        "workspace_id",
+        "project_id",
+        "packet_id",
+        "assignment_id",
+        "profile_version",
+        "validation_id",
+        "manifest_sha256",
+        "authority_sha256",
+        "created_by",
+        "created_at",
+        "record_bytes",
+    ),
+    "native_continuity_handoffs": (
+        "id",
+        "workspace_id",
+        "project_id",
+        "created_by",
+        "recipient_id",
+        "manifest_sha256",
+        "created_at",
+        "manifest_bytes",
+    ),
+    "native_facts": (
+        "id",
+        "workspace_id",
+        "project_id",
+        "key",
+        "kind",
+        "version",
+        "current_revision_id",
+        "created_by",
+        "created_at",
+        "updated_at",
+    ),
+    "native_fact_revisions": (
+        "id",
+        "workspace_id",
+        "project_id",
+        "fact_id",
+        "version",
+        "parent_revision_id",
+        "value_type",
+        "value_bytes",
+        "unit",
+        "semantic_sha256",
+        "sha256",
+        "created_by",
+        "created_at",
+    ),
+    "native_dependency_declarations": (
+        "id",
+        "workspace_id",
+        "project_id",
+        "artifact_id",
+        "revision_id",
+        "sha256",
+        "version",
+        "coverage",
+        "created_by",
+        "created_at",
+    ),
+    "native_impact_assessments": (
+        "id",
+        "workspace_id",
+        "project_id",
+        "fact_id",
+        "from_revision_id",
+        "to_revision_id",
+        "graph_fingerprint",
+        "source_fingerprint",
+        "outputs_bytes",
+        "created_by",
+        "created_at",
+    ),
+    "native_repair_proposals": (
+        "id",
+        "workspace_id",
+        "project_id",
+        "assessment_id",
+        "sha256",
+        "plan_bytes",
+        "created_by",
+        "created_at",
+    ),
     "native_artifacts": (
         "id",
         "workspace_id",
@@ -262,6 +382,191 @@ class PostgresStore(InMemoryStore):
             "simon_connection", default=None
         )
 
+    @staticmethod
+    def _storage_quota_error(exc: psycopg.IntegrityError) -> None:
+        if exc.diag.constraint_name == "native_storage_quota" or str(exc).startswith(
+            "storage_quota_exceeded"
+        ):
+            raise StorageQuotaExceededError("Workspace storage quota exceeded.") from exc
+
+    def storage_entitlement(self, workspace_id: UUID) -> StorageEntitlement | None:
+        rows = self.storage_entitlement_history(workspace_id, 1)
+        return rows[0] if rows else None
+
+    def storage_entitlement_history(
+        self, workspace_id: UUID, limit: int = 50
+    ) -> tuple[StorageEntitlement, ...]:
+        with self.transaction():
+            rows = self.connection.execute(
+                "SELECT snapshot FROM native_storage_entitlements "
+                "WHERE workspace_id=%s ORDER BY version DESC LIMIT %s",
+                (workspace_id, limit),
+            ).fetchall()
+            return tuple(StorageEntitlement.model_validate(row["snapshot"]) for row in rows)
+
+    def save_storage_entitlement(self, value: StorageEntitlement, expected_version: int) -> None:
+        try:
+            value = StorageEntitlement.model_validate(value.model_dump())
+            with self.transaction(value.workspace_id):
+                previous = self.storage_entitlement(value.workspace_id)
+                if (
+                    previous.version if previous else 0
+                ) != expected_version or value.version != expected_version + 1:
+                    raise InvalidTransitionError("Storage entitlement changed.")
+                self.connection.execute(
+                    "INSERT INTO native_storage_entitlements "
+                    "(workspace_id,version,plan_key,limit_bytes,override_limit_bytes,"
+                    "override_expires_at,reason,issued_by,updated_at,snapshot) "
+                    "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                    (
+                        value.workspace_id,
+                        value.version,
+                        value.plan_key,
+                        value.limit_bytes,
+                        value.override_limit_bytes,
+                        value.override_expires_at,
+                        value.reason,
+                        value.issued_by,
+                        value.updated_at,
+                        Jsonb(value.model_dump(mode="json")),
+                    ),
+                )
+        except (psycopg.IntegrityError, ValueError) as exc:
+            raise InvalidTransitionError("Storage entitlement changed or is invalid.") from exc
+
+    def storage_charge(
+        self, workspace_id: UUID, kind: StorageObjectKind, object_id: UUID
+    ) -> StorageCharge | None:
+        with self.transaction():
+            row = self.connection.execute(
+                "SELECT snapshot FROM native_storage_charges "
+                "WHERE workspace_id=%s AND object_kind=%s AND object_id=%s",
+                (workspace_id, kind, object_id),
+            ).fetchone()
+            return StorageCharge.model_validate(row["snapshot"]) if row else None
+
+    def storage_charges(
+        self, workspace_id: UUID, project_id: UUID | None = None
+    ) -> tuple[StorageCharge, ...]:
+        with self.transaction():
+            rows = self.connection.execute(
+                "SELECT snapshot FROM native_storage_charges WHERE workspace_id=%s "
+                "AND (%s::uuid IS NULL OR project_id=%s) ORDER BY created_at,object_kind,object_id",
+                (workspace_id, project_id, project_id),
+            ).fetchall()
+            return tuple(StorageCharge.model_validate(row["snapshot"]) for row in rows)
+
+    def storage_usage(self, workspace_id: UUID, project_id: UUID | None = None) -> dict[str, int]:
+        with self.transaction():
+            row = self.connection.execute(
+                "SELECT COALESCE(sum(bytes) FILTER (WHERE state='reserved'),0) AS reserved_bytes,"
+                "COALESCE(sum(bytes) FILTER (WHERE state='retained'),0) AS retained_bytes,"
+                "COALESCE(sum(bytes) FILTER (WHERE state IN ('reserved','retained')),0) "
+                "AS used_bytes,"
+                "count(*) FILTER (WHERE state='reserved') AS reservation_count "
+                "FROM native_storage_charges WHERE workspace_id=%s "
+                "AND (%s::uuid IS NULL OR project_id=%s)",
+                (workspace_id, project_id, project_id),
+            ).fetchone()
+            assert row is not None
+            return {key: int(value) for key, value in row.items()}
+
+    def reserve_source_storage(self, value: StorageCharge) -> None:
+        try:
+            value = StorageCharge.model_validate(value.model_dump())
+        except ValueError as exc:
+            raise InvalidTransitionError("Invalid source storage reservation.") from exc
+        if value.object_kind != "source" or value.state != "reserved" or value.sha256 is None:
+            raise InvalidTransitionError("Source reservations require original content binding.")
+        if value.bytes > MAX_STORAGE_LIMIT_BYTES:
+            raise StorageQuotaExceededError("Workspace storage quota exceeded.")
+        try:
+            with self.transaction(value.workspace_id):
+                previous = self.storage_charge(value.workspace_id, "source", value.object_id)
+                if previous is not None:
+                    if self._storage_binding(previous) != self._storage_binding(value):
+                        raise InvalidTransitionError("Source storage reservation binding changed.")
+                    if previous.state == "released":
+                        raise InvalidTransitionError("Source storage reservation was released.")
+                    return
+                self.connection.execute(
+                    "INSERT INTO native_storage_charges "
+                    "(workspace_id,project_id,object_kind,object_id,bytes,state,sha256,"
+                    "request_fingerprint,created_at,snapshot) "
+                    "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                    (
+                        value.workspace_id,
+                        value.project_id,
+                        value.object_kind,
+                        value.object_id,
+                        value.bytes,
+                        value.state,
+                        value.sha256,
+                        value.request_fingerprint,
+                        value.created_at,
+                        Jsonb(value.model_dump(mode="json")),
+                    ),
+                )
+        except psycopg.IntegrityError as exc:
+            self._storage_quota_error(exc)
+            raise InvalidTransitionError("Source storage reservation is invalid.") from exc
+
+    def release_source_storage(self, workspace_id: UUID, object_id: UUID) -> None:
+        with self.transaction(workspace_id):
+            value = self.storage_charge(workspace_id, "source", object_id)
+            if value is None or value.state == "released":
+                return
+            if value.state != "reserved":
+                raise InvalidTransitionError("Retained source storage cannot be released.")
+            self.connection.execute(
+                "UPDATE native_storage_charges SET state='released',"
+                "snapshot=jsonb_set(snapshot,'{state}','\"released\"'::jsonb) "
+                "WHERE workspace_id=%s AND object_kind='source' AND object_id=%s "
+                "AND state='reserved'",
+                (workspace_id, object_id),
+            )
+
+    def artifact_task_conflict(
+        self,
+        workspace_id: UUID,
+        project_id: UUID,
+        artifact_id: UUID,
+        task_ids: tuple[UUID, ...],
+    ) -> bool:
+        if not task_ids:
+            return False
+        with self.transaction():
+            return (
+                self.connection.execute(
+                    "SELECT 1 FROM native_artifacts a LEFT JOIN native_artifact_revisions r "
+                    "ON r.workspace_id=a.workspace_id AND r.project_id=a.project_id "
+                    "AND r.id=a.current_revision_id WHERE a.workspace_id=%s AND a.project_id=%s "
+                    "AND a.id<>%s AND (a.task_id=ANY(%s::uuid[]) "
+                    "OR a.pending_repair_task_id=ANY(%s::uuid[]) "
+                    "OR r.task_id=ANY(%s::uuid[])) LIMIT 1",
+                    (
+                        workspace_id,
+                        project_id,
+                        artifact_id,
+                        list(task_ids),
+                        list(task_ids),
+                        list(task_ids),
+                    ),
+                ).fetchone()
+                is not None
+            )
+
+    def _dependency_latest(
+        self, workspace_id: UUID, project_id: UUID, revision_id: UUID
+    ) -> NativeDependencyDeclaration | None:
+        with self.transaction():
+            row = self.connection.execute(
+                "SELECT snapshot FROM native_dependency_declarations WHERE workspace_id=%s "
+                "AND project_id=%s AND revision_id=%s ORDER BY version DESC LIMIT 1",
+                (workspace_id, project_id, revision_id),
+            ).fetchone()
+            return NativeDependencyDeclaration.model_validate(row["snapshot"]) if row else None
+
     def _artifact_get(
         self, table: str, workspace_id: UUID, project_id: UUID, identifier: UUID
     ) -> Any:
@@ -294,7 +599,20 @@ class PostgresStore(InMemoryStore):
                 values.append(expected)
             else:
                 raise ValueError("Artifact query field is unavailable.")
-        order = "sequence" if table == "native_artifact_revisions" else "created_at"
+        order = (
+            "sequence"
+            if table == "native_artifact_revisions"
+            else (
+                "version"
+                if table
+                in {
+                    "native_fact_revisions",
+                    "native_dependency_declarations",
+                    "native_delivery_profile_assignments",
+                }
+                else "created_at"
+            )
+        )
         with self.transaction():
             rows = self.connection.execute(
                 f"SELECT snapshot FROM {table} WHERE {' AND '.join(conditions)} "
@@ -307,7 +625,19 @@ class PostgresStore(InMemoryStore):
         columns = ARTIFACT_COLUMNS[table]
         values = (
             *(
-                manifest_bytes(value.manifest) if name == "manifest_bytes" else getattr(value, name)
+                continuity_manifest_bytes(value.manifest)
+                if name == "manifest_bytes" and table == "native_continuity_handoffs"
+                else canonical_bytes(value)
+                if name == "record_bytes"
+                else manifest_bytes(value.manifest)
+                if name == "manifest_bytes"
+                else canonical_bytes(value.value)
+                if name == "value_bytes"
+                else canonical_bytes(value.outputs)
+                if name == "outputs_bytes"
+                else canonical_bytes(value.plan)
+                if name == "plan_bytes"
+                else getattr(value, name)
                 for name in columns
             ),
             Jsonb(value.model_dump(mode="json")),
@@ -339,6 +669,7 @@ class PostgresStore(InMemoryStore):
                             "Artifact record changed. Reload before retrying."
                         )
         except psycopg.IntegrityError as exc:
+            self._storage_quota_error(exc)
             raise InvalidTransitionError(
                 "Artifact record conflicts with current scope or state."
             ) from exc
@@ -1102,6 +1433,7 @@ class PostgresStore(InMemoryStore):
                 if result.rowcount != 1:
                     raise InvalidTransitionError("Intake source creator is unavailable")
         except psycopg.IntegrityError as exc:
+            self._storage_quota_error(exc)
             raise InvalidTransitionError(
                 "Intake source exists or its project/creator is unavailable"
             ) from exc
@@ -1565,6 +1897,15 @@ class PostgresStore(InMemoryStore):
                     )
         except psycopg.IntegrityError as exc:
             raise InvalidTransitionError("Model usage accounting is invalid") from exc
+
+    def recovery_usage_pending(self) -> int:
+        with self.transaction():
+            row = self.connection.execute(
+                "SELECT count(*) AS pending FROM model_usage "
+                "WHERE status IN ('reserved','dispatched','unknown')"
+            ).fetchone()
+            assert row is not None
+            return int(row["pending"])
 
     def model_usage_totals(
         self, workspace_id: UUID, project_id: UUID | None, at: datetime
@@ -2330,6 +2671,15 @@ class PostgresStore(InMemoryStore):
                 (actor_id,),
             )
             return tuple(Membership.model_validate(row) for row in rows)
+
+    def workspace_exists(self, workspace_id: UUID) -> bool:
+        with self.transaction():
+            row = self.connection.execute(
+                "SELECT EXISTS(SELECT 1 FROM workspaces WHERE id=%s) AS present",
+                (workspace_id,),
+            ).fetchone()
+            assert row is not None
+            return bool(row["present"])
 
     def workspace_members(
         self, workspace_id: UUID, offset: int, limit: int

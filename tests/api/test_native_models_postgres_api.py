@@ -201,4 +201,7 @@ def test_two_postgres_apps_share_one_atomic_workspace_reservation_ceiling(postgr
             admitted = container.store.model_usage_for_operation(
                 DEV_WORKSPACE_ID, usage.project_id, usage.operation_id
             )
-            assert admitted == ((usage,) if usage.id == winners[0][0].id else ())
+            expected = usage.model_copy(
+                update={"recovery_epoch": container.model_usage.recovery.assert_active()}
+            )
+            assert admitted == ((expected,) if usage.id == winners[0][0].id else ())

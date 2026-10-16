@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -23,6 +24,7 @@ from simon.domain.errors import (
     IdempotencyConflictError,
     InvalidTransitionError,
     NotFoundError,
+    StorageQuotaExceededError,
 )
 from simon.domain.identity import (
     Challenge,
@@ -42,6 +44,12 @@ from simon.domain.models import (
     OutboxEvent,
     utc_now,
 )
+from simon.domain.native_acceptance import (
+    MAX_PACKAGE_RECORD_BYTES,
+    NativeDeliveryAcceptance,
+    NativeDeliveryProfileAssignment,
+    NativeDeliveryValidation,
+)
 from simon.domain.native_agents import NativeAgent, NativeAgentCredential, NativeTeamPolicy
 from simon.domain.native_artifacts import (
     ARTIFACT_MUTABLE_FIELDS,
@@ -53,7 +61,16 @@ from simon.domain.native_artifacts import (
     NativeArtifactRevision,
     NativeReviewPolicy,
 )
-from simon.domain.native_delivery import NativeDeliveryPacket
+from simon.domain.native_continuity import NativeContinuityHandoff, continuity_manifest_bytes
+from simon.domain.native_delivery import NativeDeliveryPacket, manifest_bytes
+from simon.domain.native_dependencies import (
+    NativeDependencyDeclaration,
+    NativeFact,
+    NativeFactRevision,
+    NativeImpactAssessment,
+    NativeRepairProposal,
+    canonical_bytes,
+)
 from simon.domain.native_execution import (
     EXECUTION_RUN_MUTABLE_FIELDS,
     EXECUTION_RUNNER_MUTABLE_FIELDS,
@@ -92,6 +109,12 @@ from simon.domain.native_projects import (
     NativeTask,
     TaskAssignment,
 )
+from simon.domain.native_storage import (
+    DEFAULT_STORAGE_LIMIT_BYTES,
+    StorageCharge,
+    StorageEntitlement,
+    StorageObjectKind,
+)
 from simon.domain.ports import CapabilityHandler
 from simon.domain.voice import VoiceSession
 
@@ -116,6 +139,10 @@ EXECUTION_MUTABLE = {
     "native_execution_runners": EXECUTION_RUNNER_MUTABLE_FIELDS,
 }
 ARTIFACT_MODELS: dict[str, type[BaseModel]] = {
+    "native_delivery_profile_assignments": NativeDeliveryProfileAssignment,
+    "native_delivery_validations": NativeDeliveryValidation,
+    "native_delivery_acceptances": NativeDeliveryAcceptance,
+    "native_continuity_handoffs": NativeContinuityHandoff,
     "native_artifacts": NativeArtifact,
     "native_artifact_revisions": NativeArtifactRevision,
     "native_review_policies": NativeReviewPolicy,
@@ -123,6 +150,11 @@ ARTIFACT_MODELS: dict[str, type[BaseModel]] = {
     "native_artifact_reviews": NativeArtifactReview,
     "native_artifact_decisions": NativeArtifactDecision,
     "native_delivery_packets": NativeDeliveryPacket,
+    "native_facts": NativeFact,
+    "native_fact_revisions": NativeFactRevision,
+    "native_dependency_declarations": NativeDependencyDeclaration,
+    "native_impact_assessments": NativeImpactAssessment,
+    "native_repair_proposals": NativeRepairProposal,
 }
 ARTIFACT_KEYS = dict.fromkeys(ARTIFACT_MODELS, "id")
 ARTIFACT_KEYS["native_review_policies"] = "project_id"
@@ -145,6 +177,7 @@ class InMemoryStore:
         self._audit: list[AuditEvent] = []
         self._outbox: list[OutboxEvent] = []
         self._memberships: dict[tuple[UUID, UUID], Membership] = {}
+        self._workspaces: set[UUID] = set()
         self._sessions: dict[str, Session] = {}
         self._enrollments: dict[str, Enrollment] = {}
         self._challenges: dict[str, Challenge] = {}
@@ -182,6 +215,8 @@ class InMemoryStore:
             name: {} for name in EXECUTION_MODELS
         }
         self._artifact_records: dict[str, dict[UUID, Any]] = {name: {} for name in ARTIFACT_MODELS}
+        self._storage_entitlements: dict[tuple[UUID, int], StorageEntitlement] = {}
+        self._storage_charges: dict[tuple[UUID, StorageObjectKind, UUID], StorageCharge] = {}
 
     @contextmanager
     def transaction(self, workspace_id: UUID | None = None) -> Iterator[None]:
@@ -194,6 +229,7 @@ class InMemoryStore:
                     self._audit,
                     self._outbox,
                     self._memberships,
+                    self._workspaces,
                     self._sessions,
                     self._enrollments,
                     self._challenges,
@@ -229,6 +265,8 @@ class InMemoryStore:
                     self._model_usage,
                     self._execution_records,
                     self._artifact_records,
+                    self._storage_entitlements,
+                    self._storage_charges,
                 )
             )
             try:
@@ -241,6 +279,7 @@ class InMemoryStore:
                     self._audit,
                     self._outbox,
                     self._memberships,
+                    self._workspaces,
                     self._sessions,
                     self._enrollments,
                     self._challenges,
@@ -276,8 +315,679 @@ class InMemoryStore:
                     self._model_usage,
                     self._execution_records,
                     self._artifact_records,
+                    self._storage_entitlements,
+                    self._storage_charges,
                 ) = snapshot
                 raise
+
+    def delivery_profile_assignment(
+        self, workspace_id: UUID, project_id: UUID, packet_id: UUID
+    ) -> NativeDeliveryProfileAssignment | None:
+        records = self.delivery_profile_assignments(workspace_id, project_id, packet_id, limit=None)
+        return max(records, key=lambda r: r.version) if records else None
+
+    def delivery_profile_assignments(
+        self,
+        workspace_id: UUID,
+        project_id: UUID,
+        packet_id: UUID,
+        offset: int = 0,
+        limit: int | None = 50,
+    ) -> tuple[NativeDeliveryProfileAssignment, ...]:
+        return self._artifact_list(
+            "native_delivery_profile_assignments",
+            workspace_id,
+            project_id,
+            {"packet_id": packet_id},
+            offset=offset,
+            limit=limit,
+        )
+
+    def delivery_validation(
+        self, workspace_id: UUID, project_id: UUID, validation_id: UUID
+    ) -> NativeDeliveryValidation | None:
+        return cast(
+            NativeDeliveryValidation | None,
+            self._artifact_get(
+                "native_delivery_validations", workspace_id, project_id, validation_id
+            ),
+        )
+
+    def delivery_validations(
+        self,
+        workspace_id: UUID,
+        project_id: UUID,
+        packet_id: UUID,
+        offset: int = 0,
+        limit: int | None = 50,
+    ) -> tuple[NativeDeliveryValidation, ...]:
+        return self._artifact_list(
+            "native_delivery_validations",
+            workspace_id,
+            project_id,
+            {"packet_id": packet_id},
+            offset=offset,
+            limit=limit,
+        )
+
+    def delivery_acceptance(
+        self, workspace_id: UUID, project_id: UUID, acceptance_id: UUID
+    ) -> NativeDeliveryAcceptance | None:
+        return cast(
+            NativeDeliveryAcceptance | None,
+            self._artifact_get(
+                "native_delivery_acceptances", workspace_id, project_id, acceptance_id
+            ),
+        )
+
+    def delivery_acceptances(
+        self,
+        workspace_id: UUID,
+        project_id: UUID,
+        packet_id: UUID,
+        offset: int = 0,
+        limit: int | None = 50,
+    ) -> tuple[NativeDeliveryAcceptance, ...]:
+        return self._artifact_list(
+            "native_delivery_acceptances",
+            workspace_id,
+            project_id,
+            {"packet_id": packet_id},
+            offset=offset,
+            limit=limit,
+        )
+
+    def continuity_handoff(
+        self, workspace_id: UUID, project_id: UUID, handoff_id: UUID
+    ) -> NativeContinuityHandoff | None:
+        return cast(
+            NativeContinuityHandoff | None,
+            self._artifact_get("native_continuity_handoffs", workspace_id, project_id, handoff_id),
+        )
+
+    def continuity_handoffs(
+        self, workspace_id: UUID, project_id: UUID, offset: int = 0, limit: int | None = 50
+    ) -> tuple[NativeContinuityHandoff, ...]:
+        return self._artifact_list(
+            "native_continuity_handoffs", workspace_id, project_id, offset=offset, limit=limit
+        )
+
+    def _package_save(self, table: str, value: Any, expected_version: int | None = None) -> None:
+        with self.transaction(value.workspace_id):
+            try:
+                value = ARTIFACT_MODELS[table].model_validate(value.model_dump())
+            except ValueError as exc:
+                raise InvalidTransitionError("Invalid package or handoff evidence.") from exc
+            ws, pid = value.workspace_id, value.project_id
+            if (
+                self._artifact_get(table, ws, pid, value.id) is not None
+                or self.native_project(ws, pid) is None
+            ):
+                raise InvalidTransitionError("Package record exists or its project is unavailable.")
+            creator = next(
+                (m for m in self.memberships(value.created_by) if m.workspace_id == ws), None
+            )
+            project_member = self.native_project_member(ws, pid, value.created_by)
+            if creator is None or (creator.role != "owner" and project_member is None):
+                raise InvalidTransitionError("Package creator is outside its project.")
+            if isinstance(value, NativeContinuityHandoff):
+                project = self.native_project(ws, pid)
+                if project is None or project.version != value.manifest.project_version:
+                    raise InvalidTransitionError("Handoff project version changed.")
+                recipient = next(
+                    (m for m in self.memberships(value.recipient_id) if m.workspace_id == ws), None
+                )
+                if recipient is None or (
+                    recipient.role != "owner"
+                    and self.native_project_member(ws, pid, value.recipient_id) is None
+                ):
+                    raise InvalidTransitionError("Handoff recipient is outside its project.")
+                for reference in value.manifest.artifacts:
+                    artifact = self.artifact(ws, pid, reference.artifact_id)
+                    revision = self.artifact_revision(ws, pid, reference.revision_id)
+                    if (
+                        artifact is None
+                        or revision is None
+                        or revision.artifact_id != artifact.id
+                        or revision.sha256 != reference.sha256
+                    ):
+                        raise InvalidTransitionError(
+                            "Handoff artifact is outside scope or changed."
+                        )
+                for run_reference in value.manifest.runs:
+                    run = self.execution_run(ws, pid, run_reference.run_id)
+                    if run is None or (run.version, run.step_number, run.applied_step) != (
+                        run_reference.version,
+                        run_reference.step_number,
+                        run_reference.applied_step,
+                    ):
+                        raise InvalidTransitionError("Handoff run checkpoint changed.")
+                for source_id in value.manifest.source_revision_ids:
+                    source = self.native_intake_source(ws, pid, source_id)
+                    if source is None or source.revoked_at is not None:
+                        raise InvalidTransitionError("Handoff source is outside scope or revoked.")
+            else:
+                if creator.role != "owner" and (
+                    project_member is None or project_member.role != "owner"
+                ):
+                    raise InvalidTransitionError(
+                        "Package validation and acceptance require an owner."
+                    )
+                packet = self.delivery_packet(ws, pid, value.packet_id)
+                if packet is None or packet.manifest_sha256 != value.manifest_sha256:
+                    raise InvalidTransitionError("Package evidence identifies another manifest.")
+                assignment = self.delivery_profile_assignment(ws, pid, value.packet_id)
+                if isinstance(value, NativeDeliveryProfileAssignment):
+                    if (
+                        assignment.version if assignment else 0
+                    ) != expected_version or value.version != (expected_version or 0) + 1:
+                        raise InvalidTransitionError("Package profile assignment changed.")
+                    packet_ids = {c.revision_id for c in packet.manifest.components}
+                    if any(b.revision_id not in packet_ids for b in value.roles):
+                        raise InvalidTransitionError(
+                            "Profile role identifies a source outside its packet."
+                        )
+                elif (
+                    assignment is None
+                    or assignment.id != value.assignment_id
+                    or assignment.version != value.profile_version
+                ):
+                    raise InvalidTransitionError("Package validation profile assignment changed.")
+                elif isinstance(value, NativeDeliveryValidation):
+                    if value.profile_sha256 != assignment.profile_sha256 or (
+                        value.validator_key,
+                        value.validator_version,
+                    ) != (assignment.validator_key, assignment.validator_version):
+                        raise InvalidTransitionError(
+                            "Package validator does not match its profile."
+                        )
+                elif isinstance(value, NativeDeliveryAcceptance):
+                    validation = self.delivery_validation(ws, pid, value.validation_id)
+                    if (
+                        validation is None
+                        or not validation.passed
+                        or validation.assignment_id != assignment.id
+                        or validation.packet_id != packet.id
+                        or validation.authority_sha256 != value.authority_sha256
+                    ):
+                        raise InvalidTransitionError(
+                            "Package approval requires passed exact validation evidence."
+                        )
+            if (
+                not isinstance(value, NativeContinuityHandoff)
+                and len(canonical_bytes(value)) > MAX_PACKAGE_RECORD_BYTES
+            ):
+                raise InvalidTransitionError("Package evidence exceeds its byte limit.")
+            self._artifact_write(table, value, None)
+
+    def insert_delivery_profile_assignment(
+        self, value: NativeDeliveryProfileAssignment, expected_version: int
+    ) -> None:
+        self._package_save("native_delivery_profile_assignments", value, expected_version)
+
+    def insert_delivery_validation(self, value: NativeDeliveryValidation) -> None:
+        self._package_save("native_delivery_validations", value)
+
+    def insert_delivery_acceptance(self, value: NativeDeliveryAcceptance) -> None:
+        self._package_save("native_delivery_acceptances", value)
+
+    def insert_continuity_handoff(self, value: NativeContinuityHandoff) -> None:
+        self._package_save("native_continuity_handoffs", value)
+
+    def fact(self, workspace_id: UUID, project_id: UUID, fact_id: UUID) -> NativeFact | None:
+        return cast(
+            NativeFact | None, self._artifact_get("native_facts", workspace_id, project_id, fact_id)
+        )
+
+    def facts(
+        self, workspace_id: UUID, project_id: UUID, offset: int = 0, limit: int | None = 50
+    ) -> tuple[NativeFact, ...]:
+        return self._artifact_list(
+            "native_facts", workspace_id, project_id, offset=offset, limit=limit
+        )
+
+    def fact_revision(
+        self, workspace_id: UUID, project_id: UUID, revision_id: UUID
+    ) -> NativeFactRevision | None:
+        return cast(
+            NativeFactRevision | None,
+            self._artifact_get("native_fact_revisions", workspace_id, project_id, revision_id),
+        )
+
+    def fact_revisions(
+        self,
+        workspace_id: UUID,
+        project_id: UUID,
+        fact_id: UUID,
+        offset: int = 0,
+        limit: int | None = 50,
+    ) -> tuple[NativeFactRevision, ...]:
+        return self._artifact_list(
+            "native_fact_revisions",
+            workspace_id,
+            project_id,
+            {"fact_id": fact_id},
+            offset=offset,
+            limit=limit,
+        )
+
+    def _dependency_latest(
+        self, workspace_id: UUID, project_id: UUID, revision_id: UUID
+    ) -> NativeDependencyDeclaration | None:
+        values = self.dependency_declarations(workspace_id, project_id, revision_id, limit=None)
+        return max(values, key=lambda item: item.version) if values else None
+
+    def dependency_declaration(
+        self, workspace_id: UUID, project_id: UUID, revision_id: UUID
+    ) -> NativeDependencyDeclaration | None:
+        return self._dependency_latest(workspace_id, project_id, revision_id)
+
+    def dependency_declarations(
+        self,
+        workspace_id: UUID,
+        project_id: UUID,
+        revision_id: UUID,
+        offset: int = 0,
+        limit: int | None = 50,
+    ) -> tuple[NativeDependencyDeclaration, ...]:
+        return self._artifact_list(
+            "native_dependency_declarations",
+            workspace_id,
+            project_id,
+            {"revision_id": revision_id},
+            offset=offset,
+            limit=limit,
+        )
+
+    def impact_assessment(
+        self, workspace_id: UUID, project_id: UUID, assessment_id: UUID
+    ) -> NativeImpactAssessment | None:
+        return cast(
+            NativeImpactAssessment | None,
+            self._artifact_get(
+                "native_impact_assessments", workspace_id, project_id, assessment_id
+            ),
+        )
+
+    def impact_assessments(
+        self, workspace_id: UUID, project_id: UUID, offset: int = 0, limit: int | None = 50
+    ) -> tuple[NativeImpactAssessment, ...]:
+        return self._artifact_list(
+            "native_impact_assessments", workspace_id, project_id, offset=offset, limit=limit
+        )
+
+    def repair_proposal(
+        self, workspace_id: UUID, project_id: UUID, proposal_id: UUID
+    ) -> NativeRepairProposal | None:
+        return cast(
+            NativeRepairProposal | None,
+            self._artifact_get("native_repair_proposals", workspace_id, project_id, proposal_id),
+        )
+
+    def repair_proposals(
+        self, workspace_id: UUID, project_id: UUID, offset: int = 0, limit: int | None = 50
+    ) -> tuple[NativeRepairProposal, ...]:
+        return self._artifact_list(
+            "native_repair_proposals", workspace_id, project_id, offset=offset, limit=limit
+        )
+
+    def _fact_sources_validate(self, value: NativeFactRevision) -> None:
+        for binding in value.sources:
+            source = self.native_intake_source(
+                value.workspace_id, value.project_id, binding.source_revision_id
+            )
+            if source is None or source.sha256 != binding.sha256 or source.revoked_at is not None:
+                raise InvalidTransitionError("Fact evidence is outside scope, changed or revoked.")
+
+    def _dependency_output_refs_validate(
+        self, workspace_id: UUID, project_id: UUID, outputs: Any
+    ) -> None:
+        for output in outputs:
+            if not isinstance(output, dict) or "artifact_id" not in output:
+                continue
+            try:
+                artifact = self.artifact(workspace_id, project_id, UUID(str(output["artifact_id"])))
+                revision_id = output.get("revision_id")
+                revision = (
+                    self.artifact_revision(workspace_id, project_id, UUID(str(revision_id)))
+                    if revision_id
+                    else None
+                )
+            except ValueError as exc:
+                raise InvalidTransitionError("Dependency output reference is invalid.") from exc
+            if artifact is None or (
+                revision_id and (revision is None or revision.artifact_id != artifact.id)
+            ):
+                raise InvalidTransitionError(
+                    "Dependency output belongs to another scoped artifact."
+                )
+            expected_sha = output.get("sha256", output.get("before_sha256"))
+            if (
+                revision is not None
+                and expected_sha is not None
+                and expected_sha != revision.sha256
+            ):
+                raise InvalidTransitionError(
+                    "Dependency output snapshot identifies different bytes."
+                )
+            if (
+                artifact is not None
+                and output.get("task_id") is not None
+                and str(output["task_id"])
+                not in {str(artifact.task_id), str(artifact.pending_repair_task_id)}
+            ):
+                raise InvalidTransitionError("Dependency output task belongs to another artifact.")
+            declaration_id = output.get("declaration_id")
+            if declaration_id is not None and (
+                revision is None
+                or not any(
+                    str(item.id) == str(declaration_id)
+                    and item.artifact_id == artifact.id
+                    and item.version == output.get("declaration_version")
+                    for item in self.dependency_declarations(
+                        workspace_id, project_id, revision.id, limit=None
+                    )
+                )
+            ):
+                raise InvalidTransitionError("Dependency output declaration is outside scope.")
+
+    def _dependency_save(self, table: str, value: Any, expected_version: int | None = None) -> None:
+        with self.transaction(value.workspace_id):
+            try:
+                value = ARTIFACT_MODELS[table].model_validate(value.model_dump())
+            except ValueError as exc:
+                raise InvalidTransitionError("Invalid dependency record.") from exc
+            ws, pid = value.workspace_id, value.project_id
+            previous = self._artifact_get(table, ws, pid, value.id)
+            updating_head = table == "native_facts" and expected_version is not None
+            if self.native_project(ws, pid) is None or (previous is not None and not updating_head):
+                raise InvalidTransitionError("Dependency record exists or project is unavailable.")
+            if not updating_head:
+                member = next(
+                    (m for m in self.memberships(value.created_by) if m.workspace_id == ws), None
+                )
+                if member is None or (
+                    member.role != "owner"
+                    and self.native_project_member(ws, pid, value.created_by) is None
+                ):
+                    raise InvalidTransitionError("Dependency author is outside its project.")
+            if isinstance(value, NativeFact):
+                if updating_head:
+                    assert expected_version is not None
+                    mutable = {"version", "current_revision_id", "updated_at"}
+                    fact_pointer = (
+                        self.fact_revision(ws, pid, value.current_revision_id)
+                        if value.current_revision_id
+                        else None
+                    )
+                    if (
+                        previous is None
+                        or previous.version != expected_version
+                        or value.version != expected_version + 1
+                        or value.model_dump(exclude=mutable) != previous.model_dump(exclude=mutable)
+                        or fact_pointer is None
+                        or fact_pointer.fact_id != value.id
+                        or fact_pointer.version != previous.version
+                        or fact_pointer.parent_revision_id != previous.current_revision_id
+                    ):
+                        raise InvalidTransitionError("Fact head or immutable identity changed.")
+                    self._fact_sources_validate(fact_pointer)
+                elif (
+                    value.version != 1
+                    or value.current_revision_id is not None
+                    or any(f.key == value.key for f in self.facts(ws, pid, limit=None))
+                ):
+                    raise InvalidTransitionError("Fact key exists or initial head is invalid.")
+            elif isinstance(value, NativeFactRevision):
+                fact = self.fact(ws, pid, value.fact_id)
+                parent = (
+                    self.fact_revision(ws, pid, value.parent_revision_id)
+                    if value.parent_revision_id
+                    else None
+                )
+                if (
+                    fact is None
+                    or fact.current_revision_id != value.parent_revision_id
+                    or (
+                        parent is not None
+                        and (parent.fact_id != value.fact_id or parent.version + 1 != value.version)
+                    )
+                    or (value.parent_revision_id is not None and parent is None)
+                    or any(
+                        r.version == value.version
+                        for r in self.fact_revisions(ws, pid, value.fact_id, limit=None)
+                    )
+                ):
+                    raise InvalidTransitionError("Fact revision ancestry or scope is invalid.")
+                self._fact_sources_validate(value)
+            elif isinstance(value, NativeDependencyDeclaration):
+                current = self.dependency_declaration(ws, pid, value.revision_id)
+                artifact = self.artifact(ws, pid, value.artifact_id)
+                revision = self.artifact_revision(ws, pid, value.revision_id)
+                if (
+                    (current.version if current else 0) != expected_version
+                    or value.version != (expected_version or 0) + 1
+                    or artifact is None
+                    or revision is None
+                    or revision.artifact_id != artifact.id
+                    or revision.sha256 != value.sha256
+                ):
+                    raise InvalidTransitionError("Dependency declaration head or output changed.")
+                for binding in value.dependencies:
+                    target: NativeFactRevision | NativeArtifactRevision | None
+                    if binding.input_kind == "fact":
+                        target = self.fact_revision(ws, pid, binding.revision_id)
+                        matches = target is not None and target.fact_id == binding.input_id
+                    else:
+                        target = self.artifact_revision(ws, pid, binding.revision_id)
+                        matches = target is not None and target.artifact_id == binding.input_id
+                    if not matches or target is None or target.sha256 != binding.sha256:
+                        raise InvalidTransitionError(
+                            "Dependency input reference or hash is outside scope."
+                        )
+            elif isinstance(value, NativeImpactAssessment):
+                before = self.fact_revision(ws, pid, value.from_revision_id)
+                after = self.fact_revision(ws, pid, value.to_revision_id)
+                if (
+                    before is None
+                    or after is None
+                    or before.fact_id != value.fact_id
+                    or after.fact_id != value.fact_id
+                    or before.version >= after.version
+                ):
+                    raise InvalidTransitionError(
+                        "Impact input revisions have invalid scoped ancestry."
+                    )
+                self._dependency_output_refs_validate(ws, pid, value.outputs)
+            elif isinstance(value, NativeRepairProposal):
+                assessment = self.impact_assessment(ws, pid, value.assessment_id)
+                if assessment is None:
+                    raise InvalidTransitionError("Repair assessment belongs to another project.")
+                for key, expected in (
+                    ("assessment_id", str(value.assessment_id)),
+                    ("graph_fingerprint", assessment.graph_fingerprint),
+                    ("source_fingerprint", assessment.source_fingerprint),
+                ):
+                    if key in value.plan and str(value.plan[key]) != expected:
+                        raise InvalidTransitionError(
+                            "Repair plan contradicts its immutable assessment."
+                        )
+                self._dependency_output_refs_validate(ws, pid, value.plan.get("outputs", ()))
+            self._artifact_write(table, value, expected_version if updating_head else None)
+
+    def insert_fact(self, value: NativeFact) -> None:
+        self._dependency_save("native_facts", value)
+
+    def update_fact(self, value: NativeFact, expected_version: int) -> None:
+        self._dependency_save("native_facts", value, expected_version)
+
+    def insert_fact_revision(self, value: NativeFactRevision) -> None:
+        self._dependency_save("native_fact_revisions", value)
+
+    def insert_dependency_declaration(
+        self, value: NativeDependencyDeclaration, expected_version: int
+    ) -> None:
+        self._dependency_save("native_dependency_declarations", value, expected_version)
+
+    def insert_impact_assessment(self, value: NativeImpactAssessment) -> None:
+        self._dependency_save("native_impact_assessments", value)
+
+    def insert_repair_proposal(self, value: NativeRepairProposal) -> None:
+        self._dependency_save("native_repair_proposals", value)
+
+    def storage_entitlement(self, workspace_id: UUID) -> StorageEntitlement | None:
+        values = self.storage_entitlement_history(workspace_id, 1)
+        return values[0] if values else None
+
+    def storage_entitlement_history(
+        self, workspace_id: UUID, limit: int = 50
+    ) -> tuple[StorageEntitlement, ...]:
+        with self._lock:
+            values = sorted(
+                (
+                    value
+                    for (ws, _), value in self._storage_entitlements.items()
+                    if ws == workspace_id
+                ),
+                key=lambda value: value.version,
+                reverse=True,
+            )
+            return tuple(value.model_copy(deep=True) for value in values[:limit])
+
+    def save_storage_entitlement(self, value: StorageEntitlement, expected_version: int) -> None:
+        with self.transaction(value.workspace_id):
+            try:
+                value = StorageEntitlement.model_validate(value.model_dump())
+            except ValueError as exc:
+                raise InvalidTransitionError("Invalid storage entitlement.") from exc
+            previous = self.storage_entitlement(value.workspace_id)
+            if (
+                (previous.version if previous else 0) != expected_version
+                or value.version != expected_version + 1
+                or not self.workspace_exists(value.workspace_id)
+            ):
+                raise InvalidTransitionError(
+                    "Storage entitlement changed or workspace unavailable."
+                )
+            self._storage_entitlements[value.workspace_id, value.version] = value.model_copy(
+                deep=True
+            )
+
+    def storage_charge(
+        self, workspace_id: UUID, kind: StorageObjectKind, object_id: UUID
+    ) -> StorageCharge | None:
+        with self._lock:
+            value = self._storage_charges.get((workspace_id, kind, object_id))
+            return value.model_copy(deep=True) if value else None
+
+    def storage_charges(
+        self, workspace_id: UUID, project_id: UUID | None = None
+    ) -> tuple[StorageCharge, ...]:
+        with self._lock:
+            values = [
+                value
+                for value in self._storage_charges.values()
+                if value.workspace_id == workspace_id
+                and (project_id is None or value.project_id == project_id)
+            ]
+            values.sort(key=lambda value: (value.created_at, value.object_kind, value.object_id))
+            return tuple(value.model_copy(deep=True) for value in values)
+
+    def storage_usage(self, workspace_id: UUID, project_id: UUID | None = None) -> dict[str, int]:
+        with self._lock:
+            reserved = retained = count = 0
+            for value in self._storage_charges.values():
+                if value.workspace_id != workspace_id or (
+                    project_id is not None and value.project_id != project_id
+                ):
+                    continue
+                if value.state == "reserved":
+                    reserved += value.bytes
+                    count += 1
+                elif value.state == "retained":
+                    retained += value.bytes
+            return {
+                "reserved_bytes": reserved,
+                "retained_bytes": retained,
+                "used_bytes": reserved + retained,
+                "reservation_count": count,
+            }
+
+    @staticmethod
+    def _storage_binding(value: StorageCharge) -> tuple[Any, ...]:
+        return (
+            value.workspace_id,
+            value.project_id,
+            value.object_kind,
+            value.object_id,
+            value.bytes,
+            value.sha256,
+            value.request_fingerprint,
+        )
+
+    def _storage_admit(self, value: StorageCharge) -> None:
+        if self.native_project(value.workspace_id, value.project_id) is None:
+            raise InvalidTransitionError("Storage object is outside its scoped project.")
+        entitlement = self.storage_entitlement(value.workspace_id)
+        limit = (
+            entitlement.effective_limit(utc_now()) if entitlement else DEFAULT_STORAGE_LIMIT_BYTES
+        )
+        if (
+            value.bytes > 0
+            and self.storage_usage(value.workspace_id)["used_bytes"] + value.bytes > limit
+        ):
+            raise StorageQuotaExceededError("Workspace storage quota exceeded.")
+
+    def reserve_source_storage(self, value: StorageCharge) -> None:
+        with self.transaction(value.workspace_id):
+            try:
+                value = StorageCharge.model_validate(value.model_dump())
+            except ValueError as exc:
+                raise InvalidTransitionError("Invalid source storage reservation.") from exc
+            if value.object_kind != "source" or value.state != "reserved" or value.sha256 is None:
+                raise InvalidTransitionError(
+                    "Source reservations require original content binding."
+                )
+            previous = self.storage_charge(value.workspace_id, "source", value.object_id)
+            if previous is not None:
+                if self._storage_binding(previous) != self._storage_binding(value):
+                    raise InvalidTransitionError("Source storage reservation binding changed.")
+                if previous.state == "released":
+                    raise InvalidTransitionError("Source storage reservation was released.")
+                return
+            self._storage_admit(value)
+            self._storage_charges[value.workspace_id, "source", value.object_id] = value.model_copy(
+                deep=True
+            )
+
+    def release_source_storage(self, workspace_id: UUID, object_id: UUID) -> None:
+        with self.transaction(workspace_id):
+            value = self.storage_charge(workspace_id, "source", object_id)
+            if value is None or value.state == "released":
+                return
+            if value.state != "reserved":
+                raise InvalidTransitionError("Retained source storage cannot be released.")
+            self._storage_charges[workspace_id, "source", object_id] = value.model_copy(
+                update={"state": "released"}, deep=True
+            )
+
+    def _retain_storage(self, value: StorageCharge) -> None:
+        previous = self.storage_charge(value.workspace_id, value.object_kind, value.object_id)
+        if previous is not None:
+            if (previous.project_id, previous.bytes, previous.sha256) != (
+                value.project_id,
+                value.bytes,
+                value.sha256,
+            ) or previous.state == "released":
+                raise InvalidTransitionError("Storage reservation does not match retained content.")
+            self._storage_charges[value.workspace_id, value.object_kind, value.object_id] = (
+                previous.model_copy(update={"state": "retained"}, deep=True)
+            )
+            return
+        self._storage_admit(value)
+        self._storage_charges[value.workspace_id, value.object_kind, value.object_id] = (
+            value.model_copy(deep=True)
+        )
 
     def _artifact_get(
         self, table: str, workspace_id: UUID, project_id: UUID, identifier: UUID
@@ -313,7 +1023,20 @@ class InMemoryStore:
                     for field, expected in (filters or {}).items()
                 )
             ]
-            order = "sequence" if table == "native_artifact_revisions" else "created_at"
+            order = (
+                "sequence"
+                if table == "native_artifact_revisions"
+                else (
+                    "version"
+                    if table
+                    in {
+                        "native_fact_revisions",
+                        "native_dependency_declarations",
+                        "native_delivery_profile_assignments",
+                    }
+                    else "created_at"
+                )
+            )
             values.sort(key=lambda item: (getattr(item, order), item.id))
             return tuple(
                 value.model_copy(deep=True)
@@ -324,6 +1047,66 @@ class InMemoryStore:
         identifier = getattr(value, ARTIFACT_KEYS[table])
         if expected_version in {None, 0} and identifier in self._artifact_records[table]:
             raise InvalidTransitionError("Artifact identifier already exists.")
+        if isinstance(
+            value,
+            (
+                NativeDeliveryProfileAssignment,
+                NativeDeliveryValidation,
+                NativeDeliveryAcceptance,
+                NativeContinuityHandoff,
+            ),
+        ):
+            raw = (
+                continuity_manifest_bytes(value.manifest)
+                if isinstance(value, NativeContinuityHandoff)
+                else canonical_bytes(value)
+            )
+            kind: StorageObjectKind = (
+                "continuity"
+                if isinstance(value, NativeContinuityHandoff)
+                else "acceptance"
+                if isinstance(value, NativeDeliveryAcceptance)
+                else "delivery_validation"
+            )
+            self._retain_storage(
+                StorageCharge(
+                    workspace_id=value.workspace_id,
+                    project_id=value.project_id,
+                    object_kind=kind,
+                    object_id=value.id,
+                    bytes=len(raw),
+                    state="retained",
+                    sha256=hashlib.sha256(raw).hexdigest(),
+                    created_at=value.created_at,
+                )
+            )
+        elif isinstance(value, NativeArtifactRevision):
+            self._retain_storage(
+                StorageCharge(
+                    workspace_id=value.workspace_id,
+                    project_id=value.project_id,
+                    object_kind="artifact",
+                    object_id=value.id,
+                    bytes=value.size_bytes,
+                    state="retained",
+                    sha256=value.sha256,
+                    created_at=value.created_at,
+                )
+            )
+        elif isinstance(value, NativeDeliveryPacket):
+            self._retain_storage(
+                StorageCharge(
+                    workspace_id=value.workspace_id,
+                    project_id=value.project_id,
+                    object_kind="delivery",
+                    object_id=value.id,
+                    bytes=len(manifest_bytes(value.manifest))
+                    + sum(p.size_bytes for p in value.manifest.previews),
+                    state="retained",
+                    sha256=value.manifest_sha256,
+                    created_at=value.created_at,
+                )
+            )
         self._artifact_records[table][identifier] = value.model_copy(deep=True)
 
     def _artifact_validate(self, table: str, value: Any, previous: Any) -> None:
@@ -680,6 +1463,34 @@ class InMemoryStore:
             NativeArtifact | None,
             self._artifact_get("native_artifacts", workspace_id, project_id, artifact_id),
         )
+
+    def artifact_task_conflict(
+        self,
+        workspace_id: UUID,
+        project_id: UUID,
+        artifact_id: UUID,
+        task_ids: tuple[UUID, ...],
+    ) -> bool:
+        identifiers = set(task_ids)
+        with self._lock:
+            for artifact in self._artifact_records["native_artifacts"].values():
+                if (
+                    artifact.workspace_id != workspace_id
+                    or artifact.project_id != project_id
+                    or artifact.id == artifact_id
+                ):
+                    continue
+                if (
+                    artifact.task_id in identifiers
+                    or artifact.pending_repair_task_id in identifiers
+                ):
+                    return True
+                revision = self._artifact_records["native_artifact_revisions"].get(
+                    artifact.current_revision_id
+                )
+                if revision is not None and revision.task_id in identifiers:
+                    return True
+            return False
 
     def artifacts(
         self,
@@ -1699,6 +2510,10 @@ class InMemoryStore:
 
     def insert_native_intake_source(self, value: IntakeSource) -> None:
         with self._lock:
+            try:
+                value = IntakeSource.model_validate(value.model_dump())
+            except ValueError as exc:
+                raise InvalidTransitionError("Invalid intake source record.") from exc
             if (
                 value.id in self._native_intake_sources
                 or self.native_project(value.workspace_id, value.project_id) is None
@@ -1713,7 +2528,33 @@ class InMemoryStore:
                 raise InvalidTransitionError(
                     "Intake source exists or its project/creator is unavailable"
                 )
-            self._native_intake_sources[value.id] = value
+            charge_key: tuple[UUID, StorageObjectKind, UUID] = (
+                value.workspace_id,
+                "source",
+                value.id,
+            )
+            previous_charge = self._storage_charges.get(charge_key)
+            try:
+                self._retain_storage(
+                    StorageCharge(
+                        workspace_id=value.workspace_id,
+                        project_id=value.project_id,
+                        object_kind="source",
+                        object_id=value.id,
+                        bytes=value.size_bytes + len(value.text.encode("utf-8")),
+                        state="retained",
+                        sha256=value.sha256,
+                        created_at=value.created_at,
+                    )
+                )
+                self._native_intake_sources[value.id] = value
+            except BaseException:
+                self._native_intake_sources.pop(value.id, None)
+                if previous_charge is None:
+                    self._storage_charges.pop(charge_key, None)
+                else:
+                    self._storage_charges[charge_key] = previous_charge
+                raise
 
     def revoke_native_intake_source(
         self, workspace_id: UUID, project_id: UUID, source_id: UUID, at: datetime
@@ -2088,6 +2929,13 @@ class InMemoryStore:
                     "Usage missing, resolved, stale or dispatch context changed"
                 )
             self._model_usage[value.id] = value.model_copy(deep=True)
+
+    def recovery_usage_pending(self) -> int:
+        with self._lock:
+            return sum(
+                value.status in {"reserved", "dispatched", "unknown"}
+                for value in self._model_usage.values()
+            )
 
     def model_usage_totals(
         self, workspace_id: UUID, project_id: UUID | None, at: datetime
@@ -2697,6 +3545,10 @@ class InMemoryStore:
                 )
             )
 
+    def workspace_exists(self, workspace_id: UUID) -> bool:
+        with self._lock:
+            return workspace_id in self._workspaces
+
     def workspace_members(
         self, workspace_id: UUID, offset: int, limit: int
     ) -> tuple[Membership, ...]:
@@ -2709,6 +3561,7 @@ class InMemoryStore:
 
     def put_membership(self, membership: Membership) -> None:
         with self._lock:
+            self._workspaces.add(membership.workspace_id)
             self._memberships[membership.actor_id, membership.workspace_id] = membership
 
     def delete_membership(self, actor_id: UUID, workspace_id: UUID) -> None:

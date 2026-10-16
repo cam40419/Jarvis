@@ -45,9 +45,22 @@ potential external effects are not blindly repeated. The machine and worker must
 remain running to make progress.
 
 Native projects, members, board tasks, agent roles, policies and scoped credential
-metadata have explicit database records. Creating a role does not execute its tasks.
-No dispatcher or automatic model execution is enabled for native board work in
-this phase. See [native projects](native-projects.md).
+metadata have explicit database records. [Native execution](native-execution.md) now
+persists bounded workflows, grants, runner leases, checkpoints, waits and model liabilities.
+Creating a role alone does not execute tasks; qualified models, enabled policy, explicit
+admission and an authorized runner are required. [Artifacts and delivery](native-artifacts.md)
+retain exact revisions, independent reviews, owner decisions and immutable delivery snapshots.
+
+Migration 0040 adds immutable delivery profile assignments, validator evidence, package
+acceptances and authorized continuity manifests. These records retain canonical identities,
+scoped references and atomic storage charges. See the
+[delivery/review/continuity runbook](delivery-review-continuity.md) for supported operations.
+
+[Workspace storage](workspace-storage.md) adds immutable entitlement history and atomic
+retained-content charges in migration 0037. A source upload commits its reservation before
+filesystem publication. Database rollback leaves that reservation held until finalization
+or owner reconciliation proves safe cleanup. Backfill accounts existing source metadata,
+artifact revisions and packet manifests/previews; it does not discover legacy orphan files.
 
 ## Backup
 

@@ -13,6 +13,11 @@ Accepted work is not publishing, email, billing or permission to invoke a busine
 snapshot. This is partial BASE-02 delivery, with BASE-01/05 authority safeguards; the
 complete baseline acceptance gate remains open.
 
+The October 12 [delivery/review/continuity slice](delivery-review-continuity.md) adds a
+registered editable text/JSON package profile, computed reopen/edit/render checks, exact
+owner package acceptance, a focused review inbox and authorized native-worker handoff.
+That runbook describes current supported formats, bounds and remaining acceptance work.
+
 ## Delivery packets
 
 Open **Delivery packets**, select current files, assign source/evidence/attachment roles,
@@ -57,15 +62,21 @@ format validators remain core implementation work.
 
 Changes to a component head, task/review state, check/decision/review evidence, project,
 policy or source authority mark the captured packet stale. Old originals and decisions
-remain intact. Missing field-level dependency coverage uses conservative project-source
-invalidation, not a claim of selective fact repair. If source inventory later exceeds the
-512-record authority bound, existing packets remain inspectable/exportable with current
-applicability marked unknown; admission of new packets/reviews is rejected safely.
+remain intact. Accepted components with complete [typed dependencies](native-dependencies.md)
+use their scoped semantic authority, preserving applicability after unrelated changes.
+Missing or partial coverage uses conservative project-source and typed-fact invalidation.
+If source inventory later exceeds the
+2,000-record authority bound shared with intake admission, existing packets remain
+inspectable/exportable with current applicability marked unknown; admission of new
+packets/reviews is rejected safely. Valid intake histories through 2,000 revisions remain
+eligible for review, acceptance and delivery capture; archived or revoked revisions are
+included in that count.
 
 Every detail/export rechecks current project access and known source revocations. Revoked
 packet source evidence withholds its contents, while the list retains a minimal withheld
-record. A downloaded copy cannot be recalled. Explicit source-to-claim derivation,
-unrecorded provenance, full cross-runtime continuation, and metadata erasure are not
+record. A downloaded copy cannot be recalled. Declared typed fact/output derivations now
+participate in disclosure; inferred or unrecorded provenance, full cross-runtime
+continuation, and metadata erasure are not
 established by this slice.
 
 The API lives at `/v2/projects/{project_id}/delivery-packets`: `GET` lists snapshots and
@@ -146,8 +157,10 @@ in artifact content are treated as untrusted data.
 
 Excerpt limits do not bound authority checks. Review metadata records all current source
 IDs, omitted IDs/counts and coverage, with a fingerprint covering every source revision
-and revocation (up to 512 records). A ninth omitted source changing therefore invalidates
-the review. Coverage describes supplied excerpts, not verification of every fact.
+and revocation (up to the same 2,000 retained revisions supported by intake). Superseded
+and revoked records still count toward that shared bound and remain in the fingerprint;
+they are never removed to fit the prompt. A ninth omitted source changing therefore
+invalidates the review. Coverage describes supplied excerpts, not verification of every fact.
 
 Human-only approval also captures project, source, owner and producing-task authority.
 Those changes invalidate current acceptance without rewriting the historical decision.

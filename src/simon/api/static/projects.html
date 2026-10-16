@@ -15,7 +15,13 @@
     <script src="/assets/native-models.js" defer></script>
     <script src="/assets/native-execution.js" defer></script>
     <script src="/assets/native-artifacts.js" defer></script>
+    <script src="/assets/native-dependencies.js" defer></script>
     <script src="/assets/native-delivery.js" defer></script>
+    <script src="/assets/native-storage.js" defer></script>
+    <script src="/assets/native-panel.js" defer></script>
+    <script src="/assets/native-acceptance.js" defer></script>
+    <script src="/assets/native-continuity.js" defer></script>
+    <script src="/assets/native-review-inbox.js" defer></script>
   </head>
   <body class="projects-page">
     <a class="np-skip" href="#np-main">Skip to projects</a>
@@ -85,11 +91,17 @@
             </button>
             <button id="np-agents" class="np-button" type="button">Agents</button>
             <button id="np-models" class="np-button" type="button">Models &amp; usage</button>
+            <button id="np-storage" class="np-button" type="button">Storage</button>
             <button id="np-execution" class="np-button" type="button">Execution</button>
             <button id="np-artifacts" class="np-button" type="button">
               Artifacts &amp; review
             </button>
             <button id="np-delivery" class="np-button" type="button">Delivery packets</button>
+            <button id="np-dependencies" class="np-button" type="button">
+              Facts &amp; dependencies
+            </button>
+            <button id="np-review-inbox" class="np-button" type="button">Review inbox</button>
+            <button id="np-handoffs" class="np-button" type="button">Authorized handoffs</button>
             <button id="np-team" class="np-button" type="button">People</button>
             <button id="np-edit-project" class="np-button" type="button">Edit project</button>
           </div>
@@ -326,6 +338,38 @@
           and omitted; unread files are never treated as understood.
         </p>
         <ul id="ni-sources" class="ni-list" aria-label="Project source files"></ul>
+        <section
+          id="ni-pending-section"
+          class="ni-section"
+          aria-labelledby="ni-pending-heading"
+          hidden
+        >
+          <h4 id="ni-pending-heading">Pending upload reservations</h4>
+          <p class="np-field-help">
+            Interrupted uploads can continue to hold workspace storage. Owners can reconcile a
+            pending upload to release its reservation after the server verifies retained and shared
+            content. This cleanup remains available for archived projects and exhausted storage
+            allowances.
+          </p>
+          <ul id="ni-pending" class="ni-list"></ul>
+          <form id="ni-reconcile-form" hidden>
+            <fieldset id="ni-reconcile-fields">
+              <p id="ni-reconcile-target" class="ni-objective"></p>
+              <div class="np-field">
+                <label for="ni-reconcile-reason">Reason for reconciling this upload</label>
+                <textarea id="ni-reconcile-reason" required maxlength="2000" rows="3"></textarea>
+              </div>
+              <div class="np-actions">
+                <button id="ni-reconcile-save" class="np-button" type="submit">
+                  Reconcile upload
+                </button>
+                <button id="ni-reconcile-cancel" class="np-button np-quiet" type="button">
+                  Cancel cleanup
+                </button>
+              </div>
+            </fieldset>
+          </form>
+        </section>
         <div id="ni-preview" class="ni-preview" hidden>
           <div class="ni-toolbar">
             <h4 id="ni-preview-heading">Extracted text</h4>
@@ -1277,6 +1321,9 @@
       <div id="na-detail" hidden>
         <h3 id="na-detail-heading" tabindex="-1"></h3>
         <p id="na-detail-summary" class="np-muted"></p>
+        <button id="na-dependencies" class="np-button np-quiet" type="button">
+          Inspect dependencies
+        </button>
         <div class="np-field">
           <label for="na-revision">Output version</label>
           <select id="na-revision"></select>
@@ -1347,6 +1394,14 @@
           <div class="np-field">
             <label for="na-repair-limit">Maximum repair cycles</label>
             <input id="na-repair-limit" type="number" min="0" max="8" required />
+          </div>
+          <div class="np-field">
+            <label for="na-review-queue-limit">Maximum pending independent reviews</label>
+            <input id="na-review-queue-limit" type="number" min="1" max="100" required />
+            <p class="np-field-help">
+              Running reviews and unresolved review calls use this allowance until their outcome is
+              resolved.
+            </p>
           </div>
           <p class="np-field-help">
             Requirements are rechecked against the latest policy before acceptance.
@@ -1470,6 +1525,9 @@
           <button id="nd-revise" class="np-button" type="button" data-manage="true">
             Create new version
           </button>
+          <button id="nd-acceptance" class="np-button" type="button">
+            Package validation &amp; acceptance
+          </button>
         </div>
         <p id="nd-version-reason" class="np-field-help"></p>
       </div>
@@ -1526,6 +1584,442 @@
         <button id="nd-save" class="np-button np-primary" type="submit" form="nd-form" hidden>
           Create packet
         </button>
+      </div>
+    </dialog>
+    <dialog id="ns-dialog" class="np-dialog ni-dialog" aria-labelledby="ns-heading">
+      <div class="np-dialog-heading">
+        <p class="np-eyebrow">Workspace resource allowance</p>
+        <h2 id="ns-heading" tabindex="-1">Storage</h2>
+        <p id="ns-project" class="np-muted"></p>
+        <p class="np-muted">
+          This project shares its storage allowance with the workspace. Authorized project members
+          can see workspace totals here; other projects' content and identifiers are excluded.
+        </p>
+      </div>
+      <div
+        id="ns-feedback"
+        class="np-feedback"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      ></div>
+      <div id="ns-uncertain" class="np-conflict" hidden>
+        <p>
+          The response could not be confirmed. Check the saved change or retry the original request
+          before making another change.
+        </p>
+        <div class="np-actions">
+          <button id="ns-check" class="np-button" type="button">Check saved change</button>
+          <button id="ns-retry" class="np-button" type="button" hidden>Retry same request</button>
+        </div>
+      </div>
+      <div class="ni-toolbar">
+        <p id="ns-access" class="np-muted"></p>
+        <button id="ns-refresh" class="np-button np-quiet" type="button">Refresh storage</button>
+      </div>
+      <section aria-labelledby="ns-usage-heading">
+        <h3 id="ns-usage-heading">Workspace usage</h3>
+        <p id="ns-plan" class="ni-objective"></p>
+        <div id="ns-totals" class="nm-totals"></div>
+        <p id="ns-overage" class="ni-objective" hidden></p>
+        <p id="ns-reservations" class="np-field-help"></p>
+        <p id="ns-accounting" class="np-field-help"></p>
+      </section>
+      <section class="ni-section" aria-labelledby="ns-project-usage-heading">
+        <h3 id="ns-project-usage-heading">This project's usage</h3>
+        <div id="ns-project-totals" class="nm-totals"></div>
+      </section>
+      <section class="ni-section" aria-labelledby="ns-history-heading">
+        <div class="ni-toolbar">
+          <h3 id="ns-history-heading">Entitlement history</h3>
+          <button id="ns-edit" class="np-button" type="button" hidden>
+            Change workspace allowance
+          </button>
+        </div>
+        <ul id="ns-history" class="ni-list"></ul>
+        <p id="ns-history-note" class="np-field-help"></p>
+      </section>
+      <form id="ns-form" hidden>
+        <h3 id="ns-editor-heading" tabindex="-1">Change workspace allowance</h3>
+        <p id="ns-version" class="np-field-help"></p>
+        <fieldset>
+          <div class="ne-grid">
+            <div class="np-field">
+              <label for="ns-plan-key">Plan label</label>
+              <input
+                id="ns-plan-key"
+                required
+                maxlength="64"
+                pattern="[a-z][a-z0-9_\-]{0,63}"
+                autocomplete="off"
+              />
+            </div>
+            <div class="np-field">
+              <label for="ns-limit">Base allowance in bytes</label>
+              <input id="ns-limit" type="number" required min="0" max="1099511627776" step="1" />
+            </div>
+            <div class="np-field">
+              <label for="ns-override">Temporary override in bytes</label>
+              <input id="ns-override" type="number" min="0" max="1099511627776" step="1" />
+            </div>
+            <div class="np-field">
+              <label for="ns-expiry">Override expiry in your local time</label>
+              <input id="ns-expiry" type="datetime-local" />
+            </div>
+          </div>
+          <p class="np-field-help">
+            Leave both override fields empty to remove an override. New overrides can last up to 30
+            days; the server validates expiry and available capacity.
+          </p>
+          <div class="np-field">
+            <label for="ns-reason">Reason for this change</label>
+            <textarea id="ns-reason" required maxlength="1000" rows="4"></textarea>
+          </div>
+          <p class="np-field-help">
+            Lowering the allowance preserves retained content. New content is blocked while usage
+            exceeds the effective limit.
+          </p>
+        </fieldset>
+      </form>
+      <div id="ns-conflict" class="np-conflict" hidden>
+        <h3>The workspace allowance changed</h3>
+        <p>
+          Your proposed values and reason are preserved. Compare the latest entitlement before
+          submitting against its version.
+        </p>
+        <p id="ns-latest" class="ni-objective"></p>
+        <button id="ns-rebase" class="np-button" type="button">
+          Use current version with my draft
+        </button>
+      </div>
+      <div class="np-dialog-actions">
+        <button id="ns-cancel" class="np-button" type="button" hidden>Cancel edit</button>
+        <button id="ns-close" class="np-button" type="button">Close</button>
+        <button id="ns-save" class="np-button np-primary" type="submit" form="ns-form" hidden>
+          Save allowance
+        </button>
+      </div>
+    </dialog>
+    <dialog id="ng-dialog" class="np-dialog ni-dialog" aria-labelledby="ng-heading">
+      <div class="np-dialog-heading">
+        <p class="np-eyebrow">Evidence and output changes</p>
+        <h2 id="ng-heading" tabindex="-1">Facts &amp; dependencies</h2>
+        <p id="ng-project" class="np-muted"></p>
+      </div>
+      <div id="ng-feedback" class="np-status" role="status" aria-live="polite"></div>
+      <p id="ng-access" class="np-field-help"></p>
+      <div id="ng-uncertain" class="np-conflict" hidden>
+        <h3>The saved request has an uncertain response</h3>
+        <p>Check its receipt before retrying. A retry uses the same exact request.</p>
+        <div class="np-actions">
+          <button id="ng-check" class="np-button" type="button">Check saved request</button>
+          <button id="ng-retry" class="np-button" type="button" hidden>Retry saved request</button>
+        </div>
+      </div>
+      <div id="ng-overview">
+        <div class="ni-toolbar">
+          <button id="ng-refresh" class="np-button np-quiet" type="button">
+            Refresh dependencies
+          </button>
+          <button id="ng-fact-new" class="np-button" type="button" data-manage="true">
+            Register fact or requirement
+          </button>
+        </div>
+        <section class="ni-section" aria-labelledby="ng-facts-heading">
+          <h3 id="ng-facts-heading">Source facts and requirements</h3>
+          <ul id="ng-facts" class="ni-list"></ul>
+        </section>
+        <section class="ni-section" aria-labelledby="ng-outputs-heading">
+          <h3 id="ng-outputs-heading">Output dependencies and coverage</h3>
+          <p class="np-field-help">
+            Coverage is an owner's declaration. Missing or partial coverage leaves uncertainty; it
+            does not prove an output is independent.
+          </p>
+          <ul id="ng-outputs" class="ni-list"></ul>
+        </section>
+        <section class="ni-section" aria-labelledby="ng-assessments-heading">
+          <h3 id="ng-assessments-heading">Saved change assessments</h3>
+          <ul id="ng-assessments" class="ni-list"></ul>
+        </section>
+        <section class="ni-section" aria-labelledby="ng-repairs-heading">
+          <h3 id="ng-repairs-heading">Saved repair previews</h3>
+          <p class="np-field-help">
+            Reopen an immutable preview to inspect its current applicability or recorded commit.
+          </p>
+          <ul id="ng-repairs" class="ni-list"></ul>
+        </section>
+      </div>
+      <section id="ng-detail" class="ni-section" aria-labelledby="ng-detail-heading" hidden>
+        <h3 id="ng-detail-heading" tabindex="-1"></h3>
+        <p id="ng-detail-summary" class="np-field-help"></p>
+        <div id="ng-detail-content"></div>
+        <div id="ng-detail-actions" class="np-actions"></div>
+      </section>
+      <form id="ng-form" hidden>
+        <h3 id="ng-editor-heading" tabindex="-1"></h3>
+        <p id="ng-editor-context" class="np-field-help"></p>
+        <div id="ng-fields"></div>
+      </form>
+      <div id="ng-conflict" class="np-conflict" hidden>
+        <h3>The facts, declarations, or output heads changed</h3>
+        <p id="ng-conflict-note">
+          Your draft is preserved. Review the current state before creating another preview or
+          committing a repair.
+        </p>
+        <div id="ng-latest"></div>
+        <button id="ng-rebase" class="np-button" type="button">
+          Review current state for my draft
+        </button>
+      </div>
+      <div class="np-dialog-actions">
+        <button id="ng-back" class="np-button" type="button" hidden>Back to dependencies</button>
+        <button id="ng-cancel" class="np-button" type="button" hidden>Cancel edit</button>
+        <button id="ng-close" class="np-button" type="button">Close</button>
+        <button id="ng-save" class="np-button np-primary" type="submit" form="ng-form" hidden>
+          Save
+        </button>
+      </div>
+    </dialog>
+    <dialog id="nr-dialog" class="np-dialog ni-dialog" aria-labelledby="nr-heading">
+      <div class="np-dialog-heading">
+        <p class="np-eyebrow">Current decisions and blockers</p>
+        <h2 id="nr-heading" tabindex="-1">Review inbox</h2>
+        <p id="nr-project" class="np-muted"></p>
+      </div>
+      <div id="nr-feedback" class="np-feedback" role="status" aria-live="polite"></div>
+      <p id="nr-summary" class="ni-objective"></p>
+      <p id="nr-warning" class="np-field-help"></p>
+      <div class="ni-toolbar">
+        <button id="nr-refresh" class="np-button np-quiet" type="button">Refresh inbox</button>
+        <button id="nr-policy" class="np-button" type="button" data-owner="true">
+          Review queue settings
+        </button>
+      </div>
+      <div id="nr-groups"></div>
+      <div class="np-actions">
+        <button id="nr-artifacts-more" class="np-button" type="button" hidden>
+          Load more artifact decisions
+        </button>
+        <button id="nr-packets-more" class="np-button" type="button" hidden>
+          Load more package decisions
+        </button>
+      </div>
+      <ul id="nr-limitations" class="np-field-help"></ul>
+      <div class="np-dialog-actions">
+        <button id="nr-close" class="np-button" type="button">Close</button>
+      </div>
+    </dialog>
+    <dialog id="nv-dialog" class="np-dialog ni-dialog" aria-labelledby="nv-heading">
+      <div class="np-dialog-heading">
+        <p class="np-eyebrow">Exact editable package evidence</p>
+        <h2 id="nv-heading" tabindex="-1">Package validation &amp; acceptance</h2>
+        <p id="nv-project" class="np-muted"></p>
+        <p id="nv-packet" class="ni-objective"></p>
+      </div>
+      <div id="nv-feedback" class="np-feedback" role="status" aria-live="polite"></div>
+      <div id="nv-uncertain" class="np-conflict" hidden>
+        <p>Check the saved receipt before retrying the same exact request.</p>
+        <div class="np-actions">
+          <button id="nv-check" class="np-button" type="button">Check saved request</button>
+          <button id="nv-retry" class="np-button" type="button" hidden>Retry saved request</button>
+        </div>
+      </div>
+      <div class="ni-toolbar">
+        <button id="nv-refresh" class="np-button np-quiet" type="button">
+          Refresh package evidence
+        </button>
+      </div>
+      <div id="nv-overview">
+        <p id="nv-applicability" class="ni-objective"></p>
+        <ul id="nv-reasons" class="np-field-help"></ul>
+        <section class="ni-section" aria-labelledby="nv-profile-heading">
+          <h3 id="nv-profile-heading">Assigned package profile</h3>
+          <div id="nv-assignment"></div>
+          <div class="np-actions">
+            <button id="nv-profile-edit" class="np-button" type="button" data-owner="true">
+              Assign or revise profile
+            </button>
+            <button id="nv-validate" class="np-button" type="button" data-owner="true">
+              Validate exact package
+            </button>
+          </div>
+        </section>
+        <section class="ni-section" aria-labelledby="nv-validations-heading">
+          <h3 id="nv-validations-heading">Saved validation reports</h3>
+          <ul id="nv-validations" class="ni-list"></ul>
+        </section>
+        <section class="ni-section" aria-labelledby="nv-decisions-heading">
+          <h3 id="nv-decisions-heading">Package acceptance history</h3>
+          <ul id="nv-decisions" class="ni-list"></ul>
+          <button id="nv-accept" class="np-button np-primary" type="button" data-owner="true">
+            Review package acceptance
+          </button>
+        </section>
+        <ul id="nv-limitations" class="np-field-help"></ul>
+        <p class="np-field-help">
+          The registered profile requires explicit complete dependency coverage for each source
+          output. Inspect those owner declarations before accepting package evidence.
+        </p>
+        <button id="nv-dependencies" class="np-button np-quiet" type="button">
+          Inspect output dependency coverage
+        </button>
+      </div>
+      <form id="nv-profile-form" hidden>
+        <h3>Assign the editable text/JSON profile</h3>
+        <p class="np-field-help">
+          Bind exactly one JSON specification, one Markdown rationale and one JSON schema report.
+          Each must be a source component with a generated safe preview. The schema report uses
+          schema_version 1 and contains its JSON schema in the schema field.
+        </p>
+        <div id="nv-role-fields"></div>
+        <div class="np-field">
+          <label for="nv-probe-path">JSON field to edit, reopen and render</label>
+          <input id="nv-probe-path" maxlength="512" placeholder="/unit_price" required />
+        </div>
+        <div class="np-field">
+          <label for="nv-probe-before">Exact value before the edit probe</label>
+          <textarea id="nv-probe-before" rows="2" maxlength="8192" required></textarea>
+        </div>
+        <div class="np-field">
+          <label for="nv-probe-after">Replacement value for the edit probe</label>
+          <textarea id="nv-probe-after" rows="2" maxlength="8192" required></textarea>
+          <p class="np-field-help">
+            Use JSON notation. Validation tests the edit in a disposable copy; original component
+            bytes remain unchanged.
+          </p>
+        </div>
+        <button id="nv-profile-save" class="np-button np-primary" type="submit" data-owner="true">
+          Save profile assignment
+        </button>
+      </form>
+      <form id="nv-decision-form" hidden>
+        <h3>Accept this exact validated package</h3>
+        <p id="nv-decision-context" class="ni-objective"></p>
+        <p class="np-field-help">
+          Review the saved checks, component decisions and remaining limitations. This acceptance
+          applies to the exact profile, manifest, source hashes and validation authority shown.
+        </p>
+        <div class="np-field">
+          <label for="nv-feedback-notes">Package acceptance notes</label>
+          <textarea id="nv-feedback-notes" rows="4" maxlength="4000"></textarea>
+        </div>
+        <button id="nv-decision-save" class="np-button np-primary" type="submit" data-owner="true">
+          Confirm package acceptance
+        </button>
+      </form>
+      <div id="nv-conflict" class="np-conflict" hidden>
+        <p>
+          Your draft is preserved. Review the current profile and validation before submitting
+          again.
+        </p>
+        <div id="nv-latest"></div>
+        <button id="nv-reload" class="np-button" type="button">Review current package state</button>
+      </div>
+      <div class="np-dialog-actions">
+        <button id="nv-cancel" class="np-button" type="button" hidden>Cancel edit</button>
+        <button id="nv-close" class="np-button" type="button">Close</button>
+      </div>
+    </dialog>
+    <dialog id="nh-dialog" class="np-dialog ni-dialog" aria-labelledby="nh-heading">
+      <div class="np-dialog-heading">
+        <p class="np-eyebrow">Scoped human and runtime continuity</p>
+        <h2 id="nh-heading" tabindex="-1">Authorized handoffs</h2>
+        <p id="nh-project" class="np-muted"></p>
+        <p class="np-field-help">
+          A saved handoff preserves work and unresolved decisions. Current recipient membership and
+          grants govern every read, export and continuation; a snapshot grants no new access.
+        </p>
+      </div>
+      <div id="nh-feedback" class="np-feedback" role="status" aria-live="polite"></div>
+      <div id="nh-uncertain" class="np-conflict" hidden>
+        <p>Check the saved receipt before retrying the same exact request.</p>
+        <div class="np-actions">
+          <button id="nh-check" class="np-button" type="button">Check saved request</button>
+          <button id="nh-retry" class="np-button" type="button" hidden>Retry saved request</button>
+        </div>
+      </div>
+      <div class="ni-toolbar">
+        <button id="nh-refresh" class="np-button np-quiet" type="button">
+          Refresh handoff status
+        </button>
+      </div>
+      <div id="nh-overview">
+        <button id="nh-create" class="np-button" type="button" data-owner="true">
+          Create authorized handoff
+        </button>
+        <ul id="nh-items" class="ni-list"></ul>
+        <button id="nh-more" class="np-button" type="button" hidden>Load more handoffs</button>
+      </div>
+      <form id="nh-create-form" hidden>
+        <h3>Create a current project handoff</h3>
+        <div class="np-field">
+          <label for="nh-title">Handoff title</label>
+          <input id="nh-title" maxlength="240" required />
+        </div>
+        <div class="np-field">
+          <label for="nh-recipient">Authorized recipient</label>
+          <select id="nh-recipient" required></select>
+        </div>
+        <button id="nh-create-save" class="np-button np-primary" type="submit" data-owner="true">
+          Save handoff snapshot
+        </button>
+      </form>
+      <div id="nh-detail" hidden>
+        <h3 id="nh-detail-heading" tabindex="-1"></h3>
+        <p id="nh-applicability" class="ni-objective"></p>
+        <ul id="nh-reasons" class="np-field-help"></ul>
+        <div id="nh-snapshot"></div>
+        <div class="np-actions">
+          <button id="nh-download" class="np-button" type="button">
+            Export authorized handoff ZIP
+          </button>
+          <button id="nh-resume-edit" class="np-button" type="button" data-owner="true">
+            Review supported continuation
+          </button>
+        </div>
+        <form id="nh-verify-form">
+          <div class="np-field">
+            <label for="nh-archive">Exported handoff ZIP to verify</label>
+            <input id="nh-archive" type="file" accept=".zip,application/zip" required />
+            <p class="np-field-help">
+              Choose an archive up to 32 MiB. Verification compares its exact manifest and included
+              file hashes.
+            </p>
+          </div>
+          <button id="nh-verify" class="np-button" type="submit">Verify exported archive</button>
+        </form>
+      </div>
+      <form id="nh-resume-form" hidden>
+        <h3>Authorize an existing checkpoint continuation</h3>
+        <p class="np-field-help">
+          Only supported actions are offered. Existing model or provider effects are not
+          redispatched. The selected enrolled worker continues through its current native grant;
+          foreign runtime transfer is unsupported.
+        </p>
+        <div class="np-field">
+          <label for="nh-run">Current supported run and action</label>
+          <select id="nh-run" required></select>
+        </div>
+        <p id="nh-action-reason" class="np-field-help"></p>
+        <div class="np-field">
+          <label for="nh-runner">Currently enrolled native worker</label>
+          <select id="nh-runner" required></select>
+        </div>
+        <button id="nh-resume-save" class="np-button np-primary" type="submit" data-owner="true">
+          Authorize exact continuation
+        </button>
+      </form>
+      <div id="nh-conflict" class="np-conflict" hidden>
+        <p>
+          Your selection is preserved. Review current membership, grants and checkpoint status
+          before continuing.
+        </p>
+        <button id="nh-reload" class="np-button" type="button">Review current handoff state</button>
+      </div>
+      <div class="np-dialog-actions">
+        <button id="nh-back" class="np-button" type="button" hidden>Back to handoffs</button>
+        <button id="nh-cancel" class="np-button" type="button" hidden>Cancel edit</button>
+        <button id="nh-close" class="np-button" type="button">Close</button>
       </div>
     </dialog>
   </body>

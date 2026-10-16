@@ -630,6 +630,7 @@ class ProjectModelService:
         self, actor: ActorContext, project_id: UUID, model_id: UUID, command: ProbeProjectModel
     ) -> dict[str, Any]:
         """Admit one deliberate synthetic call, retaining any uncertain provider liability."""
+        recovery_epoch = self.usage.recovery.assert_active()
         binding: ResolvedProjectModel | None = None
         with self.store.transaction(IDENTITY_LOCK), self.store.transaction(actor.workspace_id):
             self._access(actor, project_id, write=True)
@@ -693,6 +694,7 @@ class ProjectModelService:
                 self.assert_current(actor, project_id, binding)
                 self.usage.dispatch(actor, project_id, usage_id)
                 dispatched = True
+            self.usage.recovery.assert_epoch(recovery_epoch)
             result = ModelEndpointClient(
                 (binding.endpoint,), environ=binding.environ, transport=self.transport
             ).generate(
@@ -723,7 +725,12 @@ class ProjectModelService:
                 )
             else:
                 settled = self.usage.release(actor.workspace_id, project_id, usage_id)
-        with self.store.transaction(IDENTITY_LOCK), self.store.transaction(actor.workspace_id):
+        with (
+            self.store.transaction(IDENTITY_LOCK),
+            self.store.transaction(actor.workspace_id),
+            self.usage.recovery.operation(),
+        ):
+            self.usage.recovery.assert_epoch(recovery_epoch)
             current = self._model(actor.workspace_id, project_id, model_id)
             try:
                 self.assert_current(actor, project_id, binding)

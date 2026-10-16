@@ -14,9 +14,12 @@ from simon.domain.errors import (
     AuthorizationError,
     InvalidTransitionError,
     NotFoundError,
+    RecoveryQuarantinedError,
+    StorageQuotaExceededError,
     ValidationError,
 )
 from simon.domain.models import ActorContext, utc_now
+from simon.domain.native_continuity import ContinuityContextChangedError
 from simon.domain.native_execution import (
     ExecutionCommand,
     NativeExecutionRun,
@@ -44,6 +47,7 @@ from simon.services.native_projects import NativeProjectService
 from simon.services.native_workflows import (
     LIVE,
     NativeWorkflowService,
+    public_policy,
     public_run,
     public_runner,
     task_digest,
@@ -63,6 +67,29 @@ class NativeExecutionService(NativeWorkflowService):
         super().__init__(store, projects, models)
         self.reference = ReferenceWork(store)
         self.artifacts = NativeArtifactService(store, projects, models)
+
+    def _authority(self, run: NativeExecutionRun) -> ActorContext:
+        # A durable handoff remains an additional revocable fence throughout
+        # claim, dispatch and publication; it never replaces the original grant.
+        from simon.services.native_continuity import assert_continuity_run
+
+        actor = super()._authority(run)
+        assert_continuity_run(self.store, self.projects, self.artifacts, run)
+        return actor
+
+    def _continuity_runner(self, run: NativeExecutionRun, runner: NativeExecutionRunner) -> None:
+        from simon.services.native_continuity import assert_continuity_run
+
+        assert_continuity_run(self.store, self.projects, self.artifacts, run, runner)
+        parent_id = run.parent_run_id
+        visited = {run.id}
+        while parent_id is not None:
+            if parent_id in visited or len(visited) > run.bounds.max_depth:
+                raise InvalidTransitionError("Continuity ancestry exceeds the execution bound.")
+            visited.add(parent_id)
+            parent = self._run(run.workspace_id, run.project_id, parent_id)
+            assert_continuity_run(self.store, self.projects, self.artifacts, parent, runner)
+            parent_id = parent.parent_run_id
 
     def _dependencies(self, run: NativeExecutionRun) -> tuple[dict[str, Any], ...] | None:
         results: list[dict[str, Any]] = []
@@ -122,9 +149,24 @@ class NativeExecutionService(NativeWorkflowService):
         return result
 
     def _recover(self, workspace_id: UUID, project_id: UUID) -> None:
+        try:
+            with self.recovery.operation():
+                self._recover_active(workspace_id, project_id)
+        except RecoveryQuarantinedError:
+            # Restored pending effects remain evidence for explicit recovery.
+            # A status read must not turn quarantine into ordinary stale work.
+            return
+
+    def _recover_active(self, workspace_id: UUID, project_id: UUID) -> None:
         self.usage.recover(workspace_id)
         now = utc_now()
         for run in self.store.execution_active_runs(workspace_id, project_id):
+            try:
+                self.recovery.assert_epoch(run.context.get("recovery_epoch"))
+            except RecoveryQuarantinedError:
+                # Pre-restore jobs require an explicit recovery decision even
+                # after the installation resumes; their effect history is retained.
+                continue
             if run.deadline_at <= now:
                 for wait in self.store.execution_waits(workspace_id, project_id, run.id):
                     if wait.status == "pending":
@@ -133,6 +175,10 @@ class NativeExecutionService(NativeWorkflowService):
                 continue
             try:
                 self._authority(run)
+            except ContinuityContextChangedError:
+                # Handoff context can be refreshed explicitly while the original
+                # core grant remains valid. A read must not destroy its checkpoint.
+                continue
             except _AUTHORITY_ERRORS:
                 self._finish(run, "stale", "execution_authority_changed")
                 continue
@@ -230,6 +276,13 @@ class NativeExecutionService(NativeWorkflowService):
             offset += len(page)
 
     def _tick(self, workspace_id: UUID, project_id: UUID) -> None:
+        try:
+            with self.recovery.operation():
+                self._tick_active(workspace_id, project_id)
+        except RecoveryQuarantinedError:
+            return
+
+    def _tick_active(self, workspace_id: UUID, project_id: UUID) -> None:
         self._recover(workspace_id, project_id)
         try:
             policy, issuer = self._grant(workspace_id, project_id)
@@ -237,6 +290,10 @@ class NativeExecutionService(NativeWorkflowService):
             return
         now = utc_now()
         for schedule in self._all_schedules(workspace_id, project_id):
+            try:
+                self.recovery.assert_epoch(schedule.recovery_epoch)
+            except RecoveryQuarantinedError:
+                continue
             if (
                 not schedule.enabled
                 or schedule.next_run_at is None
@@ -361,7 +418,7 @@ class NativeExecutionService(NativeWorkflowService):
                     }
                 )
             return {
-                "policy": self._policy(actor.workspace_id, project_id).model_dump(mode="json"),
+                "policy": public_policy(self._policy(actor.workspace_id, project_id)),
                 "runs": self.list_runs(actor, project_id),
                 "schedules": self.list_schedules(actor, project_id),
                 "runners": [
@@ -420,6 +477,7 @@ class NativeExecutionService(NativeWorkflowService):
                 "can_cancel": manageable and run.status in LIVE,
                 "can_retry": retry,
                 "can_signal": manageable
+                and self.recovery.is_active()
                 and (pending is not None or run.status in {"queued", "running"}),
                 "correlation_id": str(
                     pending.correlation_id
@@ -458,7 +516,11 @@ class NativeExecutionService(NativeWorkflowService):
     def retry(
         self, actor: ActorContext, project_id: UUID, run_id: UUID, command: ExecutionCommand
     ) -> dict[str, Any]:
-        with self.store.transaction(IDENTITY_LOCK), self.store.transaction(actor.workspace_id):
+        with (
+            self.store.transaction(IDENTITY_LOCK),
+            self.store.transaction(actor.workspace_id),
+            self.recovery.operation(),
+        ):
             self._access(actor, project_id, write=True)
 
             def resume() -> UUID:
@@ -524,7 +586,11 @@ class NativeExecutionService(NativeWorkflowService):
     def signal(
         self, actor: ActorContext, project_id: UUID, run_id: UUID, command: SignalExecution
     ) -> dict[str, Any]:
-        with self.store.transaction(IDENTITY_LOCK), self.store.transaction(actor.workspace_id):
+        with (
+            self.store.transaction(IDENTITY_LOCK),
+            self.store.transaction(actor.workspace_id),
+            self.recovery.operation(),
+        ):
             self._access(actor, project_id, write=True)
 
             def receive() -> UUID:
@@ -586,7 +652,11 @@ class NativeExecutionService(NativeWorkflowService):
             return public_run(self._run(actor.workspace_id, project_id, run_id))
 
     def claim(self, runner: NativeExecutionRunner, command: NativeCommand) -> dict[str, Any] | None:
-        with self.store.transaction(IDENTITY_LOCK), self.store.transaction(runner.workspace_id):
+        with (
+            self.store.transaction(IDENTITY_LOCK),
+            self.store.transaction(runner.workspace_id),
+            self.recovery.operation(),
+        ):
             runner = self._check_runner(runner)
             namespace = f"execution_claim:{runner.id}"
             if self.store.command_receipt(namespace, command.idempotency_key) is not None:
@@ -610,9 +680,17 @@ class NativeExecutionService(NativeWorkflowService):
                     ):
                         continue
                     try:
+                        self._continuity_runner(run, runner)
+                    except (AuthorizationError, ContinuityContextChangedError):
+                        # An obsolete worker polling must not cancel work that
+                        # remains available to its authorized successor.
+                        continue
+                    try:
                         self._authority(run)
                         if self._dependencies(run) is None:
                             continue
+                    except ContinuityContextChangedError:
+                        continue
                     except _AUTHORITY_ERRORS:
                         self._finish(run, "stale", "execution_authority_changed")
                         continue
@@ -685,12 +763,17 @@ class NativeExecutionService(NativeWorkflowService):
         ):
             raise InvalidTransitionError("This worker lease is expired or no longer current.")
         self._authority(run)
+        self._continuity_runner(run, runner)
         return run
 
     def heartbeat(
         self, runner: NativeExecutionRunner, command: RunnerLeaseCommand
     ) -> dict[str, Any]:
-        with self.store.transaction(IDENTITY_LOCK), self.store.transaction(runner.workspace_id):
+        with (
+            self.store.transaction(IDENTITY_LOCK),
+            self.store.transaction(runner.workspace_id),
+            self.recovery.operation(),
+        ):
             run = self._lease(runner, command)
             result = self._save(
                 run,
@@ -737,8 +820,13 @@ class NativeExecutionService(NativeWorkflowService):
         return tuple(history)
 
     def step(self, runner: NativeExecutionRunner, command: RunnerLeaseCommand) -> dict[str, Any]:
-        with self.store.transaction(IDENTITY_LOCK), self.store.transaction(runner.workspace_id):
+        with (
+            self.store.transaction(IDENTITY_LOCK),
+            self.store.transaction(runner.workspace_id),
+            self.recovery.operation(),
+        ):
             run = self._lease(runner, command)
+            recovery_epoch = self.recovery.assert_epoch(run.context.get("recovery_epoch"))
             namespace = f"execution_step_command:{run.id}:{run.fence}"
             receipt = self.store.command_receipt(namespace, command.idempotency_key)
             if receipt is not None:
@@ -833,6 +921,7 @@ class NativeExecutionService(NativeWorkflowService):
                         operation_id=operation_id,
                         phase="execution",
                         requested_by=run.issued_by,
+                        recovery_epoch=recovery_epoch,
                         model_id=binding.model.id,
                         model_version=binding.model.version,
                         credential_revision=binding.model.credential_revision,
@@ -898,6 +987,15 @@ class NativeExecutionService(NativeWorkflowService):
                 executor is not None and prepared is not None and current_step.usage_id is not None
             )
             response = None
+            # Preparation and the provider send are separate boundaries. A restore
+            # begun between them must leave a visible dispatched liability, not send.
+            with (
+                self.store.transaction(IDENTITY_LOCK),
+                self.store.transaction(run.workspace_id),
+                self.recovery.operation(),
+            ):
+                self.recovery.assert_epoch(recovery_epoch)
+                self._lease(runner, command)
             try:
                 action, response = executor.generate(prepared)
                 result = action.model_dump(mode="json", exclude_none=True)
@@ -923,17 +1021,36 @@ class NativeExecutionService(NativeWorkflowService):
                 error = error or "provider_usage_unverified"
         else:
             try:
-                result = self.reference.execute(
-                    run.workspace_id,
-                    run.project_id,
-                    current_step.operation_id,
-                    current_step.request,
-                )
+                with (
+                    self.store.transaction(IDENTITY_LOCK),
+                    self.store.transaction(run.workspace_id),
+                    self.recovery.operation(),
+                ):
+                    self.recovery.assert_epoch(recovery_epoch)
+                    self._lease(runner, command)
+                    try:
+                        result = self.reference.execute(
+                            run.workspace_id,
+                            run.project_id,
+                            current_step.operation_id,
+                            current_step.request,
+                        )
+                    except Exception:
+                        # A lost acknowledgement must not roll back the durable
+                        # reference receipt committed by the effect itself.
+                        error, unknown = "reference_outcome_unknown", True
+            except RecoveryQuarantinedError:
+                raise
             except Exception:
                 error, unknown = "reference_outcome_unknown", True
         # The checkpoint is durable before publishing candidates, spawning children or
         # registering waits. Late responses may settle costs but cannot use an old lease.
-        with self.store.transaction(IDENTITY_LOCK), self.store.transaction(run.workspace_id):
+        with (
+            self.store.transaction(IDENTITY_LOCK),
+            self.store.transaction(run.workspace_id),
+            self.recovery.operation(),
+        ):
+            self.recovery.assert_epoch(recovery_epoch)
             step = self.store.execution_step(run.workspace_id, run.project_id, current_step.id)
             assert step is not None
             if step.status not in {"completed", "failed"}:
@@ -944,7 +1061,12 @@ class NativeExecutionService(NativeWorkflowService):
                     error_code=error,
                     finished_at=utc_now(),
                 )
-        with self.store.transaction(IDENTITY_LOCK), self.store.transaction(run.workspace_id):
+        with (
+            self.store.transaction(IDENTITY_LOCK),
+            self.store.transaction(run.workspace_id),
+            self.recovery.operation(),
+        ):
+            self.recovery.assert_epoch(recovery_epoch)
             current = self._run(run.workspace_id, run.project_id, run.id)
             try:
                 current = self._lease(runner, command)
@@ -954,6 +1076,8 @@ class NativeExecutionService(NativeWorkflowService):
                     # usage, but cannot invalidate a newer owner's execution lease.
                     try:
                         self._authority(current)
+                    except ContinuityContextChangedError:
+                        pass
                     except _AUTHORITY_ERRORS:
                         current = self._finish(current, "stale", "execution_authority_changed")
                 return public_run(current)
@@ -967,8 +1091,13 @@ class NativeExecutionService(NativeWorkflowService):
         try:
             # Partial child admission, task updates and history must all roll back
             # together. The already committed model checkpoint remains available.
-            with self.store.transaction(run.workspace_id):
+            with self.store.transaction(run.workspace_id), self.recovery.operation():
+                self.recovery.assert_epoch(run.context.get("recovery_epoch"))
                 return self._apply_checkpoint(run, step)
+        except RecoveryQuarantinedError:
+            raise
+        except StorageQuotaExceededError:
+            return self._finish(run, "failed", "storage_quota_exceeded")
         except (ModelValidationError, *_AUTHORITY_ERRORS):
             return self._finish(run, "failed", "checkpoint_action_invalid")
 

@@ -48,6 +48,7 @@ EXECUTION_WAIT_MUTABLE_FIELDS = frozenset(
 )
 EXECUTION_SCHEDULE_MUTABLE_FIELDS = frozenset(
     {
+        "recovery_epoch",
         "version",
         "definition_version",
         "enabled",
@@ -123,6 +124,7 @@ class NativeExecutionPolicy(ExecutionPolicyFields):
     project_id: UUID
     version: int = Field(default=0, ge=0, strict=True)
     issued_by: UUID | None = None
+    recovery_epoch: str | None = Field(default=None, min_length=1, max_length=128)
     updated_at: AwareDatetime = Field(default_factory=utc_now)
 
     @model_validator(mode="after")
@@ -326,6 +328,7 @@ class NativeExecutionSchedule(ScheduleFields):
     project_id: UUID
     task_id: UUID
     issued_by: UUID
+    recovery_epoch: str | None = Field(default=None, min_length=1, max_length=128)
     version: int = Field(default=1, ge=1, strict=True)
     definition_version: int = Field(default=1, ge=1, strict=True)
     enabled: bool = True
@@ -342,6 +345,7 @@ class NativeExecutionRunner(ExecutionRecord):
     project_id: UUID
     name: str = Field(min_length=1, max_length=100)
     issued_by: UUID
+    recovery_epoch: str | None = Field(default=None, min_length=1, max_length=128)
     token_hash: Fingerprint = Field(repr=False)
     status: Literal["active", "revoked"] = "active"
     max_concurrent_runs: int = Field(default=1, ge=1, le=8, strict=True)

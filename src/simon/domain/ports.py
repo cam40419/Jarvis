@@ -30,6 +30,11 @@ from simon.domain.models import (
     JobStatus,
     OutboxEvent,
 )
+from simon.domain.native_acceptance import (
+    NativeDeliveryAcceptance,
+    NativeDeliveryProfileAssignment,
+    NativeDeliveryValidation,
+)
 from simon.domain.native_agents import NativeAgent, NativeAgentCredential, NativeTeamPolicy
 from simon.domain.native_artifacts import (
     NativeArtifact,
@@ -39,7 +44,15 @@ from simon.domain.native_artifacts import (
     NativeArtifactRevision,
     NativeReviewPolicy,
 )
+from simon.domain.native_continuity import NativeContinuityHandoff
 from simon.domain.native_delivery import NativeDeliveryPacket
+from simon.domain.native_dependencies import (
+    NativeDependencyDeclaration,
+    NativeFact,
+    NativeFactRevision,
+    NativeImpactAssessment,
+    NativeRepairProposal,
+)
 from simon.domain.native_execution import (
     NativeExecutionEvent,
     NativeExecutionPolicy,
@@ -60,6 +73,7 @@ from simon.domain.native_models import (
     UsageTotals,
 )
 from simon.domain.native_projects import NativeProject, NativeProjectMember, NativeTask
+from simon.domain.native_storage import StorageCharge, StorageEntitlement, StorageObjectKind
 from simon.domain.voice import VoiceSession
 
 CapabilityHandler = Callable[[BaseModel], dict[str, Any]]
@@ -165,6 +179,7 @@ class IdentityStore(TransactionStore, Protocol):
     def managed_accounts(self) -> Sequence[ManagedAccount]: ...
     def managed_account(self, actor_id: UUID) -> ManagedAccount | None: ...
     def save_managed_account(self, account: ManagedAccount) -> None: ...
+    def workspace_exists(self, workspace_id: UUID) -> bool: ...
     def memberships(self, actor_id: UUID) -> Sequence[Membership]: ...
     def workspace_members(
         self, workspace_id: UUID, offset: int, limit: int
@@ -437,6 +452,7 @@ class NativeModelStore(TransactionStore, Protocol):
     def model_usage_totals(
         self, workspace_id: UUID, project_id: UUID | None, at: datetime
     ) -> UsageTotals: ...
+    def recovery_usage_pending(self) -> int: ...
 
 
 class NativeExecutionStore(TransactionStore, Protocol):
@@ -552,6 +568,14 @@ class NativeExecutionStore(TransactionStore, Protocol):
 
 
 class NativeArtifactStore(TransactionStore, Protocol):
+    def artifact_task_conflict(
+        self,
+        workspace_id: UUID,
+        project_id: UUID,
+        artifact_id: UUID,
+        task_ids: tuple[UUID, ...],
+    ) -> bool: ...
+
     def artifact(
         self, workspace_id: UUID, project_id: UUID, artifact_id: UUID
     ) -> NativeArtifact | None: ...
@@ -617,6 +641,124 @@ class NativeDeliveryStore(TransactionStore, Protocol):
     def insert_delivery_packet(self, value: NativeDeliveryPacket) -> None: ...
 
 
+class NativeStorageStore(TransactionStore, Protocol):
+    def storage_entitlement(self, workspace_id: UUID) -> StorageEntitlement | None: ...
+    def storage_entitlement_history(
+        self, workspace_id: UUID, limit: int = 50
+    ) -> tuple[StorageEntitlement, ...]: ...
+    def save_storage_entitlement(
+        self, value: StorageEntitlement, expected_version: int
+    ) -> None: ...
+    def storage_charge(
+        self, workspace_id: UUID, kind: StorageObjectKind, object_id: UUID
+    ) -> StorageCharge | None: ...
+    def storage_charges(
+        self, workspace_id: UUID, project_id: UUID | None = None
+    ) -> tuple[StorageCharge, ...]: ...
+    def storage_usage(
+        self, workspace_id: UUID, project_id: UUID | None = None
+    ) -> dict[str, int]: ...
+    def reserve_source_storage(self, value: StorageCharge) -> None: ...
+    def release_source_storage(self, workspace_id: UUID, object_id: UUID) -> None: ...
+
+
+class NativeDependencyStore(TransactionStore, Protocol):
+    def fact(self, workspace_id: UUID, project_id: UUID, fact_id: UUID) -> NativeFact | None: ...
+    def facts(
+        self, workspace_id: UUID, project_id: UUID, offset: int = 0, limit: int | None = 50
+    ) -> tuple[NativeFact, ...]: ...
+    def fact_revision(
+        self, workspace_id: UUID, project_id: UUID, revision_id: UUID
+    ) -> NativeFactRevision | None: ...
+    def fact_revisions(
+        self,
+        workspace_id: UUID,
+        project_id: UUID,
+        fact_id: UUID,
+        offset: int = 0,
+        limit: int | None = 50,
+    ) -> tuple[NativeFactRevision, ...]: ...
+    def insert_fact(self, value: NativeFact) -> None: ...
+    def update_fact(self, value: NativeFact, expected_version: int) -> None: ...
+    def insert_fact_revision(self, value: NativeFactRevision) -> None: ...
+    def dependency_declaration(
+        self, workspace_id: UUID, project_id: UUID, revision_id: UUID
+    ) -> NativeDependencyDeclaration | None: ...
+    def dependency_declarations(
+        self,
+        workspace_id: UUID,
+        project_id: UUID,
+        revision_id: UUID,
+        offset: int = 0,
+        limit: int | None = 50,
+    ) -> tuple[NativeDependencyDeclaration, ...]: ...
+    def insert_dependency_declaration(
+        self, value: NativeDependencyDeclaration, expected_version: int
+    ) -> None: ...
+    def impact_assessment(
+        self, workspace_id: UUID, project_id: UUID, assessment_id: UUID
+    ) -> NativeImpactAssessment | None: ...
+    def impact_assessments(
+        self, workspace_id: UUID, project_id: UUID, offset: int = 0, limit: int | None = 50
+    ) -> tuple[NativeImpactAssessment, ...]: ...
+    def insert_impact_assessment(self, value: NativeImpactAssessment) -> None: ...
+    def repair_proposal(
+        self, workspace_id: UUID, project_id: UUID, proposal_id: UUID
+    ) -> NativeRepairProposal | None: ...
+    def repair_proposals(
+        self, workspace_id: UUID, project_id: UUID, offset: int = 0, limit: int | None = 50
+    ) -> tuple[NativeRepairProposal, ...]: ...
+    def insert_repair_proposal(self, value: NativeRepairProposal) -> None: ...
+
+
+class NativeAcceptanceStore(TransactionStore, Protocol):
+    def delivery_profile_assignment(
+        self, workspace_id: UUID, project_id: UUID, packet_id: UUID
+    ) -> NativeDeliveryProfileAssignment | None: ...
+    def delivery_profile_assignments(
+        self,
+        workspace_id: UUID,
+        project_id: UUID,
+        packet_id: UUID,
+        offset: int = 0,
+        limit: int | None = 50,
+    ) -> tuple[NativeDeliveryProfileAssignment, ...]: ...
+    def insert_delivery_profile_assignment(
+        self, value: NativeDeliveryProfileAssignment, expected_version: int
+    ) -> None: ...
+    def delivery_validation(
+        self, workspace_id: UUID, project_id: UUID, validation_id: UUID
+    ) -> NativeDeliveryValidation | None: ...
+    def delivery_validations(
+        self,
+        workspace_id: UUID,
+        project_id: UUID,
+        packet_id: UUID,
+        offset: int = 0,
+        limit: int | None = 50,
+    ) -> tuple[NativeDeliveryValidation, ...]: ...
+    def insert_delivery_validation(self, value: NativeDeliveryValidation) -> None: ...
+    def delivery_acceptance(
+        self, workspace_id: UUID, project_id: UUID, acceptance_id: UUID
+    ) -> NativeDeliveryAcceptance | None: ...
+    def delivery_acceptances(
+        self,
+        workspace_id: UUID,
+        project_id: UUID,
+        packet_id: UUID,
+        offset: int = 0,
+        limit: int | None = 50,
+    ) -> tuple[NativeDeliveryAcceptance, ...]: ...
+    def insert_delivery_acceptance(self, value: NativeDeliveryAcceptance) -> None: ...
+    def continuity_handoff(
+        self, workspace_id: UUID, project_id: UUID, handoff_id: UUID
+    ) -> NativeContinuityHandoff | None: ...
+    def continuity_handoffs(
+        self, workspace_id: UUID, project_id: UUID, offset: int = 0, limit: int | None = 50
+    ) -> tuple[NativeContinuityHandoff, ...]: ...
+    def insert_continuity_handoff(self, value: NativeContinuityHandoff) -> None: ...
+
+
 class Store(
     CapabilityStore,
     InvocationStore,
@@ -636,6 +778,9 @@ class Store(
     NativeExecutionStore,
     NativeArtifactStore,
     NativeDeliveryStore,
+    NativeStorageStore,
+    NativeDependencyStore,
+    NativeAcceptanceStore,
     Protocol,
 ):
     """One transaction boundary for state, audit records, and delivery intents."""

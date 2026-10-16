@@ -30,12 +30,17 @@ from simon.api.external_actions import external_actions_router
 from simon.api.integrations import integrations_router
 from simon.api.local_files import local_file_router
 from simon.api.model_stream import model_stream
+from simon.api.native_acceptance import native_acceptance_router
 from simon.api.native_artifacts import native_artifacts_router
+from simon.api.native_continuity import native_continuity_router
 from simon.api.native_delivery import native_delivery_router
+from simon.api.native_dependencies import native_dependencies_router
 from simon.api.native_execution import native_execution_router, native_execution_worker_router
 from simon.api.native_intake import native_intake_router
 from simon.api.native_models import native_models_router
 from simon.api.native_projects import native_projects_router
+from simon.api.native_review_inbox import native_review_inbox_router
+from simon.api.native_storage import native_storage_router
 from simon.api.request_ingress import RequestIngressMiddleware
 from simon.api.work_sessions import session_router
 from simon.config import Settings, get_settings
@@ -74,13 +79,19 @@ from simon.services.jobs import JobService
 from simon.services.memory import MemoryService
 from simon.services.model_conversations import ModelConversationService
 from simon.services.model_usage import ModelUsageService
+from simon.services.native_acceptance import NativeAcceptanceService
+from simon.services.native_continuity import NativeContinuityService
 from simon.services.native_delivery import NativeDeliveryService
+from simon.services.native_dependencies import NativeDependencyService
 from simon.services.native_execution import NativeExecutionService
 from simon.services.native_intake import NativeIntakeService
 from simon.services.native_projects import NativeProjectService
+from simon.services.native_review_inbox import NativeReviewInboxService
+from simon.services.native_storage import NativeStorageService
 from simon.services.native_teams import NativeTeamService
 from simon.services.policy import PolicyEngine
 from simon.services.project_models import ProjectModelService, configured_templates
+from simon.services.recovery import RecoveryGuard
 from simon.services.voice import VoiceService
 from simon.services.work_sessions import WorkSessionService
 
@@ -126,7 +137,12 @@ class AppContainer:
         self.identity = IdentityService(self.store, self.settings)
         self.native_projects = NativeProjectService(self.store)
         self.native_teams = NativeTeamService(self.store, self.native_projects)
-        self.model_usage = ModelUsageService(self.store, self.native_projects)
+        self.recovery = RecoveryGuard(
+            self.settings.recovery_state_file,
+            managed=self.settings.storage_backend == "postgres"
+            or self.settings.recovery_state_file is not None,
+        )
+        self.model_usage = ModelUsageService(self.store, self.native_projects, self.recovery)
         self.project_models = ProjectModelService(
             self.store,
             self.native_projects,
@@ -147,8 +163,15 @@ class AppContainer:
             self.store, self.native_projects, self.project_models
         )
         self.native_artifacts = self.native_execution.artifacts
+        self.native_dependencies = NativeDependencyService(self.store, self.native_artifacts)
         self.native_delivery = NativeDeliveryService(self.store, self.native_artifacts)
+        self.native_acceptance = NativeAcceptanceService(self.store, self.native_delivery)
         self.accounts = AccountService(self.identity)
+        self.native_storage = NativeStorageService(self.store, self.native_projects, self.accounts)
+        self.native_continuity = NativeContinuityService(
+            self.store, self.native_execution, self.native_delivery, self.native_storage
+        )
+        self.native_review_inbox = NativeReviewInboxService(self.native_delivery)
         self.audit = AuditService(self.store)
         self.connected = ConnectedService(self.store, self.audit, self.settings, self.identity)
         self.email_identity = EmailIdentityService(
@@ -346,7 +369,12 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
     )
     app.include_router(native_execution_router(services.native_execution, checked_actor))
     app.include_router(native_artifacts_router(services.native_artifacts, checked_actor))
+    app.include_router(native_dependencies_router(services.native_dependencies, checked_actor))
     app.include_router(native_delivery_router(services.native_delivery, checked_actor))
+    app.include_router(native_acceptance_router(services.native_acceptance, checked_actor))
+    app.include_router(native_continuity_router(services.native_continuity, checked_actor))
+    app.include_router(native_review_inbox_router(services.native_review_inbox, checked_actor))
+    app.include_router(native_storage_router(services.native_storage, checked_actor))
     app.include_router(native_execution_worker_router(services.native_execution))
     app.include_router(external_actions_router(services.external_actions, checked_actor))
     app.include_router(integrations_router(services.connected.integrations, checked_actor))
@@ -385,6 +413,8 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
             "confirmation_required": 409,
             "idempotency_conflict": 409,
             "invalid_transition": 409,
+            "storage_quota_exceeded": 409,
+            "recovery_quarantined": 409,
             "validation_error": 422,
             "agent_prompt_error": 422,
             "artifact_error": 409,
@@ -405,6 +435,12 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
     @app.get("/health/live")
     def live() -> dict[str, str]:
         return {"status": "ok"}
+
+    @app.get("/v2/recovery")
+    def recovery_status(
+        actor: Annotated[ActorContext, Depends(checked_actor)],
+    ) -> dict[str, Any]:
+        return services.recovery.status()
 
     @app.get("/v1/accounts")
     def accounts(actor: Annotated[ActorContext, Depends(checked_actor)]) -> list[dict[str, Any]]:

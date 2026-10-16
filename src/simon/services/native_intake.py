@@ -2,11 +2,12 @@
 
 import base64
 import binascii
+import hashlib
 from collections.abc import Callable
 from datetime import timedelta
 from decimal import Decimal
 from typing import Any, TypeVar
-from uuid import UUID
+from uuid import UUID, uuid5
 
 from pydantic import ValidationError as ModelValidationError
 
@@ -22,11 +23,13 @@ from simon.domain.model_routing import TextGenerationResult
 from simon.domain.models import ActorContext, utc_now
 from simon.domain.native_agents import CreateNativeAgent, NativeActor, NativeAgent
 from simon.domain.native_intake import (
+    MAX_INTAKE_SOURCE_REVISIONS,
     AnalyzeIntake,
     IntakeRun,
     IntakeSource,
     IntakeTask,
     NativeIntake,
+    ReconcileSourceUpload,
     SourceUpload,
     StaffingProposal,
     UpdateNativeIntake,
@@ -39,6 +42,7 @@ from simon.domain.native_projects import (
     TaskAssignment,
     VersionedNativeCommand,
 )
+from simon.domain.native_storage import StorageCharge
 from simon.domain.ports import Store
 from simon.services.canonical import digest
 from simon.services.identity import IDENTITY_LOCK
@@ -145,6 +149,12 @@ class NativeIntakeService:
                 manageable = True
             except (AuthorizationError, InvalidTransitionError):
                 pass
+            can_reconcile = False
+            try:
+                self.projects._project(actor, project_id, write=True, owner=True)
+                can_reconcile = True
+            except (AuthorizationError, InvalidTransitionError):
+                pass
             runs = self._runs(actor, project_id)
             totals = self.store.model_usage_totals(actor.workspace_id, project_id, utc_now())
             return {
@@ -155,8 +165,21 @@ class NativeIntakeService:
                 ],
                 "runs": [r.model_dump(mode="json") for r in runs[:20]],
                 "can_manage": manageable,
+                "can_reconcile_uploads": can_reconcile,
                 "spent_microusd": totals.charged_lifetime,
                 "reserved_microusd": totals.held_microusd,
+                "pending_uploads": [
+                    {
+                        "source_id": str(charge.object_id),
+                        "bytes": charge.bytes,
+                        "state": charge.state,
+                        "created_at": charge.created_at.isoformat(),
+                    }
+                    for charge in self.store.storage_charges(actor.workspace_id, project_id)
+                    if can_reconcile
+                    and charge.object_kind == "source"
+                    and charge.state == "reserved"
+                ],
             }
 
     def update(
@@ -188,29 +211,106 @@ class NativeIntakeService:
         return updated
 
     def upload(self, actor: ActorContext, project_id: UUID, command: SourceUpload) -> IntakeSource:
+        if not isinstance(actor, ActorContext):
+            raise AuthorizationError("Intake requires a human project session.")
+        source_id = uuid5(
+            actor.workspace_id,
+            f"native-source:{project_id}:{actor.actor_id}:{command.idempotency_key}",
+        )
+        fingerprint = digest(command.model_dump(mode="json", exclude={"idempotency_key"}))
+        # Commit admission before touching the filesystem. A failed DB write or process
+        # interruption must leave a visible held allowance for any possibly retained bytes.
         with self.store.transaction(IDENTITY_LOCK), self.store.transaction(actor.workspace_id):
             project = self._access(actor, project_id, write=True)
+            replay = self._completed_upload(actor, project_id, command)
+            if replay is not None:
+                return replay
+            previous = self.store.storage_charge(actor.workspace_id, "source", source_id)
+            if previous is not None and previous.request_fingerprint != fingerprint:
+                raise IdempotencyConflictError(
+                    "This source upload already has a different command."
+                )
+            if previous is not None and previous.state != "reserved":
+                raise InvalidTransitionError(
+                    "This upload is settled; use a new upload operation key."
+                )
+            self.projects._version(self._intake(project).version, command.expected_version)
+            try:
+                raw = base64.b64decode(command.content_base64, validate=True)
+            except (ValueError, binascii.Error):
+                raise ValidationError("Source must contain valid base64 bytes.") from None
+            if len(raw) > MAX_SOURCE_BYTES:
+                raise ValidationError("Source exceeds the 5 MiB limit.")
+            self._source_capacity(
+                actor.workspace_id, project_id, command.source_key, len(raw), source_id
+            )
+            extracted = extract_source(raw, command.filename, command.media_type)
+            sha256 = hashlib.sha256(raw).hexdigest()
+            prepared_source = IntakeSource(
+                id=source_id,
+                workspace_id=actor.workspace_id,
+                project_id=project_id,
+                source_key=command.source_key,
+                filename=command.filename,
+                media_type=command.media_type,
+                revision=1,
+                sha256=sha256,
+                size_bytes=len(raw),
+                text=extracted.text,
+                extraction_status=extracted.status,
+                redactions=extracted.redactions,
+                truncated=extracted.truncated,
+                created_by=actor.actor_id,
+                created_at=previous.created_at if previous is not None else utc_now(),
+            )
+            reservation = StorageCharge(
+                workspace_id=actor.workspace_id,
+                project_id=project_id,
+                object_kind="source",
+                object_id=source_id,
+                bytes=len(raw) + len(prepared_source.text.encode("utf-8")),
+                sha256=sha256,
+                request_fingerprint=fingerprint,
+                created_at=prepared_source.created_at,
+            )
+            self.store.reserve_source_storage(reservation)
+            if previous is None:
+                self._audit(
+                    actor,
+                    project_id,
+                    "upload_reserved",
+                    source_id=str(source_id),
+                    reserved_bytes=reservation.bytes,
+                )
+
+        # Reacquire current human authority and the workspace lock. Reconciliation
+        # cannot release this claim concurrently with publication under the same lock.
+        with self.store.transaction(IDENTITY_LOCK), self.store.transaction(actor.workspace_id):
+            project = self._access(actor, project_id, write=True)
+            replay = self._completed_upload(actor, project_id, command)
+            if replay is not None:
+                return replay
+            current = self.store.storage_charge(actor.workspace_id, "source", source_id)
+            if (
+                current is None
+                or current.state != "reserved"
+                or current.project_id != project_id
+                or current.sha256 != sha256
+                or current.request_fingerprint != fingerprint
+                or current.bytes != reservation.bytes
+            ):
+                raise InvalidTransitionError("The upload's storage admission is no longer current.")
 
             def upload() -> IntakeSource:
                 intake = self._intake(project)
                 self.projects._version(intake.version, command.expected_version)
-                try:
-                    raw = base64.b64decode(command.content_base64, validate=True)
-                except (ValueError, binascii.Error):
-                    raise ValidationError("Source must contain valid base64 bytes.") from None
-                if len(raw) > MAX_SOURCE_BYTES:
-                    raise ValidationError("Source exceeds the 5 MiB limit.")
+                self._source_capacity(
+                    actor.workspace_id, project_id, command.source_key, len(raw), source_id
+                )
                 sources = self.store.native_intake_sources(actor.workspace_id, project_id)
-                keys = {s.source_key for s in sources}
-                if (
-                    len(sources) >= 2000
-                    or len(keys | {command.source_key}) > 500
-                    or sum(s.size_bytes for s in sources) + len(raw) > 100 * 1024 * 1024
-                ):
-                    raise ValidationError("Project intake source capacity has been reached.")
-                extracted = extract_source(raw, command.filename, command.media_type)
-                sha256 = self.source_bytes.put(actor.workspace_id, project_id, raw)
+                self.source_bytes.put(actor.workspace_id, project_id, raw, operation_id=source_id)
                 result = IntakeSource(
+                    id=source_id,
                     workspace_id=actor.workspace_id,
                     project_id=project_id,
                     source_key=command.source_key,
@@ -223,11 +323,12 @@ class NativeIntakeService:
                     ),
                     sha256=sha256,
                     size_bytes=len(raw),
-                    text=extracted.text,
+                    text=prepared_source.text,
                     extraction_status=extracted.status,
                     redactions=extracted.redactions,
                     truncated=extracted.truncated,
                     created_by=actor.actor_id,
+                    created_at=current.created_at,
                 )
                 self.store.insert_native_intake_source(result)
                 self._touch(intake)
@@ -244,6 +345,124 @@ class NativeIntakeService:
             return self.projects._once(
                 actor, f"project:{project_id}:source", command, IntakeSource, upload
             )
+
+    def _completed_upload(
+        self, actor: ActorContext, project_id: UUID, command: SourceUpload
+    ) -> IntakeSource | None:
+        resource = f"project:{project_id}:source"
+        namespace = f"native:{actor.workspace_id}:human:{actor.actor_id}:{resource}"
+        if self.store.command_receipt(namespace, command.idempotency_key) is None:
+            return None
+
+        def unavailable() -> IntakeSource:
+            raise InvalidTransitionError("The upload receipt disappeared; retry the same command.")
+
+        # execute_once checks the exact original command even on a successful replay.
+        saved = self.projects._once(actor, resource, command, IntakeSource, unavailable)
+        return self.source(actor, project_id, saved.id)
+
+    def _source_capacity(
+        self,
+        workspace_id: UUID,
+        project_id: UUID,
+        source_key: str,
+        size: int,
+        source_id: UUID,
+    ) -> None:
+        sources = self.store.native_intake_sources(workspace_id, project_id)
+        pending = sum(
+            charge.object_kind == "source"
+            and charge.state == "reserved"
+            and charge.object_id != source_id
+            for charge in self.store.storage_charges(workspace_id, project_id)
+        )
+        if (
+            len(sources) + pending >= MAX_INTAKE_SOURCE_REVISIONS
+            or len({s.source_key for s in sources} | {source_key}) > 500
+            or sum(s.size_bytes for s in sources) + size > 100 * 1024 * 1024
+        ):
+            raise ValidationError("Project intake source capacity has been reached.")
+
+    def reconcile_upload(
+        self, actor: ActorContext, project_id: UUID, source_id: UUID, command: ReconcileSourceUpload
+    ) -> dict[str, Any]:
+        with self.store.transaction(IDENTITY_LOCK), self.store.transaction(actor.workspace_id):
+            if not isinstance(actor, ActorContext):
+                raise AuthorizationError("Upload reconciliation requires a human owner session.")
+            # Archived projects and over-quota workspaces still need safe cleanup.
+            project = self.projects._project(actor, project_id, write=True, owner=True)
+
+            def reconcile() -> dict[str, Any]:
+                intake = self._intake(project)
+                self.projects._version(intake.version, command.expected_version)
+                charge = self.store.storage_charge(actor.workspace_id, "source", source_id)
+                if charge is None or charge.project_id != project_id:
+                    raise NotFoundError("Pending source upload not found.")
+                if (
+                    charge.state == "retained"
+                    or self.store.native_intake_source(actor.workspace_id, project_id, source_id)
+                    is not None
+                ):
+                    raise InvalidTransitionError(
+                        "A retained source cannot be reconciled as an upload."
+                    )
+                if charge.state == "released":
+                    return {"source_id": str(source_id), "state": "released", "released_bytes": 0}
+                if charge.sha256 is None:
+                    raise InvalidTransitionError("The upload has no verifiable source identity.")
+                references = [
+                    source
+                    for source in self.store.native_intake_sources(actor.workspace_id, project_id)
+                    if source.sha256 == charge.sha256
+                ]
+                other_claims = [
+                    other
+                    for other in self.store.storage_charges(actor.workspace_id, project_id)
+                    if other.object_kind == "source"
+                    and other.object_id != source_id
+                    and other.state == "reserved"
+                    and other.sha256 == charge.sha256
+                ]
+                # Another held claim safely accounts a shared blob if its allowance
+                # covers the actual verified original. The last claim must delete it.
+                preserve = bool(references)
+                if other_claims and not preserve:
+                    size = self.source_bytes.upload_size(
+                        actor.workspace_id, project_id, charge.sha256
+                    )
+                    preserve = size is not None and any(
+                        other.bytes >= size for other in other_claims
+                    )
+                self.source_bytes.discard_upload(
+                    actor.workspace_id, project_id, charge.sha256, source_id, preserve_blob=preserve
+                )
+                self.store.release_source_storage(actor.workspace_id, source_id)
+                self._audit(
+                    actor,
+                    project_id,
+                    "upload_reconciled",
+                    source_id=str(source_id),
+                    released_bytes=charge.bytes,
+                    reason=command.reason,
+                )
+                return {
+                    "source_id": str(source_id),
+                    "state": "released",
+                    "released_bytes": charge.bytes,
+                }
+
+            value, _ = self.store.execute_once(
+                f"native_intake_upload_reconcile:{actor.workspace_id}:{project_id}:{actor.actor_id}",
+                command.idempotency_key,
+                digest(
+                    {
+                        "source_id": str(source_id),
+                        "command": command.model_dump(mode="json", exclude={"idempotency_key"}),
+                    }
+                ),
+                reconcile,
+            )
+            return value
 
     def source(self, actor: ActorContext, project_id: UUID, source_id: UUID) -> IntakeSource:
         self._access(actor, project_id)
@@ -581,8 +800,9 @@ class NativeIntakeService:
                 )
                 if r.phase == phase
             )
-            self.usage.dispatch(actor, run.project_id, entry.id)
+            dispatched = self.usage.dispatch(actor, run.project_id, entry.id)
         try:
+            self.usage.recovery.assert_epoch(dispatched.recovery_epoch)
             value, result = invoke()
         except IntakePlanningError as exc:
             self.usage.settle(
@@ -624,6 +844,7 @@ class NativeIntakeService:
     def _generate(
         self, actor: ActorContext, run: IntakeRun, planner: IntakePlanner, prepared: PreparedIntake
     ) -> IntakeRun:
+        recovery_epoch = self.usage.recovery.assert_active()
         proposal, review = None, None
         status, error = "ready", None
         try:
@@ -651,7 +872,12 @@ class NativeIntakeService:
         finally:
             for usage_id in run.usage_ids:
                 self.usage.release(actor.workspace_id, run.project_id, usage_id)
-        with self.store.transaction(IDENTITY_LOCK), self.store.transaction(actor.workspace_id):
+        with (
+            self.store.transaction(IDENTITY_LOCK),
+            self.store.transaction(actor.workspace_id),
+            self.usage.recovery.operation(),
+        ):
+            self.usage.recovery.assert_epoch(recovery_epoch)
             outcome = self.usage.operation_outcome(actor.workspace_id, run.project_id, run.id)
             current = self.store.native_intake_run(actor.workspace_id, run.project_id, run.id)
             assert current is not None
@@ -714,6 +940,7 @@ class NativeIntakeService:
                 with (
                     self.store.transaction(IDENTITY_LOCK),
                     self.store.transaction(actor.workspace_id),
+                    self.usage.recovery.operation(),
                 ):
                     project = self._access(actor, run.project_id, write=True)
                     current = self.get_run(actor, run.project_id, run.id)
@@ -860,6 +1087,9 @@ class NativeIntakeService:
         return tuple(result)
 
     def _apply(self, actor: ActorContext, project: NativeProject, run: IntakeRun) -> IntakeRun:
+        self.usage.recovery.assert_active()
+        for entry in self.store.model_usage_for_operation(actor.workspace_id, project.id, run.id):
+            self.usage.recovery.assert_epoch(entry.recovery_epoch)
         if (
             run.status != "ready"
             or run.proposal is None
@@ -953,7 +1183,11 @@ class NativeIntakeService:
         self, actor: ActorContext, project_id: UUID, run_id: UUID, command: VersionedNativeCommand
     ) -> IntakeRun:
         try:
-            with self.store.transaction(IDENTITY_LOCK), self.store.transaction(actor.workspace_id):
+            with (
+                self.store.transaction(IDENTITY_LOCK),
+                self.store.transaction(actor.workspace_id),
+                self.usage.recovery.operation(),
+            ):
                 project = self._access(actor, project_id, write=True)
 
                 def apply() -> IntakeRun:
@@ -967,6 +1201,7 @@ class NativeIntakeService:
                 # Receipts prove application, but current revocation owns readable evidence.
                 return self.get_run(actor, project_id, run_id)
         except InvalidTransitionError:
+            self.usage.recovery.assert_active()
             # Preserve the failed command's 409 while retiring an outdated review.
             with self.store.transaction(IDENTITY_LOCK), self.store.transaction(actor.workspace_id):
                 project = self._access(actor, project_id, write=True)

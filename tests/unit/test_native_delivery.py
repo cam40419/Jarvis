@@ -20,6 +20,7 @@ from simon.domain.models import utc_now
 from simon.domain.native_artifact_commands import UpdateArtifactReviewPolicy
 from simon.domain.native_artifacts import NativeArtifactCheck
 from simon.domain.native_delivery import CreateDeliveryPacket, DeliveryComponentInput
+from simon.domain.native_intake import MAX_INTAKE_SOURCE_REVISIONS
 from simon.services.native_delivery import NativeDeliveryService
 from tests.contract.test_native_intake_store import source
 from tests.unit.test_native_artifacts import (
@@ -369,8 +370,17 @@ def test_source_authority_capacity_blocks_new_capture_but_keeps_old_packet_inspe
     artifact, _ = upload(h)
     decide(h, artifact)
     value, _ = capture(h, artifact)
-    for n in range(513):
-        h.store.insert_native_intake_source(source(h, source_key=f"inventory-{n}"))
+    for n in range(MAX_INTAKE_SOURCE_REVISIONS + 1):
+        h.store.insert_native_intake_source(
+            source(
+                h,
+                source_key="history.txt",
+                revision=n + 1,
+                size_bytes=0,
+                text="",
+                sha256=hashlib.sha256(b"").hexdigest(),
+            )
+        )
     changed = h.delivery.detail(h.owner_actor, h.first.id, UUID(value["packet"]["id"]))
     assert not changed["applicability"]["current"]
     assert not changed["applicability"]["components_accepted"]
@@ -379,7 +389,7 @@ def test_source_authority_capacity_blocks_new_capture_but_keeps_old_packet_inspe
     summary = h.delivery.view(h.owner_actor, h.first.id)["packets"]["items"][0]["packet"]
     assert summary["manifest_sha256"] == value["packet"]["manifest_sha256"]
     assert summary["manifest"] == {"title": value["packet"]["manifest"]["title"]}
-    with pytest.raises(ValidationError, match="512"):
+    with pytest.raises(ValidationError, match=str(MAX_INTAKE_SOURCE_REVISIONS)):
         capture(h, artifact)
 
 

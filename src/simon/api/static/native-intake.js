@@ -21,12 +21,13 @@
     $('ni-feedback').textContent = message;
     $('ni-feedback').dataset.tone = tone;
   };
-  let projectId, workspaceId, snapshot, modelSnapshot, pending, latest, timer;
+  let projectId, workspaceId, snapshot, modelSnapshot, pending, latest, timer, cleanupId;
   let generation = 0,
     version = 0,
     busy = false,
     dirty = false,
-    uncertain = false;
+    uncertain = false,
+    cleanupDirty = false;
   let currentRunId = null;
   let uploadQueue = [];
   let answers = {};
@@ -58,6 +59,11 @@
     $('ni-rebase').disabled = busy || uncertain;
     for (const control of $('ni-sources').querySelectorAll('button, input'))
       control.disabled = busy || uncertain;
+    for (const control of $('ni-pending').querySelectorAll('button'))
+      control.disabled = busy || uncertain || !snapshot?.can_reconcile_uploads;
+    $('ni-reconcile-fields').disabled = busy || uncertain || !snapshot?.can_reconcile_uploads;
+    $('ni-reconcile-save').disabled =
+      busy || uncertain || !cleanupId || !snapshot?.can_reconcile_uploads;
     const modelReady = Boolean(modelSnapshot?.routing?.ready);
     $('ni-models').disabled = busy || uncertain;
     $('ni-analyze').hidden = !writable;
@@ -451,6 +457,7 @@
     $('ni-history').value = currentRunId || '';
     renderAnswers();
     renderSources();
+    renderPendingUploads();
     renderRun();
     modelStatus();
   }
@@ -481,6 +488,10 @@
       found.runs.push(pinned);
     }
     snapshot = found;
+    if ((cleanupId || pending?.kind === 'reconcile') && !snapshot.can_reconcile_uploads) {
+      reset();
+      return false;
+    }
     if (pending?.kind === 'analyze') {
       const foundRun = found.runs.find(
         (run) => run.idempotency_key === pending.body.idempotency_key,
@@ -563,13 +574,18 @@
         populate();
       }
       if (operation.kind === 'upload') uploadQueue.shift();
+      if (operation.kind === 'reconcile') clearCleanup();
       if (['analyze', 'apply', 'cancel'].includes(operation.kind)) currentRunId = result.id;
       feedback(
         operation.kind === 'save'
           ? 'Intake saved.'
           : operation.kind === 'upload'
             ? 'Source file saved.'
-            : 'Saved. The current status is shown below.',
+            : operation.kind === 'reconcile'
+              ? 'Upload reconciled. Released ' +
+                result.released_bytes.toLocaleString() +
+                ' bytes of reserved storage.'
+              : 'Saved. The current status is shown below.',
         'success',
       );
       await refresh();
@@ -599,6 +615,12 @@
         pending = null;
         uncertain = false;
         uploadQueue = [];
+        if (operation.kind === 'reconcile' && [401, 403, 404].includes(error.status)) {
+          reset();
+          $('np-status').textContent = error.message;
+          $('np-status').dataset.tone = 'error';
+          return false;
+        }
         feedback(
           error.message + (operation.kind === 'save' ? ' Your draft is preserved.' : ''),
           'error',
@@ -627,7 +649,9 @@
   }
 
   async function command(kind, suffix, body, method = 'POST') {
-    if (busy || uncertain || !snapshot?.can_manage) return false;
+    const authorized =
+      kind === 'reconcile' ? snapshot?.can_reconcile_uploads : snapshot?.can_manage;
+    if (busy || uncertain || !authorized) return false;
     pending = {
       kind,
       url: path(suffix),
@@ -768,6 +792,81 @@
     $('ni-preview-text').textContent = '';
   };
 
+  function clearCleanup() {
+    cleanupId = null;
+    cleanupDirty = false;
+    $('ni-reconcile-form').reset();
+    $('ni-reconcile-form').hidden = true;
+    $('ni-reconcile-target').textContent = '';
+  }
+
+  function renderPendingUploads() {
+    const holds = snapshot.pending_uploads || [];
+    $('ni-pending-section').hidden =
+      !snapshot.can_reconcile_uploads || (!holds.length && !cleanupId);
+    $('ni-pending').replaceChildren(
+      ...holds.map((hold) => {
+        const row = node('li', undefined, 'ni-card');
+        row.dataset.pendingUpload = hold.source_id;
+        row.append(
+          node('h4', 'Pending upload · ' + hold.source_id.slice(0, 8)),
+          node('p', 'Upload reference: ' + hold.source_id, 'np-field-help'),
+          node(
+            'p',
+            hold.bytes.toLocaleString() + ' reserved bytes · Created ' + date(hold.created_at),
+            'np-field-help',
+          ),
+        );
+        row.append(
+          button('Review cleanup', () => {
+            if (busy || uncertain || !snapshot.can_reconcile_uploads) return;
+            clearCleanup();
+            cleanupId = hold.source_id;
+            $('ni-reconcile-target').textContent =
+              'Upload reference: ' +
+              hold.source_id +
+              ' · ' +
+              hold.bytes.toLocaleString() +
+              ' reserved bytes · Created ' +
+              date(hold.created_at);
+            $('ni-reconcile-form').hidden = false;
+            lock();
+            $('ni-reconcile-reason').focus();
+          }),
+        );
+        return row;
+      }),
+    );
+    if (cleanupId && !holds.some((hold) => hold.source_id === cleanupId) && !uncertain)
+      clearCleanup();
+  }
+
+  $('ni-reconcile-form').addEventListener('input', () => {
+    cleanupDirty = true;
+  });
+  $('ni-reconcile-form').onsubmit = async (event) => {
+    event.preventDefault();
+    if (
+      busy ||
+      uncertain ||
+      !cleanupId ||
+      !snapshot?.can_reconcile_uploads ||
+      !event.currentTarget.reportValidity()
+    )
+      return;
+    await command('reconcile', '/sources/' + cleanupId + '/reconcile', {
+      expected_version: snapshot.intake.version,
+      reason: $('ni-reconcile-reason').value,
+    });
+  };
+  $('ni-reconcile-cancel').onclick = () => {
+    if (!busy && !uncertain) {
+      clearCleanup();
+      renderPendingUploads();
+      lock();
+    }
+  };
+
   function reset() {
     generation++;
     clearTimeout(timer);
@@ -780,6 +879,7 @@
     busy = false;
     dirty = false;
     uncertain = false;
+    clearCleanup();
     version = 0;
     currentRunId = null;
     uploadQueue = [];
@@ -787,12 +887,13 @@
     selection.clear();
     refreshedRuns.clear();
     $('ni-form').reset();
-    for (const id of ['ni-answers', 'ni-sources', 'ni-run', 'ni-preview-text'])
+    for (const id of ['ni-answers', 'ni-sources', 'ni-run', 'ni-preview-text', 'ni-pending'])
       $(id).replaceChildren();
     $('ni-preview').hidden = true;
     $('ni-conflict').hidden = true;
     $('ni-uncertain').hidden = true;
     $('ni-upload-progress').textContent = '';
+    $('ni-pending-section').hidden = true;
     feedback();
     if (dialog.open) dialog.close();
   }
@@ -843,7 +944,7 @@
     close();
   });
   window.addEventListener('beforeunload', (event) => {
-    if (busy || uncertain || dirty) event.preventDefault();
+    if (busy || uncertain || dirty || cleanupDirty) event.preventDefault();
   });
   window.addEventListener('native-project-loading', (event) => {
     if (projectId && event.detail.id !== projectId) reset();

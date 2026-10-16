@@ -25,6 +25,7 @@ from simon.domain.native_models import (
 from simon.domain.ports import Store
 from simon.services.identity import IDENTITY_LOCK
 from simon.services.native_projects import NativeProjectService
+from simon.services.recovery import RecoveryGuard
 
 
 @dataclass(frozen=True)
@@ -36,8 +37,11 @@ class UsageOutcome:
 
 
 class ModelUsageService:
-    def __init__(self, store: Store, projects: NativeProjectService) -> None:
+    def __init__(
+        self, store: Store, projects: NativeProjectService, recovery: RecoveryGuard | None = None
+    ) -> None:
         self.store, self.projects = store, projects
+        self.recovery = recovery or RecoveryGuard.ephemeral()
 
     def _access(self, actor: ActorContext, project_id: UUID, *, write: bool = False) -> None:
         if not isinstance(actor, ActorContext):
@@ -74,16 +78,23 @@ class ModelUsageService:
 
     def recover(self, workspace_id: UUID) -> None:
         """Expire unstarted holds and expose interrupted dispatches without resending."""
-        now = utc_now()
-        for entry in self.store.model_usage_expired(workspace_id, now):
-            reserved = entry.status == "reserved"
-            self._save(
-                entry,
-                status="released" if reserved else "unknown",
-                held_microusd=0 if reserved else entry.held_microusd,
-                finished_at=now,
-                error_code="reservation_expired" if reserved else "dispatch_interrupted",
-            )
+        with (
+            self.store.transaction(IDENTITY_LOCK),
+            self.store.transaction(workspace_id),
+            self.recovery.accounting(),
+        ):
+            now = utc_now()
+            for entry in self.store.model_usage_expired(workspace_id, now):
+                reserved = entry.status == "reserved" and self.recovery.matches_epoch(
+                    entry.recovery_epoch
+                )
+                self._save(
+                    entry,
+                    status="released" if reserved else "unknown",
+                    held_microusd=0 if reserved else entry.held_microusd,
+                    finished_at=now,
+                    error_code="reservation_expired" if reserved else "dispatch_interrupted",
+                )
 
     @staticmethod
     def _ceiling(
@@ -205,7 +216,11 @@ class ModelUsageService:
         operation_id: UUID,
         calls: tuple[ModelUsage, ...],
     ) -> tuple[ModelUsage, ...]:
-        with self.store.transaction(IDENTITY_LOCK), self.store.transaction(actor.workspace_id):
+        with (
+            self.store.transaction(IDENTITY_LOCK),
+            self.store.transaction(actor.workspace_id),
+            self.recovery.operation() as epoch,
+        ):
             self._access(actor, project_id, write=True)
             if not 1 <= len(calls) <= 8 or len({item.phase for item in calls}) != len(calls):
                 raise ValidationError("Reserve a bounded set of distinct model calls.")
@@ -226,6 +241,8 @@ class ModelUsageService:
                 actor.workspace_id, project_id, operation_id
             )
             if existing:
+                for entry in existing:
+                    self.recovery.assert_epoch(entry.recovery_epoch)
                 immutable = {
                     "workspace_id",
                     "project_id",
@@ -267,6 +284,8 @@ class ModelUsageService:
                     addition=total,
                     calls=len(calls),
                 )
+            if self.recovery.managed:
+                calls = tuple(call.model_copy(update={"recovery_epoch": epoch}) for call in calls)
             for call in calls:
                 self._model_current(actor, project_id, call)
                 self.store.insert_model_usage(call)
@@ -311,9 +330,14 @@ class ModelUsageService:
         return result
 
     def dispatch(self, actor: ActorContext, project_id: UUID, usage_id: UUID) -> ModelUsage:
-        with self.store.transaction(IDENTITY_LOCK), self.store.transaction(actor.workspace_id):
+        with (
+            self.store.transaction(IDENTITY_LOCK),
+            self.store.transaction(actor.workspace_id),
+            self.recovery.operation(),
+        ):
             self._access(actor, project_id, write=True)
             record = self._entry(actor.workspace_id, project_id, usage_id)
+            self.recovery.assert_epoch(record.recovery_epoch)
             if record.requested_by != actor.actor_id or record.status != "reserved":
                 raise InvalidTransitionError("This model call cannot be dispatched again.")
             if record.deadline_at <= utc_now():
@@ -339,8 +363,14 @@ class ModelUsageService:
             return result
 
     def release(self, workspace_id: UUID, project_id: UUID, usage_id: UUID) -> ModelUsage:
-        with self.store.transaction(IDENTITY_LOCK), self.store.transaction(workspace_id):
+        with (
+            self.store.transaction(IDENTITY_LOCK),
+            self.store.transaction(workspace_id),
+            self.recovery.accounting(),
+        ):
             entry = self._entry(workspace_id, project_id, usage_id)
+            if not self.recovery.matches_epoch(entry.recovery_epoch):
+                return entry
             if entry.status != "reserved":
                 return entry
             return self._save(entry, status="released", held_microusd=0, finished_at=utc_now())
@@ -356,8 +386,16 @@ class ModelUsageService:
         error_code: str | None = None,
     ) -> ModelUsage:
         # Internal accounting survives access loss, cancellation and key revocation.
-        with self.store.transaction(IDENTITY_LOCK), self.store.transaction(workspace_id):
+        with (
+            self.store.transaction(IDENTITY_LOCK),
+            self.store.transaction(workspace_id),
+            self.recovery.accounting(),
+        ):
             entry = self._entry(workspace_id, project_id, usage_id)
+            if not self.recovery.matches_epoch(entry.recovery_epoch):
+                # A late response from a pre-restore process is not authority to
+                # alter a rewound ledger. Keep its hold for explicit reconciliation.
+                return entry
             if entry.status == "reserved":
                 raise InvalidTransitionError("An undispatched call must be released, not settled.")
             if entry.status in {"settled", "released"}:

@@ -56,7 +56,9 @@ exact owner acceptance and linked repairs, and now immutable multi-file delivery
 with original files, safe source previews, evidence, limitations and current disclosure/
 applicability checks. Acceptance authority includes source changes beyond review excerpts
 and human-only decisions. Field-level/transitive repair, package acceptance and native
-format validators remain open. Compute/storage meters, all-tool accounting,
+format validators remain open. [Workspace storage](../runbooks/workspace-storage.md) now
+enforces logical retained-content admission, versioned administrator entitlements,
+expiring overrides and recoverable source-upload holds. Physical capacity/compute meters, all-tool accounting,
 full hosted administration and broader model quality acceptance remain later work.
 PostgreSQL and the memory test adapter enforce
 workspace/project scope, current membership, revision checks, atomic claims and

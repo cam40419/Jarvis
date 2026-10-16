@@ -991,7 +991,12 @@
 
 .na-preview pre,
 #na-checks pre,
+#nr-dialog pre,
+#nv-dialog pre,
+#nh-dialog pre,
 #na-difference {
+  min-width: 0;
+  max-width: 100%;
   max-height: 420px;
   overflow: auto;
   white-space: pre-wrap;

@@ -1,6 +1,6 @@
 # Simon roadmap
 
-Updated October 10, 2026. This is the authoritative delivery order for Simon. Detailed
+Updated October 12, 2026. This is the authoritative delivery order for Simon. Detailed
 architecture documents explain design choices; runbooks describe implemented behavior.
 Use the core-first sequence below for implementation and acceptance.
 
@@ -12,15 +12,41 @@ authorized continuity mandatory base-platform requirements, as specified in the
 [baseline quality implementation plan](architecture/platform-baseline-quality-plan.md).
 Other innovation candidates remain research hypotheses; this roadmap governs delivery.
 
-The next implementation slice now provides **immutable delivery snapshots** with exact
+The artifact implementation provides **immutable delivery snapshots** with exact
 multi-file ZIP exports, safe source previews, captured checks/decisions/review states,
 durable receipts and current applicability/disclosure checks. Artifact acceptance now
 tracks human-only authority and all source revisions beyond the bounded review excerpts;
 stale accepted work can be repaired and known revoked evidence is withheld from downstream
 execution. See [the artifact runbook](runbooks/native-artifacts.md#delivery-packets).
-This is partial baseline work. Typed fact dependencies and selective/transitive repair,
-required-file package acceptance, native-format validation, resource metering and the
-comparative core gate remain required and unaccepted.
+This is partial baseline work. [Typed fact dependencies and selective/transitive repair](runbooks/native-dependencies.md)
+now support bounded text/JSON workflows, source-aware review authority and atomic repair
+publication with executable apparel/equipment fixtures.
+[Registered text/JSON package acceptance, a decision inbox and authorized native-worker
+handoff](runbooks/delivery-review-continuity.md) now extend that workflow. Application-specific
+validation, measured physical resources and the comparative core gate remain required
+and unaccepted.
+
+The next resource-authority slice now adds [workspace storage entitlements](runbooks/workspace-storage.md):
+immutable administrator-issued plan versions, expiring audited overrides, atomic admission
+for source/artifact revisions and delivery manifests/previews, and durable source-upload
+reservations with owner reconciliation. Downgrades preserve retained work. This is logical
+content accounting; compute, physical capacity, hosted scheduling and billing remain open.
+[Registered dependency, delivery and continuity fixtures](architecture/core-baseline-fixtures.md)
+define the next BASE-01/02/05 contracts and comparative criteria before trials.
+
+The follow-up correctness pass aligns intake and artifact authority at 2,000 retained
+source revisions, keeps platform storage administration available after a workspace loses
+its last member, and enforces native-core restoration quarantine using an external
+generation witness. Old execution authority and late responses cannot resume after a
+supported restore; explicit reconciliation and re-enrollment are required. See
+[the recovery procedure](runbooks/storage-recovery.md#enforced-native-core-restoration-quarantine).
+These protections do not complete physical recovery, provider reconciliation, BASE-01–05
+or CORE-ACCEPT. Selective repair requires migration 0039. Step 3 now implements registered
+delivery profiles, package acceptance, focused review and authorized native takeover;
+see its runbook for supported bounds and pending persistent-installation migrations.
+Physical resources, compute isolation/fairness, administrative model controls, PostgreSQL 17
+and model-quality/comparative trials remain parallel core requirements. Repair metadata
+accounting, long-lived history retention and measured graph capacity are additional follow-ups.
 
 Simon is being designed for public SaaS, starting with local development and later hosted operation with optional local workers. The next milestone is **an accepted platform core**: create and steer a project/team, manage human and agent work, repair changed inputs across affected outputs, deliver usable versioned packets, minimize review effort, enforce resource/model limits, recover interruptions and support authorized takeover. The goal is parity or better with the strongest relevant platforms serving the same supported workflows. Real business tools follow individually after that gate and inherit the same baseline contracts.
 
@@ -136,7 +162,8 @@ Intake remains bounded to at most 12 source excerpts of 3,000 characters each,
 text/DOCX extraction and no OCR/visual analysis. Qualification
 proves a small text/JSON exchange, not broad model quality. Native qualification, intake
 and specialist execution currently use the ledger; independent chat, business-tool execution, subscriptions,
-compute/storage meters and full hosted administration remain open. Migration 0032 adds
+compute/physical-storage meters and full hosted administration remain open; logical retained-content
+admission is implemented separately in migration 0037. Migration 0032 adds
 intake evidence/history; 0033 adds project models, encrypted credential revisions, resource
 policies and usage, importing any earlier intake liabilities once. Recovery includes the
 catalog and originals; encrypted project keys require the matching database and master key.
@@ -227,6 +254,18 @@ project capability.
    for its actual outputs and operation scope.
 
 ## Verification and remaining limits
+
+October 12 selective-repair verification covers 21 fixture/service cases, 9 scoped
+review/delivery authority cases, 3 shared-task protection cases, 6 API cases, 8 authenticated Edge browser scenarios,
+29 domain/memory contracts and 10 unique PostgreSQL cases. The registered apparel and
+equipment fixtures now execute their cyclic repair and required conflict/revocation/
+missing-coverage/same-value cases. Database checks include a second-output quota failure,
+atomic rollback and receipt replay through a fresh adapter. Broader related selections
+passed 185 artifact/delivery unit/API cases and 110 execution/storage/recovery cases;
+these groups overlap and are not a unique repository total. Ruff formatting/lint across
+412 Python files, strict typing across 170 source files and browser lint/formatting pass.
+Disposable PostgreSQL 16.15/pgvector 0.8.6 clusters stopped after testing. This focused
+work did not rerun repository-wide coverage, PostgreSQL 17 or live/comparative trials.
 
 Memory and PostgreSQL contracts exercise persistence, composite foreign keys, version
 checks, receipts, revocation, task release, simultaneous claims and staffing admission.

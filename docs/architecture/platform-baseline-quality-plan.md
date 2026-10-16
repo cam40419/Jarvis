@@ -5,10 +5,13 @@ manifests, original bytes, escaped text previews, check/decision/review-state ev
 declared limitations, with durable receipts and fresh export authorization. Human-only
 artifact acceptance and source coverage now invalidate on full source-authority changes;
 known revoked dependencies block disclosure and downstream execution. These are partial
-BASE-01/02/04/05 foundations, not acceptance of CORE-19 through CORE-24. Field-level and
-transitive impact/repair, required-file package acceptance, native editing/render checks,
-resource accounting, continuity and comparative fixtures remain outstanding. Implemented
-limits and behavior are recorded in the [artifact runbook](../runbooks/native-artifacts.md).
+BASE-01/02/04/05 foundations, not acceptance of CORE-19 through CORE-24. Declared typed
+fact/requirement dependencies now support field-level/transitive impact, cycle-safe bounded
+repair, scoped semantic review authority and executable text/JSON fixtures. Required-file
+package acceptance, native editing/render checks, physical resource accounting, continuity
+and comparative trials remain outstanding. Implemented limits and behavior are recorded in
+the [artifact runbook](../runbooks/native-artifacts.md) and
+[selective-repair runbook](../runbooks/native-dependencies.md).
 
 Confirmed owner direction, **October 10, 2026**. The five capabilities below are mandatory
 base-platform requirements. They are not optional differentiation bets, future research
@@ -201,6 +204,13 @@ not a competitor failure or a completed comparison.
 
 ## Delivery order and status
 
+The [October 12 contract and fixture register](core-baseline-fixtures.md) defines concrete
+BASE-01/02/05 inputs, authority/dependency semantics and comparison criteria before trials.
+The selective-repair fixtures now execute against the implemented bounded services;
+delivery, continuity and comparative acceptance inputs remain prospective.
+[Workspace storage authority](../runbooks/workspace-storage.md) supplies the first remaining
+resource package: logical retained-content admission and recoverable upload holds.
+
 1. Specify BASE-01/02/05 data/permission/manifest contracts, comparative scope and fixture
    rubrics alongside remaining tenant/admin/resource work. Preserve the useful existing
    execution/review contracts and tests.
@@ -216,8 +226,11 @@ not a competitor failure or a completed comparison.
 
 Current immutable revisions, bounded text review/repair, task/source authority fencing,
 model liability records and PostgreSQL checkpoints support this work. They do not complete
-selective cross-output impact, multi-file native delivery, a measured review experience,
-complete recovery economics or permission-safe cross-runtime continuity. Keep those gaps
+general/native-format cross-output repair, native-application validation, a measured review
+experience, complete recovery economics or arbitrary cross-runtime continuity. The
+[step 3 implementation](../runbooks/delivery-review-continuity.md) supplies registered
+text/JSON package acceptance, bounded decision summaries/admission and authorized
+same-project native-worker succession. Keep the remaining gaps
 explicit until their acceptance evidence exists.
 
 Later innovation work must add value beyond this baseline. Project branches, bounded

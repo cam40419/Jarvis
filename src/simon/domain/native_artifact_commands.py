@@ -20,6 +20,7 @@ class UpdateArtifactReviewPolicy(ArtifactCommand):
     require_agent_review: bool = True
     reviewer_agent_id: UUID | None = None
     max_repair_cycles: int = Field(default=3, ge=0, le=8, strict=True)
+    max_pending_reviews: int = Field(default=20, ge=1, le=100, strict=True)
 
     @model_validator(mode="after")
     def automatic_acceptance_requires_review(self) -> Self:
